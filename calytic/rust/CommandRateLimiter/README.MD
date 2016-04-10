@@ -1,12 +1,4 @@
-
-
-		
-				
-	
-		
-	
-			
-		**Features** 
+**Features** 
 
 
 * Monitors the rate players uses all commands
@@ -23,7 +15,3 @@
 
 
 Thanks [TnTGaming | Oxide](http://oxidemod.org/members/tntgaming.97369/) for supporting the development of this plugin
-		
-	
-	
-	

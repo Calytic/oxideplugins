@@ -1,12 +1,4 @@
-
-
-		
-				
-	
-		
-	
-			
-		**Description** 
+**Description** 
 
 
 TurretConfig allows you to configure the way turrets work, full option list below.
@@ -54,16 +46,16 @@ This plugin uses Oxide's permission system. To assign a permission, use **grant 
 
 	
 	
-``turrets.reload
+````turrets.reload
 
-Applies configuration to all turrets``
+Applies configuration to all turrets````
 
 
 **Default Configuration** 
 
 	
 	
-``{
+````{
 
   "adminOverride": true,
 
@@ -101,13 +93,13 @@ Applies configuration to all turrets``
 
   ]
 
-}``
+}````
 
 Some options for the ammoType
 
 	
 	
-``ammo.pistol
+````ammo.pistol
 
 ammo.shotgun
 
@@ -119,14 +111,10 @@ ammo.rifle.explosive
 
 ammo.pistol.hv
 
-ammo.pistol.fire``
+ammo.pistol.fire````
 
 
 Note: Multiple ammunition types are not supported.  You may only choose one type.
 
 
 Feedback is appreciated.
-		
-	
-	
-	

@@ -1,12 +1,4 @@
-
-
-		
-				
-	
-		
-	
-			
-		SuicideBomber will allow players to use a Targeting Computer and Timed Explosives to explode.
+SuicideBomber will allow players to use a Targeting Computer and Timed Explosives to explode.
 
 **How To** 
 
@@ -71,7 +63,7 @@ Whether or not the bomber screams before exploding
 
 	
 	
-``
+````
 
 
 {
@@ -102,10 +94,4 @@ Whether or not the bomber screams before exploding
 
 }
 
- ``
-
-
-		
-	
-	
-	
+ ````
