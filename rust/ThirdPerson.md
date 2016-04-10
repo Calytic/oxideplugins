@@ -1,4 +1,5 @@
 **ThirdPerson** is a micro-plugin that allows any player with permission to use the third-person view.
+
 **Permissions**
 
 This plugin uses Oxide's permission system. To assign a permission, use **grant user <username|steamid> <permission>**. To remove a permission, use **revoke user <username|steamid> <permission>**.
@@ -22,6 +23,7 @@ Toggles player's view to/from third-person.
 **Configuration**
 
 You can configure the settings in the ThirdPerson.json file under the server/<identity>/oxide/config directory.
+
 **Default Configuration**
 
 ````

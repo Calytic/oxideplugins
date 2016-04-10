@@ -1,10 +1,11 @@
 [](http://forum.rustoxide.com/plugins/704/rate)
 **Notifico** is a simple yet useful plugin that relays your server joins, quits, commands used by admin, and chat messages to the IRC world using the web to IRC bridge provided by [http://n.tkte.ch](http://n.tkte.ch).
+
 **Initial Setup**
 
 In order to use this plugin, there's a few steps you'll have to take to prepare.
 
-* Register an account on http://n.tkte.ch.
+* Register an account on [http://n.tkte.ch](http://n.tkte.ch).
 * Login, and click on the button "New Project".
 
 * Fill in a "Name" (this can be anything), uncheck "Public", and click "Create Project".
@@ -23,6 +24,7 @@ In order to use this plugin, there's a few steps you'll have to take to prepare.
 **Configuration**
 
 You can configure the general settings and messages in the notifico.json file under the oxide/config directory.
+
 **Default Configuration**
 
 ````

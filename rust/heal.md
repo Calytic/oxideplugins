@@ -1,4 +1,5 @@
 This plugin gives admins and moderators the option to heal peoples HP, give them food and water and cure them from all injuries like bleeding, poison, radiation etc.
+
 **Usage**
 
 To use the commands you need to be in the moderator or owner group!

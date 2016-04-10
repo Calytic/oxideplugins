@@ -1,7 +1,9 @@
 **Respawner** is a plugin that automatically respawns players after they die, either at the same location where they died, one of their sleeping bags, custom spawn, or a random location. You can set players to automatically wake up via the configuration as well. To use a custom spawn location, set other location options to "false" and set "CustomSpawn" to something such as "10, 12, -14" or similar.
+
 **Configuration**
 
 You can configure the settings and messages in the Respawner.json file under the server/identity/oxide/config directory.
+
 **Default Configuration**
 
 ````

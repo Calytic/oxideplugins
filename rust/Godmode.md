@@ -1,7 +1,9 @@
 This plugin allows players with the correct permissions to be invulnerable to damage.
+
 **Required Permissions**
 
 For players to be able to use the commands that this plugin offers the permission **godmode.allowed **is required.
+
 **Default config**
 
 ````

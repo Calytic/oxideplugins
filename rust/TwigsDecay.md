@@ -1,4 +1,5 @@
 **TwigsDecay** is a replacement for the default decay system. It steadily decays buildings made of twigs in an attempt to reduce the overall entity count on servers. Also works for other tiers if configured to do so.
+
 **Configuration (edit config/TwigsDecay.json):**
 
 
@@ -10,12 +11,17 @@
 **blocks** - Contains a list of blocks to decay (default: all but "pillar")
 
 With the default configuration, twigs buildings will fully decay in 24 hours after being built and higher grades will not decay.
+
 **Barricades and Ladders**
 
+
 By default, TwigsDecay does not decay barricades or ladders. You can, however, configure this. Barricades have 350 HP (Wooden), 400 HP (Barbed) respectively 500 HP (Metal) and ladders have 50 HP (Wooden).
+
 **Translating**
 
+
 There is a config file located at config/TwigsDecay.json which contains all translatable strings. Simply edit the right hand side of the translations, but always keep the %PLACEHOLDERS% intact and untranslated.
+
 
 ````
 {

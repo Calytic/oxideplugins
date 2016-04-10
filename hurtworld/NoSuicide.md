@@ -1,4 +1,5 @@
 **NoSuicide** stops players from suiciding/killing themselves.
+
 **Permissions**
 
 This plugin uses Oxide's permission system. To assign a permission, use **grant user <username|steamid> <permission>**. To remove a permission, use **revoke user <username|steamid> <permission>**.

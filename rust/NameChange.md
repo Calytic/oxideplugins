@@ -1,4 +1,5 @@
 **NameChange** allows players with permission to instantly rename other players, and keep them with that name. Names are persistent and stored by each player's Steam ID.
+
 **Permissions**
 
 This plugin uses Oxide's permission system. To assign a permission, use **grant user <username|steamid> <permission>**. To remove a permission, use **revoke user <username|steamid> <permission>**.

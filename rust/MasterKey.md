@@ -1,4 +1,5 @@
 **MasterKey** allows players with permission to unlock doors, storage boxes, furnaces, and gates, and even authorizing building automatically when entering restricted cupboards' radius. Usage is logged by default to the dated masterkeys_##-##-####.txt file in the oxide/logs directory.
+
 **Permissions**
 
 This plugin uses Oxide's permission system. To assign a permission, use **grant user <username|steamid> <permission>**. To remove a permission, use **revoke user <username|steamid> <permission>**.

@@ -1,4 +1,5 @@
 **LootProtection** prevents players with permission from being looted by other players. This only applies to a player's inventory, not boxes or other storage.
+
 **Permissions**
 
 This plugin uses Oxide's permission system. To assign a permission, use **oxide.grant user <username|steamid> <permission>**. To remove a permission, use **oxide.revoke user <username|steamid> <permission>**.
@@ -24,6 +25,7 @@ This plugin uses Oxide's permission system. To assign a permission, use **oxide.
 **Configuration**
 
 You can configure the settings and messages in the LootProtection.json file under the server/identity/oxide/config directory.
+
 **Default Configuration**
 
 ````

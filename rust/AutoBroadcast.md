@@ -1,4 +1,5 @@
 **AutoBroadcast** automates the sending of global broadcasts messages based on a timed interval.
+
 **Configuration**
 
 You can configure the settings in the AutoBroadcast.json file under the oxide/config directory.

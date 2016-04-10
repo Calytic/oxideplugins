@@ -1,5 +1,6 @@
 [](http://forum.rustoxide.com/plugins/657/rate)
 **Hurt Me** is a simple plugin that allows admin to hurt players on command, with optional amount.
+
 **Chat Commands**
 
 
@@ -11,6 +12,7 @@ Hurts target player on command, with optional amount
 **Configuration**
 
 You can configure the chat name, chat command, and messages in the hurtme.json file under the oxide/config directory.
+
 **Default Configuration**
 
 ````

@@ -1,4 +1,5 @@
 **Ping** provides automatic kicking of players with high pings. This plugin will allow you to only keep players on your server with lower pings, hopefully preventing "laggy" players that make gameplay frustrating for some.
+
 **Permissions**
 
 This plugin uses Oxide's permission system. To assign a permission, use **grant user <username|steamid> <permission>**. To remove a permission, use **revoke user <username|steamid> <permission>**.

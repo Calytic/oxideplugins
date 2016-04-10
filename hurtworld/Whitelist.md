@@ -1,4 +1,5 @@
 **Whitelist** restricts access to your server, only allowing players who have the 'whitelist.allowed' permission from Oxide.
+
 **Permissions**
 
 This plugin uses Oxide's permission system. To assign a permission, use **grant user <username|steamid> <permission>**. To remove a permission, use **revoke user <username|steamid> <permission>**.

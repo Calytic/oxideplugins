@@ -1,4 +1,5 @@
 **Slap** allows players with permission to slap other players around a bit. Also features random flinching, suitable sound effects, and plenty of hurt for a premium slap experience.
+
 **Permissions**
 
 This plugin uses Oxide's permission system. To assign a permission, use **grant user <username|steamid> <permission>**. To remove a permission, use **revoke user <username|steamid> <permission>**.
@@ -22,6 +23,7 @@ Slaps the specified player around a bit.
 **Configuration**
 
 You can configure the settings and messages in the Slap.json file under the server/<identity>/oxide/config directory.
+
 **Default Configuration**
 
 ````

@@ -1,6 +1,8 @@
 **Sleep** allows players with permission to get a well-rested sleep. While sleeping, players may grow hungry, get thirsty, and even get a bit dirty depending on settings.
 
+
 By default, players will heal and restore 5 percent of their current levels every 10 seconds; and get dirty, hungry, and thirsty by 5 percent of their current levels every 10 seconds. Curing is also available, but disabled by default. Everything is changeable in the config file.
+
 **Permissions**
 
 This plugin uses Oxide's permission system. To assign a permission, use **oxide.grant user <username|steamid> <permission>**. To remove a permission, use **oxide.revoke user <username|steamid> <permission>**.
@@ -24,6 +26,7 @@ Makes player go to sleep.
 **Configuration**
 
 You can configure the settings and messages in the Sleep.json file under the server/identity/oxide/config directory.
+
 **Default Configuration**
 
 ````

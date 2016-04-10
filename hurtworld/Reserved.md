@@ -1,4 +1,5 @@
 **Reserved** sets aside a configurable number of slots so that select players can connect even when the server has the maximum number of regular players connected.
+
 **Permissions**
 
 This plugin uses Oxide's permission system. To assign a permission, use **grant user <username|steamid> <permission>**. To remove a permission, use **revoke user <username|steamid> <permission>**.

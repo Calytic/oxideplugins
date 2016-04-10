@@ -1,4 +1,5 @@
 **AFK** automatically kicks players that are AFK (away from keyboard) for too long. The default AFK time limit is set to 600 seconds (10 minutes).
+
 **Permissions**
 
 This plugin uses Oxide's permission system. To assign a permission, use **grant user <username|steamid> <permission>**. To remove a permission, use **revoke user <username|steamid> <permission>**.

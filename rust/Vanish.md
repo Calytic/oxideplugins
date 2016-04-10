@@ -1,4 +1,5 @@
 **Vanish** allows players with permission to become completely invisible. Players, turrets, and helicopters will not be able to see, hear, or touch you! By default, admin will be able to see each other when vanished, but you can change that in the config file.
+
 **Permissions**
 
 This plugin uses Oxide's permission system. To assign a permission, use **grant user <username|steamid> <permission>**. To remove a permission, use **revoke user <username|steamid> <permission>**.
@@ -22,6 +23,7 @@ This plugin uses Oxide's permission system. To assign a permission, use **grant 
 **Configuration**
 
 You can configure the settings and messages in the Vanish.json file under the server/<identity>/oxide/config directory.
+
 **Default Configuration**
 
 ````

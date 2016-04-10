@@ -1,7 +1,10 @@
 **HideAndSeek** is work-in-progress re-make of the Prop Hunt / Hide and Seek game mode for games such as Garry's Mod, and other games. It's currently unfinished, but there's still fun to be had!
 
+
 To hide as an item, you'd first need the permission that is documented below. Once you have that, you can use the chat commands or simply use the Left and Right mouse buttons. Enjoy!
+
 **Note: **I would recommend running this standalone, with no other plugins that change game mechanics. There is still a good bit that is hard-coded, but that'll be moved to a configuration soon.
+
 **Features**
 
 
@@ -43,6 +46,7 @@ This plugin uses Oxide's permission system. To assign a permission, use **grant 
 * 
 **/hide**
 Disguises the player as the prop they are targeting.
+
 
 * 
 **/unhide**

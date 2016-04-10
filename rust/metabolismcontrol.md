@@ -1,7 +1,9 @@
 This plugin allows you to change metabolism settings such as health, calories and water.
+
 **Usage**
 
 Simply edit the config to your needs, there are no chat commands.
+
 **Rusts default values**
 
 LossRate Calories: 0 - 0.05
@@ -12,6 +14,7 @@ GainRate Health: 0.03
 
 SpawnValue: random between 50 and 200
 **Rates and SpawnValues can be set to "default" to use the default game settings, otherwise only use numbers without brackets!**
+
 **Default config**
 
 ````

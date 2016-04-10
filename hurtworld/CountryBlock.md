@@ -1,4 +1,5 @@
 **CountryBlock** blocks or allows players only from configured countries. This is useful for keeping your player-base somewhat localized.
+
 **Permissions**
 
 This plugin uses Oxide's permission system. To assign a permission, use **grant user <username|steamid> <permission>**. To remove a permission, use **revoke user <username|steamid> <permission>**.

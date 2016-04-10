@@ -1,4 +1,5 @@
 **Chat Cleaner** is used to work around the nasty Unity/Rust chat disappearing bug. This will clear a player's chat on join, and on /clear command use. Chat history restoration is also available when using the optional Chat Handler plugin.
+
 **Chat Command**
 
 

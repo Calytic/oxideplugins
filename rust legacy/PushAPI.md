@@ -1,4 +1,5 @@
 **Push API** is an API for sending messages via Pushover and Pushalot mobile notification services. Keep in mind that alone this does nothing, as it's an API meant for plugins to utilize. To use this with a supported plugin, simply install like you would any other plugin!
+
 **Pushover Service**
 
 
@@ -6,10 +7,10 @@
 * 
 **Priority:** high, low, quiet
 * 
-**Sounds:** https://pushover.net/api#sounds
+**Sounds:** [https://pushover.net/api#sounds](https://pushover.net/api#sounds)
 * 
 ****Apps**:** Android, iOS, Chrome, Firefox, and Safari
-* Signup at https://pushover.net/login
+* Signup at [https://pushover.net/login](https://pushover.net/login)
 
 
 **Pushalot Service**
@@ -23,12 +24,13 @@
 **Sounds:** no sound options available
 * 
 **Apps:** Windows 8 and Windows Phone
-* Signup at https://pushalot.com/register
+* Signup at [https://pushalot.com/register](https://pushalot.com/register)
 
 
 **Configuration**
 
 You need to set your Pushover or Pushalot API keys/tokens for this to work. You can configure all of the settings and messages in the PushAPI.json file under the serverdata/oxide/config directory.
+
 **Default Configuration**
 
 ````
@@ -70,6 +72,7 @@ You need to set your Pushover or Pushalot API keys/tokens for this to work. You 
 ````
 
 The configuration file will update automatically if new options are added or removed. I'll do my best to preserve any existing settings and messages with each new version.
+
 **Plugin Developers**
 
 To call the functions from this API your plugin needs to get the plugin instance.
@@ -97,10 +100,12 @@ pushApi:CallHook("PushMessage", "This is a test push", "This is a test of the Pu
 ````
 
 You can also specific an optional priority and sound at the end of the call.
+
 **Example Plugins**
 Code (C):
 ````
 using Oxide.Core.Plugins;
+
 
 namespace Oxide.Plugins
 {
@@ -116,6 +121,7 @@ namespace Oxide.Plugins
         [PluginReference]
 
         Plugin PushAPI;
+
 
         void Loaded()
 
@@ -148,6 +154,7 @@ PLUGIN.Version = V(0, 1, 0)
 PLUGIN.Description = "Push API test plugin."
 
 PLUGIN.Author = "Wulf / Luke Spragg"
+
 function PLUGIN:Init()
 
     local pushApi = plugins.Find("PushAPI")

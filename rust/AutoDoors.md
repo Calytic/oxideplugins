@@ -1,4 +1,5 @@
 **AutoDoors** automatically closes doors behind players after the default amount of seconds or as set by them. The delay is by default set to 5 seconds, but you can change that in the config file if desired.
+
 **Chat Command**
 
 
@@ -7,6 +8,7 @@
 Disables doors automatically closing for player.
 * 
 **/ad #** (a number between MIN and MAX)
+
 Sets automatic door closing delay for player.
 
 

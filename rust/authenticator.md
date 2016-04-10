@@ -1,6 +1,7 @@
 **Description**
 
 This plugin allows your players to register their name to their Steam account. If someone uses a name with another steam account than the one that registered the name, he will be forced to identify or else will be kicked.
+
 **Usage**
 
 /auth register <password> - registers the name to the steam account
@@ -10,6 +11,7 @@ This plugin allows your players to register their name to their Steam account. I
 /auth identify <password> - allows you to identify your name if yoou're logging in with another steam account
 
 /authhelp - shows some info about the functionality
+
 **Default coonfig**
 
 ````

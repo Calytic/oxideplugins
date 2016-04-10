@@ -1,7 +1,9 @@
 **MoneyTime** pays players money via Economics for playing on your server.  It is useful to encourage playtime, and give something extra to your players for playing! The default payout is $10 every 600 seconds (10 minutes). You can also configure a time alive bonus (default 2x time alive) and welcome bonus (default $500) in the configuration.
+
 **Configuration**
 
 You can configure the settings and messages in the MoneyTime.json file under the server/<identity>/oxide/config directory.
+
 **Default Configuration**
 
 ````

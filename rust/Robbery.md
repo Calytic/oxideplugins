@@ -1,6 +1,8 @@
 **Robbery** allows players to steal Economics money from other players by killing them. The percent stolen can be customized based on if the victim was awake or sleeping at time of death/when pickpocketed.
 
+
 This plugin also supports Zone Manager/Event Manager, whereas it will disable robbery if the victim is in an event or a zone where they have the "noplayerloot" flag.
+
 **Permissions**
 
 This plugin uses Oxide's permission system. To assign a permission, use **grant user <username|steamid> <permission>**. To remove a permission, use **revoke user <username|steamid> <permission>**.
@@ -16,6 +18,7 @@ This plugin uses Oxide's permission system. To assign a permission, use **grant 
 **Configuration**
 
 You can configure the settings and messages in the Robbery.json file under the server/<identity>/oxide/config directory.
+
 **Default Configuration**
 
 ````
