@@ -15,7 +15,6 @@
 						Yes
 					
 	
-
 			
 		**Features** 
 
@@ -67,7 +66,6 @@ Removes ownership from an entire structure (including deployables)
 
 
 
-
 	
 	
 ``
@@ -93,7 +91,6 @@ Checks the authorization of nearby cupboards
 Checks the ownership of nearby storage containers
 
  ``
-
 
 
 

@@ -15,7 +15,6 @@
 						Yes
 					
 	
-
 			
 		**AntiOfflineRaid**  is a structure-related plugin that reduces the amount of damage to player structures by a percentage. The percentage decreases as time passes.
 

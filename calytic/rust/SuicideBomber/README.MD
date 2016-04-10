@@ -15,7 +15,6 @@
 						Yes
 					
 	
-
 			
 		SuicideBomber will allow players to use a Targeting Computer and Timed Explosives to explode.
 
