@@ -257,71 +257,71 @@ The number of minutes before friend and clan relationships are refreshed
 
 {
 
-  "blockAll": false,
+Â  "blockAll": false,
 
-  "blockOnDamage": true,
+Â  "blockOnDamage": true,
 
-  "blockOnDestroy": false,
+Â  "blockOnDestroy": false,
 
-  "cacheMinutes": 1.0,
+Â  "cacheMinutes": 1.0,
 
-  "clanCheck": false,
+Â  "clanCheck": false,
 
-  "clanShare": false,
+Â  "clanShare": false,
 
-  "combatBlock": false,
+Â  "combatBlock": false,
 
-  "combatBlockNotify": false,
+Â  "combatBlockNotify": false,
 
-  "combatDuration": 180.0,
+Â  "combatDuration": 180.0,
 
-  "combatOnHitPlayer": true,
+Â  "combatOnHitPlayer": true,
 
-  "combatOnTakeDamage": true,
+Â  "combatOnTakeDamage": true,
 
-  "damageTypes": [
+Â  "damageTypes": [
 
-    "Bullet",
+Â  Â  "Bullet",
 
-    "Blunt",
+Â  Â  "Blunt",
 
-    "Stab",
+Â  Â  "Stab",
 
-    "Slash",
+Â  Â  "Slash",
 
-    "Explosion"
+Â  Â  "Explosion"
 
-  ],
+Â  ],
 
-  "friendCheck": false,
+Â  "friendCheck": false,
 
-  "friendShare": false,
+Â  "friendShare": false,
 
-  "ownerBlock": true,
+Â  "ownerBlock": true,
 
-  "raidBlock": true,
+Â  "raidBlock": true,
 
-  "raidBlockNotify": true,
+Â  "raidBlockNotify": true,
 
-  "raidDistance": 100.0,
+Â  "raidDistance": 100.0,
 
-  "raidDuration": 300.0,
+Â  "raidDuration": 300.0,
 
-  "raiderBlock": false,
+Â  "raiderBlock": false,
 
-  "raiderClanShare": false,
+Â  "raiderClanShare": false,
 
-  "raiderFriendShare": false,
+Â  "raiderFriendShare": false,
 
-  "unblockOnDeath": true,
+Â  "unblockOnDeath": true,
 
-  "unblockOnRespawn": true,
+Â  "unblockOnRespawn": true,
 
-  "unblockOnWakeup": false
+Â  "unblockOnWakeup": false
 
 }
 
- 
+Â 
 ````
 
 

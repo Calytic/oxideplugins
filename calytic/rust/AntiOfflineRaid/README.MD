@@ -108,59 +108,59 @@ Asset path of sound to play
 ````
 {
 
-  "protectionMessage": "This building is protected: {amount}%",
+Â  "protectionMessage": "This building is protected: {amount}%",
 
-  "showMessage": true,
+Â  "showMessage": true,
 
-  "afkMinutes": 5,
+Â  "afkMinutes": 5,
 
-  "clanShare": false,
+Â  "clanShare": false,
 
-  "minMembers": 1,
+Â  "minMembers": 1,
 
-  "playSound": false,
+Â  "playSound": false,
 
-  "sound": "assets/prefabs/weapon mods/silencers/effects/silencer_attach.fx.prefab",
+Â  "sound": "assets/prefabs/weapon mods/silencers/effects/silencer_attach.fx.prefab",
 
-  "prefabs": [
+Â  "prefabs": [
 
-    "door.hinged",
+Â  Â  "door.hinged",
 
-    "door.double.hinged",
+Â  Â  "door.double.hinged",
 
-    "window.bars",
+Â  Â  "window.bars",
 
-    "floor.ladder.hatch",
+Â  Â  "floor.ladder.hatch",
 
-    "floor.frame",
+Â  Â  "floor.frame",
 
-    "wall.frame",
+Â  Â  "wall.frame",
 
-    "shutter",
+Â  Â  "shutter",
 
-    "wall.external",
+Â  Â  "wall.external",
 
-    "gates.external"
+Â  Â  "gates.external"
 
-  ]
+Â  ]
 
-  "cooldownMinutes": 10,
+Â  "cooldownMinutes": 10,
 
-  "interimDamage": 0.0,
+Â  "interimDamage": 0.0,
 
-  "damageScale": {
+Â  "damageScale": {
 
-    "1": 0.2,
+Â  Â  "1": 0.2,
 
-    "3": 0.35,
+Â  Â  "3": 0.35,
 
-    "6": 0.5,
+Â  Â  "6": 0.5,
 
-    "12": 0.8,
+Â  Â  "12": 0.8,
 
-    "48": 1
+Â  Â  "48": 1
 
-  }
+Â  }
 
 }
 ````
@@ -195,19 +195,19 @@ This may be useful on pvp servers without decay to help clear out old bases.
 ````
 "damageScale": {
 
-    "1": 0.2,
+Â  Â  "1": 0.2,
 
-    "3": 0.35,
+Â  Â  "3": 0.35,
 
-    "6": 0.5,
+Â  Â  "6": 0.5,
 
-    "12": 0.8,
+Â  Â  "12": 0.8,
 
-    "48": 1,
+Â  Â  "48": 1,
 
-    "168": 2
+Â  Â  "168": 2
 
-  }
+Â  }
 ````
 
 Feedback is appreciated.  [AntiOfflineRaid | Oxide](http://oxidemod.org/threads/antiofflineraid.12824/)

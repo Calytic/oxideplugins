@@ -69,31 +69,31 @@ Whether or not the bomber screams before exploding
 
 {
 
-  "c4": 1,
+Â  "c4": 1,
 
-  "damage": 1200.0,
+Â  "damage": 1200.0,
 
-  "explosives": 10,
+Â  "explosives": 10,
 
-  "flare": true,
+Â  "flare": true,
 
-  "messages": {
+Â  "messages": {
 
-    "You lack the required {0} explosives": "You lack the required {0} explosives",
+Â  Â  "You lack the required {0} explosives": "You lack the required {0} explosives",
 
-    "You lack the required {0} timed explosives": "You lack the required {0} timed explosives",
+Â  Â  "You lack the required {0} timed explosives": "You lack the required {0} timed explosives",
 
-    "You lack the required flare": "You lack the required flare",
+Â  Â  "You lack the required flare": "You lack the required flare",
 
-    "You will explode shortly..": "You will explode shortly.."
+Â  Â  "You will explode shortly..": "You will explode shortly.."
 
-  },
+Â  },
 
-  "radius": 12.0,
+Â  "radius": 12.0,
 
-  "scream": true
+Â  "scream": true
 
 }
 
- 
+Â 
 ````

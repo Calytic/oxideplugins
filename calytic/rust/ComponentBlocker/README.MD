@@ -162,7 +162,7 @@ ComponentBlocker.Call("RemoveBlock", "ammo.shotgun.slug");
 
 if((bool)ComponentBlocker.Call("IsBlocking", "ammo.shotgun.slug")) {
 
-     // do something
+Â  Â  Â // do something
 
 }
 ````

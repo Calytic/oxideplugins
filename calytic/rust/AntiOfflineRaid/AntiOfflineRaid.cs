@@ -1,4 +1,4 @@
-﻿// Reference: Newtonsoft.Json
+ï»¿// Reference: Newtonsoft.Json
 using System;
 using System.Collections.Generic;
 using System.Text;

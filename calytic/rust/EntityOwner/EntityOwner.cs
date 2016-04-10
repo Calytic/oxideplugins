@@ -1,4 +1,4 @@
-﻿// Reference: Newtonsoft.Json
+ï»¿// Reference: Newtonsoft.Json
 // Reference: Rust.Data
 using System;
 using System.Collections.Generic;
