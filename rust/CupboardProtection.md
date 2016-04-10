@@ -1,0 +1,1 @@
+**CupboardProtection** is a micro-plugin that makes cupboards invulnerable, unable to be destroyed by anyone through traditional means. The only way you'd be able to remove one is via a plugin such as Remover Tool.
