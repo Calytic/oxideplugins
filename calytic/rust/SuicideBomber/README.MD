@@ -1,12 +1,11 @@
 SuicideBomber will allow players to use a Targeting Computer and Timed Explosives to explode.
-**How To**
+**How To** 
 
 * Move a targeting computer to quickbar
 * Select the computer from your quickbar
 * Press E
 * Count down briefly (6s)
-* Explode
-**Configuration**
+* Explode**Configuration** 
 
 
 * damage (default 1200)
@@ -24,16 +23,14 @@ Whether or not a flare is required
 * scream (default true)
 Whether or not the bomber screams before exploding
 
-
-**Notes**
+**Notes** 
 
 
 * You do the most damage to the players/buildings closest to you.  The damage will disperse the farther away the object is.
 * The scream sound may be disabled but is enabled by default
 * Localization is supported so you may change the message language
 
-
-**Default Configuration**
+**Default Configuration** 
 
 ````
 

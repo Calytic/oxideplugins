@@ -1,4 +1,4 @@
-**Configuration**
+**Configuration** 
 
 
 * FallKill (default 200)

@@ -1,4 +1,4 @@
-**Features**
+**Features** 
 
 
 * Allows admins to prod an entire building (including deployables)
@@ -9,8 +9,7 @@
 * Supports both authLevel and permission authentication.
 * Provides an API for other plugins to integrate easily
 
-
-**Chat Commands**
+**Chat Commands** 
 
 ````
 
@@ -97,8 +96,7 @@ Removes stuck building privilege/block
  
 ````
 
-
-**Console Commands**
+**Console Commands** 
 
 ````
 
@@ -111,8 +109,7 @@ Removes stuck building privilege/block
  
 ````
 
-
-**Own/Prod2/Unown options**
+**Own/Prod2/Unown options** 
 
 
 * all
@@ -126,40 +123,34 @@ Removes stuck building privilege/block
 * door
 * cupboard
 
+**Permissions** 
 
-**Permissions**
-
-This plugin uses Oxide's permission system. To assign a permission, use **grant user <username|steamid> <permission>**. To remove a permission, use **revoke user <username|steamid> <permission>**.
-
-
-* ****entityowner.**canchangeowners **(allow auth and own commands)
-**Ex.** grant user Calytic entityowner.canchangeowners 
-**Ex.** revoke user Calytic entityowner.canchangeowners 
-**Ex.** grant group moderator entityowner.canchangeowners
-* ****entityowner.**cancheckowners **(allow prod command)
-**Ex.** grant user Calytic entityowner.cancheckowners 
-**Ex.** revoke user Calytic entityowner.cancheckowners 
-**Ex.** grant group moderator entityowner.cancheckowners 
+This plugin uses Oxide's permission system. To assign a permission, use **grant user <username|steamid> <permission>** . To remove a permission, use **revoke user <username|steamid> <permission>** .
 
 
-**Configuration Options**
+* entityowner.canchangeowners (allow auth and own commands)
+Ex. grant user Calytic entityowner.canchangeowners 
+Ex. revoke user Calytic entityowner.canchangeowners 
+Ex. grant group moderator entityowner.canchangeowners
+* entityowner.cancheckowners (allow prod command)
+Ex. grant user Calytic entityowner.cancheckowners 
+Ex. revoke user Calytic entityowner.cancheckowners 
+Ex. grant group moderator entityowner.cancheckowners 
+
+**Configuration Options** 
 
 
-* 
-**EntityLimit **(default: 8000)
+* EntityLimit (default: 8000)
 There is a hard cap on how many entities may be included in any given ownership command.  By default, this cap is 8000.
 
-* 
-**messages **(Localization)
+* messages (Localization)
 It is possible to change most of the messages sent by EntityOwner into a different language.
 
-* 
-**DistanceThreshold **(default: 3)
+* DistanceThreshold (default: 3)
 It is suggested to ratchet the threshold down by 1 tenth each time (2.9, 2.8, 2.7 ..) until you are satisfied with the level of precision when using commands like /own and /prod2.
 The DistanceThreshold option allows you to configure how far the ownership commands will seek for other nearby entities (starting from the first entity). Changing the threshold will make ownership commands more or less precise.
 
-
-**API Methods**
+**API Methods** 
 
 ````
 
@@ -206,7 +197,6 @@ List<BaseEntity> GetProfileDeployables(BasePlayer player)
  
 ````
 
+**Upgrading From Building Owners** 
 
-**Upgrading From Building Owners**
-
-EntityOwner is **not **compatible with BuildingOwners.
+EntityOwner is **not** compatible with BuildingOwners.
