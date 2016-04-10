@@ -1,17 +1,4 @@
-
-
-		
-				
-	
-		
-		
-			
-				
-			
-				
-			
-				
-					Configuration File:
+Configuration File:
 						Yes
 					
 	
@@ -164,9 +151,3 @@ if((bool)ComponentBlocker.Call("IsBlocking", "ammo.shotgun.slug")) {
      // do something
 
 }``
-
-
-		
-	
-	
-	

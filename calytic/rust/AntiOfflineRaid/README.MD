@@ -1,15 +1,4 @@
-
-
-		
-				
-	
-		
-		
-			
-				
-			
-				
-					Optional Dependencies:
+Optional Dependencies:
 						[http://oxidemod.org/plugins/rust-io-clans.842/](http://oxidemod.org/plugins/rust-io-clans.842/)
 					Configuration File:
 						Yes
@@ -223,7 +212,3 @@ This may be useful on pvp servers without decay to help clear out old bases.
   }``
 
 Feedback is appreciated.  [AntiOfflineRaid | Oxide](http://oxidemod.org/threads/antiofflineraid.12824/)
-		
-	
-	
-	

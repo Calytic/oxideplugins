@@ -1,15 +1,4 @@
-
-
-		
-				
-	
-		
-		
-			
-				
-			
-				
-					Optional Dependencies:
+Optional Dependencies:
 						
 [http://oxidemod.org/plugins/rust-io-clans.842/](http://oxidemod.org/plugins/rust-io-clans.842/)
 [http://oxidemod.org/plugins/friends-api.686/](http://oxidemod.org/plugins/friends-api.686/)
@@ -371,9 +360,3 @@ void StartCombatBlocking(string target)
 void StopCombatBlocking(string target)
 
 void StopBlocking(string target)``
-
-
-		
-	
-	
-	

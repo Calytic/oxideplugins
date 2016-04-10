@@ -1,15 +1,4 @@
-
-
-		
-				
-	
-		
-		
-			
-				
-			
-				
-					Optional Dependencies:
+Optional Dependencies:
 						[http://oxidemod.org/plugins/deadplayerslist.696/](http://oxidemod.org/plugins/deadplayerslist.696/)
 					Configuration File:
 						Yes
@@ -287,7 +276,3 @@ List<BaseEntity> GetProfileDeployables(BasePlayer player)
 
 
 EntityOwner is **not** compatible with BuildingOwners.
-		
-	
-	
-	

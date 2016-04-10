@@ -1,17 +1,4 @@
-
-
-		
-				
-	
-		
-		
-			
-				
-			
-				
-			
-				
-					Configuration File:
+Configuration File:
 						Yes
 					
 	
@@ -33,7 +20,3 @@
 
 
 Thanks [TnTGaming | Oxide](http://oxidemod.org/members/tntgaming.97369/) for supporting the development of this plugin
-		
-	
-	
-	

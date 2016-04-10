@@ -1,17 +1,4 @@
-
-
-		
-				
-	
-		
-		
-			
-				
-			
-				
-			
-				
-					Configuration File:
+Configuration File:
 						Yes
 					
 	
@@ -69,7 +56,3 @@ The message that is displayed when players attempt to build past the configured 
 
 
 Note: Additionally, AntiRaidTower will prevent players from accepting teleportation requests while wounded
-		
-	
-	
-	

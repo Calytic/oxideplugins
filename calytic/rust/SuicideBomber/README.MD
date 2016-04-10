@@ -1,17 +1,4 @@
-
-
-		
-				
-	
-		
-		
-			
-				
-			
-				
-			
-				
-					Configuration File:
+Configuration File:
 						Yes
 					
 	
@@ -113,9 +100,3 @@ Whether or not the bomber screams before exploding
 }
 
  ``
-
-
-		
-	
-	
-	

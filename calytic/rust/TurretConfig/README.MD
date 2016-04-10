@@ -1,17 +1,4 @@
-
-
-		
-				
-	
-		
-		
-			
-				
-			
-				
-			
-				
-					Configuration File:
+Configuration File:
 						Yes
 					
 	
@@ -136,7 +123,3 @@ Note: Multiple ammunition types are not supported.  You may only choose one type
 
 
 Feedback is appreciated.
-		
-	
-	
-	
