@@ -50,7 +50,6 @@ Removes ownership from an entire structure (including deployables)
 
 
 
-
 	
 	
 ````
@@ -78,7 +77,6 @@ Checks the ownership of nearby storage containers
 
 Â 
 ````
-
 
 
 
