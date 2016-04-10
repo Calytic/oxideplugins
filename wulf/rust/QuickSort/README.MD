@@ -2,8 +2,6 @@ This plugin adds a new menu when looting containers. Players can choose what typ
 
 **Config** 
 
-	
-	
 ````
 {
 

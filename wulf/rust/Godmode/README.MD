@@ -6,8 +6,6 @@ For players to be able to use the commands that this plugin offers the permissio
 
 **Default config** 
 
-	Code ( (Unknown Language)):
-	
 ````
 {
 

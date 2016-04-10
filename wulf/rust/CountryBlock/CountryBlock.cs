@@ -1,4 +1,4 @@
-﻿/*
+ï»¿/*
 TODO:
 - Add support for country, country code, and Steam ID in messages
 - Add support for other games once Covalence is supported

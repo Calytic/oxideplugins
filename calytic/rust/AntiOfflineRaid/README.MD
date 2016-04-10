@@ -20,91 +20,52 @@ When unloading or updating AOR, it is recommended to save the server with server
 
 **Chat Commands** 
 
-	
-	
 ````
 /ao "PlayerName"
 
 Check the AntiOfflineRaid status of any active or sleeping player
 ````
 
-
 **Permissions** 
 
 This plugin uses Oxide's permission system. To assign a permission, use **grant user <username|steamid> <permission>** . To remove a permission, use **revoke user <username|steamid> <permission>** .
 
 
-* 
-**antiofflineraid.protect** (enabled protection using offline time)
-**Ex.**  grant user Calytic antiofflineraid.protect
-**Ex.**  revoke user Calytic antiofflineraid.protect
-**Ex.**  grant group player antiofflineraid.protect
-
-
-* **antiofflineraid.check** (allows access to "ao" command)
-**Ex.**  grant user Calytic antiofflineraid.check
-**Ex.**  revoke user Calytic antiofflineraid.check 
-**Ex.**  grant group moderator antiofflineraid.check
-
+* antiofflineraid.protect (enabled protection using offline time)
+Ex. grant user Calytic antiofflineraid.protect
+Ex. revoke user Calytic antiofflineraid.protect
+Ex. grant group player antiofflineraid.protect
+* antiofflineraid.check (allows access to "ao" command)
+Ex. grant user Calytic antiofflineraid.check
+Ex. revoke user Calytic antiofflineraid.check 
+Ex. grant group moderator antiofflineraid.check
 
 **Configuration** 
 
 
-* 
-**afkMinutes**  (default 5)
-
+* afkMinutes (default 5)
 The number of minutes without moving before a player is considered "offline."  Minimum is 5.
-
-* 
-**cooldownMinutes**  (default 10)
-
+* cooldownMinutes (default 10)
 The number of minutes after going offline that damage remains default.  After cooldown has expired, damage is completely canceled up until the 60 minutes (after which damageScale is used)
-
-* 
-**damageScale** 
-
+* damageScale
 The scale of damage done to structures depending on how many hours since the owner was last online
-
-* 
-**interimDamage**  (default 0%)
-
+* interimDamage (default 0%)
 The scale of damage between the cooldown and the first hour
-
-* 
-**clanShare**  (default false)
-
+* clanShare (default false)
 Checks number of clan-mates online before mitigating damage
-
-* 
-**minMembers**  (default 1)
-
+* minMembers (default 1)
 The number of clan mates that must be online for the entire clan to be considered online
-
-* 
-**showMessage**  (default true)
-
+* showMessage (default true)
 Whether or not to display gui message when a base is protected
-
-* 
-**protectionMessage** 
-
+* protectionMessage
 The message to show players when they hit a protected building
-
-* 
-**playSound**  (default false)
-
+* playSound (default false)
 Play a sound when damage is blocked
-
-* 
-**sound**  (default mod attachment)
-
+* sound (default mod attachment)
 Asset path of sound to play
-
 
 **Default Configuration** 
 
-	
-	
 ````
 {
 
@@ -169,19 +130,12 @@ The above configuration is intended to work as follows.
 
 
 * First 10 minutes offline - 100% damage
-
 * Between 10 and 60 minutes offline - 0% damage
-
 * Between 1 and 3 hours offline - 20% damage
-
 * Between 3 and 6 hours offline - 35% damage
-
 * Between 6 and 12 hours offline - 50% damage
-
 * Between 12 and 48 hours offline - 80% damage
-
 * After 48 hours offline - 100% damage
-
 
 **Cleaning House Option** 
 
@@ -190,8 +144,6 @@ With damageScale, this plugin may also potentially increase the damage beyond 10
 
 This may be useful on pvp servers without decay to help clear out old bases.
 
-	
-	
 ````
 "damageScale": {
 

@@ -1,4 +1,4 @@
-﻿/*
+ï»¿/*
 TODO:
 - Add automatic admin exclusion
 */

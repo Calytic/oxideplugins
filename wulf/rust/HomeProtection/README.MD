@@ -1,0 +1,1 @@
+**HomeProtection**  is a micro-plugin that protects players and their homes while in the building privilege area provided by cupboards. No damage will be done to cupboard authorized users or any building part in the area.

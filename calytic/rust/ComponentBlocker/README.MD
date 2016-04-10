@@ -2,17 +2,11 @@
 
 
 * Remove any item or game object from the world
-
 * Configurable messages and localization
-
 * Blueprint fragment refund on reveal of blocked item
-
 * Ingredient refund on crafting of blocked item
-
 * Removes blueprints of blocked items from players crafting list (on player connect)
-
 * Block structure upgrades to any tier (configurable)
-
 
 **Description** 
 
@@ -41,24 +35,18 @@ The /blocker command is a toggled list, meaning that using the same command agai
 
 Add an item by shortname to the block list
 
-	
-	
 ````
 /blocker ammo.shotgun.slug
 ````
 
 Remove block by running the exact same command
 
-	
-	
 ````
 /blocker ammo.shotgun.slug
 ````
 
 Alternatively, add an item by full name
 
-	
-	
 ````
 /blocker "12 Gauge Slug"
 ````
@@ -68,16 +56,12 @@ Please note the quotations, they are necessary for names that include spaces.
 
 Add an entity by resource path to block list
 
-	
-	
 ````
 /blocker assets/bundled/prefabs/events/cargo_plane
 ````
 
 Blocking structure tiers will prevent players from upgrading to any given tier
 
-	
-	
 ````
 /blocker structure.wood
 
@@ -90,28 +74,21 @@ Blocking structure tiers will prevent players from upgrading to any given tier
 
 Block collectables (stone/wood/ore)
 
-	
-	
 ````
 /blocker autospawn/collectable/stone
 ````
 
 To view everything currently on the block list..
 
-	
-	
 ````
 /blocklist
 ````
 
 From console:
 
-	
-	
 ````
 blocker ammo.shotgun.slug
 ````
-
 
 **Permissive Blocking Behavior** 
 
@@ -124,24 +101,14 @@ When blocking an item by name where multiple items match said name, use the /lis
 The following hooks are affected by this mod:
 
 * OnItemCraft
-
 * OnEntitySpawned
-
 * OnItemAddedToContainer
-
 * OnItemDeployed
-
 * OnBlueprintReveal
-
 * OnPlantGather
-
 * OnQuarryGather
+* OnStructureUpgrade**API Methods**  (for plugin developers)
 
-* OnStructureUpgrade
-**API Methods**  (for plugin developers)
-
-	
-	
 ````
 void AddBlock(string name)
 
@@ -150,11 +117,8 @@ void RemoveBlock(string name)
 bool IsBlocking(string name)
 ````
 
-
 Example usage (C#)
 
-	
-	
 ````
 ComponentBlocker.Call("AddBlock", "ammo.shotgun.slug");
 

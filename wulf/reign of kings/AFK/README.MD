@@ -5,20 +5,15 @@
 This plugin uses Oxide's permission system. To assign a permission, use **grant user <username|steamid> <permission>** . To remove a permission, use **revoke user <username|steamid> <permission>** .
 
 
-* 
-**afk.excluded**  (excludes player from being kicked when AFK)
-**Ex.**  grant user Wulf afk.excluded
-**Ex.**  revoke user Wulf afk.excluded
-**Ex.**  grant group moderator afk.excluded
-
-
+* afk.excluded (excludes player from being kicked when AFK)
+Ex. grant user Wulf afk.excluded
+Ex. revoke user Wulf afk.excluded
+Ex. grant group moderator afk.excluded
 
 **Configuration** 
 
 You can configure the settings in the AFK.json file under the oxide/config directory.
 
-	
-	
 ````
 {
 
@@ -29,13 +24,10 @@ You can configure the settings in the AFK.json file under the oxide/config direc
 }
 ````
 
-
 **Localization** 
 
 The default messages are in the AFK.en.json under the oxide/lang directory, or create a language file for another language using the 'en' file as a default.
 
-	
-	
 ````
 {
 
