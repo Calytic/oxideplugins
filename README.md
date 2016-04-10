@@ -1,2 +1,0 @@
-# oxideplugins
-oxide plugin repo
