@@ -1,9 +1,4 @@
-Configuration File:
-						Yes
-					
-	
-			
-		**Features** 
+**Features** 
 
 
 * Remove any item or game object from the world

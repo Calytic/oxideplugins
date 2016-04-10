@@ -1,9 +1,4 @@
-Configuration File:
-						Yes
-					
-	
-			
-		**Configuration** 
+**Configuration** 
 
 
 * 

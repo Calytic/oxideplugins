@@ -1,17 +1,4 @@
-Optional Dependencies:
-						
-[http://oxidemod.org/plugins/rust-io-clans.842/](http://oxidemod.org/plugins/rust-io-clans.842/)
-[http://oxidemod.org/plugins/friends-api.686/](http://oxidemod.org/plugins/friends-api.686/)
-[http://oxidemod.org/plugins/r-remover-tool.651/](http://oxidemod.org/plugins/r-remover-tool.651/)
-[http://oxidemod.org/plugins/teleportation-system.660/](http://oxidemod.org/plugins/teleportation-system.660/)
-[http://oxidemod.org/plugins/magic-teleportation.1404/](http://oxidemod.org/plugins/magic-teleportation.1404/)
-
-					Configuration File:
-						Yes
-					
-	
-			
-		**Description** 
+**Description** 
 
 
 NoEscape prevents teleportation (and other commands) when a raid or combat is detected.

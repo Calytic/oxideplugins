@@ -1,9 +1,4 @@
-Configuration File:
-						Yes
-					
-	
-			
-		**Description** 
+**Description** 
 
 
 TurretConfig allows you to configure the way turrets work, full option list below.

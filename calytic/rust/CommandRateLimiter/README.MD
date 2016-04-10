@@ -1,9 +1,4 @@
-Configuration File:
-						Yes
-					
-	
-			
-		**Features** 
+**Features** 
 
 
 * Monitors the rate players uses all commands

@@ -1,11 +1,4 @@
-Optional Dependencies:
-						[http://oxidemod.org/plugins/deadplayerslist.696/](http://oxidemod.org/plugins/deadplayerslist.696/)
-					Configuration File:
-						Yes
-					
-	
-			
-		**Features** 
+**Features** 
 
 
 * Allows admins to prod an entire building (including deployables)

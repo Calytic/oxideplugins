@@ -1,11 +1,4 @@
-Optional Dependencies:
-						[http://oxidemod.org/plugins/rust-io-clans.842/](http://oxidemod.org/plugins/rust-io-clans.842/)
-					Configuration File:
-						Yes
-					
-	
-			
-		**AntiOfflineRaid**  is a structure-related plugin that reduces the amount of damage to player structures by a percentage. The percentage decreases as time passes.
+**AntiOfflineRaid**  is a structure-related plugin that reduces the amount of damage to player structures by a percentage. The percentage decreases as time passes.
 
 
 There is a cooldown of 10 minutes before damage reductions will apply.  Meaning players may not necessarily prevent a raid by going offline.
