@@ -1,4 +1,4 @@
-**Features** 
+**Features**
 
 
 * Monitors the rate players uses all commands

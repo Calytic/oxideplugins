@@ -1,9 +1,8 @@
-**Configuration** 
+**Configuration**
 
 
 * FallKill (default 200)
 There is a chance that upon hitting a roof after leaping from a raid tower that the player survives wounded, gets up after several seconds, and continues raiding.
-
 This setting will instantly kill players who receive above the configured amount of fall damage.
 
 * BuildingBlockHeight (default true)

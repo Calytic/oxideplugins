@@ -1,9 +1,7 @@
-**Description** 
-
+**Description**
 
 TurretConfig allows you to configure the way turrets work, full option list below.
-
-**Features** 
+**Features**
 
 
 * Accuracy (aimCone)
@@ -19,17 +17,20 @@ TurretConfig allows you to configure the way turrets work, full option list belo
 * Sleep override (sleepOverride) - avoid targeting sleeping players
 * Infinite ammunition for turrets (disables looting turrets)
 
-**Permissions** 
 
-This plugin uses Oxide's permission system. To assign a permission, use **grant user <username|steamid> <permission>** . To remove a permission, use **revoke user <username|steamid> <permission>** .
+**Permissions**
+
+This plugin uses Oxide's permission system. To assign a permission, use **grant user <username|steamid> <permission>**. To remove a permission, use **revoke user <username|steamid> <permission>**.
 
 
-* turretconfig.infiniteammo (gives turrets built by player infinite ammo)
-Ex. grant user Calytic turretconfig.infiniteammo
-Ex. revoke user Calytic turretconfig.infiniteammo
-Ex. grant group player turretconfig.infiniteammo
+* ****turretconfig.**infiniteammo **(gives turrets built by player infinite ammo)
+**Ex.** grant user Calytic turretconfig.infiniteammo
+**Ex.** revoke user Calytic turretconfig.infiniteammo
+**Ex.** grant group player turretconfig.infiniteammo
 
-**Console Commands** 
+**
+
+Console Commands**
 
 ````
 turrets.reload
@@ -38,7 +39,7 @@ Applies configuration to all turrets
 ````
 
 
-**Default Configuration** 
+**Default Configuration**
 
 ````
 {
@@ -101,6 +102,5 @@ ammo.pistol.fire
 ````
 
 Note: Multiple ammunition types are not supported.  You may only choose one type.
-
 
 Feedback is appreciated.
