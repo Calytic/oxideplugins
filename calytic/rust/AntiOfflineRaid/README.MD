@@ -22,9 +22,11 @@ When unloading or updating AOR, it is recommended to save the server with server
 
 	
 	
-````/ao "PlayerName"
+````
+/ao "PlayerName"
 
-Check the AntiOfflineRaid status of any active or sleeping player````
+Check the AntiOfflineRaid status of any active or sleeping player
+````
 
 
 **Permissions** 
@@ -103,7 +105,8 @@ Asset path of sound to play
 
 	
 	
-````{
+````
+{
 
   "protectionMessage": "This building is protected: {amount}%",
 
@@ -159,7 +162,8 @@ Asset path of sound to play
 
   }
 
-}````
+}
+````
 
 The above configuration is intended to work as follows.
 
@@ -188,7 +192,8 @@ This may be useful on pvp servers without decay to help clear out old bases.
 
 	
 	
-````"damageScale": {
+````
+"damageScale": {
 
     "1": 0.2,
 
@@ -202,6 +207,7 @@ This may be useful on pvp servers without decay to help clear out old bases.
 
     "168": 2
 
-  }````
+  }
+````
 
 Feedback is appreciated.  [AntiOfflineRaid | Oxide](http://oxidemod.org/threads/antiofflineraid.12824/)

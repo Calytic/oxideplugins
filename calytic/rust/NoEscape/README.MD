@@ -254,6 +254,7 @@ The number of minutes before friend and clan relationships are refreshed
 ````
 
 
+
 {
 
   "blockAll": false,
@@ -320,14 +321,16 @@ The number of minutes before friend and clan relationships are refreshed
 
 }
 
- ````
+ 
+````
 
 
 **API** 
 
 	
 	
-````bool IsEscapeBlocked(BasePlayer target)
+````
+bool IsEscapeBlocked(BasePlayer target)
 
 bool IsRaidBlocked(BasePlayer target)
 
@@ -346,4 +349,5 @@ void StartCombatBlocking(string target)
 
 void StopCombatBlocking(string target)
 
-void StopBlocking(string target)````
+void StopBlocking(string target)
+````

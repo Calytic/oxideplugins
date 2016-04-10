@@ -23,6 +23,7 @@
 ````
 
 
+
 /prod
 
 Check ownership of entity you are looking at
@@ -44,13 +45,15 @@ Gives the specified player ownership of the entire structure (including deployab
 
 Removes ownership from an entire structure (including deployables)
 
- ````
+ 
+````
 
 
 
 	
 	
 ````
+
 
 
 /prod2
@@ -72,13 +75,15 @@ Checks the authorization of nearby cupboards
 
 Checks the ownership of nearby storage containers
 
- ````
+ 
+````
 
 
 
 	
 	
 ````
+
 
 
 /auth
@@ -121,7 +126,8 @@ Removes authorization of all nearby turrets from target player
 
 Removes stuck building privilege/block
 
- ````
+ 
+````
 
 
 **Console Commands** 
@@ -131,13 +137,15 @@ Removes stuck building privilege/block
 ````
 
 
+
 authclean "Player Name"
 
 authclean #STEAMID
 
 Removes stuck building privilege/block
 
- ````
+ 
+````
 
 
 **Own/Prod2/Unown options** 
@@ -215,6 +223,7 @@ The DistanceThreshold option allows you to configure how far the ownership comma
 ````
 
 
+
 // Gets the name and status of the owner player
 
 // Returns null if no owner found
@@ -262,7 +271,8 @@ List<BuildingBlock> GetProfileConstructions(BasePlayer player)
 
 List<BaseEntity> GetProfileDeployables(BasePlayer player)
 
- ````
+ 
+````
 
 
 **Upgrading From Building Owners** 

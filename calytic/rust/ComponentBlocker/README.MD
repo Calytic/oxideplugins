@@ -43,19 +43,25 @@ Add an item by shortname to the block list
 
 	
 	
-````/blocker ammo.shotgun.slug````
+````
+/blocker ammo.shotgun.slug
+````
 
 Remove block by running the exact same command
 
 	
 	
-````/blocker ammo.shotgun.slug````
+````
+/blocker ammo.shotgun.slug
+````
 
 Alternatively, add an item by full name
 
 	
 	
-````/blocker "12 Gauge Slug"````
+````
+/blocker "12 Gauge Slug"
+````
 
 Please note the quotations, they are necessary for names that include spaces.
 
@@ -64,37 +70,47 @@ Add an entity by resource path to block list
 
 	
 	
-````/blocker assets/bundled/prefabs/events/cargo_plane````
+````
+/blocker assets/bundled/prefabs/events/cargo_plane
+````
 
 Blocking structure tiers will prevent players from upgrading to any given tier
 
 	
 	
-````/blocker structure.wood
+````
+/blocker structure.wood
 
 /blocker structure.stone
 
 /blocker structure.metal
 
-/blocker structure.armored````
+/blocker structure.armored
+````
 
 Block collectables (stone/wood/ore)
 
 	
 	
-````/blocker autospawn/collectable/stone````
+````
+/blocker autospawn/collectable/stone
+````
 
 To view everything currently on the block list..
 
 	
 	
-````/blocklist````
+````
+/blocklist
+````
 
 From console:
 
 	
 	
-````blocker ammo.shotgun.slug````
+````
+blocker ammo.shotgun.slug
+````
 
 
 **Permissive Blocking Behavior** 
@@ -126,18 +142,21 @@ The following hooks are affected by this mod:
 
 	
 	
-````void AddBlock(string name)
+````
+void AddBlock(string name)
 
 void RemoveBlock(string name)
 
-bool IsBlocking(string name)````
+bool IsBlocking(string name)
+````
 
 
 Example usage (C#)
 
 	
 	
-````ComponentBlocker.Call("AddBlock", "ammo.shotgun.slug");
+````
+ComponentBlocker.Call("AddBlock", "ammo.shotgun.slug");
 
 ComponentBlocker.Call("RemoveBlock", "ammo.shotgun.slug");
 
@@ -145,4 +164,5 @@ if((bool)ComponentBlocker.Call("IsBlocking", "ammo.shotgun.slug")) {
 
      // do something
 
-}````
+}
+````
