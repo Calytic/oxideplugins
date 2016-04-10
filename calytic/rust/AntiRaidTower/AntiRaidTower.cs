@@ -1,4 +1,4 @@
-ï»¿using System;
+using System;
 using Oxide.Core.Plugins;
 using Rust;
 using UnityEngine;
