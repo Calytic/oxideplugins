@@ -1,0 +1,1 @@
+This plugin shows you your in-game position by typing "/showpos"

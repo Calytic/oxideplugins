@@ -1,0 +1,1 @@
+Displays a server wide message showing who killed who.

@@ -1,4 +1,5 @@
 SuicideBomber will allow players to use a Targeting Computer and Timed Explosives to explode.
+
 **How To**
 
 * Move a targeting computer to quickbar
@@ -10,18 +11,24 @@ SuicideBomber will allow players to use a Targeting Computer and Timed Explosive
 
 
 * damage (default 1200)
+
 The amount of damage done to objects closest to you
 * radius (default 12)
+
 The maximum radius of the explosive damage
 * explosives (default 10)
+
 The number of Explosives required to use the Targeting Computer
 * c4 (default 1)
+
 The number of Timed Explosives required to use the Targeting Computer
 
 * flare (default true)
+
 Whether or not a flare is required
 
 * scream (default true)
+
 Whether or not the bomber screams before exploding
 
 

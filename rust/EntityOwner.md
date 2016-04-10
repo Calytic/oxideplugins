@@ -18,15 +18,18 @@
 
 Check ownership of entity you are looking at
 
+
 /own
 
 /own all
 
 Gives you ownership of the entire structure (including deployables)
 
+
 /own all PlayerName
 
 Gives the specified player ownership of the entire structure (including deployables)
+
 
 /unown all
 
@@ -42,13 +45,16 @@ Removes ownership from an entire structure (including deployables)
 
 Checks the ownership of the entire structure (including deployables)
 
+
 /prod2 block
 
 Checks the ownership of the structure (and only the structure)
 
+
 /prod2 cupboard
 
 Checks the authorization of nearby cupboards
+
 
 /prod2 storage
 
@@ -66,9 +72,11 @@ Checks the ownership of nearby storage containers
 
 Check the authorization of the cupboard you are looking at
 
+
 /auth turret
 
 Check the authorization of the turret you are looking at
+
 
 /auth PlayerName
 
@@ -76,9 +84,11 @@ Check the authorization of the turret you are looking at
 
 Gives authorization on all nearby cupboards to target player
 
+
 /auth turret PlayerName
 
 Gives authorization on all nearby turrets to target player
+
 
 /deauth PlayerName
 
@@ -86,9 +96,11 @@ Gives authorization on all nearby turrets to target player
 
 Removes authorization of all nearby cupboards from target player
 
+
 /deauth turret PlayerName
 
 Removes authorization of all nearby turrets from target player
+
 
 /authclean PlayerName
 
@@ -147,15 +159,22 @@ This plugin uses Oxide's permission system. To assign a permission, use **grant 
 
 * 
 **EntityLimit **(default: 8000)
+
 There is a hard cap on how many entities may be included in any given ownership command.  By default, this cap is 8000.
+
 
 * 
 **messages **(Localization)
+
 It is possible to change most of the messages sent by EntityOwner into a different language.
+
 
 * 
 **DistanceThreshold **(default: 3)
+
 It is suggested to ratchet the threshold down by 1 tenth each time (2.9, 2.8, 2.7 ..) until you are satisfied with the level of precision when using commands like /own and /prod2.
+
+
 The DistanceThreshold option allows you to configure how far the ownership commands will seek for other nearby entities (starting from the first entity). Changing the threshold will make ownership commands more or less precise.
 
 
@@ -169,11 +188,13 @@ The DistanceThreshold option allows you to configure how far the ownership comma
 
 string GetOwnerName(BaseEntity entity)
 
+
 // Get the BasePlayer instance (if known) of the owner player
 
 // Returns null if no owner found
 
 BasePlayer GetOwnerPlayer(BaseEntity entity)
+
 
 // Removes the ownership data from a BasePlayer - method faster if
 
@@ -181,9 +202,11 @@ BasePlayer GetOwnerPlayer(BaseEntity entity)
 
 RemoveOwner(BaseEntity entity)
 
+
 // Changes ownership of a BaseEntity to the specified player
 
 ChangeOwner(BaseEntity entity, BasePlayer player)
+
 
 // Retrieves the owner player.userID in string format
 
@@ -191,13 +214,16 @@ ChangeOwner(BaseEntity entity, BasePlayer player)
 
 object FindEntityData(BaseEntity entity)
 
+
 // Clears all entity associations with a particular player
 
 ClearProfile(BasePlayer player)
 
+
 // Grab all constructions associated with a particular player
 
 List<BuildingBlock> GetProfileConstructions(BasePlayer player)
+
 
 // Grab all deployables associated with a particular player
 
@@ -208,5 +234,6 @@ List<BaseEntity> GetProfileDeployables(BasePlayer player)
 
 
 **Upgrading From Building Owners**
+
 
 EntityOwner is **not **compatible with BuildingOwners.

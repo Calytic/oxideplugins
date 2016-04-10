@@ -1,6 +1,8 @@
 **Description**
 
+
 TurretConfig allows you to configure the way turrets work, full option list below.
+
 **Features**
 
 
@@ -102,5 +104,6 @@ ammo.pistol.fire
 ````
 
 Note: Multiple ammunition types are not supported.  You may only choose one type.
+
 
 Feedback is appreciated.

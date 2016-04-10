@@ -1,0 +1,1 @@
+Allows a player to use the command /compass to check which direction the player is facing.

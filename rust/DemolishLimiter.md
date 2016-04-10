@@ -1,0 +1,1 @@
+This plugin allows you to set allow/disallow admins/moderators to use Demolish Immediate on the hammer's right-click menu.

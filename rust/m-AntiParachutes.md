@@ -1,0 +1,1 @@
+As an admin you can use the in-game command "/remparachutes" to clear your world from the leftover parachutes.
