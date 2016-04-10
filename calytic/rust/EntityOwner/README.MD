@@ -34,7 +34,7 @@ Gives the specified player ownership of the entire structure (including deployab
 
 Removes ownership from an entire structure (including deployables)
 
-Â 
+ 
 ````
 
 
@@ -59,7 +59,7 @@ Checks the authorization of nearby cupboards
 
 Checks the ownership of nearby storage containers
 
-Â 
+ 
 ````
 
 
@@ -105,7 +105,7 @@ Removes authorization of all nearby turrets from target player
 
 Removes stuck building privilege/block
 
-Â 
+ 
 ````
 
 **Console Commands** 
@@ -118,7 +118,7 @@ authclean #STEAMID
 
 Removes stuck building privilege/block
 
-Â 
+ 
 ````
 
 **Own/Prod2/Unown options** 
@@ -214,7 +214,7 @@ List<BuildingBlock> GetProfileConstructions(BasePlayer player)
 
 List<BaseEntity> GetProfileDeployables(BasePlayer player)
 
-Â 
+ 
 ````
 
 **Upgrading From Building Owners** 

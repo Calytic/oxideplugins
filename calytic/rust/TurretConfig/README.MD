@@ -43,41 +43,41 @@ Applies configuration to all turrets
 ````
 {
 
-Â  "adminOverride": true,
+  "adminOverride": true,
 
-Â  "animalOverride": false,
+  "animalOverride": false,
 
-Â  "sleepOverride": false,
+  "sleepOverride": false,
 
-Â  "aimCone": 5.0,
+  "aimCone": 5.0,
 
-Â  "ammoType": "ammo.rifle",
+  "ammoType": "ammo.rifle",
 
-Â  "bulletDamage": 10.0,
+  "bulletDamage": 10.0,
 
-Â  "bulletSpeed": 200.0,
+  "bulletSpeed": 200.0,
 
-Â  "globalDamageModifier": 1.0,
+  "globalDamageModifier": 1.0,
 
-Â  "health": 750.0,
+  "health": 750.0,
 
-Â  "sightRange": 30.0,
+  "sightRange": 30.0,
 
-Â  "useGlobalDamageModifier": false,
+  "useGlobalDamageModifier": false,
 
-Â  "infiniteAmmo": false,
+  "infiniteAmmo": false,
 
-Â  "animals": [
+  "animals": [
 
-Â  Â  "stag",
+    "stag",
 
-Â  Â  "boar",
+    "boar",
 
-Â  Â  "chicken",
+    "chicken",
 
-Â  Â  "horse"
+    "horse"
 
-Â  ]
+  ]
 
 }
 ````
