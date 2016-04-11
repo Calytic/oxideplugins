@@ -1,16 +1,21 @@
 **Note:** if another dev wants to create as a sqlite database you are welcomed, i'll remove this plugin after 
 Core database to log all players.
 
+
 Default will log only userids and names.
+
 
 Outside plugins can call this plugin to get player names from userids
 
 But also add and retrieve other informations as they see fit.
 
+
 You may use the SteamAPI system to get the names of unknown players
+
 **Commands:**
 
 - /findname STEAMID => find the name that belong to this steamid
+
 **USING MYSQL:
 
 Very usefull for BIG Servers as no config files will be needed making everything lag free**
@@ -36,10 +41,13 @@ CREATE TABLE IF NOT EXISTS `playerdatabase` (
 
 2) Configure your config file (table is playerdatabase by default but you can manually edit both if you want)
 
+
 3) restart the plugin
+
 
 4) join the game and go see your database if you showed inside 
 F**or Plugin Devs:**
+
 Get a player data with a key:
 
 ````
@@ -77,6 +85,7 @@ PlayerDatabase.Call("SetPlayerData",netUser.playerClient.userID.ToString(), "las
 ````
 
 then it can be called via getplayerdata "last_position"
+
 find players steamid:
 
 ````

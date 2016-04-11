@@ -11,11 +11,13 @@ Features:**
 - for admins only or everyone
 
 - optional: use** Share plugin** for players to share their locations
+
 **Commands:**
 
 - /location => Get your location
 
 - /location TARGET => Get a target's location (for admins or players that use Share)
+
 **Configs Location.json:**
 
 ````

@@ -1,0 +1,1 @@
+There is no commands for it. Look at the friends database commands. It blocks the damage you give to your friends.

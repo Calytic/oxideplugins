@@ -1,72 +1,76 @@
-****THIS IS FOR LEGACY OXIDE 2.0
+THIS IS FOR LEGACY OXIDE 2.0
 
-Complete rewrite in C# for Oxide 2.0****
+
+Complete rewrite in C# for Oxide 2.0
 
 = MUCH faster then Lua 
 = You can try to keep the plugin set to permanent
-**
+
 
 ( For Oxide 1.18 latest compatible version is: 1.5.4
-[R-AntiCheat for Rust Legacy - Version History | Oxide](http://oxidemod.org/plugins/r-anticheat.632/history) )**
-**Features:**
+[R-AntiCheat for Rust Legacy - Version History | Oxide](http://oxidemod.org/plugins/r-anticheat.632/history) )
 
-- Choose to **Kick** or/and **Ban**
+Features:
 
-- Supports **EnhancedBanSystem** from oxide 1.18 (dunno if it's relevent ...)
+- Choose to Kick or/and Ban
 
-- Anti **Speedhack**
+- Supports EnhancedBanSystem from oxide 1.18 (dunno if it's relevent ...)
 
-- Anti **Walkspeedhack**
+- Anti Speedhack
 
-- Anti **FlyHack**
+- Anti Walkspeedhack
 
-- Anti **Superjump**
+- Anti FlyHack
 
-- Anti **Autoloot**
+- Anti Superjump
 
-- Anti **MassRadiation (see under)**
+- Anti Autoloot
 
-- Anti **BlueprintUnlocker**
+- Anti MassRadiation (see under)
 
-- Anti **CeilingHack Removal**
+- Anti BlueprintUnlocker
 
-- Anti** OverKill (Long Range kills)**
+- Anti CeilingHack Removal
 
-- Anti **Wallhack**
+- Anti OverKill (Long Range kills)
 
-- Anti **SleepingBag through Walls**
+- Anti Wallhack
 
-- Fully **configurable** (for the anti cheat part)
-**Anti Speedhack/WalkSpeedhack/Superjump:
-**
-**CONSOLE Commands:**
+- Anti SleepingBag through Walls
+
+- Fully configurable (for the anti cheat part)
+
+Anti Speedhack/WalkSpeedhack/Superjump:
+
+
+CONSOLE Commands:
 
 ac.check Player/SteamID => Checks a specific player (can be an admin)
 
 ac.checkall => Checks all online players
 
 ac.reset => Reset the database and checks all players
-**Permissions / SpeedDetection Ignore:**
+
+Permissions / SpeedDetection Ignore:
 
 Players with admin permissions will be ignored by the Speedhack detections
 
-Admins are: **rcon.login** & oxide permission: **cananticheat**
+Admins are: rcon.login & oxide permission: cananticheat
 You can grant a user permission by using:
-**oxide.grant user <username> <permission>**
+oxide.grant user <username> <permission>
 
 To create a group:
-**oxide.group add <groupname>**
+oxide.group add <groupname>
 
 To assign permission to a group:
-**oxide.grant group <groupname> <permission>**
+oxide.grant group <groupname> <permission>
 
 To add users to a group:
-**oxide.usergroup add <username> <groupname>**
+oxide.usergroup add <username> <groupname>
 
 To remove users permission:
-**oxide.revoke <userid/username> <group> <permission>**
-Click to expand...
-**Anti Speedhack:**
+oxide.revoke <userid/username> <group> <permission>
+Click to expand...Anti Speedhack:
 Permanent Check: optional
 
 Detect players that run too fast in a ROW (everything is in m/s)
@@ -78,7 +82,8 @@ Max detection speed default is 25.0 (facepunch blocks at 20.0 so no need to go h
 Max height difference allow: 8.0 (this is usefull for players that slide on mountains)
 
 Punish is set at 3 or more detections. (4 seconds as the first one it just informative and doesn't trigger a detection)
-**Anti Walkspeedhack:**
+
+Anti Walkspeedhack:
 Permanent Check: optional
 
 Detect players that walk too fast in a ROW (everything is in m/s)
@@ -90,7 +95,8 @@ Max detection speed default is 15.0
 Max height difference allow: 8.0 (this is usefull for players that slide on mountains)
 
 Punish is set at 3 or more detections. (4 seconds as the first one it just informative and doesn't trigger a detection)
-**Anti Superjump:**
+
+Anti Superjump:
 Permanent Check: optional
 
 Detect players that makes superjumps (plugin detects if there is ground under him or not to prevent teleportation fails)
@@ -102,13 +108,15 @@ Maximum Distance default: 25.0 (to prevent teleportations fails also)
 Time before the superjump detections gets reseted: 300.0
 
 Punish is set at 2 or more detections.
-**Anti Wallhack:**
+
+Anti Wallhack:
 Permanent Check: YES
 
 When a player gets killed, the anti wallhack checks if it is a valid kill. If a building (wall or ceiling) are detected on the way it will negate the kill. If that player gets killed AGAIN through a wall/ceiling in a short period of time, the attacker will get punished.
 
 As i was aware that my previous anti wallhack didnt take in count boxes and stuff like that, some hackers would just go high up in the sky, and start shooting at all boxes destroying them, this wont be possible now as it checks for players & deployables.
-**No Recoil:**
+
+No Recoil:
 Permanent Check: YES
 
 Checks when players do kills, if when they do those kills the recoil is still the same during the kill and right after it, then it detects the no recoil.
@@ -117,32 +125,38 @@ There is a minimum distance for that (40m)
 
 You can choose the minimum kills for punishement, and also the minimum ratio norecoil detections / total kills that were checked
 
-**AntiMassRadiation: **
+
+AntiMassRadiation: 
 Permanent Check: YES
 
 Deactivated atm
-**AntiFlyhack:**
+
+AntiFlyhack:
 Permanent Check: optional
 
 Flyhack detects when a player is not on the ground and when he is not it checks that the player is falling correctly.
 
 Max Drop Speed before ignoring (m/s): is the the fall speed until the plugin ignores players (it's set very low, as it doesn't really matter as now the anti no falldamage dont use a reduced speed of fall, but actually deactivate the falldamage, this anti flyhack just detects players that flyhack,  and not NoFallDamage)
-**BlueprintUnlocker:**
+
+BlueprintUnlocker:
 Permanent Check: YES
 
 Punish players that try to use blueprints that they didn't learn.
 
-**Autoloot:**
+
+Autoloot:
 Permanent Check: YES
 
 Punish a player that loots an airdrop 2+ times in less then 1sec from a big distance.
-**CeilingHack:**
+
+CeilingHack:
 Permanent Check: YES
 
 Checks if a player suddently drops under a ceiling when connecting.
 
 This is probably the easiest hack to use, so a lot of people use it, and will stay undetectable by VAC until the end XD
-**Sleeping Bag Hack:**
+
+Sleeping Bag Hack:
 Permanent Check: YES
 
 Checks if players spawns sleeping bags (and beds) threw walls or doors.
@@ -151,7 +165,8 @@ It will always delete the sleeping bag,
 
 and as optional you can punish the player.
 
-**OverKill:**
+
+OverKill:
 Permanent Check: YES
 
 Checks all players kills and see if the distances for the kills are too big or not.
@@ -186,8 +201,7 @@ Default weapon distances are:
     "Shotgun": 30.0,
 
     "Stone Hatchet": 1.0
-Click to expand...
-**Config file: AntiCheat.json**
+Click to expand...Config file: AntiCheat.json
 
 ````
 {
@@ -339,16 +353,17 @@ Click to expand...
 }
 ````
 
-
-**Anti Mass Radiation**
+Anti Mass Radiation
 
 Now included inside oxide
+
 
 Before:
 
 After:
 
-**Near future / ToDo List:**
+
+Near future / ToDo List:
 
 - Aimbot?
 

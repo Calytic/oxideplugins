@@ -1,4 +1,5 @@
 **Loot Spawn Lists **allows modification of the loot tables (from animals, crates, and supply drops).
+
 **How to use**
 
 * Install the plugin by dropping it into the oxide/plugins directory.
@@ -10,7 +11,7 @@
 **Notes**
 
 
-* If you have an error in your loot tables file, **the plugin may not display an error and simply just load the default loot tables.** Always check your customized loot tables in a validator (http://jsonlint.com/) before uploading!
+* If you have an error in your loot tables file, **the plugin may not display an error and simply just load the default loot tables.** Always check your customized loot tables in a validator ([http://jsonlint.com/](http://jsonlint.com/)) before uploading!
 
 
 **Loot Tables JSON Format**

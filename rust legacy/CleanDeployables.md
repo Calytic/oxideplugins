@@ -1,6 +1,8 @@
 A remake from my clean up plugins from exp and legacy 1.18
 
+
 This is NOT to use on buildings, you have the Remover Tool to remove buildings.
+
 **Commands:**
 
 - /clean DEPLOYABLENAME => clean all deployables on the server that are not close to any players building
@@ -10,6 +12,7 @@ This is NOT to use on buildings, you have the Remover Tool to remove buildings.
 - /clean DEPLOYABLENAME all => force clean all deployables
 
 - /clean bags all => clean all lootsacks
+
 
 - /cleanradius RADIUS => clean all deployables (any type of deployables) around you in a Xm radius that are not close to any players buildings
 

@@ -1,23 +1,25 @@
 Allows modification of the spawnpoints table (this will hard code inside rust itself, so no more teleportations needed)
+
 **Commands:**
 
 - /spawnsmanager FILENAME => load the filename with all the spawns
 **How to use**
 
 * Once the plugin is installed, launch or restart the server.
-* Inside your server's oxide config directory (see Installing plugins on your Legacy server | Oxide), the file "SpawnsManager.json" should have been created. Download it.
+* Inside your server's oxide config directory (see [Installing plugins on your Legacy server | Oxide](http://forum.rustoxide.com/threads/how-to-install-and-use-plugins-on-your-server.70/)), the file "SpawnsManager.json" should have been created. Download it.
 * This file contains the default spawns tables included within rust, in JSON format.** Keep a copy of this file somewhere**, it's a helpful reference!
 * Install the Spawns Database Plugin 
-Spawns Database 
+[Spawns Database](http://oxidemod.org/plugins/spawns-database.952/) 
 * Follow the instructions inside Spawns Database on how to make new spawns, remember to do /spawns_save FILENAME
 * Load the new spawns via /spawnsmanager FILENAME
 **Notes**
 
 
-* If you have an error in your loot tables file, **the plugin may not display an error and simply just load the default spawns tables.** Always check your customised loot tables in a validator (JSONLint - The JSON Validator.) before uploading!
+* If you have an error in your loot tables file, **the plugin may not display an error and simply just load the default spawns tables.** Always check your customised loot tables in a validator ([JSONLint - The JSON Validator.](http://jsonlint.com/)) before uploading!
 
 
 **via Spawns Database:**
+
 
 **Manually:
 
@@ -28,14 +30,18 @@ positions are in default Vector3 positions (so normal coordinates)
 You may use any map to help you get the locations (ex: [Rust Map Marks - Interactive Map Tool for Rust](http://rustmapmarks.com/) ), but you will need to teleport to the points to know the HEIGHT (y value) so you don't set spawn points under the map
 
 I recommend the Location plugin : [Location for Rust Legacy | Oxide](http://oxidemod.org/plugins/location.937/)
+
 **Rotations:**
 
 They are Quaternion rotations, if you don't know what you are doing just use w: 1 x:0 y:0 z:0
 
 This is a good exemple of how it works: [Maths - Euler to Quaternion Examples 90 degree steps - Martin Baker](http://www.euclideanspace.com/maths/geometry/rotations/conversions/eulerToQuaternion/steps/index.htm)
 
+
 So yes it's a lot of work, but you just have to do it once 
+
 **AND REMEMBER KEEP A COPY OF YOUR ORIGINAL SPAWN POINTS (or use the ones from here)**
+
 **
 ````
 {

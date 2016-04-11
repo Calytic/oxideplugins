@@ -1,6 +1,7 @@
 **OPTIONAL:
 [Share Database](http://oxidemod.org/plugins/share-database.935/) 1.0.1
 
+
 Features:**
 
 - SetHome to teleport to
@@ -16,6 +17,7 @@ Features:**
 - Choose cooldown
 
 - Choose to cancel teleportations when hit
+
 **Commands:**
 
 - /sethome XXX => sethome on your position
@@ -25,6 +27,7 @@ Features:**
 - /home => get the list of your homes
 
 - /home XXX => teleport to your home
+
 
 Config file: SetHome.json
 
@@ -90,6 +93,7 @@ Config file: SetHome.json
 
 
 **For plugins devs:**
+
 **Refuse teleportations for players with:**
 
 (this will refuse teleportations for ALL users, but you can edit it easilly to prevent players from teleportation in or out of certain area, etc)

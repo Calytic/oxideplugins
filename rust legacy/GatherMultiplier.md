@@ -1,10 +1,13 @@
 Set the gather multiplier to change how fast you gather something (i've set the default values in the config)
 
+
 Set the resource multiplier to give more of those items, or not.
 
 can't reduce to less then 1 ^^ (no idea what would happen if you set it to 0 )
 
+
 Numbers can't have decimals
+
 
 Default config: GatherMultiplier.json
 

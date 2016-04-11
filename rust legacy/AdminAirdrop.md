@@ -13,6 +13,7 @@
 - /airdrop cancel => destroy all planes to cancel all current airdrop calls
 
 - /airdrop destroy => destroy all supply crates.
+
 **Permissions:
 
 rcon.login**
@@ -20,6 +21,7 @@ rcon.login**
 oxide permission: "**all**"
 
 oxide permission: "**canairdrop**"
+
 You can grant a user permission by using:
 **oxide.grant user <username> <permission>**
 

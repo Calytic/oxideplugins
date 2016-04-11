@@ -1,16 +1,17 @@
 **Crafting Controller**
 
 A plugin which controls crafting, researching and studying.
+
 **How to use**
 
 * Once the plugin is installed, launch or restart the server.
-* Inside your server's oxide config directory (see http://forum.rustoxide.com/threads/how-to-install-and-use-plugins-on-your-server.70/), the file "CraftingController.json" should have been created. Download it.
+* Inside your server's oxide config directory (see [http://forum.rustoxide.com/threads/how-to-install-and-use-plugins-on-your-server.70/](http://forum.rustoxide.com/threads/how-to-install-and-use-plugins-on-your-server.70/)), the file "CraftingController.json" should have been created. Download it.
 * Make modifications to the file as desired (see below) and reupload it to your server.
 * Check that it's worked by looking at oxidelog.txt, and looking for the messages "x items have been blocked from crafting". If you can't find this line, check the plugin is installed correctly and check your modified file in an online JSON validator.
 **Notes**
 
 
-* If you have an error in your crafting controller file, the plugin may not display an error and simply just load the default loot tables. Always check your customised crafting controller file in a validator (http://jsonlint.com/) before uploading!
+* If you have an error in your crafting controller file, the plugin may not display an error and simply just load the default loot tables. Always check your customised crafting controller file in a validator ([http://jsonlint.com/](http://jsonlint.com/)) before uploading!
 
 
 **Crafting Controller JSON Format**

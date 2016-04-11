@@ -1,6 +1,7 @@
 **WARNING THIS PLUGIN CAN'T BE USED ALONE**
 
 This is a plugin for futur plugins that will require a spawn database.
+
 **Commands:**
 
 - /spawns_new => start making a new spawns file
@@ -16,9 +17,12 @@ This is a plugin for futur plugins that will require a spawn database.
 - /spawns_close => close your current spawns without saving
 
 - /spawns_help => get in-game help informations
+
 **For Plugin developpers:**
 
+
 Here are exemples on how to use this plugin with **lua**, but of course this **would work with C# plugins**
+
 
 To get this plugin use in PLUGIN:Init()
 

@@ -1,5 +1,6 @@
 Reject players that have too many vac bans
 
+
 Config: VACKicker.json
 
 ````

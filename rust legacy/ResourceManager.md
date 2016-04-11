@@ -2,9 +2,11 @@ This will edit rust server resources, so everything will be managed by rust.
 
 With it you will be able to remove some resources or add some more.
 
+
 The configs are as annoying as the lootspawnlist, or spawn list manager,
 
 but it's the best way to do it to make everything automatic
+
 **How to:**
 
 1) Load the plugin on your server
@@ -38,7 +40,9 @@ so if you set numToSpawnPerTick to 2, and targetPopulation to 4, you will need 2
 6) you should see a: XX custom resource spawns where loaded!
 **If it crashes? well you did something wrong, make sure all the names are correctly set ex: it's thinkDelay, not thinkdelay
 
+
 Video Tutorial:
+
 
 
 RELOADING THE PLUGIN:

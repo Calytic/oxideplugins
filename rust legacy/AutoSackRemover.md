@@ -1,4 +1,5 @@
 This plugin will automatically remove the loot sack when players die
+
 **Features:**
 
 - Choose to **delay **removing the sack if a player is **looting **it
@@ -6,9 +7,11 @@ This plugin will automatically remove the loot sack when players die
 - **Choose the time** for the sack to be removed
 
 - Easily **activate /deactivate** the plugin
+
 **Commands:**
 
 - /sackremover => Activate or deactivate the auto sack remover
+
 
 Configs: AutoSackRemover.json
 

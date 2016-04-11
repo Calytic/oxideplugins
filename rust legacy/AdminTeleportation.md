@@ -1,4 +1,5 @@
 Admin ONLY Teleportation System
+
 **Commands:**
 
 - /tp TARGETPLAYER => Teleport yourself to a target player
@@ -17,7 +18,9 @@ Admin ONLY Teleportation System
 
 - /tp SOURCEPLAYER X Y Z => Teleport a source player to the coordinates X Y Z (if Y is set to teleport under the map, you will be automatically teleported back up)
 
+
 - /bring TARGETPLAYER => Teleport a player to you.
+
 
 - /tpsave => get the list of saved locations
 
@@ -25,9 +28,12 @@ Admin ONLY Teleportation System
 
 - /tpsave XXX => Add a new saved location
 
+
 - /tpb => This only works for yourself, when you teleport to a player or to a position, it will save your first position for you to teleport back to with this command
 
+
 - /p => Portal gun, teleport to where you are looking at
+
 
 - /up XX => Go up Xm, 4 is default.
 
@@ -40,11 +46,13 @@ Admin ONLY Teleportation System
 - /fw XX => Go forward Xm, 4 is default.
 
 - /back XX => Go back Xm, 4 is default.
+
 **Permissions:
 
 rcon.login**
 
 oxide permission: **canteleport**
+
 You can grant a user permission by using:
 **oxide.grant user <username> <permission>**
 

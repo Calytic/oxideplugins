@@ -1,56 +1,57 @@
-**REQUIRES:**
-****[Spawns Database](http://oxidemod.org/plugins/spawns-database.952/) 1.0.0****
-****[Zone Manager](http://oxidemod.org/plugins/zone-manager.943/) 1.0.0****
-**Features:**
+REQUIRES:
+[Spawns Database](http://oxidemod.org/plugins/spawns-database.952/) 1.0.0
+[Zone Manager](http://oxidemod.org/plugins/zone-manager.943/) 1.0.0
 
-- Send players to **jail**
+Features:
 
-- **Free** players from jail
+- Send players to jail
 
-- **Timed Jail **option
+- Free players from jail
 
-- Configure the **spawn points**
+- Timed Jail option
 
-- **Inmates can't leave** the jail zone radius (they will be automatically teleported back)
+- Configure the spawn points
 
-- **Players can't enter the jail** zone radius (they will be automatically teleported away)
+- Inmates can't leave the jail zone radius (they will be automatically teleported back)
 
-- **Admins can enter** **the jail **zone radius
+- Players can't enter the jail zone radius (they will be automatically teleported away)
 
-- Inmates can't do **any damage**
+- Admins can enter the jail zone radius
 
-- Inmates **can die** from anything (exept each other)
+- Inmates can't do any damage
 
-- Inmates will be **teleported back** in the jail on **death**
+- Inmates can die from anything (exept each other)
 
-- Inmates will be **teleported back** in the jail on **reconnection** (if they aren't in the jail)
+- Inmates will be teleported back in the jail on death
 
-- Inmates** can't request Kits**
+- Inmates will be teleported back in the jail on reconnection (if they aren't in the jail)
 
-- Inmates** can't Teleport out **(or in) (works with SetHome & Teleportation Requests)
+- Inmates can't request Kits
 
-- Inmates **can't build / deploy**
+- Inmates can't Teleport out (or in) (works with SetHome & Teleportation Requests)
 
-- Jail is **undestructable**
+- Inmates can't build / deploy
 
-- Inmates have **1 spawn point** (they will always spawn back there if they die), but can be shared with others as the spawn points are randomly chosen.
-**Oxide Permissions**: "**canjail**"
+- Jail is undestructable
+
+- Inmates have 1 spawn point (they will always spawn back there if they die), but can be shared with others as the spawn points are randomly chosen.
+
+Oxide Permissions: "canjail"
 You can grant a user permission by using:
-**oxide.grant user <username> <permission>**
+oxide.grant user <username> <permission>
 
 To create a group:
-**oxide.group add <groupname>**
+oxide.group add <groupname>
 
 To assign permission to a group:
-**oxide.grant group <groupname> <permission>**
+oxide.grant group <groupname> <permission>
 
 To add users to a group:
-**oxide.usergroup add <username> <groupname>**
+oxide.usergroup add <username> <groupname>
 
 To remove users permission:
-**oxide.revoke <userid/username> <group> <permission>**
-Click to expand...
-**Commands:**
+oxide.revoke <userid/username> <group> <permission>
+Click to expand...Commands:
 
 - /jail PLAYER optional:XXX => send a player to jail for XX amount of time
 
@@ -59,7 +60,8 @@ Click to expand...
 - /jail_config spawnfile NAME => select the spawnfile where players will be freed at (you can set 1 spawnpoint or billions)
 
 - /jail_config zone RADIUS => set the zone center (your position) and zone radius of the jail.
-**Config file:**
+
+Config file:
 
 Jail.json
 

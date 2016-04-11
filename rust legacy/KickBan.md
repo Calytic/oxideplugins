@@ -9,6 +9,7 @@ Chat Commands:**
 - /unban PLAYERNAME/STEAMID => unban a player by name or steamid
 
 - /banlist XX => see the banlist by with a specific index (1 is default)
+
 **Permissions:**
 
 /ban => **canban **& all
@@ -18,9 +19,11 @@ Chat Commands:**
 /kick => **cankick **& all
 
 /banlist => canban & canunban & all
+
 Oxide permission system pretty much works like legacy's Flags plugin.
 
 You can also create groups, add permissions to that groups and assign users to it so every user in that group has the permission of that group.
+
 You can grant a user permission by using:
 **oxide.grant user <username> <permission>**
 To create a group:
@@ -45,6 +48,7 @@ unbanall => clear the banlist
 kick PLAYER REASON => kick a player
 
 banlistex => see the full banlist
+
 
 Config file: KickBan.json
 

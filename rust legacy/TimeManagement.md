@@ -1,4 +1,5 @@
 Time Management:
+
 **Commands:**
 
 - /time => display your current time options
@@ -16,6 +17,7 @@ Time Management:
 - /time start XX => the time that your server should start with (or when the plugin gets reloaded)
 
 - /time XXX => set the current time
+
 **Permissions:
 
 rcon.login**
@@ -23,6 +25,7 @@ rcon.login**
 oxide permission: **cantime**
 
 oxide permission: **all**
+
 **Examples:**
 NO NIGHT  with DAY CYCLE:
 
@@ -33,6 +36,7 @@ NO NIGHT  with DAY CYCLE:
 /time nightlength 1
 
 /time daylength 3600
+
 Time Frozen to 11am:
 
 /time start 11
@@ -40,6 +44,7 @@ Time Frozen to 11am:
 /time freeze
 
 /time 11
+
 
 You may also directly edit from the config file then reload the plugin:
 **TimeManagement.json**

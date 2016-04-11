@@ -1,8 +1,10 @@
 REQUIRES: **[Share Database](http://oxidemod.org/plugins/share-database.935/) 1.0.0+**
 
+
 Share Doors with friends
 
 Check the Share Database to see how to share/unshare.
+
 
 
 For Plugin Devs
