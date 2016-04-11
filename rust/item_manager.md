@@ -1,6 +1,8 @@
 This has no use for servers without any other plugins that doesn't require it.
 
+
 Available functions:
+
 Functions to find an Item depending on where it could be:
 
 Item item = self:FindItemWear( playerinventory inv, string name)
@@ -8,6 +10,7 @@ Item item = self:FindItemWear( playerinventory inv, string name)
 Item item = self:FindItemBelt( playerinventory inv, string name)
 
 Item item = self:FindItemMain( playerinventory inv, string name)
+
 Functions to find Items depending on where they could be:
 
 table items, int count = self:FindItemsMainByName( playerinventory inv, string name)
@@ -15,9 +18,11 @@ table items, int count = self:FindItemsMainByName( playerinventory inv, string n
 table items, int count = self:FindItemsWearByName( playerinventory inv, string name)
 
 table items, int count = self:FindItemsBeltByName( playerinventory inv, string name)
+
 Function to find an Item anywhere in a players inventory:
 
 Item item = self:FindItemAllByName( playerinventory inv, string name)
+
 Function to find all items anywhere in a players inventory:
 
 table items, int count = self:FindItemsAllByName( playerinventory inv, string name)
@@ -67,6 +72,7 @@ end
 Get item by slot number:
 
 Item item = self:GetItemBySlot(playerinventory inv, int slot, string type)
+
 Give players some stuff, you may choose where to add it:
 
 Item item = self:GiveItem(playerinventory inv, string name,int amount,string type)

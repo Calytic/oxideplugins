@@ -1,0 +1,1 @@
+Auto reset knocked down targets after 3 seconds.

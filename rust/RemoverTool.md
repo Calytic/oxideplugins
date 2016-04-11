@@ -16,16 +16,19 @@ Features:**
 - **GUI**
 
 -** Raid Blocker** (blocks remove while a raid is undergoing around your position, needs to be **explosives **that destroy a **structure**)
+
 **Chat Commands:**
 - /remove admin optional:TIME => Activate Remove Admin Tool
 - /remove all optional:TIME => will remove an entire building with all it's deployables
 - /remove optional:TIME => this will work if you choose
 
 - /remove target TargetPlayer optional:TIME => give remove to a player
+
 **Console Commands:**
 remove.give PLAYER optional:time
 
 remove.allow false/true => overrides the remover tool for players, they will not be able to use the remover tool if you set it to allow false. this is NOT saved after a server restart or plugin restart!!! This is for use with **Timed Executed **if you want your server to have the remover tool only during a certain period of time. If you don't want players to ever have access to the remover tool, just set it in the configs.
+
 **Configs:**
 
 ````

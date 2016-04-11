@@ -1,9 +1,11 @@
 **Description**
 
 This plugin helps you handle your bans. It gives you the possebility to ban per name, steamID or per IP and considers all three of them when someone banned trying to join the server. So even if someone uses another steam account his IP will still be blocked.
+
 **NEW:**
 
 Now when a banned IP / Steam connects with a new Steam / IP this steam/IP will be added to the banlist!
+
 **Usage**
 
 Chat Commands:
@@ -48,9 +50,11 @@ ban and unban - "enhancedbansystem.ban"
 kick - "enhancedbansystem.kick"
 
 bancheck - "enhancedbansystem.bancheck"
+
 **IMPORT BANS FROM LAST EBS LIST:**
 
 In the SERVER console: ebs.import
+
 
 Configs:
 

@@ -1,8 +1,11 @@
 GUI Based Shop
 
+
+
 **How To**:
 
 USE [JSONLint - The JSON Validator.](http://jsonlint.com/) TO MAKE SURE YOUR CONFIG FILE IS CORRECT
+
 
 In **Shop - Shop Categories**:
 
@@ -53,6 +56,7 @@ You can make warps with this by placing for exemple:
 
 (45 20 1022 being a specific location for your warp)
 
+
 Then in
 **Shop - Shop List**
 
@@ -97,10 +101,12 @@ you must use /npc_list to get the list of the NPC IDs and place the id of the NP
 You may use "chat" as ID, this will ACTIVATE the /shop command.
 
 if NO "chat" markets are set, the /shop will not work and the shops will only be avaible via NPCs.
+
 **Video Tutorial:**
 
 
 (If you see well i actually fucked buy/sell, and made it that you buy cheaper then what you sell it for ... should be the opposite )
+
 **Default Configs & Exemple**
 
 ````
@@ -139,6 +145,7 @@ if NO "chat" markets are set, the /shop will not work and the shops will only be
   "Message - Sold": "You've successfully sold {0}x {1}",
 
   "Shop - Shop Categories": {
+
 
 "Apple": {
 

@@ -1,19 +1,22 @@
-**Optional plugins:
-**[Enhanced Ban System](http://oxidemod.org/resources/enhanced-ban-system.693/)**
-**[Jail](http://oxidemod.org/plugins/jail.794/)**
-Strongly recommended plugin:
-**[DeadPlayersList](http://oxidemod.org/plugins/deadplayerslist.696/)**
-PROTECT EVEN MORE YOUR SERVER WITH:
-**[RustDB](http://oxidemod.org/plugins/rustdb.749/)**
+Optional plugins:
+[Enhanced Ban System](http://oxidemod.org/resources/enhanced-ban-system.693/)
+[Jail](http://oxidemod.org/plugins/jail.794/)
 
-Console Commands:**
+Strongly recommended plugin:
+[DeadPlayersList](http://oxidemod.org/plugins/deadplayerslist.696/)
+
+PROTECT EVEN MORE YOUR SERVER WITH:
+[RustDB](http://oxidemod.org/plugins/rustdb.749/)
+
+
+Console Commands:
 
 ac.fps => will show you how much time it took for the plugin to check all the players
 
 ac.check NAME/STEAMID => manually check a player for fly/speed hack, this is mainly for testing purpoise as players are already checked 100% of time
-**
 
-Chat Commands:**
+
+Chat Commands:
 
 - /ac => to reset your current logs
 
@@ -26,30 +29,31 @@ Chat Commands:**
 - /ac_remove NAME/STEAMID => remove detections
 
 - /ac_reset => reset all detections
-**
 
-Features:**
 
-- anti **SpeedHacks**
+Features:
 
-- anti **Flyhack**
+- anti SpeedHacks
 
-- anti **Wallhack**
+- anti Flyhack
 
-- anti **Wallhack Kills**
+- anti Wallhack
 
-- anti **Melee Speed**
+- anti Wallhack Kills
 
-- **C#** speed
+- anti Melee Speed
 
-- Checks players **every second** now
+- C# speed
 
-- Lag was taken in count in the plugin to **prevent false detections**.
+- Checks players every second now
 
-- Ban also the owner of the** family share account**
-**Default Configs:
+- Lag was taken in count in the plugin to prevent false detections.
 
-WARNING: Config is in: oxide/config/AntiCheat.json**
+- Ban also the owner of the family share account
+
+Default Configs:
+
+WARNING: Config is in: oxide/config/AntiCheat.json
 
 ````
 
@@ -108,45 +112,51 @@ WARNING: Config is in: oxide/config/AntiCheat.json**
  
 ````
 
-
-**Anti Wallhack:**
+Anti Wallhack:
 
 Detects players that try to go through walls or doors
 
 floors detect wallhackers that go UP not DOWN
 
-**Anti Wallhack Kills:**
+
+Anti Wallhack Kills:
 
 Should detect kills that were made through wallhack, detecting will show admins the detection & cancel the kill
 
-**Anti Speedhack:**
+
+Anti Speedhack:
 
 Detects players that are moving too fast >10m/s as default
-**Anti Flyhack:**
+
+Anti Flyhack:
 
 Detects players that are in the air and moving freely (so not falling)
-**Anti** **Melee Speed:**
+
+Anti Melee Speed:
 
 detect players that hit too fast with melee weapons
 
 Cancels Damage
-**
-Anti **Melee Over Range:****
+
+Anti Melee Over Range:
 
 FIXED BY GARRY
-**Visual Logs:**
+
+Visual Logs:
 
 Glitchy for the moment as you have to spam the commands to keep the logs going, i'll work on something to keep it showing when i find out how
 
 I recommend that you daily check all your hack detections and remove/reset the logs to prevent the logs from getting too big
 
-to easily get player detections by name i STRONGLY recommend you to install: **[DeadPlayersList](http://oxidemod.org/plugins/deadplayerslist.696/) 2.0.4**
+to easily get player detections by name i STRONGLY recommend you to install: [DeadPlayersList](http://oxidemod.org/plugins/deadplayerslist.696/) 2.0.4
 
-**Please give me feedback on errors and fail/good bans
+
+Please give me feedback on errors and fail/good bans
+
 
 Know Issues:
 
-1) HELPPP everybody is getting Punished!!!!**
+1) HELPPP everybody is getting Punished!!!!
 
 - Check if you can still build on your server
 

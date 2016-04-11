@@ -1,0 +1,1 @@
+Research tables works instantly, without waiting 10 seconds.

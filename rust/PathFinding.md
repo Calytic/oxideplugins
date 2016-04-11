@@ -1,8 +1,10 @@
 This plugin can only be used by other plugins.
 
+
 As it's a lot of code, and probably usable by other plugins, i'll leave this plugin stand alone.
 
 And it will be much easier to improve it
+
 
 If you have any suggestions, any changes to make you are welcomed to help me 
 I tried to optimize this plugin as much as i can so:
@@ -19,14 +21,17 @@ I tried to optimize this plugin as much as i can so:
 200m on the ground will be around 200Loops
 
 But if you use it in houses with multiple levels, loops will occur much more (work is probably still needed on that)
+
 **The PathFinding:**
 
 - **Easy path** => a simple line path that checks if there are anything blocking your way to another point, if not it will use this Easy straight path.
 
 - **A* Pathfinding algorithm 3D **=> exemple of how the 2D works
 
+
 **Commands:**
 - /path => Aim where you want to go, and the plugin will try to force you to go there.
+
 
 Default Configfile PathFinding.json
 
@@ -40,7 +45,10 @@ Default Configfile PathFinding.json
 
 Max Loops being the max loops allowed before the plugin timesout (500 is about 0.15s, 1000 around 0.4s and 5000 around 2s)
 
+
+
 **Include in Other plugins:**
+
 
 ````
 List<Vector3> FindBestPath(Vector3 sourcePosition, Vector3 targetPosition)

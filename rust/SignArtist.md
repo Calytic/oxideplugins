@@ -1,5 +1,7 @@
 This plugin allows you to upload custom images to signs!
 
+
+
 **Chat commands:**
 
 
@@ -23,6 +25,7 @@ Examples:
 ````
 
 You need to look at some sign!
+
 **Permissions:**
 
 

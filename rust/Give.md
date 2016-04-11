@@ -1,4 +1,5 @@
 Admin Give command
+
 **Command:**
 
 - /give "player" "item/kit" "optional:amount" => give to a player
@@ -10,6 +11,7 @@ Admin Give command
 - inv.giveplayer "player/steamid" "item/kit" "optional:amount" => give to a player an item
 
 - inv.giveall "item" "optional:amount" => give item to all players
+
 **Blueprints:**
 
 add " BP" at the end of an item to transform it as a blueprint.
@@ -31,9 +33,11 @@ And again don't forget the **" "**
 Usable with /give and inv.give
 
 Not yet with inv.giveall ... but soon
+
 **Logs:**
 
 You may choose to log all /give or inv.give etc that were made to keep track of the usage/abuse of this command.
+
 **Usage:**
 
 As item you may use the real names for most of the items (yes i made a list), you will convert the real name into rust item table name (called shortname).
@@ -51,6 +55,7 @@ If rust makes new items or stuff like that you can still call an item directly b
 /giveme "Metal Fragments" 5 => will give 5 metal fragments in 1 slot, as metal fragments are stackable.
 
 inv.giveall "Thompson BP" 1 => will give all players the Thompson blueprint
+
 **Config:**
 
 ````

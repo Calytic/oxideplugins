@@ -1,6 +1,7 @@
 It's Beta, so there can bugs now! 
 
 About lags: 1 pet will not create more lags than 1 rust animal. (mb even less )
+
 How to:
 
 * /pet -- activate\deactivate npc mode

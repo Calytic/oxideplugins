@@ -1,6 +1,8 @@
 Auto switch on & off lanterns when players enter a tool cupboard radius.
 
+
 Supports multiple tool cupboard zones
+
 **Commands:**
 
 - /lanterns_on => switch all lanterns on

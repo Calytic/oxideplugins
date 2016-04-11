@@ -2,6 +2,7 @@
 **
 **
 
+
 Commands:
 
 - /elevator_add "Elevator Name "waypointsdataname"
@@ -11,6 +12,7 @@ Commands:
 - /elevator_reset
 
 - /elevator_remove "Elevator Name"
+
 
 **Tutorial on how to make elevators:**
 

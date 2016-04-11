@@ -3,16 +3,19 @@
 This plugin can be used alone with Event Manager, or with any other plugins.
 
 With Event Manager you can set auto events and make it that the battlefield lasts for 30mins, then goes to another event type (before coming back again to this event at some point)
+
 **Special Player Commands:**
 
 - /ground XX => vote for a new battlefield ground
 
 - /weapon XX => vote for a new weapon kit
+
 **Special Admin Commands:**
 
 - /ground XX => Set a new battlefield ground
 
 - /weapon XX => Set a new weapon kit
+
 **Creating Grounds:**
 
 1) Create 1 ground or more
@@ -28,6 +31,7 @@ spawnfile is where all the spawns are stored for the battle ground
 kits are all the kits that you will allow the players to use (/vote for). All players will have the SAME kits!
 
 I recommend using: [JSONLint - The JSON Validator.](http://jsonlint.com/) to make sure you didn't fuck up the configs
+
 **Zone Management:**
 
 In the grounds list you must have a "zone" set to the respective battlefield zone.
@@ -41,6 +45,7 @@ Exemple for the shortrange one:
 - /zone radius 100 undestr true nobuild true nodeploy true nocorpse true nowounded true autolights true
 
 Of course the zone can be named as you wish as long as the names match in the config and zone.
+
 
 Default Config:
 

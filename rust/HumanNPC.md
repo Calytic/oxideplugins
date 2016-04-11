@@ -1,15 +1,19 @@
 Add Human Non player characters ingame!
 
 Make your cities a little bit more lively
+
 Preview:
+
 
 
 Before asking for help people read the overview
 
 Tutorial videos will come soon
 
+
 Optionnal:
 [Minstrel](http://oxidemod.org/plugins/minstrel.981/) 0.0.6+ 
+
 Features:
 
 - Fully Configurable
@@ -51,6 +55,7 @@ Features:
 - Set NPC as Mistrels
 
 - While Chasing or using Waypoints, the NPC will try to detect automatically the best ground position
+
 Commands:
 
 - /npc_add => create a new npc and edit it
@@ -70,19 +75,23 @@ Commands:
 - /npc_list => list all npcs
 
 - /npc_way [Id] => draws path of the npc you are looking at or specified id
+
 NPC_ADD
 
 Creates a new NPC, and edit him. He will be created where you stand, and be looking the same way that you do
 
 using /npc_add XXXX (npc ID from /npc_list) will clone the NPC to your position
+
 NPC_EDIT
 
 Edit an NPC (not needed if you just did /npc_add)
 
 Then you can use the command: /npc
+
 NPC_END
 
 Stop editing an NPC
+
 NPC
 
 by just putting the option, you will see what value it is currently set to
@@ -147,12 +156,14 @@ defend true/false => attack if attacked
 
 needsAmmo true/false => needs to have ammo in inventory to shoot
 
+
 NPC WAYPOINTS:
 
 You need to make waypoints:
 [Waypoints Database](http://oxidemod.org/plugins/waypoints-database.982/) 1.0.0
 
 to hook to your NPC, see the waypoints post to know how to make some
+
 NPC KIT
 
 You need the Kit Plugin.
@@ -163,6 +174,7 @@ Create a new kit with the kit plugin like you usually do then do:
 
 Then while editing the NPC do: /npc kit "random name" (being the same name as the kit ofc)
 
+
 NPC ATTACK MOVEMENTS & PATHFINDING:
 
 The Pathfinding is still not perfect, but it's getting there, currently the main problem isnt really coming from the Pathfinding but from the HumanNPC plugin because of the way i wrote it, so i'll need to rewrite a part of the plugin to make better movements and player attacks.
@@ -170,6 +182,7 @@ The Pathfinding is still not perfect, but it's getting there, currently the main
 you will need to download [PathFinding for Rust Experimental | Oxide](http://oxidemod.org/resources/pathfinding.868) to make the NPC attack movements work.
 
 If the NPC can't find any paths for 5 seconds it will stop targetting the entity and go back to his spawn with full health.
+
 For Plugin Developpers:
 
 Hooks were implemented to allow other plugins to interact with this one.
@@ -179,6 +192,7 @@ None of them have return values (can be edited if needed)
 New hooks can be added
 
 Note that all NPC have unique userID's, (BasePlayer.userID), so you may easily save informations of NPC by userID
+
 
 Called when the NCP is getting hit
 
@@ -231,6 +245,7 @@ Called when an NPC gets looted
 If you want to contribute to this plugin you may ask for pull requests on github:
 [Oxide2Plugins/HumanNPC.cs at master · strykes/Oxide2Plugins · GitHub](https://github.com/strykes/Oxide2Plugins/blob/master/CSharp/HumanNPC.cs)
 
+
 Usage of this plugin:
 
 - Make you server more lively, with cities and NPC that talk and interact a bit with players
@@ -243,16 +258,19 @@ Usage of this plugin:
 
 - Only your imagination is limited, possibilities are infinite! TO DO LIST:
 
+
 To Do:
 
 - Area Call for help
 
 - friends list not to atack
+
 Fail:
 
 - add bullets animation => not sure i can :/ probably controlled client side
 
 - different radius for chat & hostile (Not going to implement that, too much checks)
+
 Config file
 
 ````

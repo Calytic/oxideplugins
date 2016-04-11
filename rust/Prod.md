@@ -1,4 +1,5 @@
 Compatible with: **[DeadPlayerList](http://oxidemod.org/resources/deadplayerlist.696/) & **Building Owners****
+
 **Features:**
 
 - Get Owners **Steams ID & Names**
@@ -14,8 +15,10 @@ Compatible with: **[DeadPlayerList](http://oxidemod.org/resources/deadplayerlist
 - Deployers of **Deployables**
 
 - Fully configurable
+
 **Command:**
 - /prod => will show you all the owners of stuff that you see in front of you
+
 **Config-file:**
 
 ````

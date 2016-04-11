@@ -1,4 +1,5 @@
 Automatically kicks players that have VAC Bans
+
 **Config: VACKicker.json**
 
 ````

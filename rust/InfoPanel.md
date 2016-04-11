@@ -1,4 +1,5 @@
 This is a small information panel.
+
 Features:
 
 - In-Game / Server Time.
@@ -22,6 +23,7 @@ Features:
 - Custom Panels: Simple text and Icon
 
 - Api
+
 Chat commands:
 
 
@@ -66,33 +68,41 @@ This function will load your panel. For the first time it will create a new entr
 
 After that the InfoPanel will load the panel config from there.
 
+
 If you use the Text or Image in your config. They will be automatically  named. (PluginName + Text or PluginName + Image)
 
 For example: MyPanelName -> MyPanelNameText or MyPanelNameImage
+
 private bool ShowPanel(string PluginName, string PanelName,  string PlayerId = null )
 
 
 Show the selected panel to everyone or certain player.
+
 private bool HidePanel(string PluginName, string PanelName,  string PlayerId = null )
 
 
 Hide the selected panel to everyone or certain player.
+
 private bool RefreshPanel( string PluginName, string PanelName,  string PlayerId = null )
 
 
 Refresh the panel to everyone or certain player.
+
 private void SetPanelAttribute( string PluginName, string PanelName, string Attribute, string Value, string PlayerId = null )
 
 
 Change a panel attribute for everyone or or certain player.
+
 private bool SendPanelInfo( string PluginName, List<string> Panels )
 
 
 You can send a list of your panel names to the InfoPanel. The differences between this list and the config file will be removed from the config file to keep it clean.
+
 private bool IsPlayerGUILoaded( string PlayerId )
 
 
 You can check the player GUI status.
+
 API Example:
 
 ````
@@ -100,7 +110,9 @@ using System;
 
 using System.Collections.Generic;
 
+
 using Oxide.Core.Plugins;
+
 
 namespace Oxide.Plugins
 
@@ -114,17 +126,21 @@ namespace Oxide.Plugins
 
     {
 
+
         Timer CounterTimer;
 
         Timer BlinkTimer;
 
         Timer RandPTimer;
 
+
         int Count = 0;
 
         bool IsActive = true;
 
+
         string RandomPlayerID;
+
 
         bool RandomPlayername = false;
 
@@ -132,7 +148,9 @@ namespace Oxide.Plugins
 
         bool CounterP = false;
 
+
         List<string> Panels = new List<string> { "BlinkPanel", "CounterPanel", "RandomPlayernamePanel" };
+
 
         [PluginReference]
 
@@ -152,6 +170,7 @@ namespace Oxide.Plugins
 
         }
 
+
         void OnPluginLoaded(Plugin InfoPanel)
 
         {
@@ -166,6 +185,7 @@ namespace Oxide.Plugins
 
         }
 
+
         public void InfoPanelInit()
 
         {
@@ -174,11 +194,13 @@ namespace Oxide.Plugins
 
             InfoPanel.Call("SendPanelInfo", "ApiTest", Panels);
 
+
             AddRandomPlayerNamePanel();
 
             AddBlinkPanel();
 
             AddCounterPanel();
+
 
             if (CounterTimer == null & CounterP)
 
@@ -188,6 +210,7 @@ namespace Oxide.Plugins
 
             }
 
+
             if (BlinkTimer == null & Blinker)
 
             {
@@ -195,6 +218,7 @@ namespace Oxide.Plugins
                 BlinkTimer = timer.Repeat(5, 0, () => Blink());
 
             }
+
 
             if (RandPTimer == null & RandomPlayername)
 
@@ -207,6 +231,7 @@ namespace Oxide.Plugins
      
 
         }
+
 
         /// <summary>
 
@@ -221,6 +246,7 @@ namespace Oxide.Plugins
             RandomPlayername = (bool)InfoPanel.Call("PanelRegister", "ApiTest", "RandomPlayernamePanel", RndPlayerNameCfg);
 
         }
+
 
         /// <summary>
 
@@ -240,6 +266,7 @@ namespace Oxide.Plugins
 
         }
 
+
         /// <summary>
 
         /// Load the panel.
@@ -257,6 +284,7 @@ namespace Oxide.Plugins
             InfoPanel.Call("ShowPanel", "ApiTest", "CounterPanel");
 
         }
+
 
         /// <summary>
 
@@ -290,6 +318,7 @@ namespace Oxide.Plugins
 
         }
 
+
         /// <summary>
 
         /// Refresh the counter to every active player.
@@ -301,6 +330,7 @@ namespace Oxide.Plugins
         {
 
             Count += 5;
+
 
             if (InfoPanel && CounterP)
 
@@ -316,6 +346,7 @@ namespace Oxide.Plugins
 
         }
 
+
         /// <summary>
 
         /// Show his name to a random player. But just only for him.
@@ -330,15 +361,18 @@ namespace Oxide.Plugins
 
                 InfoPanel.Call("HidePanel", "ApiTest", "RandomPlayernamePanel", RandomPlayerID);
 
+
             if(BasePlayer.activePlayerList.Count > 0)
 
             {
+
 
                 var rand = new System.Random();
 
                 BasePlayer player = BasePlayer.activePlayerList[rand.Next(BasePlayer.activePlayerList.Count)];
 
                 RandomPlayerID = player.UserIDString;
+
 
                 if (InfoPanel && RandomPlayername)
 
@@ -358,11 +392,13 @@ namespace Oxide.Plugins
 
         }
 
+
         /*
 
             Example Configs. Theres is no required option.
 
         */
+
 
         string RndPlayerNameCfg = @"
 
@@ -444,7 +480,9 @@ namespace Oxide.Plugins
 
         }";
 
+
         string BlinkPCfg = @"{}";
+
 
         string CounterPCfg = @"
 

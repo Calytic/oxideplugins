@@ -17,6 +17,7 @@ Commands: (0)**
 - /zone_player [playerName] => show player zones & flags
 
 - /zone_stats => shows known entity counts
+
 **Options:**
 
 autolights true/false => autolights on or off depending on the time of the day (settable in the configs)
@@ -89,6 +90,7 @@ nopickup true/false => block picking up items
 
 nocollect true/false => block picking up collectables
 
+
 (0): Commands are accessible for level 2 and for  oxide permission: "zone"
 
 (1): Wont be ejected level 2 and players in the whitelist (only editable via outer plugins, so yeah this plugin can now be used easily by outer plugins)
@@ -96,9 +98,11 @@ nocollect true/false => block picking up collectables
 (2): can build level 2 and oxide permission: "canbuild"
 
 (3): can deploy level 2 and oxide permission: "candeploy"
+
 Oxide permission system pretty much works like legacy's Flags plugin.
 
 You can also create groups, add permissions to that groups and assign users to it so every user in that group has the permission of that group.
+
 You can grant a user permission by using:
 **oxide.grant user <username> <permission>**
 To create a group:
@@ -115,6 +119,7 @@ Click to expand...
 /zone_add
 
 /zone nobuild true nodeploy true name "Admin House" undestr true
+
 **Configs:**
 
 ````
@@ -133,6 +138,7 @@ Click to expand...
 
 
 **Plugin Developpers**
+
 **Hooks:**
 
 ````
@@ -143,6 +149,7 @@ Called when a player enters a zone
 
 no return
 
+
 ````
 void OnExitZone(string ZoneID, BasePlayer player)
 ````
@@ -150,6 +157,7 @@ void OnExitZone(string ZoneID, BasePlayer player)
 Called when a player leaves a zone
 
 no return
+
 **External Calls to this plugin:**
 
 ````
@@ -180,9 +188,11 @@ args[7] = "120"
 
 Option 3 (optional): is to set or edit the location of the zone
 
+
 The plugin returns TRUE if the zone is valid
 
 and FALSE if it was saved but NOT created (only reason would be that no position for the zone was set)
+
 
 ````
 bool EraseZone(string ZoneID)
@@ -194,11 +204,13 @@ returns TRUE if the zone was deleted
 
 returns FALSE if the zone was already deleted
 
+
 ````
 List<BasePlayer> GetPlayersInZone(string ZoneID)
 ````
 
 Get the list of players in the zone
+
 
 ````
 bool isPlayerInZone(string ZoneID, BasePlayer player)
@@ -207,6 +219,7 @@ bool isPlayerInZone(string ZoneID, BasePlayer player)
 returns TRUE if the player is in the zone
 
 returns FALSE if the player is not in the zone
+
 
 ````
 bool AddPlayerToZoneWhitelist(string ZoneID, BasePlayer player)
@@ -220,6 +233,7 @@ returns TRUE if everything went OK
 
 returns FALSE if the zone doesn't exist
 
+
 ````
 bool RemovePlayerFromZoneWhitelist(string ZoneID, BasePlayer player)
 ````
@@ -231,6 +245,7 @@ Will revoke access to a zone (the player will need to get out first before being
 returns TRUE if everything went OK
 
 returns FALSE if the zone doesn't exist
+
 
 ````
 bool AddPlayerToZoneKeepinlist(string ZoneID, BasePlayer player)
@@ -244,6 +259,7 @@ returns FALSE if the zone doesn't exist
 
 (it does NOT teleport the player to the zone, so you will need to place the player inside the zone first, and if you have eject TRUE, make sure you also allow them to get inside  or something fun will happen)
 
+
 ````
 bool RemovePlayerFromZoneKeepinlist(string ZoneID, BasePlayer player)
 ````
@@ -255,6 +271,7 @@ returns TRUE if everything went OK
 returns FALSE if the zone doesn't exist
 
 (this does not teleport the player out or anything, just allows him to get out)
+
 
 
 If you have any questions, or need new hooks, etc, feel free to ask.

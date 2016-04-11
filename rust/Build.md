@@ -1,6 +1,7 @@
 Build anything the way you want it with some kind of AI.
 
 This will basically be an improvement on my Spawn Plugin from legacy.
+
 **Execute Command:
 
 RIGHT CLICK**
@@ -8,14 +9,17 @@ RIGHT CLICK**
 Click 1 time at a time will spawn things 1 by 1.
 
 Holding RIGHT CLICK for 1 sec, the mass spawning will start
+
 **Permissions:**
 
 set the permissions in the config file: level 1 for moderator, level 2 for admins, level 0 for simple users
 
 you can also you oxide permission system: " **builder **"
+
 Oxide permission system pretty much works like legacy's Flags plugin.
 
 You can also create groups, add permissions to that groups and assign users to it so every user in that group has the permission of that group.
+
 You can grant a user permission by using:
 **oxide.grant user <username> <permission>**
 To create a group:
@@ -28,6 +32,7 @@ To remove users permission:
 **oxide.revoke <userid/username> <group> <permission>**
 Click to expand...
 **Commands:**
+
 **- **/buildhelp  -> To show you the full commands list
 - /build foundation -> To build a foundation where you are looking at (has an AI and will try to align to other structures, see the howto)
 - /spawn foundation -> To build a foundation where you are looking at (has NO AI)
@@ -38,16 +43,25 @@ Click to expand...
 
 - /buildrotate XX => to do your own rotation of a structure
 
+
 - /deploy deployable -> To deploy a deployable item (ex /deploy "Lantern")
+
 - /buildheal Optional:all => heal all the building or only the selected part.
+
 - /buildgrade GradeLevel Optional:all => set grade level of all the building or only the selected part
+
 - /buildhelp animals=>  get the list of animals
 - /animal name=> spawn an animal
+
 - /buildhelp resources =>  get the list of resources
 - /plant ID => Plant a resource (barrel, trees, ores)
+
 **- **/build /plant /animal /deploy /buildheal /buildgrade  -> To Deactivate the building mode.
+
 - /erase => Remove tool that can remove anything (don't use it on other players --')
+
 **Notice**: NONE of the above commands (exept help commands) will work until you press the EXECUTE COMMAND (Right Click)
+
 **HowTo:**
 
 RIGHT SHIFT + L , to start flying in admin mode (if it doesn't work it means you are not an admin and can't use this command )
@@ -68,6 +82,7 @@ Aim where you want to build your next foundation (aim a side of the first founda
 RIGHT CLICK, to start building, you may hold right click if you want to make a lot of foundation at a time.
 
 Then you may start using other building elements.
+
 
 On a Foundation/Floor/Roof (Floor Type):
 
@@ -90,6 +105,7 @@ On a Wall/Window/Low Wall/Doorways (Wall Type):
 
 -: You can't place pillars on them
 
+
 Triangle foundations and floors (Floor Triangle Type):
 
 +: You may place them agaisnt each other
@@ -97,7 +113,9 @@ Triangle foundations and floors (Floor Triangle Type):
 +: You may place walls on them
 
 -: You can't place normal floors/foundations on them (only manually)
+
 **Video Tutorial:** (i need to remake it as the video shows only a part of my screen XD)
+
 
 
 Block List:

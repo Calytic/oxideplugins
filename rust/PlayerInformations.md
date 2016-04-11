@@ -1,4 +1,5 @@
 Store player IPs, Names, position, played time, etc
+
 **Chat commands:**
 
 /lastips STEAMID/NAME => show the last ips used by this player
@@ -14,6 +15,7 @@ Store player IPs, Names, position, played time, etc
 /firstconnection STEAMID/NAME => show when the player was first seen on the server
 
 /lastposition STEAMID/NAME => show where the player was last seen (doesn't work on online players)
+
 **Default Configs:**
 
 ````

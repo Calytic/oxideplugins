@@ -1,4 +1,5 @@
 Add sticky notes to locations for other players to read
+
 **Features:**
 
 - For Admins only or also players
@@ -10,11 +11,13 @@ Add sticky notes to locations for other players to read
 - Limit notes per players
 
 - easily implement this plugin inside an outer plugin (shop?)
+
 **Player Commands:**
 
 - /note Message => Add a sticky note on your location
 
 - /note => remove the sticky note where you are
+
 **Admins Commands:**
 
 - /note_reset => reset all sticky notes
@@ -22,6 +25,7 @@ Add sticky notes to locations for other players to read
 - /note_count => count the number of sticky notes deployed on your server
 
 - /note_read RADIUS => read all sticky notes around you (default is 30)
+
 
 ````
 {

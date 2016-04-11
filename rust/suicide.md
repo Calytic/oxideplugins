@@ -1,6 +1,7 @@
 Suicide chat command
 
 Admin kill chat command
+
 **Commands:**
 
 - /kill PlayerName/ID/IP => kill a player by name (partial name works), ID or IP
@@ -8,6 +9,7 @@ Admin kill chat command
 - /suicide => commit suicide
 
 - /die => same as both above.
+
 **Configs:**
 
 ````

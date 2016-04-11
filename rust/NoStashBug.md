@@ -1,0 +1,1 @@
+Little plugin which blocks hiding a stashes under/into the all game objects.

@@ -1,31 +1,34 @@
 Kits plugin, with only command chat support
-**Features:**
 
-Choose a **limit** of usage for kits
+Features:
 
-Choose a **cooldown** for kits
+Choose a limit of usage for kits
 
-Create kits for **admins**
+Choose a cooldown for kits
 
-Create kits for **moderators**
+Create kits for admins
 
-Create kits for **VIPs**
+Create kits for moderators
 
-Choose 1 **Autokit** on your server
+Create kits for VIPs
 
-Supports **GUI**
+Choose 1 Autokit on your server
 
-Supports **NPC**
+Supports GUI
 
-Supports **Skins**
-[Create kits not accessible by players but accessible via the** Give **plugin](http://forum.rustoxide.com/resources/give.666/)
-**No more json**, too hard for a lot of admins, all kits are **configuration from ingame**
-**Players Commands:**
+Supports NPC
+
+Supports Skins
+[Create kits not accessible by players but accessible via the Give plugin](http://forum.rustoxide.com/resources/give.666/)
+No more json, too hard for a lot of admins, all kits are configuration from ingame
+
+Players Commands:
 
 - /kit => see the full list of available kits for you
 
 - /kit KITNAME => choose a kit
-**Admin Commands:**
+
+Admin Commands:
 
 - /kit list => see the full list of kits
 
@@ -40,7 +43,8 @@ Supports **Skins**
 - /kit resetdata => reset player data
 
 - /kit option1 value1 option2 value2 option3 value3 => set the options for a kit you are currently editing
-**How to create kits:**
+
+How to create kits:
 
 1) Empty your inventory
 
@@ -54,7 +58,9 @@ ex:
 
 /kit items max 10 cooldown 3600 description "Every hour kit, max usage: 10"
 
-**Options:**
+
+
+Options:
 max XXX/false => set the max usage of a kit (false will deactivate it)
 cooldown XXXX/false => set the cooldown in seconds of a kit (false will deactivate it)
 authlevel X => level needed to redeem the kit
@@ -64,14 +70,16 @@ permission CUSTOMPERMISSION/false => only players with the custom permission oxi
 description "XXXX XXX"/false => set a description for a kit
 image "URL" => set an image for a kit in the GUI.
 hide true/false => hide a kit from the list: /kit (won't hide from the admin command /kit list)
-**items** => no values here, this will copy the items in your inventory to set it in the kit.
-**Custom Permissions:**
+items => no values here, this will copy the items in your inventory to set it in the kit.
+
+Custom Permissions:
 
 when you created a kit or edited a kit do:
 
 /kit permission PERMISSIONNAME
 
 the permissionname can be a new permission or an existing permission.
+
 
 Custom permissions are oxide permissions:
 
@@ -80,27 +88,27 @@ oxide.grant user "PLAYERNAME" PERMISSIONNAME
 ````
 
 You can grant a user permission by using:
-**oxide.grant user <username> <permission>**
+oxide.grant user <username> <permission>
 
 To create a group:
-**oxide.group add <groupname>**
+oxide.group add <groupname>
 
 To assign permission to a group:
-**oxide.grant group <groupname> <permission>**
+oxide.grant group <groupname> <permission>
 
 To add users to a group:
-**oxide.usergroup add <username> <groupname>**
+oxide.usergroup add <username> <groupname>
 
 To remove users permission:
-**oxide.revoke <userid/username> <group> <permission>**Click to expand...
-**Auto Kits:**
+oxide.revoke <userid/username> <group> <permission>Click to expand...Auto Kits:
 
 1) /kit add "autokit"
 
 2) /kit authlevel 2 hide true => this will set the kit only manually redeemable for admins, and hide will hide it from the list in /kit.
 
 3) /kit items => this will copy the items in your inventory to set it as the new kit. you don't need to do it seperatly you can do it in the previous line: /kit authlevel 2 items hide true
-**NPC GUI:**
+
+NPC GUI:
 
 When you create a NPC Kit, you can (or not) use -npconly
 
@@ -144,14 +152,14 @@ Then in the config you can add what this npc has:
  
 ````
 
-
-**Chat GUI:**
+Chat GUI:
 
 By default there are no chat gui.
 
 But you may replace the default /kit chat command by a gui.
 
 in the NPC - GUI Kits, instead of putting an NPC id, put: "chat".
+
 
 ex:
 
@@ -181,8 +189,7 @@ ex:
 }
 ````
 
-
-**Default Example Configs in:**
+Default Example Configs in:
 
 oxide/config/Kits.json
 
@@ -225,11 +232,11 @@ oxide/config/Kits.json
  
 ````
 
-
-**Settings authLevel** is the level needed to use the admin commands
+Settings authLevel is the level needed to use the admin commands
 
 note that a level 1 can't remove a kit from a level 2.
-**For Plugin Devs**
+
+For Plugin Devs
 
 To refuse a kit to be given (arena, specific player moderation, etc)
 
@@ -250,6 +257,7 @@ end
 ````
 
 By returning ANYTHING it will refuse the kit to be given, return a text to specify the reason.
+
 
 Check if the kit exists:
 

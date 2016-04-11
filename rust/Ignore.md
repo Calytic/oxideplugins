@@ -1,5 +1,6 @@
 **This is an API plugin that doesnt do anything alone besides managing an ignore list. To make use of that youo need another plugin using it.
 
+
 Usage:**
 
 Chat commands:
@@ -7,6 +8,7 @@ Chat commands:
 /ignore <add(+)/remove(-)> <name/steamID> to add or remove someone
 
 /ignore list to show your ignore list
+
 **Usage for plugin devs**
 
 To call the functions from this API your plugin needs to get the plugin instance.
@@ -65,5 +67,6 @@ GetIgnorelist(playerSteamId)
 ````
 
 returns a table with playerSteamId's ignore list.
+
 
 For lua api just append "S" to the hook names to pass steamid as string.

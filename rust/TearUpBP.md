@@ -1,0 +1,1 @@
+Use /tearup lookup <name> to search the servers item list.  Then /tearup <name of bp>

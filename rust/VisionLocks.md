@@ -1,0 +1,1 @@
+Prevents damage on anything that has a lock and is locked.

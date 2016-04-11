@@ -3,11 +3,13 @@
 This plugin doesnt do anything itself besides managing a friendlist.
 
 It offers functions to use by other plugins to do things based on players friends.
+
 **Usage for players**
 
 /friend <add|+/remove|-> <name/steamID> to add or remove someone
 
 /friend list to list your friends
+
 **Usage for plugin devs**
 
 To call the functions from this API your plugin needs to get the plugin instance.
@@ -15,6 +17,7 @@ Code (C#):
 ````
 [PluginReference]
 private Plugin Friends;
+
 
 Friends?.CallHook("HasFriend", playerId, targetId)
 

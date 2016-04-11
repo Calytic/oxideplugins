@@ -15,6 +15,7 @@
 - /room optional:ROOMID reset => resets the room
 
 - /room optional:ROOMID duration XX => sets a NEW duration for the room in seconds (only affects current player's room duration)
+
 **Hotel Options:**
 
 - /hotel location => sets the center hotel location where you stand
@@ -34,7 +35,9 @@
 - /hotel roomradius XX => sets the radius of the rooms
 
 - /hotel rooms => refreshs the rooms (detects new rooms, deletes rooms if they don't exist anymore, if rooms are in use they won't get taken in count)
+
 **Creating a New Hotel:**
+
 
 
 1) Create your hotel and your rooms.
@@ -59,7 +62,9 @@ If more then 1 door with a code lock is detectable by a deployable, this deploya
 
 8) /hotel_save => DONT FORGET THIS!!!
 
+
 Now people may use the hotel. Everything is automated so you shouldn't have to manage it.
+
 **Add NPC:**
 
 create a new NPC with /npc_add
@@ -69,6 +74,7 @@ get his ID with /npc_list
 and in /hotel_edit NAMEOFHOTEL
 
 do /hotel npc NPCID
+
 **Zone Management:**
 
 You will HAVE to use the zone manager tool to do what ever you want to the zone.
@@ -77,12 +83,14 @@ Use /zone_edit HOTELNAME to edit the hotel's zone.
 **i STRONGLLLYYY recommend using:
 
 "nobuild" and "nodeploy" and "undestr"**
+
 **Rooms for Permissions Only:**
 
 
 in /hotel_edit NAMEOFHOTEL
 
 use /hotel permission PERMISSIONNAME (you may create a new one or use an existing one)
+
 **Oxide Permissions Usage:**
 
 ````

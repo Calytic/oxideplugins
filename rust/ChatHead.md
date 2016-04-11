@@ -1,0 +1,3 @@
+If a player types in chat, their chat message will appear above their head.  It only appears to other players if they are within 20 meters range. New plugin. Suggestions and feedback are very welcome!
+
+**You'll notice the position of the message lags a bit behind the player when they move.  The debug draw function (what makes the text show up) can only be spawned in a static position.  It is redrawn 10 times a second at the last known position of the player.  Any faster refresh rate tends to flicker horribly.  Also, no matter how fast the text gets redrawn, it will still lag behind the player.  After testing, it seems like redrawing every 0.1 seconds gets the best results.

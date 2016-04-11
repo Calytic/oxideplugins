@@ -1,0 +1,1 @@
+Refund cost of previous tier when upgrading buildings.

@@ -46,11 +46,13 @@ Config
 
     "Deposit": "deposit", -- To remove a command, leave it "" (for example "Transfer": "")
 
+
   "Admin_Auth_LvL": 2, -- The level of administration that require some cmds. (2 - admin, 1 - moder, 0 - user)
 
   "StartMoney": 1000 -- Starting capital
 
   "Transfer_Fee":0.01 -- Fee for transfering money (0.01 -> 1%)
+
 API (for developers)
 
 ````
