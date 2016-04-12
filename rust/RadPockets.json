@@ -1,0 +1,18 @@
+{
+    "name": "RadPockets",
+    "description": "Turn your server into a irradiated wasteland",
+    "author": "k1lly0u",
+    "version": "0.1.4",
+    "configuration": true,
+    "require": {
+        "ZoneManager": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "Player List",
+    "description": "Allows users to see who or how many are users are currently online",
+    "author": "Domestos",
+    "version": "1.4.0",
+    "configuration": false,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

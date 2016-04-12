@@ -1,0 +1,15 @@
+{
+    "name": "Totem Selection",
+    "description": "Select a totem where to spawn",
+    "author": "Reneb",
+    "version": "1.0.1",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "hurtworld"
+    ],
+    "keywords": [
+        "oxide",
+        "hurtworld"
+    ]
+}

@@ -1,0 +1,17 @@
+{
+    "name": "Ping",
+    "description": "Automatic kicking of players with high pings",
+    "author": "Wulf",
+    "version": "1.2.4",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust",
+        "hurtworld"
+    ],
+    "keywords": [
+        "oxide",
+        "rust",
+        "hurtworld"
+    ]
+}

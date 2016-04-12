@@ -1,0 +1,15 @@
+{
+    "name": "Global Damage Modifier",
+    "description": "Allows you to Multiply or Null all major damage types globally",
+    "author": "Colon Blow",
+    "version": "1.2.1",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

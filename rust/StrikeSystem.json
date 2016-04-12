@@ -1,0 +1,18 @@
+{
+    "name": "Strike System",
+    "description": "Strike players & time-ban players with a specific amount of strikes",
+    "author": "LaserHydra",
+    "version": "2.0.0",
+    "configuration": true,
+    "require": {
+        "EnhancedBanSystem": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

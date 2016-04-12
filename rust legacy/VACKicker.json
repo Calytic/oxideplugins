@@ -1,0 +1,15 @@
+{
+    "name": "VAC Kicker",
+    "description": "Reject players with VAC bans",
+    "author": "Reneb",
+    "version": "1.0.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust legacy"
+    ],
+    "keywords": [
+        "oxide",
+        "rust legacy"
+    ]
+}

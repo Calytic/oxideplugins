@@ -1,0 +1,15 @@
+{
+    "name": "MaxPlayers",
+    "description": "Increases the maxium players limit up to 244, and more",
+    "author": "Wulf",
+    "version": "0.3.2",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "hurtworld"
+    ],
+    "keywords": [
+        "oxide",
+        "hurtworld"
+    ]
+}

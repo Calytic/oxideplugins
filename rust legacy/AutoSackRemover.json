@@ -1,0 +1,15 @@
+{
+    "name": "Auto Sack Remover",
+    "description": "Automatically remove the loot sacks when you want",
+    "author": "Reneb",
+    "version": "1.0.1",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust legacy"
+    ],
+    "keywords": [
+        "oxide",
+        "rust legacy"
+    ]
+}

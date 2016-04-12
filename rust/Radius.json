@@ -1,0 +1,19 @@
+{
+    "name": "Radius",
+    "description": "Allows players to view who is nearby within a radius.   Also allows players to chat locally.",
+    "author": "insane8472",
+    "version": "1.0.4",
+    "configuration": true,
+    "suggest": {
+        "Friends": "*",
+        "Clans": "*"
+    },
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

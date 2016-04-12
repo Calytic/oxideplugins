@@ -1,0 +1,15 @@
+{
+    "name": "Custom Spawn Points",
+    "description": "Create custom spawn points for your server",
+    "author": "Reneb",
+    "version": "1.0.3",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "PaiN AFK",
+    "description": "Simple \"Away From Keyboard\" system",
+    "author": "PaiN",
+    "version": "3.0.0",
+    "configuration": true,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

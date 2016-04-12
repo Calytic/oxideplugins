@@ -1,0 +1,15 @@
+{
+    "name": "Anti Block Elevators",
+    "description": "Prevent players from building over themselves to build block elevators",
+    "author": "Reneb",
+    "version": "1.0.1",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "VAC Kicker",
+    "description": "Kicks players that have VAC Bans",
+    "author": "Reneb",
+    "version": "1.0.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "Sleeping System GUI",
+    "description": "GUI Based Sleeping system.",
+    "author": "PaiN",
+    "version": "0.2.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

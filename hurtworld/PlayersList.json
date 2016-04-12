@@ -1,0 +1,15 @@
+{
+    "name": "Players List",
+    "description": "Shows a players list in the chat",
+    "author": "Reneb",
+    "version": "1.0.3",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "hurtworld"
+    ],
+    "keywords": [
+        "oxide",
+        "hurtworld"
+    ]
+}

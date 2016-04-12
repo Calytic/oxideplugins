@@ -1,0 +1,15 @@
+{
+    "name": "Clock GUI",
+    "description": "this gets the servers time (not rusts)",
+    "author": "ownprox",
+    "version": "1.0.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

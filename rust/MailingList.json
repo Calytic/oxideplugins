@@ -1,0 +1,18 @@
+{
+    "name": "Mailing List",
+    "description": "Reward players for subscribing to your mailing list",
+    "author": "Norn",
+    "version": "0.2",
+    "configuration": true,
+    "suggest": {
+        "PopupNotifications": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

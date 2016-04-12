@@ -1,0 +1,15 @@
+{
+    "name": "Banned Base Remover",
+    "description": "Remove banned bases in your server with one command",
+    "author": "copper",
+    "version": "1.0.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust legacy"
+    ],
+    "keywords": [
+        "oxide",
+        "rust legacy"
+    ]
+}

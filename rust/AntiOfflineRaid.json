@@ -1,0 +1,18 @@
+{
+    "name": "AntiOfflineRaid",
+    "description": "Cancels\/reduces base damage when offline",
+    "author": "Calytic",
+    "version": "0.1.5",
+    "configuration": true,
+    "suggest": {
+        "Clans": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

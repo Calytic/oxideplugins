@@ -1,0 +1,15 @@
+{
+    "name": "Anti-Wounded",
+    "description": "Players will skip the wounded state before dying.",
+    "author": "SkinN \u00f5.\u00d5'.|.",
+    "version": "2.0.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

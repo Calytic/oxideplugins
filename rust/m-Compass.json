@@ -1,0 +1,15 @@
+{
+    "name": "Simple Compass",
+    "description": "Adds an in-game command to check the direction you're facing",
+    "author": "Mughisi",
+    "version": "1.0.0",
+    "configuration": false,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

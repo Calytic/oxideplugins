@@ -1,0 +1,15 @@
+{
+    "name": "BlueprintManager",
+    "description": "Add, AddAll, and reset learned Blueprints",
+    "author": "Nogrod",
+    "version": "1.2.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

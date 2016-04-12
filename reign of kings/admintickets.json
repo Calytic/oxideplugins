@@ -1,0 +1,19 @@
+{
+    "name": "Admin Tickets",
+    "description": "Gives players the opportunity to send a ticket to admins",
+    "author": "LaserHydra",
+    "version": "1.5.5",
+    "configuration": true,
+    "suggest": {
+        "PushAPI": "*",
+        "EmailAPI": "*"
+    },
+    "language": "lua",
+    "games": [
+        "reign of kings"
+    ],
+    "keywords": [
+        "oxide",
+        "reign of kings"
+    ]
+}

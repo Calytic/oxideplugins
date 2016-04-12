@@ -1,0 +1,15 @@
+{
+    "name": "Stacksize",
+    "description": "Simple stacksize config",
+    "author": "Noviets",
+    "version": "1.0.5",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "hurtworld"
+    ],
+    "keywords": [
+        "oxide",
+        "hurtworld"
+    ]
+}

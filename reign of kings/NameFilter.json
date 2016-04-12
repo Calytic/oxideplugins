@@ -1,0 +1,15 @@
+{
+    "name": "Name Filter",
+    "description": "Blocks access to the server for people with weird characters in their name.",
+    "author": "Mughisi",
+    "version": "0.2.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "reign of kings"
+    ],
+    "keywords": [
+        "oxide",
+        "reign of kings"
+    ]
+}

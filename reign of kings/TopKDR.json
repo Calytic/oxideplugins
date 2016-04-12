@@ -1,0 +1,15 @@
+{
+    "name": "TopKDR",
+    "description": "Kill and death ratio with a top list",
+    "author": "PaiN",
+    "version": "0.3",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "reign of kings"
+    ],
+    "keywords": [
+        "oxide",
+        "reign of kings"
+    ]
+}

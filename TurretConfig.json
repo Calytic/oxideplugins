@@ -1,0 +1,15 @@
+{
+    "name": "TurretConfig",
+    "game": "",
+    "description": "Change turret damage, accuracy, bullet speed, health, targeting, etc",
+    "version": "0.1.7",
+    "keywords": [
+        "",
+        "oxide"
+    ],
+    "authorid": "calytic.58712",
+    "author": "Calytic\n\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\nCommandRateLimiter\n\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\nNoEscape\n\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\nAntiOfflineRaid\n\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\nEntityOwner\n\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\nComponentBlocker\n",
+    "configuration": false,
+    "suggest": [],
+    "require": []
+}

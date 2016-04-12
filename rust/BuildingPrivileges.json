@@ -1,0 +1,15 @@
+{
+    "name": "Building Privileges Viewer",
+    "description": "View building privileges & locations of tool cupboards around you",
+    "author": "Reneb",
+    "version": "1.0.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

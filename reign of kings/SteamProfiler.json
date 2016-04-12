@@ -1,0 +1,15 @@
+{
+    "name": "Steam Profiler",
+    "description": "Block players from connecting with VAC banned accounts, shared games or private profiles",
+    "author": "Mughisi",
+    "version": "1.0.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "reign of kings"
+    ],
+    "keywords": [
+        "oxide",
+        "reign of kings"
+    ]
+}

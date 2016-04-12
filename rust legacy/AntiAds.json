@@ -1,0 +1,15 @@
+{
+    "name": "Anti-Advertising",
+    "description": "Blocks advertising not allowed servers, with kick and ban options",
+    "author": "Wulf",
+    "version": "2.0.0",
+    "configuration": true,
+    "language": "lua",
+    "games": [
+        "rust legacy"
+    ],
+    "keywords": [
+        "oxide",
+        "rust legacy"
+    ]
+}

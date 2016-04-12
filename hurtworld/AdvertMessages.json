@@ -1,0 +1,15 @@
+{
+    "name": "Advert Messages",
+    "description": "Timed chat messages to work as informational messages",
+    "author": "SkinN \u00f5.\u00d5'.|.",
+    "version": "2.0.4",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "hurtworld"
+    ],
+    "keywords": [
+        "oxide",
+        "hurtworld"
+    ]
+}

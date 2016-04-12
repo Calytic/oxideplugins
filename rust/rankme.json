@@ -1,0 +1,18 @@
+{
+    "name": "Rank-ME",
+    "description": "Simple ranking system based on player statistics",
+    "author": "SkinN \u00f5.\u00d5'.|.",
+    "version": "2.6.0",
+    "configuration": true,
+    "suggest": {
+        "ZoneManager": "*"
+    },
+    "language": "py",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

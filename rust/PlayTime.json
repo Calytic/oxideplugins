@@ -1,0 +1,15 @@
+{
+    "name": "PlayTime",
+    "description": "Logs players play time and allows you to view the players play time with a command.",
+    "author": "Reneb",
+    "version": "2.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

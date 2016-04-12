@@ -1,0 +1,15 @@
+{
+    "name": "Anti-Suicide",
+    "description": "Stops players from suiciding",
+    "author": "copper",
+    "version": "2.2",
+    "configuration": false,
+    "language": "lua",
+    "games": [
+        "rust legacy"
+    ],
+    "keywords": [
+        "oxide",
+        "rust legacy"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "Zones Manager",
+    "description": "Advanced zone manager for creating in-game zones",
+    "author": "Nogrod",
+    "version": "2.4.2",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "No Fuel Requirements",
+    "description": "Allows you to choose which deployables do not use fuel",
+    "author": "AnExiledGod",
+    "version": "1.2",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

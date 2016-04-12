@@ -1,0 +1,15 @@
+{
+    "name": "Teleportation",
+    "description": "Advanced teleportation and homes",
+    "author": "LaserHydra",
+    "version": "1.4.1",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "hurtworld"
+    ],
+    "keywords": [
+        "oxide",
+        "hurtworld"
+    ]
+}

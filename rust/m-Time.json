@@ -1,0 +1,15 @@
+{
+    "name": "Day & Night System",
+    "description": "Gives you more control over the in-game time!",
+    "author": "Mughisi",
+    "version": "1.0.3",
+    "configuration": false,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -1,0 +1,18 @@
+{
+    "name": "Magic Craft",
+    "description": "Alternative crafting system.",
+    "author": "Norn",
+    "version": "0.2.2",
+    "configuration": true,
+    "suggest": {
+        "PopupNotifications": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

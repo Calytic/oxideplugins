@@ -1,0 +1,15 @@
+{
+    "name": "NoClone",
+    "description": "Automatically kicks players that join if their name is already used",
+    "author": "Noviets",
+    "version": "1.0.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "hurtworld"
+    ],
+    "keywords": [
+        "oxide",
+        "hurtworld"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "Remote Doors Switch",
+    "description": "Switch that allows you to open \/ close doors remotelly",
+    "author": "Reneb",
+    "version": "1.0.5",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

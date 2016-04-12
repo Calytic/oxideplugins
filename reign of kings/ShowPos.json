@@ -1,0 +1,15 @@
+{
+    "name": "Show Position",
+    "description": "A simple plugin that shows you your (xyz) position.",
+    "author": "PaiN",
+    "version": "0.1.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "reign of kings"
+    ],
+    "keywords": [
+        "oxide",
+        "reign of kings"
+    ]
+}

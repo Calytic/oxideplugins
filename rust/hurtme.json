@@ -1,0 +1,15 @@
+{
+    "name": "Hurt Me",
+    "description": "Hurts target player on command, with optional amount",
+    "author": "Wulf",
+    "version": "0.2.0",
+    "configuration": false,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

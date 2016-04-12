@@ -1,0 +1,15 @@
+{
+    "name": "EventBox API",
+    "description": "allows you to set up spots for boxes which other plugins can use.",
+    "author": "LaserHydra",
+    "version": "1.0.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

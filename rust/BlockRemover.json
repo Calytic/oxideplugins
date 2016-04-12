@@ -1,0 +1,15 @@
+{
+    "name": "Block Remover",
+    "description": "Allows admins to count and remove building blocks outside of cupboard range",
+    "author": "Nogrod",
+    "version": "0.4.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

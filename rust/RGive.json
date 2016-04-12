@@ -1,0 +1,15 @@
+{
+    "name": "RGive (Random Item Give)",
+    "description": "Give players a random item",
+    "author": "LaserHydra",
+    "version": "2.0.2",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

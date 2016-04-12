@@ -1,0 +1,15 @@
+{
+    "name": "No Fall Damage",
+    "description": "Disables damage when falling",
+    "author": "Noviets",
+    "version": "1.0.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "hurtworld"
+    ],
+    "keywords": [
+        "oxide",
+        "hurtworld"
+    ]
+}

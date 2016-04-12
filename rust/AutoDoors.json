@@ -1,0 +1,15 @@
+{
+    "name": "AutoDoors",
+    "description": "Automatically closes doors behind players after X seconds",
+    "author": "Wulf",
+    "version": "2.3.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

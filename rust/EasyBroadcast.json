@@ -1,0 +1,15 @@
+{
+    "name": "Easy Broadcast",
+    "description": "allows you to broadcast a message to the chat.",
+    "author": "LaserHydra",
+    "version": "2.1.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "AutoClean",
+    "description": "Automatic cleaning of all buildings and placed objects outside of claimed areas.",
+    "author": "Noviets",
+    "version": "1.0.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "hurtworld"
+    ],
+    "keywords": [
+        "oxide",
+        "hurtworld"
+    ]
+}

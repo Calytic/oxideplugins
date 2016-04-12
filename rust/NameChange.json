@@ -1,0 +1,15 @@
+{
+    "name": "NameChange",
+    "description": "Instantly rename any player and keep it that way",
+    "author": "Wulf",
+    "version": "0.1.5",
+    "configuration": true,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

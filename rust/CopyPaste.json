@@ -1,0 +1,15 @@
+{
+    "name": "Copy-Paste",
+    "description": "Copy paste buildings",
+    "author": "Reneb",
+    "version": "2.2.15",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "HomeProtection",
+    "description": "Protects you and your home from intruders",
+    "author": "Wulf",
+    "version": "0.1.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

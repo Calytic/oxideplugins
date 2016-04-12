@@ -1,0 +1,20 @@
+{
+    "name": "Slasher",
+    "description": "GTA 5 Slasher event arena game mode",
+    "author": "k1lly0u",
+    "version": "0.1.32",
+    "configuration": true,
+    "require": {
+        "EventManager": "*",
+        "ZoneManager": "*",
+        "Spawns": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

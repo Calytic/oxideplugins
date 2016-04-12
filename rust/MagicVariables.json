@@ -1,0 +1,15 @@
+{
+    "name": "Magic Variables",
+    "description": "Simple static variable API for plugin developers",
+    "author": "Norn",
+    "version": "0.1",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

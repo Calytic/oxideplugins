@@ -1,0 +1,15 @@
+{
+    "name": "HeliInbound",
+    "description": "Notifies players when a helicopter is inbound",
+    "author": "Wulf",
+    "version": "0.1.1",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

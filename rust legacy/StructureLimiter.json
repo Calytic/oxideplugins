@@ -1,0 +1,15 @@
+{
+    "name": "Structure Limiter",
+    "description": "Limit the number of structure elements that users can place",
+    "author": "Reneb",
+    "version": "1.0.1",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust legacy"
+    ],
+    "keywords": [
+        "oxide",
+        "rust legacy"
+    ]
+}

@@ -1,0 +1,19 @@
+{
+    "name": "Human NPC - Core",
+    "description": "Add Interactive Human NPC Ingame, can be modded by other plugins",
+    "author": "Nogrod",
+    "version": "0.3.1",
+    "configuration": true,
+    "require": {
+        "Waypoints": "*",
+        "PathFinding": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

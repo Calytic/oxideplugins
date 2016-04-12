@@ -1,0 +1,15 @@
+{
+    "name": "Plugin List",
+    "description": "Shows installed plugins and plugin information",
+    "author": "Wulf",
+    "version": "0.1.1",
+    "configuration": true,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

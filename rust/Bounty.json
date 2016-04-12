@@ -1,0 +1,21 @@
+{
+    "name": "Bounty",
+    "description": "Place bounty's on other players using ingame items",
+    "author": "k1lly0u",
+    "version": "0.1.71",
+    "configuration": true,
+    "suggest": {
+        "Friends": "*",
+        "Clans": "*",
+        "PopupNotifications": "*",
+        "Economics": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

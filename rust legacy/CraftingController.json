@@ -1,0 +1,15 @@
+{
+    "name": "Crafting Controller",
+    "description": "Allows control over crafting, researching and studying",
+    "author": "Reneb",
+    "version": "2.0.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust legacy"
+    ],
+    "keywords": [
+        "oxide",
+        "rust legacy"
+    ]
+}

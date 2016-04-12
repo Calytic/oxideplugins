@@ -1,0 +1,15 @@
+{
+    "name": "Player Database",
+    "description": "Log all players in a datafile, only userids as default, other plugins can add more",
+    "author": "Reneb",
+    "version": "1.2.3",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust legacy"
+    ],
+    "keywords": [
+        "oxide",
+        "rust legacy"
+    ]
+}

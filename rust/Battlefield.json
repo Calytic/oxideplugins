@@ -1,0 +1,20 @@
+{
+    "name": "Event - Battlefield",
+    "description": "Free for All, Open Arena, Vote Weapons, Vote Grounds",
+    "author": "Reneb",
+    "version": "1.0.4",
+    "configuration": true,
+    "require": {
+        "EventManager": "*",
+        "ZoneManager": "*",
+        "Kits": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "Anti Weapon Speed Hack",
+    "description": "Stops hackers using cheat engine",
+    "author": "ownprox",
+    "version": "0.5.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

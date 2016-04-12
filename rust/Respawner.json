@@ -1,0 +1,15 @@
+{
+    "name": "Respawner",
+    "description": "Automatically respawns players after they die",
+    "author": "Wulf",
+    "version": "0.2.1",
+    "configuration": true,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

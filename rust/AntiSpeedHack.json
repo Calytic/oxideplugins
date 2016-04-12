@@ -1,0 +1,15 @@
+{
+    "name": "Anti Speed Hack",
+    "description": "Anti speed hack",
+    "author": "ownprox",
+    "version": "0.2",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

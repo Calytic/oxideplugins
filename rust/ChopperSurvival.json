@@ -1,0 +1,21 @@
+{
+    "name": "Chopper Survival",
+    "description": "Survival event arena game with helicopters as enemys",
+    "author": "k1lly0u",
+    "version": "0.2.0",
+    "configuration": true,
+    "require": {
+        "EventManager": "*",
+        "ZoneManager": "*",
+        "Spawns": "*",
+        "Kits": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

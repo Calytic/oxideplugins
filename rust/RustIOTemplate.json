@@ -1,0 +1,15 @@
+{
+    "name": "Rust:IO Template",
+    "description": "A template to help you get started to develop plugins using the Rust:IO API.",
+    "author": "dcode",
+    "version": "1.0.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

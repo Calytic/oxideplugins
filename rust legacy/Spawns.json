@@ -1,0 +1,15 @@
+{
+    "name": "Spawns Database",
+    "description": "Spawns database API for external plugins",
+    "author": "Reneb",
+    "version": "1.0.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust legacy"
+    ],
+    "keywords": [
+        "oxide",
+        "rust legacy"
+    ]
+}

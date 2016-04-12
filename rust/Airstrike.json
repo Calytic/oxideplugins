@@ -1,0 +1,18 @@
+{
+    "name": "Airstrike",
+    "description": "Call an airstrike using a supply signal\/chat command",
+    "author": "k1lly0u",
+    "version": "0.2.2",
+    "configuration": true,
+    "suggest": {
+        "Economics": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

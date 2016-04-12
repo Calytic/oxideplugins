@@ -1,0 +1,22 @@
+{
+    "name": "NoEscape",
+    "description": "Prevent teleportation (and remover tool) while raid\/combat is occuring",
+    "author": "Calytic",
+    "version": "0.3.0",
+    "configuration": true,
+    "suggest": {
+        "Clans": "*",
+        "Friends": "*",
+        "RemoverTool": "*",
+        "m-Teleportation": "*",
+        "MagicTeleportation": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

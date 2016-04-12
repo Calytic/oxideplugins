@@ -1,0 +1,15 @@
+{
+    "name": "Inmation Announcer",
+    "description": "Join\/leave messages, rules, broadcasts & custom commands",
+    "author": "Mughisi",
+    "version": "1.0.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust legacy"
+    ],
+    "keywords": [
+        "oxide",
+        "rust legacy"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "Family Share Blocker",
+    "description": "Block family shared accounts from joining your server.",
+    "author": "Mughisi",
+    "version": "1.0.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

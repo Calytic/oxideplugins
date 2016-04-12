@@ -1,0 +1,15 @@
+{
+    "name": "House Locations",
+    "description": "Find players' house locations",
+    "author": "Reneb",
+    "version": "1.0.2",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust legacy"
+    ],
+    "keywords": [
+        "oxide",
+        "rust legacy"
+    ]
+}

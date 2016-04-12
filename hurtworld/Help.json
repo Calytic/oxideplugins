@@ -1,0 +1,15 @@
+{
+    "name": "Help",
+    "description": "Provides chat commands for a user to get help.",
+    "author": "AnExiledGod",
+    "version": "1.2",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "hurtworld"
+    ],
+    "keywords": [
+        "oxide",
+        "hurtworld"
+    ]
+}

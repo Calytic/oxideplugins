@@ -1,0 +1,15 @@
+{
+    "name": "Random Spawner",
+    "description": "Randomly spawn a specific amount of an entity on the map",
+    "author": "LaserHydra",
+    "version": "1.0.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

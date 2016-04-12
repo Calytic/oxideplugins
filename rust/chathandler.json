@@ -1,0 +1,20 @@
+{
+    "name": "Chat Handler",
+    "description": "Chat modification and moderation suite",
+    "author": "Domestos",
+    "version": "3.1.4",
+    "configuration": true,
+    "suggest": {
+        "Ignore": "*",
+        "chatmute": "*",
+        "helptext": "*"
+    },
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

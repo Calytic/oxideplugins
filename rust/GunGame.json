@@ -1,0 +1,20 @@
+{
+    "name": "GunGame",
+    "description": "GunGame event arena game",
+    "author": "k1lly0u",
+    "version": "0.3.4",
+    "configuration": true,
+    "require": {
+        "EventManager": "*",
+        "ZoneManager": "*",
+        "Spawns": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

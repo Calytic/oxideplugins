@@ -1,0 +1,15 @@
+{
+    "name": "Player Info",
+    "description": "Check your target's info and yours.",
+    "author": "PaiN",
+    "version": "2.5.0",
+    "configuration": true,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

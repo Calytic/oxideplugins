@@ -1,0 +1,15 @@
+{
+    "name": "Waypoints Database",
+    "description": "Waypoints database to give paths for plugins that require it",
+    "author": "Nogrod",
+    "version": "1.1.1",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

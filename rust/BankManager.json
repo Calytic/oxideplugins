@@ -1,0 +1,18 @@
+{
+    "name": "Bank Manager",
+    "description": "Allows players to deposit and withdraw items from a bank.",
+    "author": "insane8472",
+    "version": "1.0.7",
+    "configuration": true,
+    "require": {
+        "Clans": "*"
+    },
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

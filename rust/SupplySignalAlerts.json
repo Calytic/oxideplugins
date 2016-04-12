@@ -1,0 +1,15 @@
+{
+    "name": "Supply Signal Alerts",
+    "description": "Broadcasts a message when someone throws a supply signal",
+    "author": "LaserHydra",
+    "version": "2.0.1",
+    "configuration": true,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

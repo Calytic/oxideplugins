@@ -1,0 +1,15 @@
+{
+    "name": "Loot Spawn Lists",
+    "description": "Allows modification of the loot tables",
+    "author": "Reneb",
+    "version": "2.0.2",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust legacy"
+    ],
+    "keywords": [
+        "oxide",
+        "rust legacy"
+    ]
+}

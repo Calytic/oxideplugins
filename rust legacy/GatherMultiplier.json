@@ -1,0 +1,15 @@
+{
+    "name": "Gather Multiplier",
+    "description": "Gather rate and resources multiplier",
+    "author": "Reneb",
+    "version": "1.0.5",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust legacy"
+    ],
+    "keywords": [
+        "oxide",
+        "rust legacy"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "RustDB",
+    "description": "RustDB online ban database",
+    "author": "Reneb",
+    "version": "1.0.0",
+    "configuration": false,
+    "language": "lua",
+    "games": [
+        "rust legacy"
+    ],
+    "keywords": [
+        "oxide",
+        "rust legacy"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "Raid Boss",
+    "description": "Turn a player into a Psion of Death (Raid Boss) for everyone to take on in battle at once!",
+    "author": "D-Kay",
+    "version": "1.2.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "reign of kings"
+    ],
+    "keywords": [
+        "oxide",
+        "reign of kings"
+    ]
+}

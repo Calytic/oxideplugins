@@ -1,0 +1,15 @@
+{
+    "name": "Finder",
+    "description": "Find Players, SleepingBags, Doors, Sleepers, and teleport to them",
+    "author": "Reneb",
+    "version": "2.0.6",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "Fishing",
+    "description": "Allows players to use weapons to fish ingame",
+    "author": "Colon Blow",
+    "version": "1.1.8",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

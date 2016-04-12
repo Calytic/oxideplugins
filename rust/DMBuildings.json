@@ -1,0 +1,15 @@
+{
+    "name": "Damage Mod : Buildings",
+    "description": "Allows you to Scale or Null all Damage types against Buildings",
+    "author": "Colon Blow",
+    "version": "1.2.5",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

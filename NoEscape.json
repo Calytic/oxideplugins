@@ -1,0 +1,15 @@
+{
+    "name": "NoEscape",
+    "game": "",
+    "description": "Prevent teleportation (and remover tool) while raid\/combat is occuring",
+    "version": "0.3.0",
+    "keywords": [
+        "",
+        "oxide"
+    ],
+    "authorid": "calytic.58712",
+    "author": "Calytic\n\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\nCommandRateLimiter\n\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\nTurretConfig\n\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\nAntiOfflineRaid\n\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\nEntityOwner\n\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\nComponentBlocker\n",
+    "configuration": false,
+    "suggest": [],
+    "require": []
+}

@@ -1,0 +1,15 @@
+{
+    "name": "SetHome",
+    "description": "SetHome for players, optional: only on foundations, buildings, own buildings, shared buildings, etc",
+    "author": "Reneb",
+    "version": "1.0.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust legacy"
+    ],
+    "keywords": [
+        "oxide",
+        "rust legacy"
+    ]
+}

@@ -1,0 +1,19 @@
+{
+    "name": "Auto Purge",
+    "description": "Automatically removes entities created by inactive users",
+    "author": "Norn",
+    "version": "0.1",
+    "configuration": true,
+    "require": {
+        "ConnectionDB": "*",
+        "EntityOwner": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

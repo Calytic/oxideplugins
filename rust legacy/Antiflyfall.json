@@ -1,0 +1,15 @@
+{
+    "name": "AntiFlyFall",
+    "description": "Prevents glitches that cheaters use to get into bases such as the fly fall glitch (wood wall etc)",
+    "author": "copper",
+    "version": "3.1",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust legacy"
+    ],
+    "keywords": [
+        "oxide",
+        "rust legacy"
+    ]
+}

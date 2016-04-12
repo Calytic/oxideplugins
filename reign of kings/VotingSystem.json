@@ -1,0 +1,15 @@
+{
+    "name": "Voting System",
+    "description": "Players can vote to change the time and weather",
+    "author": "D-Kay",
+    "version": "1.3.2",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "reign of kings"
+    ],
+    "keywords": [
+        "oxide",
+        "reign of kings"
+    ]
+}

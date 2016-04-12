@@ -1,0 +1,15 @@
+{
+    "name": "Vanish",
+    "description": "Allows players with permission to become truly invisible",
+    "author": "Wulf",
+    "version": "0.2.5",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

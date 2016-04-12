@@ -1,0 +1,15 @@
+{
+    "name": "MasterKey",
+    "description": "Gain access to any locked object with permissions",
+    "author": "Wulf",
+    "version": "0.4.3",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

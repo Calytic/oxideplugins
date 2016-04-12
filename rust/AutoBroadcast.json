@@ -1,0 +1,15 @@
+{
+    "name": "AutoBroadcast",
+    "description": "Sends global broadcast messages over a timed interval",
+    "author": "Wulf",
+    "version": "0.2.0",
+    "configuration": true,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "Players Online GUI",
+    "description": "Shows a simple overlay with player info",
+    "author": "ownprox",
+    "version": "1.0.4",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

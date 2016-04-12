@@ -1,0 +1,18 @@
+{
+    "name": "Connection Info",
+    "description": "Basic connection information (total minutes connected etc)",
+    "author": "Norn",
+    "version": "0.1",
+    "configuration": false,
+    "require": {
+        "ConnectionDB": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

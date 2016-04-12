@@ -1,0 +1,15 @@
+{
+    "name": "FilterExt",
+    "description": "Extension to Oxide's filter for removing unwanted console messages",
+    "author": "Wulf",
+    "version": "0.1",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

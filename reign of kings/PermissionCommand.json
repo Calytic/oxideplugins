@@ -1,0 +1,15 @@
+{
+    "name": "Permission Command",
+    "description": "Temp plugin that provides access to the permission command",
+    "author": "Mughisi",
+    "version": "1.0.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "reign of kings"
+    ],
+    "keywords": [
+        "oxide",
+        "reign of kings"
+    ]
+}

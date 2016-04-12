@@ -1,0 +1,15 @@
+{
+    "name": "Economics",
+    "description": "Basic Economy + Economy API",
+    "author": "Nogrod",
+    "version": "2.0.5",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

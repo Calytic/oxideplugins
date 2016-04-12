@@ -1,0 +1,15 @@
+{
+    "name": "Easy Reload",
+    "description": "Reload your plugins easily!",
+    "author": "LaserHydra",
+    "version": "2.0.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

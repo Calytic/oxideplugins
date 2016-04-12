@@ -1,0 +1,18 @@
+{
+    "name": "R-Remover Tool",
+    "description": "Remover tool",
+    "author": "Reneb",
+    "version": "3.0.15",
+    "configuration": true,
+    "suggest": {
+        "BuildingOwners": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

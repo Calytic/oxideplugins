@@ -1,0 +1,19 @@
+{
+    "name": "Radar Manager",
+    "description": "Shows clan members, mutual friends, attackers and hit mark locations to other players.",
+    "author": "insane8472",
+    "version": "1.0.7",
+    "configuration": true,
+    "require": {
+        "Clans": "*",
+        "Friends": "*"
+    },
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

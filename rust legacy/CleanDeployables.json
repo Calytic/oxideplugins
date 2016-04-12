@@ -1,0 +1,15 @@
+{
+    "name": "Clean Deployables & Sacks",
+    "description": "Clean deployables and sacks from commands",
+    "author": "Reneb",
+    "version": "1.0.1",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust legacy"
+    ],
+    "keywords": [
+        "oxide",
+        "rust legacy"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "Better Researching",
+    "description": "Allows instant researching and adjustable research chance",
+    "author": "AnExiledGod",
+    "version": "1.3",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

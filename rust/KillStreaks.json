@@ -1,0 +1,21 @@
+{
+    "name": "KillStreaks",
+    "description": "Keep track of player kill streaks and either reward or punish them",
+    "author": "k1lly0u",
+    "version": "0.1.4",
+    "configuration": true,
+    "suggest": {
+        "Airstrike": "*",
+        "Friends": "*",
+        "Clans": "*",
+        "EventManager": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

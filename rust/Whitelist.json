@@ -1,0 +1,21 @@
+{
+    "name": "Whitelist",
+    "description": "Restricts server access to whitelisted players only",
+    "author": "Wulf",
+    "version": "1.0.1",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rustlegacy",
+        "rust",
+        "hurtworld",
+        "reignofkings"
+    ],
+    "keywords": [
+        "oxide",
+        "rustlegacy",
+        "rust",
+        "hurtworld",
+        "reignofkings"
+    ]
+}

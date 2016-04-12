@@ -1,0 +1,15 @@
+{
+    "name": "Secure Admin",
+    "description": "Ability to temp ban, ban, kick and spectate by permissions without spawning or noclip",
+    "author": "ownprox",
+    "version": "0.2",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

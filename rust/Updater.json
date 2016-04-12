@@ -1,0 +1,17 @@
+{
+    "name": "Updater",
+    "description": "Automatic update checking and notifications for plugins",
+    "author": "LaserHydra",
+    "version": "2.0.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust",
+        "hurtworld"
+    ],
+    "keywords": [
+        "oxide",
+        "rust",
+        "hurtworld"
+    ]
+}

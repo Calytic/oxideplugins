@@ -1,0 +1,15 @@
+{
+    "name": "Explosives Modifier",
+    "description": "Allows you to modify explosive damage and radius",
+    "author": "Mughisi",
+    "version": "1.3",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

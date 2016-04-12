@@ -1,0 +1,19 @@
+{
+    "name": "Hunt RPG",
+    "description": "A RPG system with level, stats, skills and especializations",
+    "author": "Nogrod",
+    "version": "1.5.5",
+    "configuration": true,
+    "suggest": {
+        "Pets": "*",
+        "HumanNPC": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

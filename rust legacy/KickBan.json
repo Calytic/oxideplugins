@@ -1,0 +1,15 @@
+{
+    "name": "Admin Kick & Ban",
+    "description": "Simple admin commands to ban \/ unban \/ see the banlist",
+    "author": "Reneb",
+    "version": "1.0.3",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust legacy"
+    ],
+    "keywords": [
+        "oxide",
+        "rust legacy"
+    ]
+}

@@ -1,0 +1,21 @@
+{
+    "name": "Magic Area",
+    "description": "PvP\/PvE areas and developer API",
+    "author": "Norn",
+    "version": "0.2",
+    "configuration": true,
+    "suggest": {
+        "Kits": "*"
+    },
+    "require": {
+        "MagicTeleportation": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

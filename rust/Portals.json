@@ -1,0 +1,15 @@
+{
+    "name": "Portals",
+    "description": "Create portals and feel like in Star Trek",
+    "author": "LaserHydra",
+    "version": "1.3.03",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

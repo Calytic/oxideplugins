@@ -1,0 +1,15 @@
+{
+    "name": "Invulnerable Sleepers",
+    "description": "Make sleepers invulnerable after a set amount of time.",
+    "author": "Mughisi",
+    "version": "1.1.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "reign of kings"
+    ],
+    "keywords": [
+        "oxide",
+        "reign of kings"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "Airdrop Inbound",
+    "description": "Show to players when the airdrops are going to land",
+    "author": "Reneb",
+    "version": "1.0.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust legacy"
+    ],
+    "keywords": [
+        "oxide",
+        "rust legacy"
+    ]
+}

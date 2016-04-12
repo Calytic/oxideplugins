@@ -1,0 +1,15 @@
+{
+    "name": "Better Chat",
+    "description": "Customize chat colors, formatting, prefix and more",
+    "author": "LaserHydra",
+    "version": "1.1.3",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "hurtworld"
+    ],
+    "keywords": [
+        "oxide",
+        "hurtworld"
+    ]
+}

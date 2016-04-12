@@ -1,0 +1,15 @@
+{
+    "name": "Server Rules",
+    "description": "Displays customized rules for your server",
+    "author": "SkinN \u00f5.\u00d5'.|.",
+    "version": "1.0.1",
+    "configuration": true,
+    "language": "py",
+    "games": [
+        "hurtworld"
+    ],
+    "keywords": [
+        "oxide",
+        "hurtworld"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "Inmation Announcer",
+    "description": "Join\/leave messages, rules, broadcasts & custom commands",
+    "author": "Mughisi",
+    "version": "1.1.1",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "reign of kings"
+    ],
+    "keywords": [
+        "oxide",
+        "reign of kings"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "EntityOwner",
+    "game": "",
+    "description": "Modify entity ownership and cupboard\/turret authorization",
+    "version": "3.0.3",
+    "keywords": [
+        "",
+        "oxide"
+    ],
+    "authorid": "calytic.58712",
+    "author": "Calytic\n\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\nCommandRateLimiter\n\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\nNoEscape\n\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\nTurretConfig\n\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\nAntiOfflineRaid\n\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\nComponentBlocker\n",
+    "configuration": false,
+    "suggest": [],
+    "require": []
+}

@@ -1,0 +1,15 @@
+{
+    "name": "AreaNuke",
+    "description": "Removes everything within a set range from you",
+    "author": "Noviets",
+    "version": "1.0.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "hurtworld"
+    ],
+    "keywords": [
+        "oxide",
+        "hurtworld"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "PaiN Broadcast",
+    "description": "Broadcast and notify players.",
+    "author": "PaiN",
+    "version": "0.7.5",
+    "configuration": true,
+    "language": "lua",
+    "games": [
+        "rust legacy"
+    ],
+    "keywords": [
+        "oxide",
+        "rust legacy"
+    ]
+}

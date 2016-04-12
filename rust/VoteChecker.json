@@ -1,0 +1,15 @@
+{
+    "name": "Vote Checker & Rewarder",
+    "description": "Give rewards to users for voting on game-servers.top & rust-servers.net",
+    "author": "Pho3niX90",
+    "version": "2.2.2",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

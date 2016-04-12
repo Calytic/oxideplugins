@@ -1,0 +1,21 @@
+{
+    "name": "AFK",
+    "description": "Kicks players that are AFK (away from keyboard) for too long",
+    "author": "Wulf",
+    "version": "1.0.1",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rustlegacy",
+        "rust",
+        "hurtworld",
+        "reignofkings"
+    ],
+    "keywords": [
+        "oxide",
+        "rustlegacy",
+        "rust",
+        "hurtworld",
+        "reignofkings"
+    ]
+}

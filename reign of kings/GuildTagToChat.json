@@ -1,0 +1,15 @@
+{
+    "name": "Guild Tag to Chat",
+    "description": "Adds the guild tag to chat",
+    "author": "PaiN",
+    "version": "1.0.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "reign of kings"
+    ],
+    "keywords": [
+        "oxide",
+        "reign of kings"
+    ]
+}

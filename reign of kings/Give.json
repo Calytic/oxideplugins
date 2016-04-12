@@ -1,0 +1,15 @@
+{
+    "name": "Give",
+    "description": "A simple give plugin.",
+    "author": "PaiN",
+    "version": "0.1.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "reign of kings"
+    ],
+    "keywords": [
+        "oxide",
+        "reign of kings"
+    ]
+}

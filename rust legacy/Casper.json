@@ -1,0 +1,15 @@
+{
+    "name": "Casper",
+    "description": "Become a ghost, no one will hear you nor see you",
+    "author": "Reneb",
+    "version": "1.0.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust legacy"
+    ],
+    "keywords": [
+        "oxide",
+        "rust legacy"
+    ]
+}

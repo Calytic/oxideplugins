@@ -1,0 +1,15 @@
+{
+    "name": "RestartAnnouncer",
+    "description": "Adds a timed restart and shutdown option with announcements",
+    "author": "D-Kay",
+    "version": "1.1",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "reign of kings"
+    ],
+    "keywords": [
+        "oxide",
+        "reign of kings"
+    ]
+}

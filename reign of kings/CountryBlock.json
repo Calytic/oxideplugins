@@ -1,0 +1,21 @@
+{
+    "name": "CountryBlock",
+    "description": "Block or allow players only from configured countries",
+    "author": "Wulf",
+    "version": "1.0.1",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rustlegacy",
+        "rust",
+        "hurtworld",
+        "reignofkings"
+    ],
+    "keywords": [
+        "oxide",
+        "rustlegacy",
+        "rust",
+        "hurtworld",
+        "reignofkings"
+    ]
+}

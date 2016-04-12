@@ -8,7 +8,7 @@ using System;
 
 namespace Oxide.Plugins
 {
-    [Info("Better Chat", "LaserHydra", "4.0.1", ResourceId = 979)]
+    [Info("Better Chat", "LaserHydra", "4.0.2", ResourceId = 979)]
     [Description("Better Chat")]
     class BetterChat : RustPlugin
     {
@@ -168,7 +168,6 @@ namespace Oxide.Plugins
 
             public string GroupName = "player";
             public int Priority = 0;
-            public bool IgnoreOtherGroups = false;
             public TitleSettings Title = new TitleSettings();
             public NameSettings PlayerName = new NameSettings();
             public MessageSettings Message = new MessageSettings();
@@ -182,8 +181,9 @@ namespace Oxide.Plugins
 
                     dic.Add("Name", GroupName);
                     dic.Add("Priority", Priority);
-                    dic.Add("IgnoreOtherGroups", IgnoreOtherGroups);
                     dic.Add("Title", Title.Formatted);
+                    dic.Add("TitleHidden", Title.Hidden);
+                    dic.Add("TitleHideIfNotHighestPriority", Title.HideIfNotHighestPriority);
                     dic.Add("TitleText", Title.Text);
                     dic.Add("TitleColor", Title.Color);
                     dic.Add("TitleSize", Title.Size);
@@ -212,12 +212,12 @@ namespace Oxide.Plugins
 
                             return $"Priority set to {Priority}";
 
-                        case "ignoreothergroups":
+                        case "hideifnothighestpriority":
 
-                            if (!Plugin.TryConvert(value, out IgnoreOtherGroups))
-                                return Plugin.GetMsg("Invalid Type").Replace("{Message}", "IgnoreOtherGroups must be 'true' or 'false' !");
+                            if (!Plugin.TryConvert(value, out Title.HideIfNotHighestPriority))
+                                return Plugin.GetMsg("Invalid Type").Replace("{Message}", "HideIfNotHighestPriority must be 'true' or 'false' !");
 
-                            return $"IgnoreOtherGroups set to {IgnoreOtherGroups}";
+                            return $"HideIfNotHighestPriority set to {Title.HideIfNotHighestPriority}";
 
                         case "title":
 
@@ -405,11 +405,8 @@ namespace Oxide.Plugins
                 //  Get Formatting
                 string output = console ? primary.Formatting.Console : primary.Formatting.Chat;
 
-                //  Add Titles
-                if (!primary.IgnoreOtherGroups)
-                    output = output.Replace("{Title}", string.Join(" ", (from Group in all where !Group.Title.Hidden select Group.Title.Formatted).ToArray()));
-                else
-                    output = output.Replace("{Title}", primary.Title.Hidden ? string.Empty : primary.Title.Formatted);
+                //  Add Title
+                output = output.Replace("{Title}", string.Join(" ", (from Group in all where !Group.Title.Hidden && !(Group.Title.HideIfNotHighestPriority && Group.Priority > primary.Priority) select Group.Title.Formatted).ToArray()));
 
                 //  Add Message
                 output = primary.Message.Replace(output, StripTags(message));
@@ -459,6 +456,7 @@ namespace Oxide.Plugins
         class TitleSettings
         {
             public bool Hidden = false;
+            public bool HideIfNotHighestPriority = false;
             public int Size = 15;
             public string Color = "#9EC326";
             public string Text = "[Player]";
@@ -936,7 +934,7 @@ namespace Oxide.Plugins
                             if (args.Length < 5)
                             {
                                 SendChatMessage(player, "Syntax: /chat group set <group> <key> <value>");
-                                SendChatMessage(player, "Keys: Priority, IgnoreOtherGroups, Title, TitleColor, TitleSize, NameColor, NameSize, MessageColor, MessageSize, ChatFormatting, ConsoleFormatting");
+                                SendChatMessage(player, "Keys: Priority, HideIfNotHighestPriority, Title, TitleColor, TitleSize, NameColor, NameSize, MessageColor, MessageSize, ChatFormatting, ConsoleFormatting");
                                 return;
                             }
 

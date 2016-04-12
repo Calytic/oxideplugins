@@ -1,0 +1,18 @@
+{
+    "name": "Chat Cleaner",
+    "description": "Clears or resets player's chat when joining the server and on command",
+    "author": "Wulf",
+    "version": "0.3.1",
+    "configuration": true,
+    "suggest": {
+        "chathandler": "*"
+    },
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

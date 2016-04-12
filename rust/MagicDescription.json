@@ -1,0 +1,15 @@
+{
+    "name": "Magic Description",
+    "description": "Show plugin list in server description dynamically",
+    "author": "Norn",
+    "version": "0.1",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

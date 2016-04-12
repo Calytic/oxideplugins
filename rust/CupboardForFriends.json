@@ -1,0 +1,21 @@
+{
+    "name": "Cupboard  Friends",
+    "description": "Only allow friends of already authorized people to authorize themselves.",
+    "author": "LaserHydra",
+    "version": "1.2.3",
+    "configuration": false,
+    "suggest": {
+        "Clans": "*"
+    },
+    "require": {
+        "Friends": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "Chat Channels",
+    "description": "Allows players to create, join and manage chat channels.  Also allows players to chat locally.",
+    "author": "insane8472",
+    "version": "1.0.9",
+    "configuration": true,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

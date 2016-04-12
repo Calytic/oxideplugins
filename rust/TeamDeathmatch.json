@@ -1,0 +1,21 @@
+{
+    "name": "Team Deathmatch",
+    "description": "Team Deathmatch event arena game",
+    "author": "k1lly0u",
+    "version": "0.2.04",
+    "configuration": true,
+    "require": {
+        "EventManager": "*",
+        "ZoneManager": "*",
+        "Spawns": "*",
+        "Kits": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

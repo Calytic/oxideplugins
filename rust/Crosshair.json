@@ -1,0 +1,15 @@
+{
+    "name": "Crosshair",
+    "description": "Adds a customizable crosshair to your screen",
+    "author": "LaserHydra",
+    "version": "2.1.1",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

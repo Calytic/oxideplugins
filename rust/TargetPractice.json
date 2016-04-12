@@ -1,0 +1,15 @@
+{
+    "name": "TargetPractice",
+    "description": "Auto-reset Reactive Targets with a GUI hit marker and score board",
+    "author": "k1lly0u",
+    "version": "0.1.51",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

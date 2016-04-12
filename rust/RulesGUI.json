@@ -1,0 +1,15 @@
+{
+    "name": "Rules GUI",
+    "description": "This plugin displays the rules on connect.",
+    "author": "PaiN",
+    "version": "1.4.5",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -1,0 +1,22 @@
+{
+    "name": "Robbery",
+    "description": "Players can steal Economics money from other players",
+    "author": "Wulf",
+    "version": "2.3.0",
+    "configuration": true,
+    "suggest": {
+        "EventManager": "*",
+        "ZoneManager": "*"
+    },
+    "require": {
+        "Economics": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

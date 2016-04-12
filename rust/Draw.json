@@ -1,0 +1,15 @@
+{
+    "name": "Draw",
+    "description": "A helper plugin \/ library for easily drawing stuff into a player's world using Rust's ddraw tools.",
+    "author": "dcode",
+    "version": "1.0.1",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

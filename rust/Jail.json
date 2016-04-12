@@ -1,0 +1,22 @@
+{
+    "name": "Jail",
+    "description": "Send players to jail",
+    "author": "k1lly0u",
+    "version": "3.0.61",
+    "configuration": true,
+    "suggest": {
+        "Kits": "*"
+    },
+    "require": {
+        "ZoneManager": "*",
+        "Spawns": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

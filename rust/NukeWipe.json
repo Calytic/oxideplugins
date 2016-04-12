@@ -1,0 +1,15 @@
+{
+    "name": "NukeWipe",
+    "description": "Wipe with style and explosion",
+    "author": "LaserHydra",
+    "version": "1.0.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

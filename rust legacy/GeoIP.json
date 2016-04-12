@@ -1,0 +1,15 @@
+{
+    "name": "GeoIP",
+    "description": "Provides an API to obtain IP address information from a local database",
+    "author": "Wulf",
+    "version": "0.1.3",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust legacy"
+    ],
+    "keywords": [
+        "oxide",
+        "rust legacy"
+    ]
+}

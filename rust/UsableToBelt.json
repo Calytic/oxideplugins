@@ -1,0 +1,15 @@
+{
+    "name": "Usable To Belt",
+    "description": "Any usable item will be moved to your belt if there is space.",
+    "author": "AnExiledGod",
+    "version": "1.1.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

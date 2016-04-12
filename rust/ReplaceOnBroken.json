@@ -1,0 +1,15 @@
+{
+    "name": "Replace On Broken",
+    "description": "Replaces your active broken item with a not broken item if in inventory.",
+    "author": "AnExiledGod",
+    "version": "1.1",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

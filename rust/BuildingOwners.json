@@ -1,0 +1,15 @@
+{
+    "name": "Building Owners",
+    "description": "Sets owners of houses when someone builds a house part",
+    "author": "Reneb",
+    "version": "2.1.4",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

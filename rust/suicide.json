@@ -1,0 +1,15 @@
+{
+    "name": "Suicide & Kill",
+    "description": "Suicide chat command & Admin commands to kill a player",
+    "author": "Reneb",
+    "version": "0.1.2",
+    "configuration": false,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

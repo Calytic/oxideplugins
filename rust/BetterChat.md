@@ -19,6 +19,9 @@ Plugins which use BetterChat:
 All arguments inside [ ] are optional!
 
 
+[time] should be a formatted time. Ex. 60m for 60 minutes.
+
+
 Commands:
 
 
@@ -94,8 +97,7 @@ Use following CONSOLE commands to grant permissions
 Chat-/Console Formatting :
 
 
-* different colors and prefixes depending on oxide groups
-* You can do alot with the "Formatting" of a group. you can customize it with
+* You can do a lot with the "Formatting" of a group. you can customize it with
 
 * {Title} = Group Title
 * {Name} = Player Name
@@ -106,7 +108,7 @@ Chat-/Console Formatting :
 
 
 
-And also just add words, letters, numbers, and symbols to it. Its everything possible. You can also just out the Title behind the name or stuff like that.
+... but also just add words, letters, numbers, and symbols to it. You could just put the Title behind the name for example.
 
 
 

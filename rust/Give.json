@@ -1,0 +1,15 @@
+{
+    "name": "Give",
+    "description": "Give a player or yourself",
+    "author": "Reneb",
+    "version": "2.1.2",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

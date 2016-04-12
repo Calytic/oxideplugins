@@ -1,0 +1,15 @@
+{
+    "name": "Item Manager Core",
+    "description": "Core Plugin to manage Item Remove \/ Find \/ Give for other plugins.",
+    "author": "Reneb",
+    "version": "0.1.1",
+    "configuration": false,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

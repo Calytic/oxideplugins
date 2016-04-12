@@ -1,0 +1,15 @@
+{
+    "name": "Level System",
+    "description": "A simple plugin to add XP and levels in the game",
+    "author": "D-Kay",
+    "version": "0.3",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "reign of kings"
+    ],
+    "keywords": [
+        "oxide",
+        "reign of kings"
+    ]
+}

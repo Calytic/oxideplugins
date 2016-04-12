@@ -1,0 +1,15 @@
+{
+    "name": "Infinite Ammo",
+    "description": "Allows certain players to have infinite ammo",
+    "author": "Mughisi",
+    "version": "1.2.3",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

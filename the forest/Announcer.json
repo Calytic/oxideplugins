@@ -1,0 +1,15 @@
+{
+    "name": "Announcer",
+    "description": "Broadcasts customizable messages when players join\/quit",
+    "author": "Wulf",
+    "version": "0.1.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "the forest"
+    ],
+    "keywords": [
+        "oxide",
+        "the forest"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "Motd GUI",
+    "description": "Shows a simple MOTD on the screen",
+    "author": "PaiN",
+    "version": "0.2.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "Notifico IRC Bridge",
+    "description": "Sends messages and alerts to configured IRC channels via Notifico - http:\/\/n.tkte.ch\/",
+    "author": "Wulf",
+    "version": "0.2.4",
+    "configuration": false,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -1,0 +1,19 @@
+{
+    "name": "Tickets",
+    "description": "Gives players the opportunity to send a ticket to admins",
+    "author": "LaserHydra",
+    "version": "2.0.0",
+    "configuration": true,
+    "suggest": {
+        "PushAPI": "*",
+        "EmailAPI": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

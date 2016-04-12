@@ -1,0 +1,15 @@
+{
+    "name": "OverThrone",
+    "description": "Reign of Kings king system re-imagined on Rust",
+    "author": "SkinN \u00f5.\u00d5'.|.",
+    "version": "0.0.4",
+    "configuration": true,
+    "language": "py",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

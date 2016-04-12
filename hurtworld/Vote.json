@@ -1,0 +1,15 @@
+{
+    "name": "Vote",
+    "description": "Start a Yes\/No vote",
+    "author": "Noviets",
+    "version": "1.0.6",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "hurtworld"
+    ],
+    "keywords": [
+        "oxide",
+        "hurtworld"
+    ]
+}
