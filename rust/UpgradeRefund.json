@@ -1,0 +1,15 @@
+{
+    "name": "UpgradeRefund",
+    "description": "Refund cost of previous tier when upgrading buildings",
+    "author": "\u00c6thyrSurfer",
+    "version": "0.0.1",
+    "configuration": false,
+    "language": "coffee",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -1,0 +1,16 @@
+{
+    "name": "Rust:IO Friends List API",
+    "description": "A simple API designed to interact with RustIOs friend list",
+    "author": "Alphawar",
+    "version": "1.1.1",
+    "configuration": false,
+    "require": {},
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

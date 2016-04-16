@@ -1,0 +1,15 @@
+{
+    "name": "Join Quit Msg",
+    "description": "Let users know when someone has joined or left the server",
+    "author": "",
+    "version": "0.4.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

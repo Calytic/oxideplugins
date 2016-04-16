@@ -1,0 +1,15 @@
+{
+    "name": "LastName",
+    "description": "Stores all player usernames",
+    "author": "deer_SWAG",
+    "version": "0.1.14",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

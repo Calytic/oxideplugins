@@ -1,0 +1,15 @@
+{
+    "name": "Salvager",
+    "description": "Allows players to create a Salvage Bench and use it to salvage items",
+    "author": "Deicide666ra",
+    "version": "1.0.2",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

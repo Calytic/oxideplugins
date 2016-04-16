@@ -1,0 +1,15 @@
+{
+    "name": "Personal Beacon",
+    "description": "Displays a beacon at a marked location for easier navigation",
+    "author": "HighTower 2",
+    "version": "1.0.7",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

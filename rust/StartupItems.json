@@ -1,0 +1,15 @@
+{
+    "name": "StartupItems",
+    "description": "Set the startup items when a player respawns from dead",
+    "author": "",
+    "version": "1.0.5",
+    "configuration": true,
+    "language": "py",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

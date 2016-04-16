@@ -1,0 +1,15 @@
+{
+    "name": "EasyFurnace",
+    "description": "Auto fills and auto starts furnaces",
+    "author": "Deicide666ra",
+    "version": "1.0.2",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

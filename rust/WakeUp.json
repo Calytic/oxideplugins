@@ -1,0 +1,15 @@
+{
+    "name": "WakeUp",
+    "description": "Skips the \"You're sleeping\" screen on respawn",
+    "author": "virobeast",
+    "version": "0.0.3",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -1,0 +1,18 @@
+{
+    "name": "Radiation Shrinking Zone",
+    "description": "BattleRoyale-styled radiation system",
+    "author": "",
+    "version": "1.0.2",
+    "configuration": true,
+    "require": {
+        "ZoneManager": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "DateCore",
+    "description": "Plugin API for counting Rust days like real-life days",
+    "author": "JMteam09[JMH][DEV]",
+    "version": "0.3",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

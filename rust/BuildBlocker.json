@@ -1,0 +1,15 @@
+{
+    "name": "Build Blocker",
+    "description": "Fixes blocks in objects!",
+    "author": "Bombardir",
+    "version": "1.3.4",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

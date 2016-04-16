@@ -1,0 +1,15 @@
+{
+    "name": "Anti-Dupe",
+    "description": "Prevent player to stack-duplicate items",
+    "author": "SPooCK",
+    "version": "1.0.2",
+    "configuration": false,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

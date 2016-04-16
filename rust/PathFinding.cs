@@ -2,19 +2,22 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using Oxide.Core;
+using Oxide.Core.Plugins;
 using UnityEngine;
+using static UnityEngine.Vector3;
 
 namespace Oxide.Plugins
 {
-    [Info("PathFinding", "Reneb / Nogrod", "1.0.0")]
+    [Info("PathFinding", "Reneb / Nogrod", "1.0.1")]
     public class PathFinding : RustPlugin
     {
+        private static readonly Vector3 Up = up;
         public sealed class PathFinder
         {
             private static readonly sbyte[,] Direction = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}, {1, -1}, {1, 1}, {-1, 1}, {-1, -1}};
-            public static Vector3 EyesPosition;
-            public static PriorityQueue OpenList;
+            public static readonly Vector3 EyesPosition;
             public static readonly uint Size;
+            public static PriorityQueue OpenList;
             public static PathFindNode[,] Grid;
 
             static PathFinder()
@@ -23,7 +26,7 @@ namespace Oxide.Plugins
                 OpenList = new PriorityQueue(MaxDepth * Direction.GetLength(0)); // 8 directions for each node
                 Size = World.Size;
                 Grid = new PathFindNode[Size, Size];
-                Interface.Oxide.LogInfo("Queue: {0} Grid: {1} Size: {2}", OpenList.MaxSize, Grid.Length, Size);
+                //Interface.Oxide.LogInfo("Queue: {0} Grid: {1} Size: {2}", OpenList.MaxSize, Grid.Length, Size);
             }
 
             public List<Vector3> FindPath(Vector3 sourcePos, Vector3 targetPos)
@@ -56,7 +59,7 @@ namespace Oxide.Plugins
                         var x = currentNode.X + dirX;
                         var z = currentNode.Z + dirZ;
                         if (x < 0 || x >= Size || z < 0 || z >= Size) continue;
-                        var neighbour = FindPathNodeOrCreate(x, z);
+                        var neighbour = FindPathNodeOrCreate(x, z, currentNode.Position.y);
                         //Interface.Oxide.LogInfo("Checking neighbour: {0} {1} {2} {3} {4}", x, z, neighbour.Position, closedList.Contains(neighbour), neighbour.Walkable);
                         if (!neighbour.Walkable) continue;
                         var newGScore = currentNode.G + GetDistance(currentNode, neighbour);
@@ -76,7 +79,10 @@ namespace Oxide.Plugins
                         }
                     }
                     if (closedList.Count > MaxDepth)
+                    {
+                        Interface.Oxide.LogWarning("[PathFinding] Hit MaxDepth!");
                         break;
+                    }
                 }
                 Clear();
                 return null;
@@ -112,12 +118,12 @@ namespace Oxide.Plugins
                 return 14*dstX + 10*(dstZ - dstX) + (int)(10*dstY);
             }
 
-            private static PathFindNode FindPathNodeOrCreate(int x, int z)
+            private static PathFindNode FindPathNodeOrCreate(int x, int z, float y)
             {
                 var node = Grid[x, z];
                 if (node != null) return node;
                 var halfGrid = Size/2f;
-                var groundPos = new Vector3(x - halfGrid, 0, z - halfGrid);
+                var groundPos = new Vector3(x - halfGrid, y, z - halfGrid);
                 groundPos.y = TerrainMeta.HeightMap.GetHeight(groundPos);
                 FindRawGroundPosition(groundPos, out groundPos);
                 Grid[x, z] = node = new PathFindNode(groundPos);
@@ -310,12 +316,12 @@ namespace Oxide.Plugins
         {
             groundPos = sourcePos;
             RaycastHit hitinfo;
-            if (Physics.Raycast(sourcePos, Vector3.down, out hitinfo, groundLayer))
+            if (Physics.Raycast(sourcePos + Up, down, out hitinfo, groundLayer))
             {
                 groundPos.y = Math.Max(hitinfo.point.y, TerrainMeta.HeightMap.GetHeight(groundPos));
                 return true;
             }
-            if (Physics.Raycast(sourcePos, Vector3.up, out hitinfo, groundLayer))
+            if (Physics.Raycast(sourcePos - Up, Up, out hitinfo, groundLayer))
             {
                 groundPos.y = Math.Max(hitinfo.point.y, TerrainMeta.HeightMap.GetHeight(groundPos));
                 return true;
@@ -356,7 +362,7 @@ namespace Oxide.Plugins
                 if (StartPos == EndPos) return;
                 secondsTaken += Time.deltaTime;
                 waypointDone = Mathf.InverseLerp(0f, secondsToTake, secondsTaken);
-                nextPos = Vector3.Lerp(StartPos, EndPos, waypointDone);
+                nextPos = Lerp(StartPos, EndPos, waypointDone);
                 entity.transform.position = nextPos;
                 player?.ClientRPCPlayer(null, player, "ForcePositionTo", nextPos);
                 entity.TransformChanged();
@@ -366,7 +372,7 @@ namespace Oxide.Plugins
             {
                 if (Paths.Count == 0)
                 {
-                    StartPos = EndPos = Vector3.zero;
+                    StartPos = EndPos = zero;
                     enabled = false;
                     return;
                 }
@@ -379,7 +385,7 @@ namespace Oxide.Plugins
                 if (endpos != StartPos)
                 {
                     EndPos = endpos;
-                    secondsToTake = Vector3.Distance(EndPos, StartPos)/s;
+                    secondsToTake = Distance(EndPos, StartPos)/s;
                     entity.transform.rotation = Quaternion.LookRotation(EndPos - StartPos);
                     if (player != null) SetViewAngle(player, entity.transform.rotation);
                     secondsTaken = 0f;
@@ -466,7 +472,8 @@ namespace Oxide.Plugins
             pathfollower.enabled = true;
         }
 
-        private List<Vector3> FindBestPath(Vector3 sourcePosition, Vector3 targetPosition)
+        [HookMethod("FindBestPath")]
+        public List<Vector3> FindBestPath(Vector3 sourcePosition, Vector3 targetPosition)
         {
             return FindLinePath(sourcePosition, targetPosition) ?? FindPath(sourcePosition, targetPosition);
         }
@@ -484,20 +491,20 @@ namespace Oxide.Plugins
 
         private List<Vector3> FindLinePath(Vector3 sourcePosition, Vector3 targetPosition)
         {
-            var distance = (int) Math.Ceiling(Vector3.Distance(sourcePosition, targetPosition));
+            var distance = (int) Math.Ceiling(Distance(sourcePosition, targetPosition));
             if (distance <= 0) return null;
             var straightPath = new List<Vector3>(new Vector3[distance]) {[distance - 1] = targetPosition};
-            var currentPos = Vector3.Lerp(sourcePosition, targetPosition, 1f / distance);
+            var currentPos = Lerp(sourcePosition, targetPosition, 1f / distance);
             Vector3 groundPosition;
             if (!FindRawGroundPosition(currentPos, out groundPosition)) return null;
-            if (Vector3.Distance(groundPosition, sourcePosition) > 2) return null;
+            if (Distance(groundPosition, sourcePosition) > 2) return null;
             if (Physics.Linecast(sourcePosition + jumpPosition, groundPosition + jumpPosition, blockLayer)) return null;
             straightPath[0] = groundPosition;
             for (var i = 1; i < distance - 1; i++)
             {
-                currentPos = Vector3.Lerp(sourcePosition, targetPosition, (i + 1f)/distance);
+                currentPos = Lerp(sourcePosition, targetPosition, (i + 1f)/distance);
                 if (!FindRawGroundPosition(currentPos, out groundPosition)) return null;
-                if (Vector3.Distance(groundPosition, straightPath[i - 1]) > 2) return null;
+                if (Distance(groundPosition, straightPath[i - 1]) > 2) return null;
                 if (Physics.Linecast(straightPath[i - 1] + jumpPosition, groundPosition + jumpPosition, blockLayer)) return null;
                 straightPath[i] = groundPosition;
             }
@@ -544,7 +551,7 @@ namespace Oxide.Plugins
         private bool TryGetClosestRayPoint(Vector3 sourcePos, Quaternion sourceDir, out object closestEnt, out Vector3 closestHitpoint)
         {
             var sourceEye = sourcePos + PathFinder.EyesPosition;
-            var ray = new Ray(sourceEye, sourceDir*Vector3.forward);
+            var ray = new Ray(sourceEye, sourceDir*forward);
 
             var hits = Physics.RaycastAll(ray);
             var closestdist = 999999f;

@@ -2,7 +2,7 @@
     "name": "CustomLootSpawns",
     "description": "Create additional custom spawn points for loot boxes of your choosing",
     "author": "k1lly0u",
-    "version": "0.1.7",
+    "version": "0.1.82",
     "configuration": true,
     "language": "cs",
     "games": [

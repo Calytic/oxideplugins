@@ -1,0 +1,15 @@
+{
+    "name": "HandyMan",
+    "description": "AOE repair where you are allowed to build",
+    "author": "",
+    "version": "1.0.1.2",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

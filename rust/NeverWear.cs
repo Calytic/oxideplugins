@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace Oxide.Plugins
 {
-    [Info("NeverWear", "k1lly0u", "0.1.31", ResourceId = 1816)]
+    [Info("NeverWear", "k1lly0u", "0.1.32", ResourceId = 1816)]
     class NeverWear : RustPlugin
     {
         void Loaded() => RegisterPermissions();
@@ -21,23 +21,28 @@ namespace Oxide.Plugins
         }
         void OnLoseCondition(Item item, ref float amount)
         {
-            BasePlayer player;
-            if (item.GetOwnerPlayer() == null)
+            if (item != null)
             {
-                if (!item.info.shortname.Contains(".mod."))
-                    return;
-                if (item.parentItem.GetOwnerPlayer() == null)
-                    return;
-                player = item.parentItem.GetOwnerPlayer();
-            }
-            else player = item.GetOwnerPlayer();
-            var def = ItemManager.FindItemDefinition(item.info.itemid);
-            if ((configData.useWhiteList && configData.WhitelistedItems.Contains(def.shortname) && HasPerm(player, "neverwear.use"))
-                || (def.category == ItemCategory.Weapon && configData.useWeapons && HasPerm(player, "neverwear.weapons"))
-                || (def.category == ItemCategory.Attire && configData.useAttire && HasPerm(player, "neverwear.attire"))
-                || (def.category == ItemCategory.Tool && configData.useTools && HasPerm(player, "neverwear.tools")))
-                if (item.hasCondition)                
-                    item.RepairCondition(amount);                
+                BasePlayer player;
+                if (item.GetOwnerPlayer() == null)
+                {
+                    if (!item.info.shortname.Contains(".mod.")) return;
+                    if (item?.parent?.GetType() == null) return;
+                    if (item?.parentItem?.GetOwnerPlayer() == null) return;
+                    player = item.parentItem.GetOwnerPlayer();
+                }
+                else player = item.GetOwnerPlayer();
+                if (player != null)
+                {
+                    var def = ItemManager.FindItemDefinition(item.info.itemid);
+                    if ((configData.useWhiteList && configData.WhitelistedItems.Contains(def.shortname) && HasPerm(player, "neverwear.use"))
+                        || (def.category == ItemCategory.Weapon && configData.useWeapons && HasPerm(player, "neverwear.weapons"))
+                        || (def.category == ItemCategory.Attire && configData.useAttire && HasPerm(player, "neverwear.attire"))
+                        || (def.category == ItemCategory.Tool && configData.useTools && HasPerm(player, "neverwear.tools")))
+                        if (item.hasCondition)
+                            item.RepairCondition(amount);
+                }
+            }          
             return;
         }
 

@@ -1,0 +1,15 @@
+{
+    "name": "Permanent Blueprints",
+    "description": "Saves player blueprints and restore them on forced blueprint wipes",
+    "author": "",
+    "version": "1.0.1",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

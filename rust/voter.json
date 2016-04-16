@@ -1,0 +1,15 @@
+{
+    "name": "Voter Reward",
+    "description": "Rewards players voted for your server on TopRustServers.com, Rust-Servers.net, etc",
+    "author": "Bombardir",
+    "version": "1.4.0",
+    "configuration": true,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

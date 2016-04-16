@@ -2,7 +2,7 @@
     "name": "Notifier",
     "description": "Server administration tool with chat based notifications",
     "author": "SkinN \u00f5.\u00d5'.|.",
-    "version": "3.0.7",
+    "version": "3.0.8",
     "configuration": true,
     "language": "cs",
     "games": [

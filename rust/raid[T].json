@@ -1,0 +1,15 @@
+{
+    "name": "Raid [Temporary]",
+    "description": "A temporary plugin which will make bases raidable",
+    "author": "SPooCK",
+    "version": "1.0.6",
+    "configuration": false,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

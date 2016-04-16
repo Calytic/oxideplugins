@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-     [Info("FauxClip", "Colon Blow", "1.3.2", ResourceId = 1299)]
+     [Info("FauxClip", "Colon Blow", "1.3.5", ResourceId = 1299)]
      class FauxClip : RustPlugin
      {
 	public float GracefulLandingTime => Config.Get<float>("GracefulLandingTime");
@@ -76,7 +76,7 @@ namespace Oxide.Plugins
                 {          
                      var input = playerData.input;
                      var newPos = playerData.oldPos;
-                     var currentRot = Quaternion.Euler(input.current.aimAngles);
+			var currentRot = Quaternion.Euler(input.current.aimAngles);
                      var speedMult = playerData.speed;
 
                      if (input.IsDown(BUTTON.SPRINT))
@@ -84,15 +84,7 @@ namespace Oxide.Plugins
 
                      if (input.IsDown(BUTTON.USE) & (isAllowed(player, "fauxclip.canuseturbo")))
                         speedMult = TurboNoClipSpeed;
-
-                     if (player.parentEntity.Get(true) != null)
-                     {
-                         newPos = player.parentEntity.Get(true).transform.position;
-                         player.parentEntity.Set(null);
-                         player.parentBone = 0;
-                         player.UpdateNetworkGroup();
-                         player.SendNetworkUpdate(BasePlayer.NetworkQueue.Update);
-                     }  
+  
              	     else if (input.IsDown(BUTTON.RELOAD))
              	     {
                         Deactivatenoclip(player);
@@ -194,23 +186,24 @@ namespace Oxide.Plugins
 
         object OnEntityTakeDamage(BaseCombatEntity entity, HitInfo hitInfo)
         	{
-		if (!UseFauxClipGodMode) return null;
+			if (!UseFauxClipGodMode) return null;
 
-		foreach (var playerData in _noclip.Values)
+			if (UseFauxClipGodMode)
 			{
-				if (_noclip.Count >= 1)
+				if (entity is BasePlayer)
 				{
-                   		return false;
+					var player = (BasePlayer)entity;
+					if (_noclip.ContainsKey(player.userID))
+					{
+                   			return false;
+					}
+					if (_landing.ContainsKey(player.userID))
+					{
+                   			return false;
+					}
 				}
 			}
-		foreach (var playerData in _landing.Values)
-			{
-				if (_landing.Count >= 1)
-				{
-                   		return false;
-				}
-			}
-			return null;
+		return null;
         	}
 
          void Deactivatenoclip(BasePlayer player)

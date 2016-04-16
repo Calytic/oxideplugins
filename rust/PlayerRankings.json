@@ -1,0 +1,19 @@
+{
+    "name": "Player Rankings",
+    "description": "Automatically gives players ranks based on playtime",
+    "author": "",
+    "version": "1.4.0",
+    "configuration": true,
+    "require": {
+        "ConnectionDB": "*",
+        "BetterChat": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

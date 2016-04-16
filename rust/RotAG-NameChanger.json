@@ -1,0 +1,15 @@
+{
+    "name": "RotAG-NameChanger",
+    "description": "An ADMIN plugin to change your chat name in game.",
+    "author": "TheRotAG",
+    "version": "2.3.3",
+    "configuration": false,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

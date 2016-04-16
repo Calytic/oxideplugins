@@ -1,0 +1,15 @@
+{
+    "name": "CapsNoCaps",
+    "description": "Converts messages written in caps to lowercase",
+    "author": "PsychoTea",
+    "version": "1.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

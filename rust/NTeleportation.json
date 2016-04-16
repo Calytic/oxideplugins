@@ -1,0 +1,18 @@
+{
+    "name": "N Teleportation",
+    "description": "Multiple teleportation systems for admins and players.",
+    "author": "Nogrod",
+    "version": "1.0.3",
+    "configuration": true,
+    "suggest": {
+        "Friends": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

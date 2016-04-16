@@ -1,0 +1,18 @@
+{
+    "name": "LevelAPI",
+    "description": "Gather resources and levelup! (Comatible with EconomyCore)",
+    "author": "JMteam09[JMH][DEV]",
+    "version": "0.9",
+    "configuration": true,
+    "require": {
+        "EconomyCore": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

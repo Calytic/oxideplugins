@@ -1,0 +1,15 @@
+{
+    "name": "Quarry Factory",
+    "description": "Spawn items inside the quarry when it gathers resources",
+    "author": "",
+    "version": "1.0.3",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

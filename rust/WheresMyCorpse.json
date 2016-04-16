@@ -1,0 +1,15 @@
+{
+    "name": "Where's My Corpse?",
+    "description": "Displays an arrow and distance to corpse after respawn or on command",
+    "author": "LeoCurtss",
+    "version": "0.5",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

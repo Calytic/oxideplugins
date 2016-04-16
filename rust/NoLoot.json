@@ -1,0 +1,15 @@
+{
+    "name": "No Loot",
+    "description": "Remove all possible loot from your server, boxes \/ barrels \/ oil barrels \/ Planes \/ Heli",
+    "author": "virobeast",
+    "version": "0.0.2",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

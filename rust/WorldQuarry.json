@@ -1,0 +1,15 @@
+{
+    "name": "World Quarry",
+    "description": "Creates a stone\/metal\/sulfur quarry in the world using only boxes and a torch",
+    "author": "",
+    "version": "1.0.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

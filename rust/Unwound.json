@@ -1,0 +1,20 @@
+{
+    "name": "Unwound",
+    "description": "The sky presents the newest technology in calling the MEDIC!",
+    "author": "mk_sky",
+    "version": "1.0.8",
+    "configuration": true,
+    "suggest": {
+        "PopupNotifications": "*",
+        "Economics": "*",
+        "ZoneManager": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -15,7 +15,7 @@ class BlueprintSync:
 		self.Title = "BlueprintSync"
 		self.Description = "Syncs player blueprints across multiple servers."
 		self.Author = "sqroot"
-		self.Version = V(1, 0, 1)
+		self.Version = V(1, 0, 2)
 		self.ResourceId = 1807
 
 	def LoadDefaultConfig(self):
@@ -50,8 +50,11 @@ class BlueprintSync:
 		uid = player.userID
 		self.create_bp_table(uid)
 		bps = ServerMgr.Instance.persistance.GetPlayerInfo(uid).blueprints.complete
+		if len(bps) == 0:
+			return
 		query = mysql.NewSql()
-		query.Append("REPLACE INTO player_%d VALUES %s;" % (uid, ",".join("(%d)" % bp for bp in bps)))
+		msg = "REPLACE INTO player_%d VALUES %s;" % (uid, ",".join("(%d)" % bp for bp in bps))
+		query.Append(msg)
 		mysql.ExecuteNonQuery(query, self.db)
 
 	def Init(self):

@@ -1,0 +1,15 @@
+{
+    "name": "EasyMute",
+    "description": "Simple chat-muting system",
+    "author": "4seti",
+    "version": "0.2.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

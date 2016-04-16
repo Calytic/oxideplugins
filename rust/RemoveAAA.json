@@ -1,0 +1,15 @@
+{
+    "name": "RemoveAAA",
+    "description": "Removes admin abuse announcements!",
+    "author": "Tuntenfisch",
+    "version": "0.4.1",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

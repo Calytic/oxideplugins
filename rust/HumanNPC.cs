@@ -21,7 +21,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic", "0.3.1", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic", "0.3.2", ResourceId = 856)]
     public class HumanNPC : RustPlugin
     {
         //////////////////////////////////////////////////////
@@ -192,6 +192,8 @@ namespace Oxide.Plugins
             private float startedReload = 0f;
             private bool reloading = false;
 
+            private bool returning = false;
+
             public BaseCombatEntity attackEntity = null;
             public BaseEntity followEntity = null;
             public Vector3 targetPosition = default(Vector3);
@@ -258,7 +260,7 @@ namespace Oxide.Plugins
                             Interface.Oxide.LogInfo("Blocked waypoint to spawn? {0} for {1}", lastPos, npc.player.displayName);
                         }
                     }
-                    Interface.Oxide.LogInfo("Waypoints: {0} for {1}", cachedWaypoints.Count, npc.player.displayName);
+                    //Interface.Oxide.LogInfo("Waypoints: {0} for {1}", cachedWaypoints.Count, npc.player.displayName);
                 }
             }
             void FixedUpdate()
@@ -301,13 +303,13 @@ namespace Oxide.Plugins
 
             float GetSpeed(float speed = -1)
             {
-                if(speed == -1) {
+                if (returning)
+                    speed = 7;
+                else if (speed == -1)
                     speed = npc.info.speed;
-                }
 
-                if(IsSwimming()) {
-                    speed = speed / 2f;
-                }
+                if (IsSwimming())
+                    speed = speed/2f;
 
                 return speed;
             }
@@ -402,6 +404,8 @@ namespace Oxide.Plugins
 
                         Move(npc.player.transform.position);
                     }
+                    else
+                        npc.EndAttackingEntity();
                 }
                 else
                     npc.EndAttackingEntity();
@@ -443,6 +447,11 @@ namespace Oxide.Plugins
                 }
                 else if (targetPosition != default(Vector3))
                 {
+                    if (targetPosition == npc.player.transform.position)
+                    {
+                        returning = false;
+                        targetPosition = default(Vector3);
+                    }
                     target = targetPosition;
                 }
 
@@ -481,8 +490,11 @@ namespace Oxide.Plugins
             public void GetBackToLastPos()
             {
                 if (npc.player.transform.position == LastPos) return;
-                SetMovementPoint(npc.player.transform.position, LastPos, 7f);
-                secondsTaken = 0.01f;
+                targetPosition = LastPos;
+                pathFinding = null;
+                Invoke("PathFinding", 0);
+                //SetMovementPoint(npc.player.transform.position, LastPos, 7f);
+                //secondsTaken = 0.01f;
             }
 
             public void Enable()

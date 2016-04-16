@@ -1,0 +1,15 @@
+{
+    "name": "Blueprint Checker",
+    "description": "Check how many blueprints a player has learnt and what they are.",
+    "author": "",
+    "version": "1.0.6",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "No Signs",
+    "description": "Prevents players from using signs on the server",
+    "author": "",
+    "version": "0.4",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

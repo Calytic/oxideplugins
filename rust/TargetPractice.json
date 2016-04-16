@@ -2,7 +2,7 @@
     "name": "TargetPractice",
     "description": "Auto-reset Reactive Targets with a GUI hit marker and score board",
     "author": "k1lly0u",
-    "version": "0.1.51",
+    "version": "0.1.52",
     "configuration": true,
     "language": "cs",
     "games": [

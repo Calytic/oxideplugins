@@ -1,0 +1,15 @@
+{
+    "name": "RotateOnUpgrade",
+    "description": "Allows you to rotate and\/or demolish your building part after upgrading it from twigs.",
+    "author": "KeyboardCavemen",
+    "version": "1.3.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

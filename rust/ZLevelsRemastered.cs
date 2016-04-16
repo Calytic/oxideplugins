@@ -9,20 +9,19 @@ using Oxide.Game.Rust.Cui;
 using System.Linq;
 using Rust;
 using System.Text;
-using Oxide.Core.Libraries;
-using Oxide.Ext.SQLite;
+using Oxide.Core.Database;
 
 namespace Oxide.Plugins
 {
-    [Info("Zeiser Levels REMASTERED", "Zeiser/Visagalis", "1.5.6", ResourceId = 1453)]
+    [Info("Zeiser Levels REMASTERED", "Zeiser/Visagalis", "1.6.0", ResourceId = 1453)]
     [Description("Lets players level up as they harvest different resources and when crafting.")]
     public class ZLevelsRemastered : RustPlugin
     {
         #region SQL Things
-        private readonly Ext.MySql.Libraries.MySql _mySql = Interface.GetMod().GetLibrary<Ext.MySql.Libraries.MySql>();
-        private readonly Ext.SQLite.Libraries.SQLite _sqLite = Interface.GetMod().GetLibrary<Ext.SQLite.Libraries.SQLite>();
-        private Ext.MySql.Connection _mySqlConnection = null;
-        private Ext.SQLite.Connection _sqLiteConnection = null;
+        private readonly Ext.MySql.Libraries.MySql _mySql = new Ext.MySql.Libraries.MySql();
+        private readonly Ext.SQLite.Libraries.SQLite _sqLite = new Ext.SQLite.Libraries.SQLite();
+        private Connection _mySqlConnection = null;
+        private Connection _sqLiteConnection = null;
         public Dictionary<ulong, Dictionary<string, long>> playerList = new Dictionary<ulong, Dictionary<string, long>>();
         private readonly string sqLiteDBFile = "ZLevelsRemastered.db";
 
@@ -171,10 +170,11 @@ namespace Oxide.Plugins
             statsInit.Add("LastDeath", currTime);
             statsInit.Add("LastLoginDate", currTime);
             statsInit.Add("XPMultiplier", 100);
+            var sql = Sql.Builder.Append("SELECT * FROM RPG_User WHERE UserID = @0", player.userID);
 
-            if(usingMySQL())
+
+            if (usingMySQL())
             {
-                var sql = Ext.MySql.Sql.Builder.Append("SELECT * FROM RPG_User WHERE UserID = @0", player.userID);
                 _mySql.Query(sql, _mySqlConnection, list =>
                 {
                     initPlayer(player, statsInit, list);
@@ -182,7 +182,6 @@ namespace Oxide.Plugins
             }
             else
             {
-                var sql = Ext.SQLite.Sql.Builder.Append("SELECT * FROM RPG_User WHERE UserID = @0", player.userID);
                 _sqLite.Query(sql, _sqLiteConnection, list =>
                 {
                     initPlayer(player, statsInit, list);
@@ -264,10 +263,22 @@ namespace Oxide.Plugins
 
         void OnPlayerInit(BasePlayer player)
         {
+            long multiplier = 100;
+            string[] playerPermissions = permission.GetUserPermissions(player.UserIDString);
+            if (playerPermissions.Any(x => x.ToLower().StartsWith("zlvlboost")))
+            {
+                string permission = playerPermissions.First(x => x.ToLower().StartsWith("zlvlboost"));
+
+                if (!long.TryParse(permission.ToLower().Replace("zlvlboost", ""), out multiplier))
+                    multiplier = 100;
+            }
+            editMultiplierForPlayer(multiplier, player.userID);
+
+
             loadUser(player);
         }
 
-        public void saveUsers()
+        public void SaveUsers()
         {
             foreach (var user in BasePlayer.activePlayerList)
             {
@@ -307,22 +318,22 @@ namespace Oxide.Plugins
             string sqlText =
                 "REPLACE INTO RPG_User (UserID, Name, WCLevel, WCPoints, MLevel, MPoints, SLevel, SPoints, CLevel, CPoints, LastDeath, LastLoginDate, XPMultiplier) " +
                 "VALUES (@0, @1, @2, @3, @4, @5, @6, @7, @8, @9, @10, @11, @12)";
+            var sql = Sql.Builder.Append(sqlText,
+                player.userID, //0
+                name, //1
+                statsInit["WCLevel"], //2 
+                statsInit["WCPoints"], //3
+                statsInit["MLevel"], //4
+                statsInit["MPoints"], //5
+                statsInit["SLevel"], //6
+                statsInit["SPoints"], //7
+                statsInit["CLevel"], //8
+                statsInit["CPoints"], //9
+                statsInit["LastDeath"], //10
+                statsInit["LastLoginDate"], //11
+                statsInit["XPMultiplier"]); //12
             if (usingMySQL())
             {
-                var sql = Ext.MySql.Sql.Builder.Append(sqlText, 
-                    player.userID, //0
-                    name, //1
-                    statsInit["WCLevel"], //2 
-                    statsInit["WCPoints"], //3
-                    statsInit["MLevel"], //4
-                    statsInit["MPoints"], //5
-                    statsInit["SLevel"], //6
-                    statsInit["SPoints"], //7
-                    statsInit["CLevel"], //8
-                    statsInit["CPoints"], //9
-                    statsInit["LastDeath"], //10
-                    statsInit["LastLoginDate"], //11
-                    statsInit["XPMultiplier"]); //12
                 _mySql.Insert(sql, _mySqlConnection, list =>
                 {
                     if (list == 0) // Save to DB failed.
@@ -331,20 +342,6 @@ namespace Oxide.Plugins
             }
             else
             {
-                var sql = Ext.SQLite.Sql.Builder.Append(sqlText,
-                    player.userID, //0
-                    name, //1
-                    statsInit["WCLevel"], //2 
-                    statsInit["WCPoints"], //3
-                    statsInit["MLevel"], //4
-                    statsInit["MPoints"], //5
-                    statsInit["SLevel"], //6
-                    statsInit["SPoints"], //7
-                    statsInit["CLevel"], //8
-                    statsInit["CPoints"], //9
-                    statsInit["LastDeath"], //10
-                    statsInit["LastLoginDate"], //11
-                    statsInit["XPMultiplier"]); //12
                 _sqLite.Insert(sql, _sqLiteConnection, list =>
                 {
                     if (list == 0) // Save to DB failed.
@@ -419,30 +416,23 @@ namespace Oxide.Plugins
 
         private void printMaxSkillDetails(BasePlayer player, string skill)
         {
+            var sql =
+                Sql.Builder.Append("SELECT * FROM RPG_User ORDER BY " + skill + "Level DESC," + skill +
+                                   "Points DESC LIMIT 1;");
             if (usingMySQL())
             {
-                var sql =
-                    Ext.MySql.Sql.Builder.Append("SELECT * FROM RPG_User ORDER BY " + skill + "Level DESC," + skill +
-                                                 "Points DESC LIMIT 1;");
                 _mySql.Query(sql, _mySqlConnection, list =>
                 {
                     if (list.Count > 0)
-                    {
                         printMaxSkillDetails(player, skill, list);
-                    }
                 });
             }
             else
             {
-                var sql =
-                    Ext.SQLite.Sql.Builder.Append("SELECT * FROM RPG_User ORDER BY " + skill + "Level DESC," + skill +
-                                                 "Points DESC LIMIT 1;");
                 _sqLite.Query(sql, _sqLiteConnection, list =>
                 {
                     if (list.Count > 0)
-                    {
                         printMaxSkillDetails(player, skill, list);
-                    }
                 });
             }
         }
@@ -468,10 +458,7 @@ namespace Oxide.Plugins
                 return;
             }
             string playerName = arg.Args[0];
-            BasePlayer player;
-            if ((player = BasePlayer.activePlayerList.Find(x => x.displayName.ToLower().Contains(playerName.ToLower()))) ==
-                null)
-                player = BasePlayer.activePlayerList.Find(x => x.userID.ToString() == playerName);
+            BasePlayer player = rust.FindPlayer(playerName);
 
             if (player != null)
             {
@@ -506,10 +493,7 @@ namespace Oxide.Plugins
                 return;
             }
             string playerName = arg.Args[0];
-            BasePlayer p;
-            if ((p = BasePlayer.activePlayerList.Find(x => x.displayName.ToLower().Contains(playerName.ToLower()))) ==
-                null)
-                p = BasePlayer.activePlayerList.Find(x => x.userID.ToString() == playerName);
+            BasePlayer p = rust.FindPlayer(playerName);
 
             if (p != null || (playerName == "*" || playerName == "**"))
             {
@@ -630,16 +614,11 @@ namespace Oxide.Plugins
                         sqlText += currSkill + "Points=0;" +
                                    (levelCaps[currSkill].ToString() != "0" ? ("UPDATE RPG_User SET " + skillLevel + "=" + levelCaps[currSkill] + " WHERE " + skillLevel + ">" + levelCaps[currSkill] + ";"): "") +
                                    "UPDATE RPG_User SET " + skillLevel + "=1 WHERE " + skillLevel + "< 1;";
+                        var sql = Sql.Builder.Append(sqlText);
                         if (usingMySQL())
-                        {
-                            var sql = Ext.MySql.Sql.Builder.Append(sqlText);
                             _mySql.ExecuteNonQuery(sql, _mySqlConnection);
-                        }
                         else
-                        {
-                            var sql = Ext.SQLite.Sql.Builder.Append(sqlText);
                             _sqLite.ExecuteNonQuery(sql, _sqLiteConnection);
-                        }
 
                         foreach (var onlinePlayer in BasePlayer.activePlayerList)
                             loadUser(onlinePlayer);
@@ -707,16 +686,11 @@ namespace Oxide.Plugins
                     sqlText += skill + "Points=0;" +
                                (levelCaps[skill].ToString() != "0" ? ("UPDATE RPG_User SET " + skillLevel + "=" + levelCaps[skill] + " WHERE " + skillLevel + ">" + levelCaps[skill] + ";") : "") +
                                "UPDATE RPG_User SET " + skillLevel + "=1 WHERE " + skillLevel + "< 1;";
+                    var sql = Sql.Builder.Append(sqlText);
                     if (usingMySQL())
-                    {
-                        var sql = Ext.MySql.Sql.Builder.Append(sqlText);
                         _mySql.ExecuteNonQuery(sql, _mySqlConnection);
-                    }
                     else
-                    {
-                        var sql = Ext.SQLite.Sql.Builder.Append(sqlText);
                         _sqLite.ExecuteNonQuery(sql, _sqLiteConnection);
-                    }
 
                     foreach (var onlinePlayer in BasePlayer.activePlayerList)
                         loadUser(onlinePlayer);
@@ -743,7 +717,7 @@ namespace Oxide.Plugins
                 RenderUI(p);
                 Puts(messages[skill + "Skill"] + " Level for [" + p.displayName + "] has been set to: [" + modifiedLevel + "]");
                 SendReply(p, "Admin has set your " + messages[skill + "Skill"] + " level to: [" + modifiedLevel + "] ");
-            }
+            } 
             
         }
 
@@ -762,19 +736,15 @@ namespace Oxide.Plugins
             }
             else
             {
-                playerList[userID]["XPMultiplier"] = multiplier;
+                if(playerList.ContainsKey(userID))
+                    playerList[userID]["XPMultiplier"] = multiplier;
             }
+            var sql = Sql.Builder.Append(sqlText, multiplier, userID);
 
             if (usingMySQL())
-            {
-                var sql = Ext.MySql.Sql.Builder.Append(sqlText, multiplier, userID);
                 _mySql.ExecuteNonQuery(sql, _mySqlConnection);
-            }
             else
-            {
-                var sql = Ext.SQLite.Sql.Builder.Append(sqlText, multiplier, userID);
                 _sqLite.ExecuteNonQuery(sql, _sqLiteConnection);
-            }
         }
 
         [ChatCommand("stats")]
@@ -823,6 +793,10 @@ namespace Oxide.Plugins
         private void StatInfoCommand(BasePlayer player, string command, string[] args)
         {
             string messagesText = "";
+            long xpMultiplier = 100;
+            if (inPlayerList(player.userID))
+                xpMultiplier = playerList[player.userID]["XPMultiplier"];
+
             if (args.Length == 1)
             {
                 string statname = args[0].ToLower();
@@ -830,17 +804,17 @@ namespace Oxide.Plugins
                 {
                     case "mining":
                         messagesText = "<color=" + colors[Skills.MINING] + ">Mining</color>" + (IsSkillDisabled(Skills.MINING) ? "(DISABLED)" : "") + "\n";
-                        messagesText += "XP per hit: <color=" + colors[Skills.MINING] + ">" + (int)pointsPerHit[Skills.MINING] + "</color>\n";
+                        messagesText += "XP per hit: <color=" + colors[Skills.MINING] + ">" + ((int)pointsPerHit[Skills.MINING] * (xpMultiplier / 100f)) + "</color>\n";
                         messagesText += "Bonus materials per level: <color=" + colors[Skills.MINING] + ">" + ((getGathMult(2, Skills.MINING) - 1) * 100).ToString("0.##") + "%</color>\n";
                         break;
                     case "woodcutting":
                         messagesText = "<color=" + colors[Skills.WOODCUTTING] + ">Woodcutting</color>" + (IsSkillDisabled(Skills.WOODCUTTING) ? "(DISABLED)" : "") + "\n";
-                        messagesText += "XP per hit: <color=" + colors[Skills.WOODCUTTING] + ">" + (int)pointsPerHit[Skills.WOODCUTTING] + "</color>\n";
+                        messagesText += "XP per hit: <color=" + colors[Skills.WOODCUTTING] + ">" + ((int)pointsPerHit[Skills.WOODCUTTING] * (xpMultiplier / 100f)) + "</color>\n";
                         messagesText += "Bonus materials per level: <color=" + colors[Skills.WOODCUTTING] + ">" + ((getGathMult(2, Skills.WOODCUTTING) - 1) * 100).ToString("0.##") + "%</color>\n";
                         break;
                     case "skinning":
                         messagesText = "<color=" + colors[Skills.SKINNING] + '>' + "Skinning" + "</color>" + (IsSkillDisabled(Skills.SKINNING) ? "(DISABLED)" : "") + "\n";
-                        messagesText += "XP per hit: <color=" + colors[Skills.SKINNING] + ">" + (int)pointsPerHit[Skills.SKINNING] + "</color>\n";
+                        messagesText += "XP per hit: <color=" + colors[Skills.SKINNING] + ">" + ((int)pointsPerHit[Skills.SKINNING] * (xpMultiplier / 100f)) + "</color>\n";
                         messagesText += "Bonus materials per level: <color=" + colors[Skills.SKINNING] + ">" + ((getGathMult(2, Skills.SKINNING) - 1) * 100).ToString("0.##") + "%</color>\n";
                         break;
                     case "crafting":
@@ -1245,12 +1219,12 @@ namespace Oxide.Plugins
         #region Saving
         void OnServerSave()
         {
-            saveUsers();
+            SaveUsers();
         }
 
         private void Unload()
         {
-            saveUsers();
+            SaveUsers();
             if (_mySqlConnection != null)
                 _mySqlConnection = null;
             else

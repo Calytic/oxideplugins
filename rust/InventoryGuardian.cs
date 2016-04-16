@@ -5,7 +5,7 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("InventoryGuardian", "k1lly0u", "0.2.1", ResourceId = 773)]
+    [Info("InventoryGuardian", "k1lly0u", "0.2.11", ResourceId = 773)]
     class InventoryGuardian : RustPlugin
     {
         #region Fields
@@ -311,7 +311,7 @@ namespace Oxide.Plugins
         }
         private bool IsUser(BasePlayer player)
         {
-            if (permission.UserHasPermission(player.UserIDString, "inventoryguardian.user") || IsAdmin(player))
+            if (permission.UserHasPermission(player.UserIDString, "inventoryguardian.use") || IsAdmin(player))
                 return true;
             return false;
         }

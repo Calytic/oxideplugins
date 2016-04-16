@@ -5,7 +5,9 @@ using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("NoDecay", "Deicide666ra", "1.0.8", ResourceId = 1160)]
+    [Info("NoDecay", "Deicide666ra/Piarb", "1.0.9", ResourceId = 1160)]
+    [Description("Scales or disables decay of foundations")]
+
     class NoDecay : RustPlugin
     {
         private float c_twigMultiplier;
@@ -14,6 +16,7 @@ namespace Oxide.Plugins
         private float c_sheetMultiplier;
         private float c_armoredMultiplier;
         private float c_campfireMultiplier;
+        private float c_reactivetargetMultiplier;
         private float c_highWoodWallMultiplier;
         private float c_highStoneWallMultiplier;
 
@@ -32,6 +35,7 @@ namespace Oxide.Plugins
             c_sheetMultiplier = Convert.ToSingle(GetConfigValue("Mutipliers", "sheetMultiplier", 0.0));
             c_armoredMultiplier = Convert.ToSingle(GetConfigValue("Mutipliers", "armoredMultiplier", 0.0));
             c_campfireMultiplier = Convert.ToSingle(GetConfigValue("Mutipliers", "campfireMultiplier", 0.0));
+            c_reactivetargetMultiplier = Convert.ToSingle(GetConfigValue("Mutipliers", "reactivetargetMultiplier", 0.0));
             c_highWoodWallMultiplier = Convert.ToSingle(GetConfigValue("Mutipliers", "highWoodWallMultiplier", c_woodMultiplier));
             c_highStoneWallMultiplier = Convert.ToSingle(GetConfigValue("Mutipliers", "highStoneWallMultiplier", c_stoneMultiplier));
             c_outputToRcon = Convert.ToBoolean(GetConfigValue("Debug", "outputToRcon", false));
@@ -97,10 +101,42 @@ namespace Oxide.Plugins
                     if (c_outputToRcon)
                         Puts($"Decay (high wood gate) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
                 }
+                else if (entity.LookupShortPrefabName() == "wall.external.high.stone.prefab")
+                {
+                    var before = hitInfo.damageTypes.Get(Rust.DamageType.Decay);
+                    hitInfo.damageTypes.Scale(Rust.DamageType.Decay, c_highStoneWallMultiplier);
+
+                    if (c_outputToRcon)
+                        Puts($"Decay (high stone wall) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
+                }
+                else if (entity.LookupShortPrefabName() == "wall.external.high.wood.prefab")
+                {
+                    var before = hitInfo.damageTypes.Get(Rust.DamageType.Decay);
+                    hitInfo.damageTypes.Scale(Rust.DamageType.Decay, c_highWoodWallMultiplier);
+
+                    if (c_outputToRcon)
+                        Puts($"Decay (high wood wall) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
+                }
+                else if (entity.LookupShortPrefabName() == "reactivetarget_deployed.prefab")
+                {
+                    var before = hitInfo.damageTypes.Get(Rust.DamageType.Decay);
+                    hitInfo.damageTypes.Scale(Rust.DamageType.Decay, c_reactivetargetMultiplier);
+
+                    if (c_outputToRcon)
+                        Puts($"Decay (reactive target) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
+                }
+                else if (entity.LookupShortPrefabName() == "mining.pumpjack.prefab")
+                {
+                    var before = hitInfo.damageTypes.Get(Rust.DamageType.Decay);
+                    hitInfo.damageTypes.Scale(Rust.DamageType.Decay, 0.0f);
+
+                    if (c_outputToRcon)
+                        Puts($"Decay (pumpjack) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
+                }
                 else if (block != null)
                     ProcessBuildingDamage(block, hitInfo);
-                //else
-                    //Puts($"Unsupported decaying entity detected: {entity.LookupShortPrefabName()} --- please notify author");
+                else
+                    Puts($"Unsupported decaying entity detected: {entity.LookupShortPrefabName()} --- please notify author");
             }
             finally
             {

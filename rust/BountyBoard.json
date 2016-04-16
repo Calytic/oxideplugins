@@ -1,0 +1,15 @@
+{
+    "name": "Bounty Board",
+    "description": "Adds a Bounty System to the server",
+    "author": "KillParadise",
+    "version": "1.1.2",
+    "configuration": true,
+    "language": "js",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

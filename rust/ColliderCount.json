@@ -1,0 +1,18 @@
+{
+    "name": "Collider Count",
+    "description": "Use a chat\/console command to check current collider count and the *estimated* days to wipe!",
+    "author": "Cheeze",
+    "version": "0.0.3",
+    "configuration": true,
+    "suggest": {
+        "TimedExecute": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

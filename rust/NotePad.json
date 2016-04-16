@@ -1,0 +1,15 @@
+{
+    "name": "NotePad",
+    "description": "Players can save notes to be later read. Admins can save global notes.",
+    "author": "",
+    "version": "0.0.2",
+    "configuration": true,
+    "language": "py",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

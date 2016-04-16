@@ -1,0 +1,15 @@
+{
+    "name": "Tear It Up!",
+    "description": "This allows a player to tear up a blueprint and get fragments back.",
+    "author": "",
+    "version": "1.91",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "Event Kick",
+    "description": "Kick players when event is started or set with toggle",
+    "author": "",
+    "version": "1.0.0",
+    "configuration": true,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

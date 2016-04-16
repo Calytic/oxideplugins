@@ -1,9 +1,12 @@
 {
     "name": "ServerRewards",
-    "description": "Earn reward points for playtime and player referrals, then use those points to buy kits",
+    "description": "Earn reward points in various ways and spend them on many different options in the GUI reward store",
     "author": "k1lly0u",
-    "version": "0.1.73",
+    "version": "0.2.16",
     "configuration": true,
+    "suggest": {
+        "Economics": "*"
+    },
     "require": {
         "Kits": "*"
     },

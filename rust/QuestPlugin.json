@@ -1,0 +1,15 @@
+{
+    "name": "Missions\/Quests",
+    "description": "Allows the user to go on quests to obtain items defined in the quest data",
+    "author": "",
+    "version": "1.0.6",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

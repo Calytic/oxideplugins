@@ -1,0 +1,15 @@
+{
+    "name": "RotAG-Groups",
+    "description": "Groups System with Group Tag in chat and Friendly Fire set for the group",
+    "author": "TheRotAG",
+    "version": "1.7.3",
+    "configuration": false,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "VIP \/ Admin - Auto Name Changer",
+    "description": "Adds a VIP or Admin tag to any VIPs or Admins",
+    "author": "TheDoc",
+    "version": "1.0.0",
+    "configuration": false,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

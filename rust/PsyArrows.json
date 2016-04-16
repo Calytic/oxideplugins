@@ -1,0 +1,15 @@
+{
+    "name": "PsyArrows",
+    "description": "Adds more arrows to Rust through commands",
+    "author": "",
+    "version": "1.0.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

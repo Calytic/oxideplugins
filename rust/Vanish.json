@@ -2,7 +2,7 @@
     "name": "Vanish",
     "description": "Allows players with permission to become truly invisible",
     "author": "Wulf",
-    "version": "0.2.5",
+    "version": "0.3.0",
     "configuration": true,
     "language": "cs",
     "games": [

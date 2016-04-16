@@ -8,7 +8,7 @@ using ConVar;
 
 namespace Oxide.Plugins
 {
-    [Info("Individual-Gather-Rate", "DylanSMR", "1.0.4", ResourceId = 1763)]
+    [Info("Individual-Gather-Rate", "DylanSMR", "1.0.6", ResourceId = 1763)]
     [Description("Adds the ability to create gather groups!")]
     class IGather : RustPlugin
     {
@@ -26,7 +26,7 @@ namespace Oxide.Plugins
                 Config["DefaultGroupResourceX"] = 1;
                 Config["DefaultGroupPickUpX"] = 1;
             Config.Save();
-        } 
+        }              
         
         //////////////////////////////////////////////////////////////////////////////////////
         // Data Group Handler
@@ -115,10 +115,14 @@ namespace Oxide.Plugins
                 info.PickupX = Convert.ToInt32(Config["DefaultGroupPickUpX"]);
                 info.PlayerGroupName = "regular";
                 info.PlayerGroupID = 1;
-                storedData.newGroup[1].Players.Add(player.userID);
-                storedData.newGroup[1].PlayerBase.Add(player.displayName.ToString());
-                storedData.Player.Add(player.userID, info);
-                SaveData();
+                storedData.Player.Add(player.userID, info);     
+                if(!storedData.newGroup[1].Players.Contains(player.userID))
+                {
+                    storedData.newGroup[1].Players.Add(player.userID);
+                    storedData.newGroup[1].PlayerBase.Add(player.displayName.ToString());  
+                    SaveData();             
+                }
+                else SaveData();
             } 
             else
             {
@@ -131,7 +135,10 @@ namespace Oxide.Plugins
         //////////////////////////////////////////////////////////////////////////////////////           
         
         StoredData storedData;
-        public int newcount;        
+        public int newcount;   
+        public bool QuarryWarning;
+        public EntityLink.Gender gender;   
+        private const float DefaultMiningQuarryResourceTickRate = 5f;          
         
         //////////////////////////////////////////////////////////////////////////////////////
         // Language Production
@@ -154,6 +161,7 @@ namespace Oxide.Plugins
                 ["General-AlreadyInDefault"] = "<color='{0}'>{1}:</color><color='{2}'> {3} is already in the default group. You may not remove him from the default group!</color>",
                 ["General-NoPermission"] = "<color='{0}'>{1}:</color><color='{2}'> You do not have the correct permissions to preform this command!</color>",
                 ["General-TooManyPlayers"] = "<color='{0}'>{1}:</color><color='{2}'> There are too many players in this group. Please look in the data file!</color>",
+                ["General-GatherSet"] = "<color='{0}'>{1}:</color><color='{2}'> Group ID with {3} was changed to [{4}, {5}, {6}].</color>",
                 //Format Messages//
                 ["Format-GroupPlayers"] = "<color='{0}'>{1}:</color><color='{2}'> {3}.</color>",
                 ["Format-Gather"] = "<color='{0}'>{1}:</color><color='{2}'> {3}{4}.</color>",
@@ -164,6 +172,7 @@ namespace Oxide.Plugins
                 ["Help-Gather"] = "<color='{0}'>{1}:</color><color='{2}'> /igath gather - Shows your gather rate.</color>",
                 ["Help-Gatherp"] = "<color='{0}'>{1}:</color><color='{2}'> /igath gatherp (target) - Shows a targets current gather rate!</color>",
                 ["Help-GroupPlayerA"] = "<color='{0}'>{1}:</color><color='{2}'> /igath groupbaseplayers (groupID) - Shows the players in a group if the total players is less then 12.</color>",
+                ["Help-SetGroupGather"] = "<color='{0}'>{1}:</color><color='{2}'> /igath setgroupgather (groupID) (resource) (pickup) (quarry) - Sets a gather rate!</color>",
                 //Finder Messages//
                 ["Finder-NoPlayers"] = "<color='{0}'>{1}:</color><color='{2}'> No players were found under the name of {3}!</color>",
                 ["Finder-MultiplePlayers"] = "<color='{0}'>{1}:</color><color='{2}'> They're were multiple players. Please pick one of the following: {3}.</color>",
@@ -185,6 +194,60 @@ namespace Oxide.Plugins
             LoadLangauge();
             LoadPermissions();
             CreateDefaultGroup();
+            CheckGroups();
+        }
+        
+        //////////////////////////////////////////////////////////////////////////////////////
+        // CheckGroups
+        //////////////////////////////////////////////////////////////////////////////////////            
+        
+        void CheckGroups()
+        {
+            if(storedData.newGroup.ContainsKey(newcount))
+            {
+                if(storedData.newGroup[newcount].GroupID == 1)
+                {
+                    if(storedData.newGroup[newcount].GroupResourceX != Convert.ToInt32(Config["DefaultGroupResourceX"]))
+                    {
+                        Puts("Group Resource Set To Correct Rate!");
+                        storedData.newGroup[newcount].GroupResourceX = Convert.ToInt32(Config["DefaultGroupResourceX"]);
+                        SaveData();
+                    }
+                    if(storedData.newGroup[newcount].GroupPickupX != Convert.ToInt32(Config["DefaultGroupPickUpX"]))
+                    {
+                        Puts("Group Pickup Set To Correct Rate!");
+                        storedData.newGroup[newcount].GroupPickupX = Convert.ToInt32(Config["DefaultGroupPickUpX"]);
+                        SaveData();
+                    }
+                    if(storedData.newGroup[newcount].GroupQuarryX != Convert.ToInt32(Config["DefaultGroupQuarryX"]))
+                    {
+                        Puts("Group Quarry Set To Correct Rate!");
+                        storedData.newGroup[newcount].GroupQuarryX = Convert.ToInt32(Config["DefaultGroupQuarryX"]);
+                        SaveData();
+                        return;
+                    } 
+                    Puts("All groups resource are correct!");
+                    return;                                       
+                }
+                else
+                {
+                    newcount++;
+                    CheckGroups();                       
+                }         
+            }
+            else
+            {
+                if(newcount < storedData.newGroup.Count)
+                {
+                    newcount++;
+                    CheckGroups();
+                }
+                else
+                {
+                    newcount = 0;
+                    return;
+                }
+            }          
         }
         
         //////////////////////////////////////////////////////////////////////////////////////
@@ -357,6 +420,67 @@ namespace Oxide.Plugins
         }          
         
         //////////////////////////////////////////////////////////////////////////////////////
+        // FindPlayerConsole
+        //////////////////////////////////////////////////////////////////////////////////////          
+        
+        private BasePlayer FindPlayerC(ConsoleSystem.Arg targer, string arg)
+        {
+            var foundPlayers = new List<BasePlayer>();
+            ulong steamid;
+            ulong.TryParse(arg, out steamid);
+            string lowerarg = arg.ToLower();
+
+            foreach (var p in BasePlayer.activePlayerList)
+            {
+                if (p != null)
+                {
+                    if (steamid != 0L)
+                        if (p.userID == steamid) return p;
+                    string lowername = p.displayName.ToLower();
+                    if (lowername.Contains(lowerarg))
+                    {
+                        foundPlayers.Add(p);
+                    }
+                }
+            }
+            if (foundPlayers.Count == 0)
+            {
+                foreach (var sleeper in BasePlayer.sleepingPlayerList)
+                {
+                    if (sleeper != null)
+                    {
+                        if (steamid != 0L)
+                            if (sleeper.userID == steamid)
+                            {
+                                foundPlayers.Clear();
+                                foundPlayers.Add(sleeper);
+                                return foundPlayers[0];
+                            }
+                        string lowername = targer.ToString();
+                        if (lowername.Contains(lowerarg))
+                        {
+                            foundPlayers.Add(sleeper);
+                        }
+                    }
+                }
+            }
+            if (foundPlayers.Count == 0)
+            {
+                if (arg != null)
+                    SendReply(targer, "No Players Of Name: "+arg+"");
+                return null;
+            }
+            if (foundPlayers.Count > 1)
+            {
+                if (arg != null)
+                    SendReply(targer, "Multiple Players With Name: "+foundPlayers+"");
+                return null;
+            }
+
+            return foundPlayers[0];
+        }          
+        
+        //////////////////////////////////////////////////////////////////////////////////////
         // CreateGroup
         //////////////////////////////////////////////////////////////////////////////////////  
         
@@ -398,10 +522,47 @@ namespace Oxide.Plugins
         }
         
         //////////////////////////////////////////////////////////////////////////////////////
+        // CreateGroupConsole()
+        //////////////////////////////////////////////////////////////////////////////////////          
+        
+        void CreateGroupConsole(int cID, string cNAME, int cResource, int cPickup, int cQuarry, ConsoleSystem.Arg arg)
+        {
+            try
+            {
+                if(storedData.newGroup.Count() < cID  && cID < storedData.newGroup.Count() + 2) 
+                {
+                    if(!storedData.newGroup.ContainsKey(cID))
+                    {
+                        var info = new GroupData();
+                        info.GroupName = cNAME;
+                        info.GroupID = cID;
+                        info.GroupResourceX = cResource;
+                        info.GroupPickupX = cPickup;
+                        info.GroupQuarryX = cQuarry;
+                        info.Players = new List<ulong>();
+                        storedData.newGroup.Add(cID, info);
+                        SendReply(arg, "Group Created With The Name: *"+cNAME+"*.");                
+                        SaveData();                                      
+                    }                
+                }
+                else
+                {
+                    var newNumber = storedData.newGroup.Count() + 1;
+                    SendReply(arg, "Wrong number: Please use *#"+newNumber+"*.");
+                    return;                   
+                }                
+            }
+            catch(System.Exception)
+            {
+                PrintWarning("Error Creating Group: CreateGroupConsole.");
+            }
+        }               
+        
+        //////////////////////////////////////////////////////////////////////////////////////
         // SetGroup
         //////////////////////////////////////////////////////////////////////////////////////         
         
-        void PlayerSetGroup(BasePlayer target, BasePlayer player, int GroupID)
+        void PlayerSetGroup(BasePlayer player, BasePlayer target, int GroupID)
         {
             if(target == null)
             {
@@ -420,8 +581,8 @@ namespace Oxide.Plugins
             else
             {
                 var newPID = storedData.Player[target.userID].PlayerGroupID;          
-                storedData.newGroup[storedData.Player[target.userID].PlayerGroupID].Players.Remove(player.userID);  
-                storedData.newGroup[storedData.Player[target.userID].PlayerGroupID].PlayerBase.Remove(player.displayName.ToString());  
+                storedData.newGroup[storedData.Player[target.userID].PlayerGroupID].Players.Remove(target.userID);  
+                storedData.newGroup[storedData.Player[target.userID].PlayerGroupID].PlayerBase.Remove(target.displayName.ToString());  
                 storedData.newGroup[GroupID].Players.Add(target.userID);
                 storedData.newGroup[GroupID].PlayerBase.Add(target.displayName.ToString());
                 storedData.Player[target.userID].ResourceX = storedData.newGroup[GroupID].GroupResourceX;  
@@ -433,7 +594,45 @@ namespace Oxide.Plugins
                 SendReply(target, string.Format(GetMessage("General-AddedToGroupTar", target.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"], storedData.newGroup[GroupID].GroupName));
                 SendReply(player, string.Format(GetMessage("General-AddedToGroupPla", player.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"], target.displayName, storedData.newGroup[GroupID].GroupName)); 
             }
-        } 
+        }            
+        
+        //////////////////////////////////////////////////////////////////////////////////////
+        // PlayerSetGroupConsole()
+        //////////////////////////////////////////////////////////////////////////////////////          
+        
+        void PlayerSetGroupConsole(ConsoleSystem.Arg player, BasePlayer target, int GroupID)
+        {
+            if(target == null)
+            {
+                return;
+            }    
+            if(storedData.newGroup[GroupID].Players.Contains(target.userID))
+            {
+                SendReply(player, "*"+target.displayName+"* is already in that group!");
+                return;
+            }
+            if(!storedData.newGroup.ContainsKey(GroupID))
+            {
+                SendReply(player, "There is no group of ID *#"+GroupID+"*");
+                return;                
+            }
+            else
+            {
+                var newPID = storedData.Player[target.userID].PlayerGroupID;          
+                storedData.newGroup[storedData.Player[target.userID].PlayerGroupID].Players.Remove(target.userID);  
+                storedData.newGroup[storedData.Player[target.userID].PlayerGroupID].PlayerBase.Remove(target.displayName.ToString());  
+                storedData.newGroup[GroupID].Players.Add(target.userID);
+                storedData.newGroup[GroupID].PlayerBase.Add(target.displayName.ToString());
+                storedData.Player[target.userID].ResourceX = storedData.newGroup[GroupID].GroupResourceX;  
+                storedData.Player[target.userID].QuarryX = storedData.newGroup[GroupID].GroupQuarryX;   
+                storedData.Player[target.userID].PickupX = storedData.newGroup[GroupID].GroupPickupX; 
+                storedData.Player[target.userID].PlayerGroupName = storedData.newGroup[GroupID].GroupName;   
+                storedData.Player[target.userID].PlayerGroupID = storedData.newGroup[GroupID].GroupID;  
+                SaveData(); 
+                SendReply(target, string.Format(GetMessage("General-AddedToGroupTar", target.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"], storedData.newGroup[GroupID].GroupName));
+                SendReply(player, "You added *"+target.displayName+"* to group *"+storedData.newGroup[GroupID].GroupName+"*."); 
+            }
+        }          
         
         //////////////////////////////////////////////////////////////////////////////////////
         // RemovGroup
@@ -480,6 +679,128 @@ namespace Oxide.Plugins
             }            
         }
         
+        void PlayerRemoveGroupConsole(BasePlayer target, ConsoleSystem.Arg arg, int GroupID)
+        {
+            if(target == null)
+            {
+                return;
+            } 
+            if(storedData.newGroup[1].Players.Contains(target.userID))
+            {
+                SendReply(arg, "Player: *"+target.displayName+"* is already in the default group.");
+                return;                  
+            }   
+            if(!storedData.newGroup[GroupID].Players.Contains(target.userID))
+            {
+                var GroupNameG = storedData.newGroup[GroupID].GroupName;
+                SendReply(arg, "The group name of *"+GroupNameG+"* does not contain *"+target.userID+"*.");
+                return;
+            }
+            else
+            {
+                var gname = storedData.newGroup[1].GroupName;
+                var ggname = storedData.newGroup[GroupID].GroupName;
+                storedData.newGroup[GroupID].Players.Remove(target.userID);
+                storedData.newGroup[GroupID].PlayerBase.Remove(target.displayName.ToString());
+                storedData.newGroup[1].Players.Add(target.userID);
+                storedData.newGroup[1].PlayerBase.Add(target.displayName.ToString());
+                storedData.Player[target.userID].ResourceX = storedData.newGroup[1].GroupResourceX;  
+                storedData.Player[target.userID].QuarryX = storedData.newGroup[1].GroupQuarryX;   
+                storedData.Player[target.userID].PickupX = storedData.newGroup[1].GroupPickupX; 
+                storedData.Player[target.userID].PlayerGroupName = storedData.newGroup[1].GroupName;   
+                storedData.Player[target.userID].PlayerGroupID = storedData.newGroup[1].GroupID;     
+                SaveData();
+                SendReply(target, "You were removed from *"+ggname+"* and added to group *"+gname+"*.");
+                SendReply(arg, "You removed *"+target.displayName+"* from group *"+ggname+"* to group *"+gname+"*.");  
+            }                  
+        }
+        
+        //////////////////////////////////////////////////////////////////////////////////////
+        // SetGatherRate(Group)
+        //////////////////////////////////////////////////////////////////////////////////////          
+        
+        void SetGather(int groupID, int cResource, int cPickup, int cQuarry, BasePlayer player)
+        { 
+            if(player == null) return;
+            if(!storedData.newGroup.ContainsKey(groupID))
+            {
+                SendReply(player, string.Format(GetMessage("General-NoGroupOfID", player.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"], groupID));
+                return;                  
+            }
+            else
+            {
+                var gID = Convert.ToInt32(groupID);  
+                storedData.newGroup[gID].GroupResourceX = cResource;
+                storedData.newGroup[gID].GroupPickupX = cPickup;
+                storedData.newGroup[gID].GroupQuarryX = cQuarry;   
+                SaveData();
+                SendReply(player, string.Format(GetMessage("General-GatherSet", player.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"], groupID, cResource, cPickup, cQuarry));
+                foreach(var entry in storedData.newGroup[gID].Players)
+                {
+                    BasePlayer enter = BasePlayer.FindByID(entry);
+                    storedData.Player[enter.userID].QuarryX = storedData.newGroup[gID].GroupQuarryX;
+                    storedData.Player[enter.userID].PickupX = storedData.newGroup[gID].GroupPickupX;
+                    storedData.Player[enter.userID].ResourceX = storedData.newGroup[gID].GroupResourceX;
+                    SaveData();
+                }                 
+            }
+        }
+        
+        //////////////////////////////////////////////////////////////////////////////////////
+        // SetGatherConsole()
+        //////////////////////////////////////////////////////////////////////////////////////           
+        
+        void SetGatherConsole(int groupID, int cResource, int cPickup, int cQuarry, ConsoleSystem.Arg arg)
+        {
+            if(!storedData.newGroup.ContainsKey(groupID))
+            {
+                SendReply(arg, "No group of ID *#"+groupID+"* exists! Please use a existing group." );   
+                return;                  
+            }
+            else
+            {
+                var gID = Convert.ToInt32(groupID);  
+                storedData.newGroup[gID].GroupResourceX = cResource;
+                storedData.newGroup[gID].GroupPickupX = cPickup;
+                storedData.newGroup[gID].GroupQuarryX = cQuarry;   
+                SaveData();
+                SendReply(arg, "The GroupID with *#"+groupID+"* was set to gather rate: ["+cResource+", "+cPickup+", "+cQuarry+"].");
+                foreach(var entry in storedData.newGroup[gID].Players)
+                {
+                    BasePlayer enter = BasePlayer.FindByID(entry);
+                    storedData.Player[enter.userID].QuarryX = storedData.newGroup[gID].GroupQuarryX;
+                    storedData.Player[enter.userID].PickupX = storedData.newGroup[gID].GroupPickupX;
+                    storedData.Player[enter.userID].ResourceX = storedData.newGroup[gID].GroupResourceX;
+                    SaveData();
+                }
+            }            
+        }
+        
+        //////////////////////////////////////////////////////////////////////////////////////
+        // RemoveGroupConsole()
+        //////////////////////////////////////////////////////////////////////////////////////            
+        
+        void RemoveGroupConsole(ConsoleSystem.Arg arg, int groupID)
+        {
+            if(!storedData.newGroup.ContainsKey(groupID))
+            {
+                SendReply(arg, "No group of ID *#"+groupID+"* exists! Please use a existing group." );   
+            }
+            else
+            {
+                var gID = Convert.ToInt32(groupID);  
+                foreach(var entry in storedData.newGroup[gID].Players)
+                {
+                    BasePlayer target = BasePlayer.FindByID(entry);
+                    PlayerSetGroupConsole(arg, target, 1);
+                    SaveData();
+                }   
+                storedData.newGroup.Remove(gID);
+                SaveData();
+                SendReply(arg, "The group number of *#"+gID+"* was removed!");
+            }
+        }        
+        
         //////////////////////////////////////////////////////////////////////////////////////
         // SendCommands
         //////////////////////////////////////////////////////////////////////////////////////          
@@ -494,6 +815,7 @@ namespace Oxide.Plugins
             SendReply(player, "<color='#66ff66'>"+Config["ChatPrefix"]+"-----------------------Gather Commands-----------------------</color>");
             SendReply(player, string.Format(GetMessage("Help-Gather", player.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"]));    
             SendReply(player, string.Format(GetMessage("Help-Gatherp", player.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"]));
+            SendReply(player, string.Format(GetMessage("Help-SetGroupGather", player.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"])); 
             SendReply(player, "<color='#66ff66'>"+Config["ChatPrefix"]+"-----------------------Group Commands------------------------</color>");
             SendReply(player, string.Format(GetMessage("Help-GroupPlayerA", player.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"]));    
         }
@@ -578,7 +900,7 @@ namespace Oxide.Plugins
                         SendReply(player, string.Format(GetMessage("General-NoPermission", player.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"]));  
                         return;  
                     }                
-                    if(args.Length >= 7 || args.Length == 1 || args.Length == 2 || args.Length == 3 || args.Length == 4 || args.Length == 5 )
+                    else
                     {
                         SendHelp(player);
                         return;
@@ -654,17 +976,211 @@ namespace Oxide.Plugins
                             SendReply(player, string.Format(GetMessage("General-TooManyPlayers", player.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"]));  
                             return;                            
                         }
+                        if(storedData.newGroup[groupID].PlayerBase.Count == 0)
+                        {
+                            SendReply(player, "No current players in this group!");
+                            return;
+                        }
                         foreach(var targetplayer in storedData.newGroup[groupID].PlayerBase)
                         SendReply(player, string.Format(GetMessage("Format-GroupPlayers", player.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"], targetplayer));                       
                     }                                       
+                break;
+                
+                case "setgroupgather":
+                    if(isAuth(player) == false && !permission.UserHasPermission(player.userID.ToString(), "igather.groupadmin") && !permission.UserHasPermission(player.userID.ToString(), "igather.admin")) 
+                    {
+                        SendReply(player, string.Format(GetMessage("General-NoPermission", player.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"]));  
+                        return;                                                  
+                    } 
+                    if(args.Length == 0 || args.Length >= 6 || args.Length == 1 || args.Length == 2 || args.Length == 3 || args.Length == 4)
+                    {
+                        SendHelp(player);
+                        return;                        
+                    }
+                    else
+                    {
+                        var groupID = Convert.ToInt32(args[1]);
+                        if(storedData.newGroup.ContainsKey(groupID))
+                        {
+                            SetGather(groupID, Convert.ToInt32(args[2]), Convert.ToInt32(args[3]), Convert.ToInt32(args[4]), player); 
+                            return;  
+                        }   
+                        else
+                        {
+                            SendReply(player, string.Format(GetMessage("General-NoGroupOfID", player.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"], groupID));
+                            return;
+                        } 
+                    }
                 break;
                 
                 default:
                     SendHelp(player);
                 break;
             }    
+        }  
+        
+        [ConsoleCommand("igathcreategroup")]
+        private void ccmdIGathC(ConsoleSystem.Arg arg)
+        {  
+            try 
+            {
+                if (arg.Player() != null && !arg.Player().IsAdmin())
+                {
+                    SendReply(arg, "You do not have permissions to use this command");
+                } 
+                if(arg.Args.Length >= 6 || arg.Args.Length == 0 || arg.Args.Length == null) 
+                {
+                    SendReply(arg, "Syntax: igathcreategroup (groupID) (groupName) (X) (X) (X).");    
+                }
+                else
+                {
+                    CreateGroupConsole(Convert.ToInt32(arg.Args[0]), arg.Args[1], Convert.ToInt32(arg.Args[2]), Convert.ToInt32(arg.Args[3]), Convert.ToInt32(arg.Args[4]), arg);                               
+                }                 
+            } 
+            catch(System.Exception)
+            {
+                return;
+            }                
         }
         
+        [ConsoleCommand("igathsetgather")]
+        private void ccmdISetGather(ConsoleSystem.Arg arg)
+        {  
+            try 
+            {
+                if (arg.Player() != null && !arg.Player().IsAdmin())
+                {
+                    SendReply(arg, "You do not have permissions to use this command");
+                    return;
+                } 
+                if(arg.Args.Length == 0 || arg.Args.Length >= 5 || arg.Args == null) 
+                {
+                    SendReply(arg, "Syntax: igathsetgather (groupID) (x) (x) (x).");    
+                    return;
+                }
+                else
+                {
+                    SetGatherConsole(Convert.ToInt32(arg.Args[0]), Convert.ToInt32(arg.Args[1]), Convert.ToInt32(arg.Args[2]), Convert.ToInt32(arg.Args[3]), arg);                          
+                }                  
+            } 
+            catch(System.Exception)
+            {
+                return;
+            }               
+        }   
+        
+        [ConsoleCommand("igathaddtogroup")]
+        private void ccmdAddtoGroup(ConsoleSystem.Arg arg)
+        {
+            try 
+            {
+                object addPlayer = FindPlayerC(arg, arg.Args[1]);             
+                BasePlayer target = (BasePlayer)addPlayer;                  
+                if (arg.Player() != null && !arg.Player().IsAdmin())
+                {
+                    SendReply(arg, "You do not have permissions to use this command.");
+                    return;
+                } 
+                if(arg.Args.Length == 0 || arg.Args.Length == null || arg.Args.Length >= 3) 
+                {
+                    SendReply(arg, "Syntax: igathaddtogroup (target) (groupID).");    
+                    return;
+                }
+                else
+                {
+                    PlayerSetGroupConsole(arg, target, Convert.ToInt32(arg.Args[0]));                 
+                }                 
+            }
+            catch(System.Exception)
+            {
+                return;
+            }                
+        }     
+        
+        [ConsoleCommand("igathremovegroup")]
+        private void ccmdRemoveGroup(ConsoleSystem.Arg arg)
+        {
+            try 
+            {
+                if (arg.Player() != null && !arg.Player().IsAdmin())
+                {
+                    SendReply(arg, "You do not have permissions to use this command.");
+                    return;
+                } 
+                if(arg.Args.Length == 0 || arg.Args.Length == null || arg.Args.Length >= 2) 
+                {
+                    SendReply(arg, "Syntax: igathremovegroup (GroupID).");    
+                    return;
+                }
+                else
+                {
+                    RemoveGroupConsole(arg, Convert.ToInt32(arg.Args[0]));             
+                }                 
+            }
+            catch(System.Exception)
+            {
+                return;
+            }
+        }
+        
+        [ConsoleCommand("igathremovefromgroup")]
+        private void ccmdRemoveFromGroup(ConsoleSystem.Arg arg)
+        {
+            try 
+            {
+                object addPlayer = FindPlayerC(arg, arg.Args[0]);             
+                BasePlayer target = (BasePlayer)addPlayer;                       
+                if (arg.Player() != null && !arg.Player().IsAdmin())
+                {
+                    SendReply(arg, "You do not have permissions to use this command.");
+                    return;
+                } 
+                if(arg.Args.Length == 0 || arg.Args.Length == null || arg.Args.Length >= 3) 
+                {
+                    SendReply(arg, "Syntax: igathremovefromgroup (Target) (GroupID).");    
+                    return;
+                }
+                else
+                {
+                    PlayerRemoveGroupConsole(target, arg, Convert.ToInt32(arg.Args[1]));             
+                }                 
+            }
+            catch(System.Exception)
+            {
+                return;
+            }            
+        }
+        
+        [ConsoleCommand("igathgatherp")]
+        private void ccmdGatherP(ConsoleSystem.Arg arg)
+        {
+            try 
+            {
+                object addPlayer = FindPlayerC(arg, arg.Args[0]);             
+                BasePlayer target = (BasePlayer)addPlayer;                       
+                if (arg.Player() != null && !arg.Player().IsAdmin())
+                {
+                    SendReply(arg, "You do not have permissions to use this command.");
+                    return;
+                } 
+                if(arg.Args.Length == 0 || arg.Args.Length == null || arg.Args.Length >= 3) 
+                {
+                    SendReply(arg, "Syntax: igathgatherp (target).");    
+                    return;
+                }
+                else
+                {
+                    SendReply(arg, "Target Quarry Gather: #"+storedData.Player[target.userID].QuarryX+".");    
+                    SendReply(arg, "Target Pickup Gather: #"+storedData.Player[target.userID].PickupX+".");   
+                    SendReply(arg, "Target Resource Gather: #"+storedData.Player[target.userID].ResourceX+".");   
+                    return;       
+                }                 
+            }
+            catch(System.Exception)
+            {
+                return;
+            }             
+        }
         //////////////////////////////////////////////////////////////////////////////////////
         // Gather Rate Changes
         //////////////////////////////////////////////////////////////////////////////////////   
@@ -673,20 +1189,58 @@ namespace Oxide.Plugins
         {
             BasePlayer player = entity.ToPlayer();
             if(player == null) return;
-                item.amount = (int)(item.amount * storedData.Player[player.userID].ResourceX);
+            if(!storedData.Player.ContainsKey(player.userID))
+            {
+                CreatePlayerData(player);    
+            }            
+            else
+            {
+                item.amount = (int)(item.amount * storedData.Player[player.userID].ResourceX);                
+            }
         }
 
         private void OnQuarryGather(MiningQuarry quarry, Item item)
         {
             BasePlayer player = BasePlayer.FindByID(quarry.OwnerID) ?? BasePlayer.FindSleeping(quarry.OwnerID);           
-            if(player == null) return;         
-                item.amount = (int)(item.amount * storedData.Player[player.userID].QuarryX);         
+            if(player == null) return; 
+            try 
+            {
+                if(!storedData.Player.ContainsKey(player.userID))
+                {
+                    CreatePlayerData(player);    
+                }
+                else
+                {
+                    item.amount = (int)(item.amount * storedData.Player[player.userID].QuarryX);                   
+                }                  
+            }
+            catch(System.Exception)
+            {
+                if(QuarryWarning == false)
+                {
+                    
+                    PrintWarning("Hook Error: OnQuarryGather");
+                    QuarryWarning = true;
+                    timer.Once(60, () => QuarryWarning = false);
+                }
+                else
+                {
+                    return;                    
+                }
+            }
         }
 
         private void OnCollectiblePickup(Item item, BasePlayer player)
         {
-            if(player == null) return;         
-                item.amount = (int)(item.amount * storedData.Player[player.userID].PickupX);      
-        }                                  
+            if(player == null) return;   
+            if(!storedData.Player.ContainsKey(player.userID))
+            {
+                CreatePlayerData(player);    
+            }            
+            else
+            {
+                item.amount = (int)(item.amount * storedData.Player[player.userID].PickupX);                     
+            }       
+        }                                              
     }
 }

@@ -1,0 +1,15 @@
+{
+    "name": "SpectateMgr",
+    "description": "Manage and log spectate requests.",
+    "author": "",
+    "version": "0.0.1",
+    "configuration": false,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

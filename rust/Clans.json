@@ -2,7 +2,7 @@
     "name": "Rust:IO Clans",
     "description": "Allows your players to form and manage clans.",
     "author": "dcode",
-    "version": null,
+    "version": "1.7.2",
     "configuration": true,
     "language": "cs",
     "games": [

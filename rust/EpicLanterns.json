@@ -1,0 +1,15 @@
+{
+    "name": "EpicLanterns",
+    "description": "Automatically toggles lanterns after sunrise and sunset or in other given time",
+    "author": "",
+    "version": "0.0.1",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

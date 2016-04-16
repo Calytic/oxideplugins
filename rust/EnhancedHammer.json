@@ -1,0 +1,15 @@
+{
+    "name": "Enhanced Hammer",
+    "description": "Quickly upgrade your base!",
+    "author": "Visagalis",
+    "version": "0.4.9",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

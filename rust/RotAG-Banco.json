@@ -1,0 +1,15 @@
+{
+    "name": "RotAG-Banco",
+    "description": "Bank System + API to use with Economics from Bombardir.",
+    "author": "TheRotAG",
+    "version": "1.3.0",
+    "configuration": false,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

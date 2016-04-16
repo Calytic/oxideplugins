@@ -1,0 +1,15 @@
+{
+    "name": "VisionDMG",
+    "description": "Control damage to players and entities",
+    "author": "Darwin",
+    "version": "0.1.2",
+    "configuration": true,
+    "language": "js",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

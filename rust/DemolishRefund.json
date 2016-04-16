@@ -1,0 +1,15 @@
+{
+    "name": "DemolishRefund",
+    "description": "Refunds build cost when the player uses the built-in demolish",
+    "author": "\u00c6thyrSurfer",
+    "version": "0.2.2",
+    "configuration": false,
+    "language": "coffee",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

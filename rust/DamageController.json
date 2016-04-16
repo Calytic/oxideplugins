@@ -1,0 +1,15 @@
+{
+    "name": "DamageController",
+    "description": "Player and object damage control for PVP or PVE",
+    "author": "Darwin",
+    "version": "0.1.2",
+    "configuration": true,
+    "language": "js",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

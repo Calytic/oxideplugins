@@ -1,0 +1,15 @@
+{
+    "name": "Wipe Schedule",
+    "description": "The ablity to report regular wipe cycles",
+    "author": "Smoosher",
+    "version": "1.0.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

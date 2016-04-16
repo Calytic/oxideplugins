@@ -11,7 +11,7 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-	[Info("TruePVE", "ignignokt84", "0.1.5", ResourceId = 1789)]
+	[Info("TruePVE", "ignignokt84", "0.1.6", ResourceId = 1789)]
 	class TruePVE : RustPlugin
 	{
 		/*
@@ -104,7 +104,11 @@ namespace Oxide.Plugins
 				
 				{"DescTurret", "Whether to allow turrets to damage players\n" +
 							   " true: Turrets can hurt players\n" +
-							   " false: Turrets cannot hurt players"}
+							   " false: Turrets cannot hurt players"},
+				
+				{"DescFire", "Whether to enable fire damage\n" +
+							   " true: Fire can damage anything\n" +
+							   " false: Fire cannot damage anything"}
 			};
 			lang.RegisterMessages(messages, this);
         }
@@ -125,9 +129,9 @@ namespace Oxide.Plugins
 		// command enum
 		private enum Command { usage, set, get, desc, list, version, def };
 		// option enum
-		private enum Option { barricade, unlocked, sleepingbag, heli, sleeper, corpse, suicide, decay, hookdamage, hookloot, turret};
+		private enum Option { barricade, unlocked, sleepingbag, heli, sleeper, corpse, suicide, decay, hookdamage, hookloot, turret, fire};
 		// default values array
-		private object[] def = { true, true, false, true, false, false, true, 1.0f, true, true, false };
+		private object[] def = { true, true, false, true, false, false, true, 1.0f, true, true, false, false };
 		
 		// load
 		void Loaded()
@@ -335,6 +339,9 @@ namespace Oxide.Plugins
 				case Option.turret:
 					showDesc(arg, opt, GetMessage("DescTurret"));
 					break;
+				case Option.fire:
+					showDesc(arg, opt, GetMessage("DescFire"));
+					break;
 			}
 			
 			return true;
@@ -422,6 +429,9 @@ namespace Oxide.Plugins
 		private bool AllowDamage(BaseCombatEntity entity, HitInfo hitinfo)
 		{
 			if (entity == null) return true;
+			// check for fireball
+			if (!getBool(Option.fire) && hitinfo.Initiator != null && hitinfo.Initiator is FireBall)
+				return false;
 			var resource = entity.GetComponent<ResourceDispenser>();
 			if (resource != null)
 			{
@@ -588,14 +598,6 @@ namespace Oxide.Plugins
 			}
 			return true;
 		}
-		
-		// handle looting entities (corpse)
-		//void OnPlayerLoot(PlayerLoot inventory, BaseEntity target)
-		//{
-		//	if(!getBool(Option.hookloot)) // let other mods handle looting and hook to HandleLoot if necessary
-		//		return;
-		//	HandleLoot(inventory.GetComponent<BasePlayer>(), target);
-		//}
 		
 		// determine whether to allow looting sleepers and other players' corpses
 		// exposed as hook method for other mods to use

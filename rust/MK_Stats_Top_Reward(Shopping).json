@@ -1,0 +1,15 @@
+{
+    "name": "Stats, Top and Rewards",
+    "description": "Show the stats, tops of the players and exchange the money for weapons, etc",
+    "author": "",
+    "version": "0.0.4",
+    "configuration": false,
+    "language": "zip",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

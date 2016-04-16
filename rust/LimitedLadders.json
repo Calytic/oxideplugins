@@ -1,0 +1,15 @@
+{
+    "name": "Limited Ladders",
+    "description": "Controls the placement of ladders where building is blocked.",
+    "author": "",
+    "version": "1.0.2",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

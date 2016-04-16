@@ -1,0 +1,15 @@
+{
+    "name": "Glue",
+    "description": "Allows you to attach entities to each other",
+    "author": "Bombardir",
+    "version": "1.0.1",
+    "configuration": false,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

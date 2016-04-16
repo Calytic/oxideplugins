@@ -1,0 +1,15 @@
+{
+    "name": "LimeBench",
+    "description": "A global crafting multiplier mod that also makes tool cupboards act like Legacy workbenches",
+    "author": "Deicide666ra",
+    "version": "1.1.2",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

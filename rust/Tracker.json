@@ -1,0 +1,15 @@
+{
+    "name": "Tracker",
+    "description": "Allows you to know who has the most of certain item or which container has certain item",
+    "author": "WolfsDarker",
+    "version": "1.0.1",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "VisionLocks",
+    "description": "Indestructible locks",
+    "author": "Darwin",
+    "version": "0.1.0",
+    "configuration": false,
+    "language": "js",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

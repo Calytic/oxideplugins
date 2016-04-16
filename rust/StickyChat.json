@@ -1,0 +1,19 @@
+{
+    "name": "Sticky Chat",
+    "description": "Allows to stick your chat to PM\/CLAN\/REPLY",
+    "author": "Visagalis",
+    "version": "0.0.3",
+    "configuration": false,
+    "require": {
+        "PM": "*",
+        "Clans": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

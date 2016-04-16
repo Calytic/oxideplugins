@@ -9,9 +9,10 @@ class Built:
 		self.Title = "Built"
 		self.Description = "Provides entity owner information."
 		self.Author = "sqroot"
-		self.Version = V(1, 1, 1)
+		self.Version = V(1, 2, 0)
 		self.ResourceId = 1702
 		self.DeadPlayersList = plugins.Find("DeadPlayersList")
+		self.PlayerDatabase = plugins.Find("PlayerDatabase")
 
 	def send_msg(self, player, msg):
 		rust.SendChatMessage(player, "Built", msg)
@@ -34,6 +35,9 @@ class Built:
 		_, closest = min(base_ents, key=lambda he: he[0].distance)
 		return closest
 
+	def is_loaded(self, plugin):
+		return plugin and plugin.IsLoaded
+
 	def player_name(self, uid):
 		player = BasePlayer.FindByID(uid)
 		if player:
@@ -41,10 +45,16 @@ class Built:
 		player = BasePlayer.FindSleeping(uid)
 		if player:
 			return player.displayName
-		if self.DeadPlayersList and self.DeadPlayersList.IsLoaded: 
+		if self.is_loaded(self.DeadPlayersList): 
 			name = self.DeadPlayersList.Call("GetPlayerName", uid)
 			if name:
 				return name
+		if self.is_loaded(self.PlayerDatabase):
+			pd = self.PlayerDatabase.Call("GetPlayerData", str(uid), "default")
+			if pd:
+				name = pd["name"]
+				if name:
+					return name
 		return "Unknown"
 
 	def built_hook(self, player, cmd, args):

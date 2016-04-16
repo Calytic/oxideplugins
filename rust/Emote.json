@@ -1,0 +1,15 @@
+{
+    "name": "Emote",
+    "description": "Because everyone loves to portray themselves in the third person",
+    "author": "Hirsty",
+    "version": "1.0.5",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

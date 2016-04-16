@@ -10,7 +10,7 @@ using Oxide.Core;
 //NAMESPACE OXIDE//
 namespace Oxide.Plugins
 {
-    [Info("Quarry-Locks", "DylanSMR", "1.0.2", ResourceId = 1819)]
+    [Info("Quarry-Locks", "DylanSMR", "1.0.4", ResourceId = 1819)]
     [Description("Added customizable locks to a quarry")]
     class QuarryLocks : RustPlugin
     {
@@ -88,7 +88,8 @@ namespace Oxide.Plugins
         }
         
         public List<string> HelpIM = new List<string>();
-        public List<string> HelpIM2 = new List<string>();        
+        public List<string> HelpIM2 = new List<string>();  
+        public bool WarningE;      
         QuarryData quarryData;
         MessageData messageData;
         
@@ -139,6 +140,7 @@ namespace Oxide.Plugins
         
         void OnPlayerSleepEnded(BasePlayer player)
         {
+            if(!messageData.MD.ContainsKey(player.userID) || !quarryData.QD.ContainsKey(player.userID)) OnPlayerInit(player);
             SaveData();
             PlayerAlertMessages(player);
         }
@@ -595,84 +597,100 @@ namespace Oxide.Plugins
         [HookMethod("OnLootEntity")]
         void OnLootEntity(BasePlayer looter, BaseEntity entry)
         {
-            if (entry is ResourceExtractorFuelStorage)
+            try 
             {
-                List<BaseEntity> nearby = new List<BaseEntity>();
-                Vis.Entities(entry.transform.position, 2, nearby);
-                MiningQuarry quarry = null;
-                foreach (var ent in nearby)               
-                    if (ent is MiningQuarry)
-                        quarry = ent.GetComponent<MiningQuarry>();
-                        
-                BasePlayer owner = BasePlayer.FindByID(quarry.OwnerID);                           
-                if (quarry != null)
+                if (entry is ResourceExtractorFuelStorage)
                 {
-                    if (looter.userID == owner.userID || quarryData.QD[owner.userID].HasAccess.ContainsKey(looter.userID) && !quarryData.QD[owner.userID].PlayersBlocked.ContainsKey(looter.userID))
+                    List<BaseEntity> nearby = new List<BaseEntity>();
+                    Vis.Entities(entry.transform.position, 2, nearby);
+                    MiningQuarry quarry = null;
+                    foreach (var ent in nearby)               
+                        if (ent is MiningQuarry)
+                            quarry = ent.GetComponent<MiningQuarry>();
+                            
+                    BasePlayer owner = BasePlayer.FindByID(quarry.OwnerID);                           
+                    if (quarry != null)
                     {
-                        if(looter.userID != owner.userID)
+                        if (looter.userID == owner.userID || quarryData.QD[owner.userID].HasAccess.ContainsKey(looter.userID) && !quarryData.QD[owner.userID].PlayersBlocked.ContainsKey(looter.userID))
                         {
-                            if(quarryData.QD[owner.userID].LogsFromPlayer.ContainsKey(looter.userID))
+                            if(looter.userID != owner.userID)
                             {
-                                if(quarryData.QD[owner.userID].LogsFromPlayer[looter.userID].Logs < quarryData.QD[owner.userID].MaxLogsFromPlayer && quarryData.QD[owner.userID].LogsFromPlayer[looter.userID].Logs < quarryData.QD[owner.userID].MaxLogsAllowed)
+                                if(quarryData.QD[owner.userID].LogsFromPlayer.ContainsKey(looter.userID))
                                 {
-                                    quarryData.QD[owner.userID].LogsFromPlayer[looter.userID].Logs++;
-                                    SendReply(owner, string.Format(GetMessage("QL_ACCESSEDQUARRY", owner.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"], looter.displayName, DateTime.Now.ToString("h:mm tt")));
-                                    messageData.MD[owner.userID].HasAccessed.Add(string.Format(GetMessage("QL_ACCESSEDQUARRY", owner.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"], looter.displayName, DateTime.Now.ToString("h:mm tt"))); 
-                                    SaveData();                                        
+                                    if(quarryData.QD[owner.userID].LogsFromPlayer[looter.userID].Logs < quarryData.QD[owner.userID].MaxLogsFromPlayer && quarryData.QD[owner.userID].LogsFromPlayer[looter.userID].Logs < quarryData.QD[owner.userID].MaxLogsAllowed)
+                                    {
+                                        quarryData.QD[owner.userID].LogsFromPlayer[looter.userID].Logs++;
+                                        SendReply(owner, string.Format(GetMessage("QL_ACCESSEDQUARRY", owner.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"], looter.displayName, DateTime.Now.ToString("h:mm tt")));
+                                        messageData.MD[owner.userID].HasAccessed.Add(string.Format(GetMessage("QL_ACCESSEDQUARRY", owner.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"], looter.displayName, DateTime.Now.ToString("h:mm tt"))); 
+                                        SaveData();                                        
+                                    }
+                                    else
+                                    {
+                                        SendReply(owner, string.Format(GetMessage("QL_ACCESSEDQUARRY", owner.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"], looter.displayName, DateTime.Now.ToString("h:mm tt")));
+                                        return;
+                                    }    
                                 }
                                 else
                                 {
-                                    SendReply(owner, string.Format(GetMessage("QL_ACCESSEDQUARRY", owner.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"], looter.displayName, DateTime.Now.ToString("h:mm tt")));
-                                    return;
-                                }    
-                            }
-                            else
-                            {
-                                messageData.MD[owner.userID].HasAccessed.Add(string.Format(GetMessage("QL_ACCESSEDQUARRY", owner.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"], looter.displayName, DateTime.Now.ToString("h:mm tt")));   
-                                quarryData.QD[owner.userID].LogsFromPlayer.Add(looter.userID, new NewLogsFromP());
-                                quarryData.QD[owner.userID].LogsFromPlayer[looter.userID].Logs = 1;
-                                SaveData();
-                            }                                                    
-                        }                        
-                    }
-                    else
-                    {
-                        if (owner != null)
-                        {
-                            SendReply(looter, string.Format(GetMessage("QL_MAYNOTOPEN", looter.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"]));
-                            SendReply(looter, string.Format(GetMessage("QL_FIXMOUSE", looter.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"]));
-                            looter.SetPlayerFlag(BasePlayer.PlayerFlags.ReceivingSnapshot, true);
-                            looter.UpdateNetworkGroup();
-                            looter.SendNetworkUpdateImmediate(false);
-                            looter.ClientRPCPlayer(null, looter, "StartLoading", null, null, null, null, null);
-                            looter.SendFullSnapshot();
-                            if(quarryData.QD[owner.userID].LogsFromPlayer.ContainsKey(looter.userID))
-                            {
-                                if(quarryData.QD[owner.userID].LogsFromPlayer[looter.userID].Logs != quarryData.QD[owner.userID].MaxLogsFromPlayer && quarryData.QD[owner.userID].MaxLogsAllowed != quarryData.QD[owner.userID].LogsFromPlayer[looter.userID].Logs)
-                                {
-                                    quarryData.QD[owner.userID].LogsFromPlayer[looter.userID].Logs++;
-                                    messageData.MD[owner.userID].AttemptedAccess.Add(string.Format(GetMessage("QL_ATTEMPTEDACCESS", owner.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"], looter.displayName, DateTime.Now.ToString("h:mm tt")));   
-                                    SaveData();  
-                                    return;                                      
-                                }
-                                else
-                                {
-                                    SendReply(owner, string.Format(GetMessage("QL_ATTEMPTEDACCESS", owner.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"], looter.displayName, DateTime.Now.ToString("h:mm tt")));
-                                    return;
-                                }    
-                            }
-                            else
-                            {
-                                messageData.MD[owner.userID].HasAccessed.Add(string.Format(GetMessage("ATTEMPTEDACCESS", owner.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"], looter.displayName, DateTime.Now.ToString("h:mm tt")));   
-                                quarryData.QD[owner.userID].LogsFromPlayer.Add(looter.userID, new NewLogsFromP());
-                                quarryData.QD[owner.userID].LogsFromPlayer[looter.userID].Logs = 1;
-                                SaveData();
-                                return;
-                            }                                                        
+                                    messageData.MD[owner.userID].HasAccessed.Add(string.Format(GetMessage("QL_ACCESSEDQUARRY", owner.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"], looter.displayName, DateTime.Now.ToString("h:mm tt")));   
+                                    quarryData.QD[owner.userID].LogsFromPlayer.Add(looter.userID, new NewLogsFromP());
+                                    quarryData.QD[owner.userID].LogsFromPlayer[looter.userID].Logs = 1;
+                                    SaveData();
+                                }                                                    
+                            }                        
                         }
-                        return;
+                        else
+                        {
+                            if (owner != null)
+                            {
+                                SendReply(looter, string.Format(GetMessage("QL_MAYNOTOPEN", looter.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"]));
+                                SendReply(looter, string.Format(GetMessage("QL_FIXMOUSE", looter.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"]));
+                                looter.SetPlayerFlag(BasePlayer.PlayerFlags.ReceivingSnapshot, true);
+                                looter.UpdateNetworkGroup();
+                                looter.SendNetworkUpdateImmediate(false);
+                                looter.ClientRPCPlayer(null, looter, "StartLoading", null, null, null, null, null);
+                                looter.SendFullSnapshot();
+                                if(quarryData.QD[owner.userID].LogsFromPlayer.ContainsKey(looter.userID))
+                                {
+                                    if(quarryData.QD[owner.userID].LogsFromPlayer[looter.userID].Logs != quarryData.QD[owner.userID].MaxLogsFromPlayer && quarryData.QD[owner.userID].MaxLogsAllowed != quarryData.QD[owner.userID].LogsFromPlayer[looter.userID].Logs)
+                                    {
+                                        quarryData.QD[owner.userID].LogsFromPlayer[looter.userID].Logs++;
+                                        messageData.MD[owner.userID].AttemptedAccess.Add(string.Format(GetMessage("QL_ATTEMPTEDACCESS", owner.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"], looter.displayName, DateTime.Now.ToString("h:mm tt")));   
+                                        SaveData();  
+                                        return;                                      
+                                    }
+                                    else
+                                    {
+                                        SendReply(owner, string.Format(GetMessage("QL_ATTEMPTEDACCESS", owner.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"], looter.displayName, DateTime.Now.ToString("h:mm tt")));
+                                        return;
+                                    }    
+                                }
+                                else
+                                {
+                                    messageData.MD[owner.userID].HasAccessed.Add(string.Format(GetMessage("ATTEMPTEDACCESS", owner.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"], looter.displayName, DateTime.Now.ToString("h:mm tt")));   
+                                    quarryData.QD[owner.userID].LogsFromPlayer.Add(looter.userID, new NewLogsFromP());
+                                    quarryData.QD[owner.userID].LogsFromPlayer[looter.userID].Logs = 1;
+                                    SaveData();
+                                    return;
+                                }                                                        
+                            }
+                            return;
+                        }
                     }
-                }
+                }                
+            }
+            catch(System.Exception)
+            {
+                if(WarningE == false)
+                {
+                    PrintWarning("Error with hook: OnLootEntity! Please consider removing all quarrys installed before the plugin.");    
+                    WarningE = true;
+                    timer.Once(60, () => 
+                    {
+                       WarningE = false; 
+                    });
+                    throw;
+                }                                 
             }
         }              
     }

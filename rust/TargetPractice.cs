@@ -11,7 +11,7 @@ using System.Reflection;
 
 namespace Oxide.Plugins
 {
-    [Info("TargetPractice", "k1lly0u", "0.1.51", ResourceId = 1731)]
+    [Info("TargetPractice", "k1lly0u", "0.1.52", ResourceId = 1731)]
     class TargetPractice : RustPlugin
     {
         TargetData shotData;
@@ -36,7 +36,7 @@ namespace Oxide.Plugins
             LoadTargets();
             timer.Once(saveTimer * 60, () => SaveLoop());
         }
-        void LoadDefaultConfig()
+        protected override void LoadDefaultConfig()
         {
             Puts("Creating a new config file");
             Config.Clear();
@@ -81,7 +81,11 @@ namespace Oxide.Plugins
                                 BroadcastToAll(attacker.displayName, distance.ToString(), weapon);
                         }
                         if (target.IsKnockedDown())
+                        {
+                            target.health = target.MaxHealth();
+                            target.SendNetworkUpdate();
                             timer.Once(time, () => target.SetFlag(BaseEntity.Flags.On, true));
+                        }
 
                         if (!currentHits.ContainsKey(attacker.userID)) currentHits.Add(attacker.userID, new PlayerMSG());
                         currentHits[attacker.userID].msg = hit;

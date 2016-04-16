@@ -9,15 +9,11 @@ using Newtonsoft.Json.Linq;
 using Oxide.Core.Configuration;
 
 
-
 namespace Oxide.Plugins
 {
-    [Info("CustomLootSpawns", "k1lly0u", "0.1.7", ResourceId = 1655)]
+    [Info("CustomLootSpawns", "k1lly0u", "0.1.82", ResourceId = 1655)]
     class CustomLootSpawns : RustPlugin
-    {
-
-        bool changed;
-
+    {   
         CustomLootData lootData;
         private DynamicConfigFile LootSpawnData;
 
@@ -45,9 +41,9 @@ namespace Oxide.Plugins
         void OnServerInitialized()
         {            
             FindBoxTypes();
-            refreshBoxes();
+            RefreshBoxes();
         }
-        void LoadDefaultConfig()
+        protected override void LoadDefaultConfig()
         {
             Puts("Creating a new config file");
             Config.Clear();
@@ -60,17 +56,13 @@ namespace Oxide.Plugins
         }
         void ClearData(bool refresh)
         {
-            foreach (var box in currentBoxes)
-            {
-                KillBox(box);
-            }
+            foreach (var box in currentBoxes)            
+                KillBox(box);            
             currentBoxes.Clear();
             boxTypes.Clear();
             openBoxes.Clear();
-            if (refresh)
-            {
-                FindBoxTypes();
-            }
+            if (refresh)            
+                FindBoxTypes();            
         }
         void OnPlayerLootEnd(PlayerLoot inventory)
         {
@@ -83,10 +75,8 @@ namespace Oxide.Plugins
         }
         void OnEntityDeath(BaseCombatEntity entity, HitInfo info)
         {
-            if (currentBoxes.Contains(entity))
-            {
-                currentBoxes.Remove(entity);
-            }
+            if (currentBoxes.Contains(entity))            
+                currentBoxes.Remove(entity);            
         }
 
         //////////////////////////////////////////////////////////////////////////////////////
@@ -160,7 +150,7 @@ namespace Oxide.Plugins
                 boxent = lootData.customLootBoxes[boxname].boxtype;
             }
             var pos = GetSpawnPos(player);
-            BaseEntity entity = CreateLoot(boxent, pos, boxTypes[type].skin);
+            BaseEntity entity = CreateLoot(boxent, pos, player.GetNetworkRotation().y, boxTypes[type].skin);
             StorageContainer loot = entity.GetComponent<StorageContainer>();
             if (lootData.customLootBoxes.ContainsKey(boxname) && lootData.customLootBoxes[boxname].loot != null)
             {
@@ -169,55 +159,44 @@ namespace Oxide.Plugins
                 {
                     Item item = ItemManager.CreateByItemID(boxItem.itemid, boxItem.amount, boxItem.BP, boxItem.skinid);
                     var weapon = item.GetHeldEntity() as BaseProjectile;
-                    if (weapon != null)
-                    {
+                    if (weapon != null)                    
                         (item.GetHeldEntity() as BaseProjectile).primaryMagazine.contents = weapon.primaryMagazine.capacity;
-                    }
+                    
                     item.MoveToContainer(loot.inventory, boxItem.slot);
                 }
             }
-            int num = GenerateID();
-            lootData.Boxes.Add(num, new CLootBox() { ID = entity.net.ID, skin = boxTypes[type].skin, Position = entity.transform.position, Type = boxent, Name = boxname });
+            lootData.Boxes.Add(new CLootBox() { ID = entity.net.ID, skin = boxTypes[type].skin, Position = entity.transform.position, yRotation = player.GetNetworkRotation().y, Type = boxent, Name = boxname });
             currentBoxes.Add(entity);
             SaveData();
         }
-        private int GenerateID()
+        private BaseEntity CreateLoot(string type, Vector3 pos, float rot, int skin = 0)
         {
-            int num = GetRandomNumber();
-            if (lootData.Boxes.ContainsKey(num))
-            {
-                num = GetRandomNumber();                
-            }
-            return num;
-        }
-        private int GetRandomNumber()
-        {
-            int num = UnityEngine.Random.Range(1, 9999999);
-            return num;
-        }
-        private BaseEntity CreateLoot(string type, Vector3 pos, int skin = 0)
-        {
-            BaseEntity entity = GameManager.server.CreateEntity(type, pos, new Quaternion(), true);
+            BaseEntity entity = GameManager.server.CreateEntity(type, pos, Quaternion.Euler(0, rot, 0), true);
             entity.skinID = skin;
             entity.Spawn(true);
             return entity;
         }
         private bool KillBox(BaseEntity entity)
         {
-            if (currentBoxes.Contains(entity))
+            if (entity == null) return false;
+            if (entity.GetComponent<StorageContainer>()?.inventory?.itemList != null)
             {
-                entity.Kill();
-                return true;
+                var list = entity.GetComponent<StorageContainer>()?.inventory?.itemList;
+                for (int i = 0; i < list.Count; i++)
+                    list[i].Remove(0.01f);
             }
-            return false;                
+            if (entity.GetComponent<BaseCombatEntity>())
+                (entity as BaseCombatEntity).DieInstantly();
+            else entity.Kill();
+                return true;
         }
         private bool RemoveBoxData(BaseEntity entity)
         {
             foreach (var box in lootData.Boxes)
             {
-                if (box.Value.ID == entity.net.ID)
+                if (box.ID == entity.net.ID)
                 {
-                    lootData.Boxes.Remove(box.Key);
+                    lootData.Boxes.Remove(box);
                     entity.Kill();
                     SaveData();
                     return true;
@@ -225,21 +204,19 @@ namespace Oxide.Plugins
             }
             return false;
         }
-        private void refreshBoxes()
+        private void RefreshBoxes()
         {
             foreach (BaseEntity box in currentBoxes)
-            {
-                box.Kill();                
-            }
+                KillBox(box);
             currentBoxes.Clear();
             
             foreach (var newBox in lootData.Boxes)
             {             
-                var entity = CreateLoot(newBox.Value.Type, newBox.Value.Position, newBox.Value.skin);
+                var entity = CreateLoot(newBox.Type, newBox.Position, newBox.yRotation, newBox.skin);
                 currentBoxes.Add(entity);
                 StorageContainer loot = entity.GetComponent<StorageContainer>();
-                newBox.Value.ID = entity.net.ID;
-                var boxname = newBox.Value.Name;
+                newBox.ID = entity.net.ID;
+                var boxname = newBox.Name;
                 if (lootData.customLootBoxes.ContainsKey(boxname) && lootData.customLootBoxes[boxname].loot != null)
                 {
                     loot.inventory.itemList.Clear();
@@ -255,7 +232,7 @@ namespace Oxide.Plugins
                     }
                 }
             }
-            timer.Once(respawnTimer * 60, () => refreshBoxes());
+            timer.Once(respawnTimer * 60, () => RefreshBoxes());
         }
         private object rayBox(Vector3 Pos, Vector3 Aim)
         {
@@ -309,7 +286,7 @@ namespace Oxide.Plugins
         {
             foreach (var box in lootData.Boxes)
             {
-                SendEchoConsole(player.net.connection, string.Format("{0} - {1} - {2}", box.Key, box.Value.Position, box.Value.Type));
+                SendEchoConsole(player.net.connection, string.Format("{0} - {1}", box.Position, box.Type));
             }
         }
         void SendEchoConsole(Network.Connection cn, string msg)
@@ -593,7 +570,7 @@ namespace Oxide.Plugins
         //////////////////////////////////////////////////////////////////////////////////////
         class CustomLootData
         {
-            public Dictionary<int, CLootBox> Boxes = new Dictionary<int, CLootBox>();
+            public List<CLootBox> Boxes = new List<CLootBox>();
             public Dictionary<string, BoxTypeData> customLootBoxes = new Dictionary<string, BoxTypeData>();
         }
         class CLootBox
@@ -602,6 +579,7 @@ namespace Oxide.Plugins
             public string Type;
             public int skin = 0;
             public string Name;
+            public float yRotation = 0;
             public Vector3 Position;
         }  
         class BoxTypes
@@ -661,7 +639,7 @@ namespace Oxide.Plugins
         //////////////////////////////////////////////////////////////////////////////////////
         // Configuration /////////////////////////////////////////////////////////////////////
         //////////////////////////////////////////////////////////////////////////////////////
-
+        bool changed;
         int respawnTimer = 15;
         int authLevel = 1;
         private void LoadVariables()

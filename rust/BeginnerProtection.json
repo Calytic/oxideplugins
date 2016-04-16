@@ -1,0 +1,15 @@
+{
+    "name": "Beginner Protection",
+    "description": "Protect all beginner from guys who has guns",
+    "author": "",
+    "version": "0.1.2",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

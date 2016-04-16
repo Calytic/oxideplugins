@@ -11,7 +11,7 @@ using System;
 
 namespace Oxide.Plugins
 {
-    [Info("Notifier", "SkinN", "3.0.7", ResourceId = 797)]
+    [Info("Notifier", "SkinN", "3.0.8", ResourceId = 797)]
     [Description("Server administration tool with chat based notifications")]
 
     class Notifier : RustPlugin
@@ -772,20 +772,21 @@ namespace Oxide.Plugins
 
         private void JoinMessages(BasePlayer player)
         {
-            if (EnableJoinMessage && NotHide(player))
+            try
             {
-                Say(GetNameFormats(GetMsg("Join Message"), player));
-                string sep = string.Join("\n", new string[50 + 1]);
-                Tell(player, sep, prefix: false);
-            }
-
-            // Welcome Message
-            if (EnableWelcomeMessage)
-            {
-                List<string> WelcomeMessage = ConvertList(Config.Get("Welcome Messages"));
-                foreach (string line in WelcomeMessage)
-                    Tell(player, GetNameFormats(line, player), prefix: false);
-            }
+                if (EnableJoinMessage && NotHide(player))
+                {
+                    Say(GetNameFormats(GetMsg("Join Message"), player));
+                    string sep = string.Join("\n", new string[50 + 1]);
+                    Tell(player, sep, prefix: false);
+                }
+                if (EnableWelcomeMessage)
+                {
+                    List<string> WelcomeMessage = ConvertList(Config.Get("Welcome Messages"));
+                    foreach (string line in WelcomeMessage)
+                        Tell(player, GetNameFormats(line, player), prefix: false);
+                }
+            } catch {}
         }
 
         private void SendAdvert()

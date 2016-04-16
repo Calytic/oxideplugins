@@ -1,0 +1,15 @@
+{
+    "name": "GUI Help",
+    "description": "Adds ingame UI with custom text & images",
+    "author": "baton256",
+    "version": "0.4.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

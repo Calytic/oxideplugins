@@ -1,0 +1,15 @@
+{
+    "name": "Pills Here",
+    "description": "Heal by anti-rad pills",
+    "author": "",
+    "version": "2.0.0.1",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

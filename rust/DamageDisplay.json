@@ -1,0 +1,15 @@
+{
+    "name": "DamageDisplay GUI",
+    "description": "Displays the given damage to a player in a GUI",
+    "author": "",
+    "version": "1.6.1",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

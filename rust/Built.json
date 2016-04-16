@@ -1,0 +1,19 @@
+{
+    "name": "Built",
+    "description": "Provides entity ownership information without being dependent on external plugins",
+    "author": "sqroot",
+    "version": "1.2.0",
+    "configuration": false,
+    "suggest": {
+        "DeadPlayersList": "*",
+        "PlayerDatabase": "*"
+    },
+    "language": "py",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

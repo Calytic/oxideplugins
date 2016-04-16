@@ -2,7 +2,7 @@
     "name": "NeverWear",
     "description": "Simple plugin to stop items from losing condition",
     "author": "k1lly0u",
-    "version": "0.1.31",
+    "version": "0.1.32",
     "configuration": true,
     "language": "cs",
     "games": [

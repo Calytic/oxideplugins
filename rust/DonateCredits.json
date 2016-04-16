@@ -1,0 +1,21 @@
+{
+    "name": "Donation Credits",
+    "description": "Rewards players with Economy credits for donations on a website",
+    "author": "",
+    "version": "1.0.3",
+    "configuration": true,
+    "suggest": {
+        "helptext": "*"
+    },
+    "require": {
+        "Economics": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

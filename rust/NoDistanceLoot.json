@@ -1,0 +1,15 @@
+{
+    "name": "NoDistanceLoot",
+    "description": "Prevent people using distance access to inventory.",
+    "author": "4seti",
+    "version": "0.1.1",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

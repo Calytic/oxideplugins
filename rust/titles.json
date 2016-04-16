@@ -1,0 +1,15 @@
+{
+    "name": "Player Titles",
+    "description": "Provides titles for players, mods, admins in chat",
+    "author": "KillParadise",
+    "version": "0.1.1",
+    "configuration": false,
+    "language": "js",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

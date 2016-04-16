@@ -1,0 +1,15 @@
+{
+    "name": "Airdrop Arrow",
+    "description": "Draws an arrow on airdrops",
+    "author": "",
+    "version": "1.0.1",
+    "configuration": true,
+    "language": "lua",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

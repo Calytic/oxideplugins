@@ -1,0 +1,15 @@
+{
+    "name": "NoNight",
+    "description": "Automatic skipping of night time.",
+    "author": "",
+    "version": "1.0.2",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

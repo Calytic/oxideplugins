@@ -1,0 +1,15 @@
+{
+    "name": "InsultGenerator",
+    "description": "Use a simple command to insult yourself or another player!",
+    "author": "Spicy",
+    "version": "1.1.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

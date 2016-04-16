@@ -1,0 +1,15 @@
+{
+    "name": "Unique Name",
+    "description": "Reserve users name for given time.(Default 1 week)",
+    "author": "Feramor",
+    "version": "1.0.1",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

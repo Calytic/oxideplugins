@@ -11,7 +11,7 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("Kill Feed", "Tuntenfisch", "1.14.4", ResourceId = 1433)]
+    [Info("Kill Feed", "Tuntenfisch", "1.14.7", ResourceId = 1433)]
     [Description("Displays a basic Kill Feed on screen!")]
     public class KillFeed : RustPlugin
     {
@@ -454,6 +454,7 @@ namespace Oxide.Plugins
                     { "bow.hunting", "2/25/Hunting_Bow_icon.png" },
                     { "crossbow", "2/23/Crossbow_icon.png" },
                     { "explosive.timed", "6/6c/Timed_Explosive_Charge_icon.png" },
+                    { "flamethrower", "http://i.imgur.com/9lS3Gft.png" },
                     { "gates.external.high.stone", "8/85/High_External_Stone_Gate_icon.png" },
                     { "gates.external.high.wood", "5/53/High_External_Wooden_Gate_icon.png" },
                     { "grenade.beancan", "b/be/Beancan_Grenade_icon.png" },
@@ -1453,6 +1454,7 @@ namespace Oxide.Plugins
                         if (info.WeaponPrefab.LookupShortPrefabName().Equals("axe_salvaged.entity.prefab")) weapon = "axe.salvaged";
                         else if (info.WeaponPrefab.LookupShortPrefabName().Equals("bone_club.entity.prefab")) weapon = "bone.club";
                         else if (info.WeaponPrefab.LookupShortPrefabName().Equals("explosive.timed.deployed.prefab")) weapon = "explosive.timed";
+                        else if (info.WeaponPrefab.LookupShortPrefabName().Equals("flamethrower.entity.prefab")) weapon = "flamethrower";
                         else if (info.WeaponPrefab.LookupShortPrefabName().Equals("grenade.beancan.deployed.prefab")) weapon = "grenade.beancan";
                         else if (info.WeaponPrefab.LookupShortPrefabName().Equals("grenade.f1.deployed.prefab")) weapon = "grenade.f1";
                         else if (info.WeaponPrefab.LookupShortPrefabName().Equals("hammer_salvaged.entity.prefab")) weapon = "hammer.salvaged";
@@ -1535,7 +1537,7 @@ namespace Oxide.Plugins
                 }
 
                 // mainly used for determining whether the killing or wounding hit was self inflicted or not.
-                if (!selfInflicted || string.IsNullOrEmpty(weapon))
+                if (!selfInflicted && (string.IsNullOrEmpty(weapon) || !weapon.Equals("flamethrower")))
                 {
                     switch (info.damageTypes.GetMajorityDamageType())
                     {

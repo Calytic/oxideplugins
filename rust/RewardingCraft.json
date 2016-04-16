@@ -1,0 +1,15 @@
+{
+    "name": "Rewarding Craft",
+    "description": "The more you craft, the more you learn",
+    "author": "",
+    "version": "0.0.3",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}
