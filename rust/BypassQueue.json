@@ -1,0 +1,15 @@
+{
+    "name": "BypassQueue",
+    "description": "Allows a player to jump connection queue based on permission.",
+    "author": "Nogrod",
+    "version": "1.0.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

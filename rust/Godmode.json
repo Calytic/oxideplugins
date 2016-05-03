@@ -1,8 +1,8 @@
 {
     "name": "Godmode",
-    "description": "Godmode for server admins",
+    "description": "Allows players with permission to become invincible\/invulnerable",
     "author": "Wulf",
-    "version": "2.0.2",
+    "version": "3.0.8",
     "configuration": true,
     "language": "cs",
     "games": [

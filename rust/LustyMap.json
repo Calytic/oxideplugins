@@ -1,8 +1,8 @@
 {
     "name": "LustyMap",
-    "description": "In-game map and minimap GUI",
+    "description": "In-game Map and Minimap GUI",
     "author": "Kayzor",
-    "version": "1.0.24",
+    "version": "1.1.10",
     "configuration": true,
     "language": "cs",
     "games": [

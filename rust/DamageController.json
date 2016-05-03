@@ -1,9 +1,10 @@
 {
     "name": "DamageController",
-    "description": "Player and object damage control for PVP or PVE",
+    "description": "PVP and PVE Damage Modes",
     "author": "Darwin",
-    "version": "0.1.2",
+    "version": "0.2.5",
     "configuration": true,
+    "suggest": {},
     "language": "js",
     "games": [
         "rust"

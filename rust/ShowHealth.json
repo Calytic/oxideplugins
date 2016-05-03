@@ -1,0 +1,15 @@
+{
+    "name": "ShowHealth",
+    "description": "Check any player's health",
+    "author": "",
+    "version": "0.2.1",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

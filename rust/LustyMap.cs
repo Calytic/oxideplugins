@@ -1,56 +1,91 @@
 using UnityEngine;
 using System;
-using System.Reflection;
 using System.Collections;
 using System.Collections.Generic;
 using Oxide.Core;
-using Oxide.Core.Configuration;
 using Oxide.Core.Plugins;
+using Oxide.Game.Rust.Cui;
+using System.IO;
+using System.Reflection;
+using Oxide.Core.Libraries;
 
 namespace Oxide.Plugins
 {
-    [Info("LustyMap", "Kayzor", "1.0.24", ResourceId = 1333)]
-    [Description("In-game map and minimap GUI")]
+    [Info("LustyMap", "Kayzor", "1.1.10", ResourceId = 1333)]
+    [Description("In-game Map and Minimap GUI")]
     public class LustyMap : RustPlugin
     {
-        // Plugin variables
-        string lustyPlugin = null;
-        string lustyAuthor = null;
-        string lustyVersion = null;
-        string lustyDescription = null;
-
         // System variables
-        int mapslices = 32;
-        bool debug = false;
+        string mapurl = null;
+        bool run = false;
+        static bool debug = false;
         bool mapmode = false;
         bool minimap = true;
         bool left = true;
         bool compass = true;
         bool startopen = true;
         bool mapbutton = false;
-        string mapurl = null;
-        string mapcomplex = null;
-        List<PlayerMap> MinimapPlayers = new List<PlayerMap>();
-        List<BasePlayer> MinimapReopen = new List<BasePlayer>();
-        List<ulong> startupList = new List<ulong>();
-        List<lustyMonuments> Monuments = new List<lustyMonuments>();        
+        bool showmonuments = true;
+        bool showcaves = true;
+        bool showheli = true;
+        bool showplane = true;
+        bool showsupply = true;
+        bool showdebris = true;
+        bool useurl = false;
+        bool rustiofriends = false;
+        bool rustio = false;
+        bool friendapi = false;
+        bool friendsapifriends = false;
+
+        // Lists
+        List<MapLocation> mapCustom = new List<MapLocation>();
+        List<MapLocation> mapMonuments = new List<MapLocation>();
+        List<ActiveEntity> activeEntities = new List<ActiveEntity>();
+        List<string> customIamges = new List<string>();
 
         // Text Strings
         string txtInvalid = null;
         string txtUnknown = null;
-        string txtCmdComplex = null;
         string txtCmdMinimap = null;
         string txtCmdMode = null;
-        string txtCmdUrl = null;
         string txtCmdCompass = null;
         string txtCmdStart = null;
+        string txtCmdCaves = null;
+        string txtCmdHeli = null;
+        string txtCmdPlane = null;
+        string txtCmdSupply = null;
+        string txtCmdDebris = null;
+        string txtCmdMonuments = null;
+        string txtCmdImages = null;
+        string txtCmdUrl = null;
+        string txtCmdMap = null;
+        string txtCmdIOFriends = null;
+        string txtCmdAPIFriends = null;
+        string txtCmdAdmin = null;
+
         string txtCmtMode = null;
-        string txtCmtComplex = null;
-        string txtCmtUrl = null;
+        string txtCmdLocation = null;
+        string txtCmdImage = null;
         string txtCmtMinimap = null;
         string txtCmtAlign = null;
         string txtCmtCompass = null;
         string txtCmtOpen = null;
+        string txtCmtCaves = null;
+        string txtCmtHeli = null;
+        string txtCmtPlane = null;
+        string txtCmtSupply = null;
+        string txtCmtDebris = null;
+        string txtCmtMonuments = null;
+        string txtCmtImages = null;
+        string txtCmtUrl = null;
+        string txtCmtLocation = null;
+        string txtCmtLocationFail = null;
+        string txtCmtImage = null;
+        string txtCmtImageFail = null;
+        string txtCmtIOFriends = null;
+        string txtCmtAPIFriends = null;
+        string txtCmtAdmin = null;
+
         string txtCpsHead = null;
         string txtCpsN = null;
         string txtCpsNE = null;
@@ -63,31 +98,79 @@ namespace Oxide.Plugins
         string txtBtnClose = null;
         string txtBtnMap = null;
 
-        // Plugin setup
-        void Init()
-        {
-            object[] getAttributes = this.GetType().GetCustomAttributes(false);
+        private float mapSize;
 
-            foreach (Attribute a in getAttributes)
+        // RustIO Support
+        private Library RustIOLib;
+        private MethodInfo isRustIOInstalled;
+        private MethodInfo hasRustIOFriend;
+
+        private void InitializeRustIO()
+        {
+            RustIOLib = Interface.GetMod().GetLibrary<Library>("RustIO");
+            if (RustIOLib == null || (isRustIOInstalled = RustIOLib.GetFunction("IsInstalled")) == null || (hasRustIOFriend = RustIOLib.GetFunction("HasFriend")) == null)
             {
-                if (a.ToString() == "Oxide.Plugins.DescriptionAttribute")
-                {
-                    lustyDescription = (a as DescriptionAttribute).Description;
-                }
-                else if (a.ToString() == "Oxide.Plugins.InfoAttribute")
-                {
-                    lustyPlugin = (a as InfoAttribute).Title;
-                    lustyAuthor = (a as InfoAttribute).Author;
-                    lustyVersion = (a as InfoAttribute).Version.ToString();
-                }
+                RustIOLib = null;
+            }
+
+            if (!IsRustIOInstalled())
+            {
+                rustio = false;
+                if (debug) { Puts("Rust:IO not detected..."); }
+            }
+            else
+            {
+                rustio = true;
             }
         }
 
+        private bool IsRustIOInstalled()
+        {
+            if (RustIOLib == null) return false;
+            return (bool)isRustIOInstalled.Invoke(RustIOLib, new object[] { });
+        }
+
+        private bool HasRustIOFriend(string playerId, string friendId)
+        {
+            if (RustIOLib == null) return false;
+            return (bool)hasRustIOFriend.Invoke(RustIOLib, new object[] { playerId, friendId });
+        }
+
+        // Friends API Support
+        [PluginReference]
+        private Plugin Friends;
+
+        private void InitializeFriendsAPI()
+        {
+            if (Friends != null)
+            {
+                friendapi = true;
+            }
+            else
+            {
+                friendapi = false;
+                if (debug) { Puts("FriendsAPI not detected..."); }
+            }
+        }
+
+        private bool HasFriendsAPIFriend(string playerId, string friendId)
+        {
+            try
+            {
+                bool result = (bool)Friends?.CallHook("HasFriend", playerId, friendId);
+                return result;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // Plugin Setup
         void Loaded()
         {
-            // Default config vlaues
+            // Default config values
             set("LustyMap", "MapURL", "http://185.38.151.245:28015/map.jpg", false);
-            set("LustyMap", "MapComplexURL", "http://lustyrust.co.uk/img/lustyplugins/map32x32/", false);
             set("LustyMap", "MapMode", false, false);
             set("LustyMap", "Minimap", true, false);
             set("LustyMap", "Left", true, false);
@@ -95,24 +178,54 @@ namespace Oxide.Plugins
             set("LustyMap", "StartOpen", true, false);
             set("LustyMap", "Debug", false, false);
             set("LustyMap", "MapButton", false, false);
+            set("LustyMap", "ShowMonuments", true, false);
+            set("LustyMap", "ShowCaves", true, false);
+            set("LustyMap", "ShowHeli", true, false);
+            set("LustyMap", "ShowPlane", true, false);
+            set("LustyMap", "ShowSupply", true, false);
+            set("LustyMap", "ShowDebris", true, false);
+            set("LustyMap", "RustIOFriends", false, false);
+            set("LustyMap", "FriendsAPIFriends", false, false);
+            set("LustyMap", "UseURL", true, false);
 
             // Default/English text strings
             set("TextStrings", "InvalidSyntex", "Invalid syntex! usage: ", false);
             set("TextStrings", "UnknownCommand", "Unknown command, type <color=#00ff00ff>/map help</color> for a list of commands.", false);
-            set("TextStrings", "ComplexCommand", "<color=#00ff00ff>/map complex <url to map parts></color> - Sets the located to the map parts for complex mode.", false);
             set("TextStrings", "MinimapCommand", "<color=#00ff00ff>/map minimap <true|false|left|right></color> - Enables, disables or sets the default alignment for the minimap.", false);
             set("TextStrings", "ModeCommand", "<color=#00ff00ff>/map mode <true|false></color> - Enables or disables complex mode.", false);
-            set("TextStrings", "UrlCommand", "<color=#00ff00ff>/map url <url to map image></color> - Sets the map image, used as the background image.", false);
             set("TextStrings", "CompassCommand", "<color=#00ff00ff>/map compass <true|false></color> - Enables or disables the minimap compass.", false);
             set("TextStrings", "StartCommand", "<color=#00ff00ff>/map startopen <true|false></color> - Sets the default state for the minimap.", false);
+            set("TextStrings", "CavesCommand", "<color=#00ff00ff>/map showcaves <true|false></color> - Enables or disables Caves from showing on the map.", false);
+            set("TextStrings", "MonumentsCommand", "<color=#00ff00ff>/map showmonuments <true|false></color> - Enables or disables Monuments from showing on the map.", false);
+            set("TextStrings", "ImagesCommand", "<color=#00ff00ff>/map images</color> - Reloads the Image cache.", false);
+            set("TextStrings", "UrlCommand", "<color=#00ff00ff>/map url <url to map image></color> - Sets the map image, used as the background image.", false);
+            set("TextStrings", "PlaneCommand", "<color=#00ff00ff>/map showplane <true|false></color> - Enables or disables Airplanes from showing on the map.", false);
+            set("TextStrings", "HeliCommand", "<color=#00ff00ff>/map showheli <true|false></color> - Enables or disables Helicopters from showing on the map.", false);
+            set("TextStrings", "SupplyCommand", "<color=#00ff00ff>/map showsupply <true|false></color> - Enables or disables Supply Drops from showing on the map.", false);
+            set("TextStrings", "DebrisCommand", "<color=#00ff00ff>/map showdebris <true|false></color> - Enables or disables Helicopter Debris from showing on the map.", false);
+            set("TextStrings", "LocationCommand", "<color=#00ff00ff>/map <add|remove> <name> (optional)<image name></color> - Adds|Removes a location from the map, (optional)using a custom image.", false);
+            set("TextStrings", "ImageCommand", "<color=#00ff00ff>/map <addimage|removeimage> <name></color> - Adds a custom image which can be used with a custom map location.", false);
+            set("TextStrings", "MapCommand", "<color=#00ff00ff>/map</color> has been <color=#00ff00ff>removed</color>, Please use keybind <color=#00ff00ff>M</color> to toggle the map instead.", false);
+            set("TextStrings", "RustIOFriendsCommand", "<color=#00ff00ff>/map rustiofriends <true|false></color> - Enables or disables RustIO Friends displaying on the map and minimap for players.", false);
+            set("TextStrings", "FriendsAPIFriendsCommand", "<color=#00ff00ff>/map friendsapifriends <true|false></color> - Enables or disables FriendsAPI Friends displaying on the map and minimap for players.", false);
+            set("TextStrings", "AdminViewCommand", "<color=#00ff00ff>/map adminview</color> - Toggles Admin View for the map and minimap.", false);
 
             set("TextStrings", "ModeCommit", "Complex mode has been <color=#00ff00ff>{0}</color>.", false);
-            set("TextStrings", "ComplexCommit", "Map Complex URL has been set to: <color=#00ff00ff>{0}</color>", false);
-            set("TextStrings", "UrlCommit", "Map URL has been set to: <color=#00ff00ff>{0}</color>", false);
             set("TextStrings", "MinimapCommit", "Minimap has been <color=#00ff00ff>{0}</color> for all players.", false);
             set("TextStrings", "AlignCommit", "Minimap has been set to the <color=#00ff00ff>{0}</color>.", false);
             set("TextStrings", "CompassCommit", "Minimap compass has been <color=#00ff00ff>{0}</color>.", false);
             set("TextStrings", "OpenCommit", "Minimap will be <color=#00ff00ff>{0}</color> by default.", false);
+            set("TextStrings", "CavesCommit", "Showing Caves has been <color=#00ff00ff>{0}</color>.", false);
+            set("TextStrings", "PlaneCommit", "Showing Airplanes has been <color=#00ff00ff>{0}</color>.", false);
+            set("TextStrings", "HeliCommit", "Showing Helicopters has been <color=#00ff00ff>{0}</color>.", false);
+            set("TextStrings", "SupplyCommit", "Showing Supply Drops has been <color=#00ff00ff>{0}</color>.", false);
+            set("TextStrings", "DebrisCommit", "Showing Helicopter Debris has been <color=#00ff00ff>{0}</color>.", false);
+            set("TextStrings", "MonumentsCommit", "Showing Monuments has been <color=#00ff00ff>{0}</color>.", false);
+            set("TextStrings", "ImagesCommit", "Reloading the Image cache.", false);
+            set("TextStrings", "UrlCommit", "Map URL has been set to: <color=#00ff00ff>{0}</color>", false);
+            set("TextStrings", "RustIOFriendsCommit", "RustIO Friends has been <color=#00ff00ff>{0}</color>.", false);
+            set("TextStrings", "FriendsAPIFriendsCommit", "FriendsAPI Friends has been <color=#00ff00ff>{0}</color>.", false);
+            set("TextStrings", "AdminViewCommit", "Admin View has been <color=#00ff00ff>{0}</color>.", false);
 
             set("TextStrings", "CloseButton", "Close Map", false);
             set("TextStrings", "MapButton", "Map", false);
@@ -125,11 +238,9 @@ namespace Oxide.Plugins
             set("CompassStrings", "S", "South", false);
             set("CompassStrings", "SW", "South West", false);
             set("CompassStrings", "W", "West", false);
-            set("CompassStrings", "NW", "North West", false);            
+            set("CompassStrings", "NW", "North West", false);
 
             // Load config values
-            mapurl = Convert.ToString(get("LustyMap", "MapURL"));
-            mapcomplex = Convert.ToString(get("LustyMap", "MapComplexURL"));
             mapmode = Convert.ToBoolean(get("LustyMap", "MapMode"));
             minimap = Convert.ToBoolean(get("LustyMap", "Minimap"));
             left = Convert.ToBoolean(get("LustyMap", "Left"));
@@ -137,24 +248,56 @@ namespace Oxide.Plugins
             startopen = Convert.ToBoolean(get("LustyMap", "StartOpen"));
             debug = Convert.ToBoolean(get("LustyMap", "Debug"));
             mapbutton = Convert.ToBoolean(get("LustyMap", "MapButton"));
+            showmonuments = Convert.ToBoolean(get("LustyMap", "ShowMonuments"));
+            showcaves = Convert.ToBoolean(get("LustyMap", "ShowCaves"));
+            showheli = Convert.ToBoolean(get("LustyMap", "ShowHeli"));
+            showplane = Convert.ToBoolean(get("LustyMap", "ShowPlane"));
+            showsupply = Convert.ToBoolean(get("LustyMap", "ShowSupply"));
+            showdebris = Convert.ToBoolean(get("LustyMap", "ShowDebris"));
+            useurl = Convert.ToBoolean(get("LustyMap", "UseURL"));
+            mapurl = Convert.ToString(get("LustyMap", "MapURL"));
+            rustiofriends = Convert.ToBoolean(get("LustyMap", "RustIOFriends"));
+            friendsapifriends = Convert.ToBoolean(get("LustyMap", "FriendsAPIFriends"));
+            
 
             // Text strings
             txtInvalid = (string)get("TextStrings", "InvalidSyntex");
             txtUnknown = (string)get("TextStrings", "UnknownCommand");
-            txtCmdComplex = (string)get("TextStrings", "ComplexCommand");
             txtCmdMinimap = (string)get("TextStrings", "MinimapCommand");
             txtCmdMode = (string)get("TextStrings", "ModeCommand");
-            txtCmdUrl = (string)get("TextStrings", "UrlCommand");
             txtCmdCompass = (string)get("TextStrings", "CompassCommand");
             txtCmdStart = (string)get("TextStrings", "StartCommand");
+            txtCmdCaves = (string)get("TextStrings", "CavesCommand");
+            txtCmdPlane = (string)get("TextStrings", "PlaneCommand");
+            txtCmdHeli = (string)get("TextStrings", "HeliCommand");
+            txtCmdSupply = (string)get("TextStrings", "SupplyCommand");
+            txtCmdDebris = (string)get("TextStrings", "DebrisCommand");
+            txtCmdMonuments = (string)get("TextStrings", "MonumentsCommand");
+            txtCmdImages = (string)get("TextStrings", "ImagesCommand");
+            txtCmdImage = (string)get("TextStrings", "ImageCommand");
+            txtCmdLocation = (string)get("TextStrings", "LocationCommand");
+            txtCmdUrl = (string)get("TextStrings", "UrlCommand");
+            txtCmdMap = (string)get("TextStrings", "MapCommand");
+            txtCmdIOFriends = (string)get("TextStrings", "RustIOFriendsCommand");
+            txtCmdAPIFriends = (string)get("TextStrings", "FriendsAPIFriendsCommand");
+            txtCmdAdmin = (string)get("TextStrings", "AdminViewCommand");
 
             txtCmtMode = (string)get("TextStrings", "ModeCommit");
-            txtCmtComplex = (string)get("TextStrings", "ComplexCommit");
-            txtCmtUrl = (string)get("TextStrings", "UrlCommit");
             txtCmtMinimap = (string)get("TextStrings", "MinimapCommit");
             txtCmtAlign = (string)get("TextStrings", "AlignCommit");
             txtCmtCompass = (string)get("TextStrings", "CompassCommit");
             txtCmtOpen = (string)get("TextStrings", "OpenCommit");
+            txtCmtCaves = (string)get("TextStrings", "CavesCommit");
+            txtCmtPlane = (string)get("TextStrings", "PlaneCommit");
+            txtCmtHeli = (string)get("TextStrings", "HeliCommit");
+            txtCmtSupply = (string)get("TextStrings", "SupplyCommit");
+            txtCmtDebris = (string)get("TextStrings", "DebrisCommit");
+            txtCmtMonuments = (string)get("TextStrings", "MonumentsCommit");
+            txtCmtImages = (string)get("TextStrings", "ImagesCommit");
+            txtCmtUrl = (string)get("TextStrings", "UrlCommit");
+            txtCmtIOFriends = (string)get("TextStrings", "RustIOFriendsCommit");
+            txtCmtAPIFriends = (string)get("TextStrings", "FriendsAPIFriendsCommit");
+            txtCmtAdmin = (string)get("TextStrings", "AdminViewCommit");
 
             txtBtnClose = (string)get("TextStrings", "CloseButton");
             txtBtnMap = (string)get("TextStrings", "MapButton");
@@ -168,167 +311,656 @@ namespace Oxide.Plugins
             txtCpsSW = (string)get("CompassStrings", "SW");
             txtCpsW = (string)get("CompassStrings", "W");
             txtCpsNW = (string)get("CompassStrings", "NW");
-            
-            // Start map timer
-            timer.Repeat(1f, 0, () => lustyTimer());
 
-            if (BasePlayer.activePlayerList.Count > 0)
+            // Load custom lists
+            customIamges = Interface.Oxide.DataFileSystem.ReadObject<List<string>>("LustyMapImages");
+            mapCustom = Interface.Oxide.DataFileSystem.ReadObject<List<MapLocation>>("LustyMapLocations");
+        }
+
+        // Monuments
+        private class MapLocation
+        {
+            public string name { get; set; }
+            public double percentX { get; set; }
+            public double percentZ { get; set; }
+            public string icon { get; set; }
+        }
+
+        void OnServerInitialized()
+        {
+            mapSize = TerrainMeta.Size.x;
+            var monumentInfos = UnityEngine.Object.FindObjectsOfType<MonumentInfo>();
+            if (debug) { Puts($"Found {monumentInfos.Length} monuments on the map."); }
+            foreach (var monumentInfo in monumentInfos)
             {
-                foreach (BasePlayer player in BasePlayer.activePlayerList)
+                MapLocation monument = new MapLocation
                 {
-                    startupList.Add(player.userID);
-                    if (minimap)
-                    {
-                        minimapAdd(player);
-                    }
-                    player.Command("bind m \"LustyMap map\"");
+                    percentX = GetMapPos(monumentInfo.transform.position.x),
+                    percentZ = GetMapPos(monumentInfo.transform.position.z)
+                };
+
+                if (monumentInfo.Type == MonumentType.Lighthouse)
+                {
+                    monument.name = "Lighthouse";
+                    monument.icon = "lighthouse";
+                    mapMonuments.Add(monument);
+                }
+                else if (monumentInfo.Type == MonumentType.Cave)
+                {
+                    monument.name = "Cave";
+                    monument.icon = "cave";
+                    mapMonuments.Add(monument);
+                }
+                else if (monumentInfo.name.ToLower().Contains("warehouse"))
+                {
+                    monument.name = "Warehouse";
+                    monument.icon = "warehouse";
+                    mapMonuments.Add(monument);
+                }
+                else if (monumentInfo.name.ToLower().Contains("satellite"))
+                {
+                    monument.name = "Satellite Dish";
+                    monument.icon = "dish";
+                    mapMonuments.Add(monument);
+                }
+                else if (monumentInfo.name.ToLower().Contains("sphere"))
+                {
+                    monument.name = "Sphere Tank";
+                    monument.icon = "spheretank";
+                    mapMonuments.Add(monument);
+                }
+                else if (monumentInfo.name.ToLower().Contains("powerplant"))
+                {
+                    monument.name = "Powerplant";
+                    monument.icon = "special";
+                    mapMonuments.Add(monument);
+                }
+                else if (monumentInfo.name.ToLower().Contains("trainyard"))
+                {
+                    monument.name = "Trainyard";
+                    monument.icon = "special";
+                    mapMonuments.Add(monument);
+                }
+                else if (monumentInfo.name.ToLower().Contains("airfield"))
+                {
+                    monument.name = "Airfield";
+                    monument.icon = "special";
+                    mapMonuments.Add(monument);
+                }
+                else if (monumentInfo.name.ToLower().Contains("tunnel"))
+                {
+                    monument.name = "Military Tunnel";
+                    monument.icon = "special";
+                    mapMonuments.Add(monument);
+                }
+                else if (monumentInfo.name.ToLower().Contains("treatment"))
+                {
+                    monument.name = "Water Treatment Plant";
+                    monument.icon = "special";
+                    mapMonuments.Add(monument);
+                }
+                else if (monumentInfo.Type == MonumentType.Radtown)
+                {
+                    monument.name = "Radtown";
+                    monument.icon = "radtown";
+                    mapMonuments.Add(monument);
+                }
+                else if (monumentInfo.name.ToLower().Contains("monuments"))
+                {
+                }
+                else
+                {
+                    // Missed one!
+                    if (debug) { Puts("Missed monument " + monumentInfo.name.ToLower()); }
+                }
+            }
+
+            CargoPlane[] planes = UnityEngine.Object.FindObjectsOfType<CargoPlane>();
+            if (planes.Length > 0)
+            {
+                foreach (CargoPlane entity in planes)
+                {
+                    addActive(entity);
+                }
+            }
+            BaseHelicopter[] heli = UnityEngine.Object.FindObjectsOfType<BaseHelicopter>();
+            if (heli.Length > 0)
+            {
+                foreach (BaseHelicopter entity in heli)
+                {
+                    addActive(entity);
+                }
+            }
+            SupplyDrop[] supply = UnityEngine.Object.FindObjectsOfType<SupplyDrop>();
+            if (supply.Length > 0)
+            {
+                foreach (SupplyDrop entity in supply)
+                {
+                    addActive(entity);
+                }
+            }
+            HelicopterDebris[] debris = UnityEngine.Object.FindObjectsOfType<HelicopterDebris>();
+            if (debris.Length > 0)
+            {
+                foreach (HelicopterDebris entity in debris)
+                {
+                    addActive(entity);
+                }
+            }
+
+            // Check for RustIO
+            InitializeRustIO();
+
+            // Check for FriendsAPI
+            InitializeFriendsAPI();
+
+            // Download Images
+            cacheImages();
+        }
+
+        private double GetMapPos(float pos)
+        {
+            return (pos + mapSize / 2.0) / mapSize;
+        }
+
+        // Custom map locations
+        bool addLocation(BasePlayer player, string name, string icon = "special")
+        {
+            if (mapCustom.Find(r => string.Equals(r.name, name, StringComparison.CurrentCultureIgnoreCase)) == null)
+            {
+                MapLocation location = new MapLocation
+                {
+                    name = name,
+                    icon = icon,
+                    percentX = GetMapPos(player.transform.position.x),
+                    percentZ = GetMapPos(player.transform.position.z)
+                };
+
+                // Add to list
+                mapCustom.Add(location);
+                Interface.Oxide.DataFileSystem.WriteObject("LustyMapLocations", mapCustom);
+                return true;
+            }
+            return false;
+        }
+
+        bool removeLocation(string name)
+        {
+            var loc = mapCustom.Find(r => string.Equals(r.name, name, StringComparison.CurrentCultureIgnoreCase));
+            if (loc != null)
+            {
+                mapCustom.Remove(loc);
+                Interface.Oxide.DataFileSystem.WriteObject("LustyMapLocations", mapCustom);
+                return true;
+            }
+            return false;
+        }
+
+
+        // Planes and Helicopters!
+        class ActiveEntity
+        {
+            public long ID { get; set; }
+            public bool isplane { get; set; }
+            public bool isheli { get; set; }
+            public bool issupply { get; set; }
+            public bool isdebris { get; set; }
+            public BaseEntity entity { get; set; }
+
+            public string name { get; set; }
+            public Vector3 position { get; set; }
+            public double percentX { get; set; }
+            public double percentZ { get; set; }
+            public int row { get; set; }
+            public int column { get; set; }
+            public string icon { get; set; }
+        }
+
+        void OnEntitySpawned(BaseEntity entity)
+        {
+            addActive(entity);
+        }
+
+        void addActive(BaseEntity entity)
+        {
+            if (!(entity is CargoPlane) && !(entity is SupplyDrop) && !(entity is BaseHelicopter) && !(entity is HelicopterDebris)) return;
+
+            ActiveEntity activeEntity = new ActiveEntity
+            {
+                ID = DateTime.Now.Ticks,
+                isplane = false,
+                isheli = false,
+                issupply = false,
+                isdebris = false,
+                entity = entity
+            };
+
+            if (entity is CargoPlane)
+            {
+                activeEntity.isplane = true;
+                activeEntity.name = "Plane";
+                locationActive(activeEntity);
+                activeEntities.Add(activeEntity);
+            }
+            else if (entity is BaseHelicopter)
+            {
+                activeEntity.isheli = true;
+                activeEntity.name = "Helicopter";
+                locationActive(activeEntity);
+                activeEntities.Add(activeEntity);
+            }
+            else if (entity is SupplyDrop)
+            {
+                activeEntity.issupply = true;
+                activeEntity.name = "Supply Drop";
+                locationActive(activeEntity);
+                activeEntities.Add(activeEntity);
+            }
+            else if (entity is HelicopterDebris)
+            {
+                activeEntity.isdebris = true;
+                activeEntity.name = "Helicopter Debris";
+                locationActive(activeEntity);
+                activeEntities.Add(activeEntity);
+            }
+        }
+
+        int directionEntity(double rotation)
+        {
+            return (int)((rotation - 5) / 10 + 0.5) * 10;
+        }
+
+        void locationActive(ActiveEntity activeEntity)
+        {
+            try
+            {
+                activeEntity.position = activeEntity.entity.transform.position;
+                activeEntity.percentX = GetMapPos(activeEntity.position.x);
+                activeEntity.percentZ = GetMapPos(activeEntity.position.z);
+
+                if (activeEntity.isplane)
+                {
+                    activeEntity.icon = "plane" + directionEntity(activeEntity.entity.transform.rotation.eulerAngles.y);
+                }
+                else if (activeEntity.isheli)
+                {
+                    activeEntity.icon = "heli" + directionEntity(activeEntity.entity.transform.rotation.eulerAngles.y);
+                }
+                else if (activeEntity.issupply)
+                {
+                    activeEntity.icon = "supply";
+                }
+                else if (activeEntity.isdebris)
+                {
+                    activeEntity.icon = "debris";
+                }
+            }
+            catch
+            {
+                if (debug) { Puts("Removing Entity: " + activeEntity.name); }
+                activeEntities.Remove(activeEntity);
+            }
+        }
+
+        void checkActive()
+        {
+            if (activeEntities.Count > 0)
+            {
+                for (int i = activeEntities.Count - 1; i >= 0; i--)
+                {
+                    locationActive(activeEntities[i]);
                 }
             }
         }
 
+        // Download Images
+        ImageCache ImageAssets;
+        GameObject LustyObject;
+
+        private void cacheImages()
+        {
+            // Disable map updates while downloading images...
+            run = false;
+
+            // Initialize image cache
+            LustyObject = new GameObject();
+            ImageAssets = LustyObject.AddComponent<ImageCache>();
+            ImageAssets.imageFiles.Clear();
+
+            // Icons
+            if (debug) { Puts("Downloading images..."); }
+            string dataDirectory = "file://" + Interface.Oxide.DataDirectory + Path.DirectorySeparatorChar + "LustyMap" + Path.DirectorySeparatorChar;
+
+            List<string> files = new List<string>()
+            {
+                "self",
+                "friend",
+                "other",
+                "heli",
+                "plane"
+            };
+
+            foreach (string file in files)
+            {
+                string path = dataDirectory + "icons" + Path.DirectorySeparatorChar;
+                string ext = ".png";
+
+                for (int i = 0; i <= 360; i = i + 10)
+                {
+                    ImageAssets.getImage(file + i, path + file + i + ext);
+                }
+            }
+
+            ImageAssets.getImage("lighthouse", dataDirectory + "icons" + Path.DirectorySeparatorChar + "lighthouse.png");
+            ImageAssets.getImage("radtown", dataDirectory + "icons" + Path.DirectorySeparatorChar + "radtown.png");
+            ImageAssets.getImage("cave", dataDirectory  + "icons" + Path.DirectorySeparatorChar + "cave.png");
+            ImageAssets.getImage("warehouse", dataDirectory + "icons" + Path.DirectorySeparatorChar + "warehouse.png");
+            ImageAssets.getImage("dish", dataDirectory + "icons" + Path.DirectorySeparatorChar + "dish.png");
+            ImageAssets.getImage("spheretank", dataDirectory + "icons" + Path.DirectorySeparatorChar + "spheretank.png");
+            ImageAssets.getImage("special", dataDirectory + "icons" + Path.DirectorySeparatorChar + "special.png");
+            ImageAssets.getImage("supply", dataDirectory + "icons" + Path.DirectorySeparatorChar + "supply.png");
+            ImageAssets.getImage("debris", dataDirectory + "icons" + Path.DirectorySeparatorChar + "debris.png");
+
+            // Other
+            ImageAssets.getImage("mapbg", dataDirectory + "other" + Path.DirectorySeparatorChar + "mapbg.jpg");
+
+            // Map - TODO: Add option to auto detect RustIO address and download map
+            if (useurl)
+            {
+                //ImageAssets.getImage("mapimage", mapurl);
+            }
+
+            ImageAssets.getImage("mapimage", dataDirectory + "map.jpg");
+
+            if (mapmode)
+            {
+                List<int> minmaps = new List<int>() { 32, 26, 12, 6 };
+
+                foreach (int minisize in minmaps)
+                {
+                    for (int i = 0; i < minisize; i++)
+                    {
+                        for (int j = 0; j < minisize; j++)
+                        {
+                            ImageAssets.getImage("map-" + minisize + "-" + i + "-" + j, dataDirectory + "map" + minisize + "x" + minisize + Path.DirectorySeparatorChar + "map-" + i + "-" + j + ".jpeg");
+                        }
+                    }
+                }
+            }
+
+            foreach (string image in customIamges)
+            {
+                ImageAssets.getImage(image, dataDirectory + "custom" + Path.DirectorySeparatorChar + image + ".png");
+            }
+
+            // Wait for downloads to complete...
+            download();
+        }
+
+
+        // Image cache class
+        public class ImageCache : MonoBehaviour
+        {
+            public Dictionary<string, string> imageFiles = new Dictionary<string, string>();
+
+            public int downloading = 0;
+            public List<Queue> queued = new List<Queue>();
+
+            public class Queue
+            {
+                public string url { get; set; }
+                public string name { get; set; }
+            }
+
+            private void OnDestroy()
+            {
+                foreach (var value in imageFiles.Values)
+                {
+                    FileStorage.server.RemoveEntityNum(uint.MaxValue, Convert.ToUInt32(value));
+                }
+            }
+
+            public void getImage(string name, string url)
+            {
+                if (imageFiles.ContainsKey(name))
+                {
+                    if (LustyMap.debug)
+                    {
+                        Debug.Log("Error, duplicate image: " + name);
+                    }
+                    return;
+                }
+                    // Queue download (too many connections at once causes errors), call the process function to initiate download...
+                queued.Add(new Queue
+                {
+                    url = url,
+                    name = name
+                });
+            }
+
+            IEnumerator WaitForRequest(Queue queue)
+            {
+                using (var www = new WWW(queue.url))
+                {
+                    yield return www;
+                    // check for errors
+                    if (string.IsNullOrEmpty(www.error))
+                    {
+                        imageFiles.Add(queue.name, FileStorage.server.Store(www.bytes, FileStorage.Type.png, uint.MaxValue).ToString());
+                        downloading--;
+                    }
+                    else
+                    {
+                        if (LustyMap.debug)
+                        {
+                            Debug.Log("Error downloading: " + queue.name + " - " + www.error);
+                        }
+                        downloading--;
+                    }
+                }
+            }
+
+            public void process()
+            {
+                // Limit the number of simultaneous downloads...
+                if (downloading < 100)
+                {
+                    if (queued.Count > 0)
+                    {
+                        downloading++;
+                        StartCoroutine(WaitForRequest(queued[0]));
+                        queued.RemoveAt(0);
+                    }
+                }
+            }
+        }
+
+        public string fetchImage(string name)
+        {
+            string result;
+            if (ImageAssets.imageFiles.TryGetValue(name, out result))
+                return result;
+            if (debug) { Puts("[fetchImage]: error: " + name); }
+            return string.Empty;
+        }
+
+        // Called after cacheImages
+        int wait = 0;
+        void download()
+        {
+            // Keep processing downloads until complete...
+            if (ImageAssets.queued.Count > 0 || ImageAssets.downloading > 0)
+            {
+                for (int i = 0; i < 150; i++)
+                {
+                    ImageAssets.process();
+                }
+                timer.Once(0.1f, download);
+
+                wait++;
+                if (wait > 100) { if (debug) { Puts("[ImageAsset]: " + ImageAssets.queued.Count + " Queued, " + ImageAssets.downloading + " Downloading..."); wait = 0; } }
+            }
+            else
+            {
+                if (debug) { Puts("Downloaded " + ImageAssets.imageFiles.Count + " images."); }
+                StartUp();
+            }
+        }
+
+        // Custom images
+        bool addCustom(string imagename)
+        {
+            if (customIamges.Find(r => r == imagename) == null)
+            {
+                customIamges.Add(imagename);
+                Interface.Oxide.DataFileSystem.WriteObject("LustyMapImages", customIamges);
+                return true;
+            }
+            return false;
+        }
+
+        bool removeCustom(string imagename)
+        {
+            if (customIamges.Find(r => r == imagename) != null)
+            {
+                customIamges.Remove(imagename);
+                Interface.Oxide.DataFileSystem.WriteObject("LustyMapImages", customIamges);
+                return true;
+            }
+            return false;
+        }
+
+        // Ready to start!
+        void StartUp()
+        {
+            if (BasePlayer.activePlayerList.Count > 0)
+            {
+                foreach (BasePlayer player in BasePlayer.activePlayerList)
+                {
+                    InitUser(player);
+                }
+            }
+
+            run = true;
+            lustyTimer();
+        }
+
+        // Work work
+        private void lustyTimer()
+        {
+            // Check / Update Plane / Heli
+            checkActive();
+
+            // Refresh friends
+            updateFriends();
+
+            // Refresh maps
+            if (BasePlayer.activePlayerList.Count > 0)
+            {
+                foreach (BasePlayer player in BasePlayer.activePlayerList)
+                {
+                    try
+                    {
+                        minimapGUI(player);
+                        mapGUI(player);
+                    }
+                    catch
+                    {
+                        // Error updating map...
+                    }
+                }
+            }
+
+            // Renew timer
+            if (run) { timer.Once(1f, lustyTimer); }
+        }
+
+        // Cleanup on unload
         void Unloaded()
         {
             if (BasePlayer.activePlayerList.Count > 0)
             {
                 foreach (BasePlayer player in BasePlayer.activePlayerList)
                 {
-                    CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "DestroyUI", new Facepunch.ObjectList("MinimapBG"));
-                    CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "DestroyUI", new Facepunch.ObjectList("Minimap"));
-                    CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "DestroyUI", new Facepunch.ObjectList("MinimapHUD"));
-                    CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "DestroyUI", new Facepunch.ObjectList("MapGUI"));
+                    CuiHelper.DestroyUi(player,"MinimapBG");
+                    CuiHelper.DestroyUi(player,"Minimap");
+                    CuiHelper.DestroyUi(player,"MinimapHUD");
+                    CuiHelper.DestroyUi(player,"MapGUI");
+                    CuiHelper.DestroyUi(player,"MapGUIBG");
                 }
             }
+            UnityEngine.Object.Destroy(LustyObject);
         }
 
-        private void lustyTimer()
+        // Friends
+        void updateFriends()
         {
-            if (minimap)
+            if (BasePlayer.activePlayerList.Count > 0)
             {
-                minimapUpdate();
-            }
-        }
-
-
-
-        // Monuments
-        void OnServerInitialized()
-        {
-            var gameobjects = UnityEngine.Object.FindObjectsOfType<GameObject>();
-            Puts($"Found {gameobjects.Length} gameobjects on the map.");
-            foreach (var go in gameobjects)
-            {
-                if (go.name.ToLower().Contains("monument"))
+                foreach (BasePlayer player in BasePlayer.activePlayerList)
                 {
-                    lustyMonuments monument = new lustyMonuments();
-                    monument.position = go.transform.position;
-                    // Convert location into percent for the map gui
-                    float x = Convert.ToSingle(go.transform.position.x);
-                    float y = Convert.ToSingle(go.transform.position.y);
-                    float z = Convert.ToSingle(go.transform.position.z);
-                    int mapsize = Convert.ToInt32(TerrainMeta.Size.x);
-                    x = Convert.ToSingle(x + (mapsize / 2));
-                    z = Convert.ToSingle(z + (mapsize / 2));
-                    monument.percentX = Convert.ToSingle(x / mapsize);
-                    monument.percentZ = Convert.ToSingle(z / mapsize);
-                    // Work out which minimap chunk the monument is in                    
-                    monument.row = (Convert.ToInt16(Math.Floor(mapslices * monument.percentX)));
-                    monument.column = ((mapslices - 1) - Convert.ToInt16(Math.Floor(mapslices * monument.percentZ)));                    
+                    MapUser user = getUser(player);
+                    user.friends.Clear();
 
-                    if (go.name.ToLower().Contains("lighthouse"))
+                    foreach (BasePlayer wannabe in BasePlayer.activePlayerList)
                     {
-                        monument.name = "Lighthouse";
-                        monument.icon = "http://map.playrust.io/img/lighthouse.png";
-                        Monuments.Add(monument);
-                    }
-                    else if (go.name.ToLower().Contains("radtown"))
-                    {
-                        monument.name = "Radtown";
-                        monument.icon = "http://map.playrust.io/img/radtown.png";
-                        Monuments.Add(monument);
-                    }
-                    else if (go.name.ToLower().Contains("cave"))
-                    {
-                        monument.name = "Cave";
-                        monument.icon = "http://map.playrust.io/img/cave.png";
-                        Monuments.Add(monument);
-                    }
-                    else if (go.name.ToLower().Contains("warehouse"))
-                    {
-                        monument.name = "Warehouse";
-                        monument.icon = "http://map.playrust.io/img/warehouse.png";
-                        Monuments.Add(monument);
-                    }
-                    else if (go.name.ToLower().Contains("satellite"))
-                    {
-                        monument.name = "Satellite Dish";
-                        monument.icon = "http://map.playrust.io/img/dish.png";
-                        Monuments.Add(monument);
-                    }
-                    else if (go.name.ToLower().Contains("sphere"))
-                    {
-                        monument.name = "Sphere Tank";
-                        monument.icon = "http://map.playrust.io/img/spheretank.png";
-                        Monuments.Add(monument);
-                    }
-                    else if (go.name.ToLower().Contains("powerplant"))
-                    {
-                        monument.name = "Powerplant";
-                        monument.icon = "http://map.playrust.io/img/special.png";
-                        Monuments.Add(monument);
-                    }
-                    else if (go.name.ToLower().Contains("trainyard"))
-                    {
-                        monument.name = "Trainyard";
-                        monument.icon = "http://map.playrust.io/img/special.png";
-                        Monuments.Add(monument);
-                    }
-                    else if (go.name.ToLower().Contains("airfield"))
-                    {
-                        monument.name = "Airfield";
-                        monument.icon = "http://map.playrust.io/img/special.png";
-                        Monuments.Add(monument);
-                    }
-                    else if (go.name.ToLower().Contains("tunnel"))
-                    {
-                        monument.name = "Military Tunnel";
-                        monument.icon = "http://map.playrust.io/img/special.png";
-                        Monuments.Add(monument);
-                    }
-                    else if (go.name.ToLower().Contains("treatment"))
-                    {
-                        monument.name = "Water Treatment Plant";
-                        monument.icon = "http://map.playrust.io/img/special.png";
-                        Monuments.Add(monument);
-                    }
-                    else
-                    {
-                        // Missed one!
-                        Puts("Missed monument " + go.name.ToLower());
+                        // Skip self
+                        if (wannabe.userID == player.userID) { continue; }
+
+                        // Check if already friends
+                        if (user.friends.Find(r => r.name == wannabe.displayName) == null)
+                        {
+                            bool result = false;
+                            // Admin view
+                            if (user.adminView)
+                            {
+                                user.friends.Add(createFriend(wannabe, "other"));
+                                result = true;
+                            }
+
+                            // RustIO Friend?
+                            if (!result && rustio && rustiofriends)
+                            {
+                                if (HasRustIOFriend(wannabe.userID.ToString(), player.userID.ToString()))
+                                {
+                                    user.friends.Add(createFriend(wannabe, "friend"));
+                                    result = true;
+                                }
+                            }
+                            
+                            // Friend API
+                            if (!result && friendapi && friendsapifriends)
+                            {
+                                if (HasFriendsAPIFriend(wannabe.userID.ToString(), player.userID.ToString()))
+                                {
+                                    user.friends.Add(createFriend(wannabe, "friend"));
+                                    result = true;
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
 
-        private class lustyMonuments
+        MapLocation createFriend(BasePlayer friend, string icon = "friend")
         {
-            public string name { get; set; }
-            public Vector3 position { get; set; }
-            public float percentX { get; set; }
-            public float percentZ { get; set; }
-            public int row { get; set; }
-            public int column { get; set; }
-            public string icon { get; set; }
+            return new MapLocation
+            {
+                name = friend.displayName,
+                icon = icon + ((int)(((double)friend.eyes.rotation.eulerAngles.y - 5) / 10 + 0.5) * 10),
+                percentX = GetMapPos(friend.transform.position.x),
+                percentZ = GetMapPos(friend.transform.position.z)
+            };
         }
 
-        
         // Chat commands
         [ChatCommand("map")]
         private void chatCmd(BasePlayer player, string command, string[] args)
         {
             if (args == null || args.Length == 0)
             {
-                minimapRemove(player, true);
-                mapGUI(player);
+                playerMsg(player, txtCmdMap);
             }
             else
             {
@@ -343,15 +975,17 @@ namespace Oxide.Plugins
                                 mapmode = Convert.ToBoolean(args[1]);
                                 set("LustyMap", "MapMode", mapmode);
 
-                                if (MinimapPlayers.Count > 0)
+                                if (BasePlayer.activePlayerList.Count > 0)
                                 {
-                                    foreach (PlayerMap map in MinimapPlayers)
+                                    foreach (BasePlayer activeplayer in BasePlayer.activePlayerList)
                                     {
-                                        map.refresh = true;
-                                        map.mapx = 0;
-                                        map.mapz = 0;
+                                        MapUser user = getUser(activeplayer);
+                                        user.minimapRefresh = true;
                                     }
                                 }
+
+                                // Reload the image cache
+                                cacheImages();
 
                                 string disabled = "Disabled";
                                 if (mapmode) { disabled = "Enabled"; }
@@ -416,21 +1050,12 @@ namespace Oxide.Plugins
                                 left = false;
                                 set("LustyMap", "Left", left);
 
-                                if (MinimapPlayers.Count > 0)
-                                {
-                                    foreach (PlayerMap map in MinimapPlayers)
-                                    {
-                                        map.refresh = true;
-                                        map.mapx = 0;
-                                        map.mapz = 0;
-                                    }
-                                }
-
                                 if (BasePlayer.activePlayerList.Count > 0)
                                 {
                                     foreach (BasePlayer activeplayer in BasePlayer.activePlayerList)
                                     {
-                                        minimapAdd(activeplayer);
+                                        MapUser user = getUser(activeplayer);
+                                        user.minimapRefresh = true;
                                     }
                                 }
 
@@ -443,21 +1068,12 @@ namespace Oxide.Plugins
                                 left = true;
                                 set("LustyMap", "Left", left);
 
-                                if (MinimapPlayers.Count > 0)
-                                {
-                                    foreach (PlayerMap map in MinimapPlayers)
-                                    {
-                                        map.refresh = true;
-                                        map.mapx = 0;
-                                        map.mapz = 0;
-                                    }
-                                }
-
                                 if (BasePlayer.activePlayerList.Count > 0)
                                 {
                                     foreach (BasePlayer activeplayer in BasePlayer.activePlayerList)
                                     {
-                                        minimapAdd(activeplayer);
+                                        MapUser user = getUser(activeplayer);
+                                        user.minimapRefresh = true;
                                     }
                                 }
 
@@ -474,7 +1090,9 @@ namespace Oxide.Plugins
                                 {
                                     foreach (BasePlayer activeplayer in BasePlayer.activePlayerList)
                                     {
-                                        minimapRemove(activeplayer);
+                                        CuiHelper.DestroyUi(activeplayer,"Minimap");
+                                        CuiHelper.DestroyUi(activeplayer,"MinimapBG");
+                                        CuiHelper.DestroyUi(activeplayer,"MinimapHUD");
                                     }
                                 }
 
@@ -487,21 +1105,13 @@ namespace Oxide.Plugins
                                 minimap = true;
                                 set("LustyMap", "Minimap", minimap);
 
-                                if (MinimapPlayers.Count > 0)
-                                {
-                                    foreach (PlayerMap map in MinimapPlayers)
-                                    {
-                                        map.refresh = true;
-                                        map.mapx = 0;
-                                        map.mapz = 0;
-                                    }
-                                }
-
                                 if (BasePlayer.activePlayerList.Count > 0)
                                 {
                                     foreach (BasePlayer activeplayer in BasePlayer.activePlayerList)
                                     {
-                                        minimapAdd(activeplayer);
+                                        MapUser user = getUser(activeplayer);
+                                        user.minimap = true;
+                                        user.minimapRefresh = true;
                                     }
                                 }
 
@@ -515,15 +1125,35 @@ namespace Oxide.Plugins
                             }
                         }
                     }
-                    else if (args[0].ToLower() == "url")
+                    //else if (args[0].ToLower() == "url")
+                    //{
+                    //    if (args.Length > 1)
+                    //    {
+                    //        try
+                    //        {
+                    //            mapurl = args[1];
+                    //            set("LustyMap", "MapURL", mapurl);
+                    //            playerMsg(player, string.Format(txtCmtUrl, mapurl));
+                    //            return;
+                    //        }
+                    //        catch
+                    //        {
+
+                    //        }
+                    //    }
+                    //    playerMsg(player, txtInvalid + txtCmdUrl);
+                    //}
+                    else if (args[0].ToLower() == "showcaves")
                     {
                         if (args.Length > 1)
                         {
                             try
                             {
-                                mapurl = args[1];
-                                set("LustyMap", "MapURL", mapurl);
-                                playerMsg(player, string.Format(txtCmtUrl, mapurl));
+                                showcaves = Convert.ToBoolean(args[1]);
+                                set("LustyMap", "ShowCaves", showcaves);
+                                string disabled = "Disabled";
+                                if (showcaves) { disabled = "Enabled"; }
+                                playerMsg(player, string.Format(txtCmtCaves, disabled));
                                 return;
                             }
                             catch
@@ -531,17 +1161,19 @@ namespace Oxide.Plugins
 
                             }
                         }
-                        playerMsg(player, txtInvalid + txtCmdUrl);
+                        playerMsg(player, txtInvalid + txtCmdCaves);
                     }
-                    else if (args[0].ToLower() == "complex")
+                    else if (args[0].ToLower() == "showmonuments")
                     {
                         if (args.Length > 1)
                         {
                             try
                             {
-                                mapcomplex = args[1];
-                                set("LustyMap", "MapComplexURL", mapcomplex);
-                                playerMsg(player, string.Format(txtCmtComplex, mapcomplex));
+                                showmonuments = Convert.ToBoolean(args[1]);
+                                set("LustyMap", "ShowMonuments", showmonuments);
+                                string disabled = "Disabled";
+                                if (showmonuments) { disabled = "Enabled"; }
+                                playerMsg(player, string.Format(txtCmtMonuments, disabled));
                                 return;
                             }
                             catch
@@ -549,929 +1181,1156 @@ namespace Oxide.Plugins
 
                             }
                         }
-                        playerMsg(player, txtInvalid + txtCmdComplex);
+                        playerMsg(player, txtInvalid + txtCmdMonuments);
+                    }
+                    else if (args[0].ToLower() == "showplane")
+                    {
+                        if (args.Length > 1)
+                        {
+                            try
+                            {
+                                showplane = Convert.ToBoolean(args[1]);
+                                set("LustyMap", "ShowPlane", showplane);
+                                string disabled = "Disabled";
+                                if (showplane) { disabled = "Enabled"; }
+                                playerMsg(player, string.Format(txtCmtPlane, disabled));
+                                return;
+                            }
+                            catch
+                            {
+
+                            }
+                        }
+                        playerMsg(player, txtInvalid + txtCmdPlane);
+                    }
+                    else if (args[0].ToLower() == "showheli")
+                    {
+                        if (args.Length > 1)
+                        {
+                            try
+                            {
+                                showheli = Convert.ToBoolean(args[1]);
+                                set("LustyMap", "ShowHeli", showheli);
+                                string disabled = "Disabled";
+                                if (showheli) { disabled = "Enabled"; }
+                                playerMsg(player, string.Format(txtCmtHeli, disabled));
+                                return;
+                            }
+                            catch
+                            {
+
+                            }
+                        }
+                        playerMsg(player, txtInvalid + txtCmdHeli);
+                    }
+                    else if (args[0].ToLower() == "showsupply")
+                    {
+                        if (args.Length > 1)
+                        {
+                            try
+                            {
+                                showsupply = Convert.ToBoolean(args[1]);
+                                set("LustyMap", "ShowSupply", showsupply);
+                                string disabled = "Disabled";
+                                if (showsupply) { disabled = "Enabled"; }
+                                playerMsg(player, string.Format(txtCmtSupply, disabled));
+                                return;
+                            }
+                            catch
+                            {
+
+                            }
+                        }
+                        playerMsg(player, txtInvalid + txtCmdSupply);
+                    }
+                    else if (args[0].ToLower() == "showdebris")
+                    {
+                        if (args.Length > 1)
+                        {
+                            try
+                            {
+                                showdebris = Convert.ToBoolean(args[1]);
+                                set("LustyMap", "ShowDebris", showdebris);
+                                string disabled = "Disabled";
+                                if (showdebris) { disabled = "Enabled"; }
+                                playerMsg(player, string.Format(txtCmtDebris, disabled));
+                                return;
+                            }
+                            catch
+                            {
+
+                            }
+                        }
+                        playerMsg(player, txtInvalid + txtCmdDebris);
+                    }
+                    else if (args[0].ToLower() == "debug")
+                    {
+                        if (args.Length > 1)
+                        {
+                            try
+                            {
+                                debug = Convert.ToBoolean(args[1]);
+                                set("LustyMap", "Debug", debug);
+                                playerMsg(player, "Debug: " + debug);
+                                return;
+                            }
+                            catch
+                            {
+
+                            }
+                        }
+                        playerMsg(player, txtInvalid + txtCmdMonuments);
+                    }
+                    else if (args[0].ToLower() == "admin")
+                    {
+                        MapUser user = getUser(player);
+                        if (user.adminView)
+                        {
+                            user.adminView = false;
+                            playerMsg(player, string.Format(txtCmtAdmin, "Disabled"));
+                            return;
+                        }
+                        else
+                        {
+                            user.adminView = true;
+                            playerMsg(player, string.Format(txtCmtAdmin, "Enabled"));
+                            return;
+                        }
+                    }
+                    else if (args[0].ToLower() == "rustiofriends")
+                    {
+                        if (rustio)
+                        {
+                            if (args.Length > 1)
+                            {
+                                try
+                                {
+                                    rustiofriends = Convert.ToBoolean(args[1]);
+                                    set("LustyMap", "RustIOFriends", rustiofriends);
+                                    string disabled = "Disabled";
+                                    if (rustiofriends) { disabled = "Enabled"; }
+                                    playerMsg(player, string.Format(txtCmtIOFriends, disabled));
+                                    return;
+                                }
+                                catch
+                                {
+
+                                }
+                            }
+                            playerMsg(player, txtInvalid + txtCmdIOFriends);
+                        }
+                        else
+                        {
+                            rustiofriends = false;
+                            playerMsg(player, "RustIO not detected...");
+                        }
+                    }
+                    else if (args[0].ToLower() == "friendsapifriends")
+                    {
+                        if (friendapi)
+                        {
+                            if (args.Length > 1)
+                            {
+                                try
+                                {
+                                    friendsapifriends = Convert.ToBoolean(args[1]);
+                                    set("LustyMap", "FriendAPIFriends", friendsapifriends);
+                                    string disabled = "Disabled";
+                                    if (friendsapifriends) { disabled = "Enabled"; }
+                                    playerMsg(player, string.Format(txtCmtAPIFriends, disabled));
+                                    return;
+                                }
+                                catch
+                                {
+
+                                }
+                            }
+                            playerMsg(player, txtInvalid + txtCmdAPIFriends);
+                        }
+                        else
+                        {
+                            friendsapifriends = false;
+                            playerMsg(player, "FriendsAPI not detected...");
+                        }
+                    }
+                    else if (args[0].ToLower() == "add")
+                    {
+                        if (args.Length > 2)
+                        {
+                            if (addLocation(player, args[1], args[2].ToLower()))
+                            {
+                                playerMsg(player, "location added");
+                            }
+                            else
+                            {
+                                playerMsg(player, "location already in list");
+                            }
+                        }
+                        else if (args.Length > 1)
+                        {
+                            if (addLocation(player, args[1]))
+                            {
+                                playerMsg(player, "location added");
+                            }
+                            else
+                            {
+                                playerMsg(player, "location already in list");
+                            }
+                        }
+                        else
+                        {
+                            playerMsg(player, txtInvalid + txtCmdLocation);
+                        }
+                    }
+                    else if (args[0].ToLower() == "remove")
+                    {
+                        if (args.Length > 1)
+                        {
+                            if (removeLocation(args[1].ToLower()))
+                            {
+                                playerMsg(player, "location removed");
+                            }
+                            else
+                            {
+                                playerMsg(player, "location not in list");
+                            }
+                        }
+                        else
+                        {
+                            playerMsg(player, txtInvalid + txtCmdLocation);
+                        }
+                    }
+                    else if (args[0].ToLower() == "images")
+                    {
+                        playerMsg(player, "Reloading image cache...");
+                        cacheImages();
+                    }
+                    else if (args[0].ToLower() == "addimage")
+                    {
+                        if (args.Length > 1)
+                        {
+                            if (addCustom(args[1].ToLower()))
+                            {
+                                playerMsg(player, "Image added");
+                                cacheImages();
+                            }
+                            else
+                            {
+                                playerMsg(player, "Image already in list");
+                            }
+                        }
+                        else
+                        {
+                            playerMsg(player, txtInvalid + txtCmdImage);
+                        }
+                    }
+                    else if (args[0].ToLower() == "removeimage")
+                    {
+                        if (args.Length > 1)
+                        {
+                            if (removeCustom(args[1].ToLower()))
+                            {
+                                playerMsg(player, "Image removed");
+                            }
+                            else
+                            {
+                                playerMsg(player, "Image not in list");
+                            }
+                        }
+                        else
+                        {
+                            playerMsg(player, txtInvalid + txtCmdImage);
+                        }
                     }
                     else if (args[0].ToLower() == "help")
                     {
-                        playerMsg(player, "<color=#00ff00ff>" + lustyPlugin + "</color> v<color=#00ff00ff>" + lustyVersion + "</color>");
-                        playerMsg(player, txtCmdUrl);
+                        playerMsg(player, "<color=#00ff00ff>" + Title + "</color> v<color=#00ff00ff>" + Version + "</color>");
                         playerMsg(player, txtCmdMode);
                         playerMsg(player, txtCmdMinimap);
-                        playerMsg(player, txtCmdComplex);
                         playerMsg(player, txtCmdCompass);
-                        playerMsg(player, txtCmdStart);                        
+                        playerMsg(player, txtCmdStart);
+                        playerMsg(player, txtCmdMonuments);
+                        playerMsg(player, txtCmdCaves);
+                        playerMsg(player, txtCmdPlane);
+                        playerMsg(player, txtCmdHeli);
+                        playerMsg(player, txtCmdSupply);
+                        playerMsg(player, txtCmdDebris);
+                        playerMsg(player, txtCmdImages);
+                        playerMsg(player, txtCmdImage);
+                        playerMsg(player, txtCmdLocation);
+                        playerMsg(player, txtCmdIOFriends);
+                        playerMsg(player, txtCmdAPIFriends);
+                        playerMsg(player, txtCmdAdmin);
                     }
                     else
                     {
                         playerMsg(player, txtUnknown);
                     }
                 }
-                else
-                {
-                    minimapRemove(player);
-                    mapGUI(player);
-                }
             }
         }
-
-        [ChatCommand("zmap")]
-        private void chatCmdZ(BasePlayer player, string command, string[] args)
-        {
-            if (args == null || args.Length == 0)
-            {
-                minimapRemove(player, true);
-                fullscreenmapGUI(player, 2);
-            }
-        }
-
-        List<ulong> MapOpen = new List<ulong>();
 
         // Console commands
         [ConsoleCommand("LustyMap")]
         private void lustyConsole(ConsoleSystem.Arg arg)
         {
-            BasePlayer player = (arg.Player() as BasePlayer);
+            var player = arg.Player();
 
             if (arg.Args == null || arg.Args.Length == 0)
             {
-                PrintToConsole(player, lustyPlugin + " v" + lustyVersion);
+                PrintToConsole(player, Title + " v" + Version);
             }
             else
             {
                 if (arg.Args[0].ToLower() == "close")
                 {
-                    minimapRemove(player);
+                    MapUser user = getUser(player);
+                    user.minimapReOpen = false;
+                    user.minimap = false;
+                    user.minimapRefresh = true;
+                    CuiHelper.DestroyUi(player,"Minimap");
+                    CuiHelper.DestroyUi(player,"MinimapBG");
+                    CuiHelper.DestroyUi(player,"MinimapHUD");
+                    minimapGUI(player);
                 }
                 else if (arg.Args[0].ToLower() == "open")
                 {
-                    minimapAdd(player);
+                    MapUser user = getUser(player);
+                    user.minimapReOpen = true;
+                    user.minimap = true;
+                    user.minimapRefresh = true;
+                    minimapGUI(player);
                 }
                 else if (arg.Args[0].ToLower() == "map")
                 {
-                    if (MinimapPlayers.Count > 0)
-                    {
-                        PlayerMap search = MinimapPlayers.Find(r => r.userid == player.userID);
-                        if (search != null)
-                        {
-                            minimapRemove(player, true);
-                        }
-                    }
-
-
-                    if (MapOpen.Find(r => r == player.userID) != player.userID)
-                    {
-                        mapGUI(player);
-                        MapOpen.Add(player.userID);
-                    }
-                    else
-                    {
-                        minimapReopen(player);
-                        catchMouse(player, false);
-                        destroyUI(player, "MapGUI");
-                        MapOpen.Remove(player.userID);
-                    }
-                }
-                else if (arg.Args[0].ToLower() == "zoom")
-                {
-                    if (arg.Args.Length == 2)
-                    {
-                        int zoom = 2;
-                        try { zoom = Convert.ToInt16(arg.Args[1]); }
-                        catch { PrintToConsole(player, "Invlaid zoom scale detected"); }
-
-                        if (zoom < 2)
-                        {
-                            mapGUI(player);
-                        }
-                        else
-                        {
-                            fullscreenmapGUI(player, zoom);
-                        }
-                    }
-                    else
-                    {
-                        catchMouse(player, false);
-                    }
+                    mapToggle(player);
                 }
                 else if (arg.Args[0].ToLower() == "return")
                 {
-                    minimapReopen(player);
-                    catchMouse(player, false);
-                    MapOpen.Remove(player.userID);
+                    mapClose(player);
                 }
-            }
-        }
-
-        // Player map settings
-        private class PlayerMap
-        {
-            public ulong userid { get; set; }
-            public BasePlayer player { get; set; }
-            public int mapx { get; set; }
-            public int mapz { get; set; }
-            public bool refresh { get; set; }
-        }
-
-        private void minimapAdd(BasePlayer player)
-        {
-            if (minimap)
-            {
-                if (MinimapPlayers.Count > 0)
+                else if (arg.Args[0].ToLower() == "zoomin")
                 {
-                    PlayerMap search = MinimapPlayers.Find(r => r.userid == player.userID);
-                    if (search != null)
+                    MapUser user = getUser(player);
+                    // Check if at max zoom
+                    if (user.minimapZoom > 1)
                     {
-                        MinimapPlayers.Remove(search);
+                        user.minimapZoom--;
+                        user.minimapRefresh = true;
                     }
                 }
-
-                PlayerMap map = new PlayerMap();
-                map.userid = player.userID;
-                map.player = player;
-                map.refresh = true;
-                MinimapPlayers.Add(map);
-
-                minimapBackground(map);
-                minimapGUI(player);
-            }
-        }
-
-        public void minimapReopen(BasePlayer player)
-        {
-            if (MinimapReopen.Count > 0)
-            {
-                BasePlayer search = MinimapReopen.Find(r => r.userID == player.userID);
-                if (search != null)
+                else if (arg.Args[0].ToLower() == "zoomout")
                 {
-                    minimapAdd(player);
-                    MinimapReopen.Remove(player);
-                }
-            }
-        }
-
-        private void minimapRemove(BasePlayer player, bool reopen = false)
-        {
-            if (MinimapPlayers.Count > 0)
-            {
-                PlayerMap search = MinimapPlayers.Find(r => r.userid == player.userID);
-                if (search != null)
-                {
-                    MinimapPlayers.Remove(search);
-                    if (reopen)
+                    MapUser user = getUser(player);
+                    // Check if at min zoom
+                    if (user.minimapZoom < 4)
                     {
-                        MinimapReopen.Add(player);
+                        user.minimapZoom++;
+                        user.minimapRefresh = true;
                     }
                 }
             }
-            CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "DestroyUI", new Facepunch.ObjectList("MinimapBG"));
-            CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "DestroyUI", new Facepunch.ObjectList("Minimap"));
+        }
 
-            if (minimap)
+        void mapToggle(BasePlayer player)
+        {
+            MapUser user = getUser(player);
+            if (user.map)
             {
-                minimapHUD(player);
+                mapClose(player);
             }
             else
             {
-                CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "DestroyUI", new Facepunch.ObjectList("MinimapHUD")); 
+                mapOpen(player);
             }
         }
 
-        private void minimapUpdate()
+        void mapOpen(BasePlayer player)
         {
-            if (MinimapPlayers.Count > 0)
-            {
-                List<PlayerMap> remove = new List<PlayerMap>();   
-                foreach (PlayerMap player in MinimapPlayers)
-                {
-                    try
-                    {
-                        minimapBackground(player);
-                        minimapGUI(player.player);
-                    }
-                    catch
-                    {
-                        remove.Add(player);
-                        if (debug)
-                        {
-                            Puts("Error Updating Minimap for " + player.player.displayName);
-                        }
-                    }
-                }
-                if (remove.Count > 0)
-                {
-                    foreach (PlayerMap player in remove)
-                    {
-                        MinimapPlayers.Remove(player);
-                    }
-                }
-            }
+            MapUser user = getUser(player);
+            user.minimap = false;
+            CuiHelper.DestroyUi(player,"Minimap");
+            CuiHelper.DestroyUi(player,"MinimapBG");
+            CuiHelper.DestroyUi(player,"MinimapHUD");
+            user.map = true;
+            user.minimapRefresh = true;
+            user.mapRefresh = true;
+            minimapGUI(player);
+            mapGUI(player);
         }
 
-        // Remove player from Minimap list
-        void OnPlayerDisconnected(BasePlayer player)
+        void mapClose(BasePlayer player)
         {
-            minimapRemove(player);
-            if (startupList.Find(x => x == player.userID) != null)
+            MapUser user = getUser(player);
+            if (user.map)
             {
-                startupList.Remove(player.userID);
-            }
-        }
-
-        void OnPlayerSleepEnded(BasePlayer player)
-        {            
-            if (startupList.Find(x => x == player.userID) != player.userID)
-            {
-                startupList.Add(player.userID);
-                if (minimap)
+                user.map = false;
+                user.minimapRefresh = true;
+                user.mapRefresh = false;
+                CuiHelper.DestroyUi(player,"MapGUI");
+                CuiHelper.DestroyUi(player,"MapGUIBG");
+                if (user.minimapReOpen)
                 {
-                    if (startopen)
-                    {
-                        minimapAdd(player);
-                    }
-                    else
-                    {
-                        minimapHUD(player);
-                    }
+                    user.minimap = true;
+                    minimapGUI(player);
                 }
-                player.Command("bind m \"LustyMap map\"");
             }
         }
 
-        // Map Zoomed GUI
-        private void fullscreenmapGUI(BasePlayer player, int zoom)
+        // User settings
+        private class MapUser
         {
-            if (zoom < 1)
+            public ulong userid { get; set; }
+            public bool minimap { get; set; }
+            public bool minimapStart { get; set; }
+            public bool minimapReOpen { get; set; }
+            public bool minimapLeft { get; set; }
+            public bool minimapRefresh { get; set; }
+            public int minimapZoom { get; set; }
+            public bool compass { get; set; }
+            public bool map { get; set; }
+            public bool mapGrid { get; set; }
+            public bool mapCustom { get; set; }
+            public bool mapMonuments { get; set; }
+            public bool mapCaves { get; set; }
+            public bool mapHeli { get; set; }
+            public bool mapPlane { get; set; }
+            public bool mapSupply { get; set; }
+            public bool mapDebris { get; set; }
+            public bool mapRefresh { get; set; }
+            public bool mapMode { get; set; }
+            public bool adminView { get; set; }
+            public int mapx { get; set; }
+            public int mapz { get; set; }
+            public List<MapLocation> friends { get; set; }
+        }
+
+        Dictionary<ulong, MapUser> mapUsers = new Dictionary<ulong, MapUser>();
+
+        private MapUser getUser(BasePlayer player) => getUser(player.userID);
+        private MapUser getUser(ulong userid)
+        {
+            // Find player...
+            MapUser user;
+            return mapUsers.TryGetValue(userid, out user) ? user : newUser(userid);
+        }
+
+        private MapUser newUser(ulong userid)
+        {
+            MapUser user = new MapUser
             {
-                zoom = 1;
-            }
-            else if (zoom > 10)
+                userid = userid,
+                minimap = startopen,
+                minimapReOpen = startopen,
+                minimapLeft = left,
+                compass = compass,
+                map = false,
+                mapGrid = true,
+                mapCustom = true,
+                mapMonuments = showmonuments,
+                mapCaves = showcaves,
+                mapHeli = showheli,
+                mapPlane = showplane,
+                mapSupply = showsupply,
+                mapDebris = showdebris,
+                mapx = 0,
+                mapz = 0,
+                minimapRefresh = true,
+                minimapZoom = 1,
+                friends = new List<MapLocation>(),
+                mapMode = mapmode,
+                adminView = false
+            };
+            mapUsers.Add(userid, user);
+            return user;
+        }
+
+        // Player Join
+        [HookMethod("OnPlayerInit")]
+        void OnPlayerInit(BasePlayer player)
+        {
+            OnPlayerReady(player);
+        }
+
+        private void OnPlayerReady(BasePlayer player)
+        {
+            if (player.HasPlayerFlag(BasePlayer.PlayerFlags.ReceivingSnapshot))
             {
-                zoom = 10;
+                timer.In(1, () => OnPlayerReady(player));
             }
-            
-            // Setup map dimentions
-            float offset = Convert.ToSingle((zoom - 1) / 2);
-            float startx = 0 * zoom;
-            float startz = 0 * zoom;
-            float endx = 1 * zoom;
-            float endz = 1 * zoom;
+            else
+            {
+                InitUser(player);
 
-            // Get player pos 
-            float x = Convert.ToSingle(player.transform.position.x);
-            float y = Convert.ToSingle(player.transform.position.y);
-            float z = Convert.ToSingle(player.transform.position.z);
-            // work out percent values
-            int mapsize = Convert.ToInt32(TerrainMeta.Size.x); // Thanks miRror for the code to get the mapsize
-            x = Convert.ToSingle(x + (mapsize / 2));
-            z = Convert.ToSingle(z + (mapsize / 2));
-            float playX = Convert.ToSingle(x / mapsize);
-            float playZ = Convert.ToSingle(z / mapsize);
+            }
+        }
 
-            // Scale to zoom
-            float offsetx = playX * zoom;
-            float offsetz = playZ * zoom;
+        void InitUser(BasePlayer player)
+        {
+            // Keybinds
+            player.Command("bind m \"LustyMap map\"");
 
-            // Calculate differance to center map on player
-            float diffx = offsetx - 0.5f;
-            float diffz = offsetz - 0.5f;
+            // Variables
+            MapUser user = getUser(player);
+            user.minimapRefresh = true;
 
-            // Shift all points relative to diff
-            offsetx = offsetx - diffx;
-            offsetz = offsetz - diffz;
-            startx = startx - diffx;
-            startz = startz - diffz;
-            endx = endx - diffx;
-            endz = endz - diffz;
-
-            lustyGUI gui = new lustyGUI();
-            gui.add("FullscreenMap", true, "0 0", "1 1", "0.16862 0.29803 0.33333 1");
-            gui.url("FullscreenMap", "Map", mapurl, startx.ToString() + " " + startz.ToString(), endx.ToString() + " " + endz.ToString());
-
-            gui.text("FullscreenMap", "Title", "UpperLeft", "<size=20><color=#00ff00ff>" + lustyPlugin + "</color></size>", "0.01 0.95", "0.2 0.99", "1 1 1 0.8");
-            //gui.box("MapGUI", "Player", offsetx.ToString() + " " + offsetz.ToString(), (offsetx + 0.01f).ToString() + " " + (offsetz + 0.01f).ToString(), "0.8 0 0.8 1");
-
-            gui.button("FullscreenMap", "ZoomIn", "MiddleCenter", "<size=20>+</size>", true, "LustyMap zoom " + (zoom + 1).ToString(), true, "FullscreenMap", "0.96 0.95", "0.99 0.99", "0 0 0 0.8");
-            gui.button("FullscreenMap", "ZoomOut", "MiddleCenter", "<size=20>-</size>", true, "LustyMap zoom " + (zoom - 1).ToString(), true, "FullscreenMap", "0.96 0.90", "0.99 0.94", "0 0 0 0.8");
-
-            gui.box("FullscreenMap", "Hor", "0.499 0", "0.501 1", "0 0 0 0.8");
-            gui.box("FullscreenMap", "Vir", "0 0.498", "1 0.502", "0 0 0 0.8");
-
-            gui.button("FullscreenMap", "Close", "MiddleCenter", txtBtnClose, true, "LustyMap return", true, "FullscreenMap", "0.8 0.01", "0.99 0.04", "0 0 0.5 0.9");
-            catchMouse(player, true);
-            gui.send(player);
+            // Make sure no exiting map gui exists (in case of disconnect with map open)
+            mapClose(player);
         }
 
         // Map GUI
         private void mapGUI(BasePlayer player)
         {
-            string direction = null;
-            double lookRotation = player.eyes.rotation.eulerAngles.y;
-            if (lookRotation > 337.5 || lookRotation < 22.5) { direction = txtCpsN; }
-            else if (lookRotation > 22.5 && lookRotation < 67.5) { direction = txtCpsNE; }
-            else if (lookRotation > 67.5 && lookRotation < 112.5) { direction = txtCpsE; }
-            else if (lookRotation > 112.5 && lookRotation < 157.5) { direction = txtCpsSE; }
-            else if (lookRotation > 157.5 && lookRotation < 202.5) { direction = txtCpsS; }
-            else if (lookRotation > 202.5 && lookRotation < 247.5) { direction = txtCpsSW; }
-            else if (lookRotation > 247.5 && lookRotation < 292.5) { direction = txtCpsW; }
-            else if (lookRotation > 292.5 && lookRotation < 337.5) { direction = txtCpsNW; }
-            
-            float x = Convert.ToSingle(player.transform.position.x);
-            float y = Convert.ToSingle(player.transform.position.y);
-            float z = Convert.ToSingle(player.transform.position.z);
-
-            int mapsize = Convert.ToInt32(TerrainMeta.Size.x); // Thanks miRror for the code to get the mapsize
-            x = Convert.ToSingle(x + (mapsize / 2));
-            z = Convert.ToSingle(z + (mapsize / 2));
-            float mapX = Convert.ToSingle(x / mapsize);
-            float mapZ = Convert.ToSingle(z / mapsize);
-
-            lustyGUI gui = new lustyGUI();
-            gui.add("MapGUI", true, "0.25 0.13", "0.75 0.95", "0 0 0 1");
-            gui.box("MapGUI", "TitleBox", "0 1", "0.999999999 1.05", "0 0.3 0.3 1");
-            gui.text("MapGUI", "Title", "MiddleLeft", "<size=20>" + lustyPlugin + " v" + lustyVersion + "</size>", "0.01 1", "0.999999999 1.05", "0 0 0 0");
-            gui.button("MapGUI", "Close", "MiddleCenter", "X", true, "LustyMap return", true, "MapGUI", "0.9 1", "0.999999999 1.05", "0.4 0.1 0.1 1");
-            gui.url("MapGUI", "Map", mapurl, "0 0", "1 1");
-
-            float iconsize = 0.01f;
-            foreach (lustyMonuments monument in Monuments)
+            MapUser user = getUser(player);
+            if (user.map)
             {
-                gui.url("MapGUI", "Mon" + DateTime.Now.Ticks.ToString(), monument.icon, (monument.percentX - iconsize).ToString() + " " + (monument.percentZ - iconsize).ToString(), (monument.percentX + iconsize).ToString() + " " + (monument.percentZ + iconsize).ToString());
-                gui.text("MapGUI", "TxT" + DateTime.Now.Ticks.ToString(), "UpperCenter", "<size=10>" + monument.name + "</size>", (monument.percentX - 0.1).ToString() + " " + (monument.percentZ - iconsize - 0.05).ToString(), (monument.percentX + 0.1).ToString() + " " + (monument.percentZ).ToString(), "1 1 1 0.8");
+                if (user.mapRefresh)
+                {
+                    GUIv4 gui = new GUIv4();
+                    gui.add("MapGUIBG", false, "0.2271875 0.015", "0.7728125 0.985", "0 0 0 1");
+                    gui.png("{parent}", "Map", fetchImage("mapimage"), "0 0", "1 1");
+                    gui.text("{parent}", "Ver", TextAnchor.LowerRight, "<size=10>" + Title + " v" + Version + "</size>", "0.8 0.01", "0.99 0.1");
+
+                    bool grid = false;
+
+                    if (grid)
+                    {
+                        int rows = 25;
+                        for (int i = 1; i < 25; i++)
+                        {
+                            double s = ((1f / rows) * i) - 0.000001f;
+                            double e = ((1f / rows) * i) + 0.000001f;
+
+                            gui.box("{parent}", "X" + i, s + " 0", e + " 1", "0.2 0.2 0.2 8");
+                            gui.box("{parent}", "Y" + i, "0 " + s, "1 " + e, "0.2 0.2 0.2 8");
+                        }
+                    }
+
+                    double iconsize = 0.01f;
+                    if (showmonuments && user.mapMonuments)
+                    {
+                        foreach (MapLocation location in mapMonuments)
+                        {
+                            if (location.name == "Cave" && !showcaves) { continue; }
+                            if (location.name == "Cave" && !user.mapCaves) { continue; }
+                            gui.png("{parent}", "Mon" + DateTime.Now.Ticks, fetchImage(location.icon), (location.percentX - iconsize) + " " + (location.percentZ - iconsize), (location.percentX + iconsize) + " " + (location.percentZ + iconsize));
+                            gui.text("{parent}", "TxT" + DateTime.Now.Ticks, TextAnchor.UpperCenter, "<size=10>" + location.name + "</size>", (location.percentX - 0.1) + " " + (location.percentZ - iconsize - 0.05), (location.percentX + 0.1) + " " + (location.percentZ - iconsize));
+                        }
+                    }
+                    if (user.mapCustom)
+                    {
+                        foreach (MapLocation location in mapCustom)
+                        {
+                            gui.png("{parent}", "Cus" + DateTime.Now.Ticks, fetchImage(location.icon), (location.percentX - iconsize) + " " + (location.percentZ - iconsize), (location.percentX + iconsize) + " " + (location.percentZ + iconsize));
+                            gui.text("{parent}", "TxT" + DateTime.Now.Ticks, TextAnchor.UpperCenter, "<size=10>" + location.name + "</size>", (location.percentX - 0.1) + " " + (location.percentZ - iconsize - 0.05), (location.percentX + 0.1) + " " + (location.percentZ - iconsize));
+                        }
+                    }
+                    gui.send(player);
+                    user.mapRefresh = false;
+                }
             }
+            // Live Map
+            if (user.map)
+            {
+                // Player Direction
+                string direction = null;
+                double lookRotation = player.eyes.rotation.eulerAngles.y;
+                int playerdirection = (Convert.ToInt16((lookRotation - 5) / 10 + 0.5) * 10);
+                if (lookRotation >= 355) playerdirection = 0;
+                if (lookRotation > 337.5 || lookRotation < 22.5) { direction = txtCpsN; }
+                else if (lookRotation > 22.5 && lookRotation < 67.5) { direction = txtCpsNE; }
+                else if (lookRotation > 67.5 && lookRotation < 112.5) { direction = txtCpsE; }
+                else if (lookRotation > 112.5 && lookRotation < 157.5) { direction = txtCpsSE; }
+                else if (lookRotation > 157.5 && lookRotation < 202.5) { direction = txtCpsS; }
+                else if (lookRotation > 202.5 && lookRotation < 247.5) { direction = txtCpsSW; }
+                else if (lookRotation > 247.5 && lookRotation < 292.5) { direction = txtCpsW; }
+                else if (lookRotation > 292.5 && lookRotation < 337.5) { direction = txtCpsNW; }
 
-            //gui.box("MapGUI", "PlayerX", (mapX - 0.001f).ToString() + " 0", (mapX + 0.001f).ToString() + " 1", "0 0 0 1");
-            //gui.box("MapGUI", "PlayerY", "0 " + (mapZ - 0.001f).ToString(), "1 " + (mapZ + 0.001f).ToString(), "0 0 0 1");
-            gui.box("MapGUI", "PlayerX", (mapX - 0.001f).ToString() + " " + (mapZ - 0.0125f).ToString(), (mapX + 0.001f).ToString() + " " + (mapZ + 0.0125f).ToString(), "0 0.8 0.2 1");
-            gui.box("MapGUI", "PlayerY", (mapX - 0.0125f).ToString() + " " + (mapZ - 0.001f).ToString(), (mapX + 0.0125f).ToString() + " " + (mapZ + 0.001f).ToString(), "0 0.8 0.2 1");
-            //gui.url("MapGUI", "Self", "http://map.playrust.io/img/self.png", (mapX - 0.01f).ToString() + " " + (mapZ - 0.01f).ToString(), (mapX + 0.01f).ToString() + " " + (mapZ + 0.01f).ToString());   
-            
-            gui.text("MapGUI", "Direction", "UpperRight", "<size=16>" + txtCpsHead + " " + direction + "</size>\n<size=12>" + player.transform.position.ToString() + "</size>", "0.6 0.9", "0.99 0.99", "1 1 1 0.8");
+                double mapX = GetMapPos(player.transform.position.x);
+                double mapZ = GetMapPos(player.transform.position.z);
 
-            gui.send(player);
+                GUIv4 gui = new GUIv4();
+                gui.add("MapGUI", false, "0.2271875 0.015", "0.7728125 0.985", "0 0 0 0");
+
+                bool grid = false;
+
+                double iconsize = 0.02f;
+                if (activeEntities.Count > 0)
+                {
+                    foreach (ActiveEntity entity in activeEntities)
+                    {
+                        if ((entity.isplane && showplane && user.mapPlane) || (entity.isheli && showheli && user.mapHeli) || (entity.issupply && showsupply && user.mapSupply) || (entity.issupply && showsupply && user.mapSupply) || (entity.isdebris && showdebris && user.mapDebris))
+                        {
+                            if (entity.percentX >= 0 && entity.percentX <= 1 && entity.percentZ >= 0 && entity.percentZ <= 1)
+                            {
+                                gui.png("{parent}", "Ent" + DateTime.Now.Ticks.ToString(), fetchImage(entity.icon), (entity.percentX - iconsize) + " " + (entity.percentZ - iconsize), (entity.percentX + iconsize) + " " + (entity.percentZ + iconsize));
+                            }
+                        }
+                    }
+                }
+
+                if (user.friends.Count > 0)
+                {
+                    foreach (MapLocation friendEntity in user.friends)
+                    {
+                        if (friendEntity.percentX >= 0 && friendEntity.percentX <= 1 && friendEntity.percentZ >= 0 && friendEntity.percentZ <= 1)
+                        {
+                            gui.png("{parent}", "Fnd" + DateTime.Now.Ticks, fetchImage(friendEntity.icon), (friendEntity.percentX - (iconsize / 1.5)) + " " + (friendEntity.percentZ - (iconsize / 1.5)), (friendEntity.percentX + (iconsize / 1.5)) + " " + (friendEntity.percentZ + (iconsize / 1.5)));
+                        }
+                    }
+                }
+                gui.png("{parent}", "Player", fetchImage("self" + playerdirection), (mapX - (iconsize / 1.5)) + " " + (mapZ - (iconsize / 1.5)), (mapX + (iconsize / 1.5)) + " " + (mapZ + (iconsize / 1.5)));
+                gui.text("{parent}", "Direction", TextAnchor.UpperRight, "<size=16>" + txtCpsHead + " " + direction + "</size>\n<size=12>" + player.transform.position + "</size>", "0.6 0.9", "0.99 0.99");
+                gui.send(player);
+            }
         }
 
         // Minimap Menu
-        private void minimapHUD(BasePlayer player, bool close = false)
-        {
-            // Map alignment
-            float offset = 0f;
-            if (!left)
-            {
-                offset = 0.87f;
-            }
-
-            // Draw GUI
-            lustyGUI gui = new lustyGUI();
-            gui.add("MinimapHUD", false, offset.ToString() + " 0.97", (0.13 + offset).ToString() + " 1", "0 0 0 0");
-
-            if (left)
-            {
-                if (close)
-                {
-                    gui.button("MinimapHUD", "MinimapClose", "MiddleCenter", "<size=12><<<</size>", true, "LustyMap close", true, "MinimapHUD", "1 0", "1.15 1", "0 0 0 0.6");
-                    if (mapbutton)
-                    {
-                        gui.button("MinimapHUD", "MapOpen", "MiddleCenter", "<size=12>" + txtBtnMap + "</size>", true, "LustyMap map", true, "MinimapHUD", "1 -1.1", "1.15 -0.1", "0 0 0 0.6");
-                    }
-                }
-                else
-                {
-                    gui.button("MinimapHUD", "MinimapOpen", "MiddleCenter", "<size=12>>>></size>", true, "LustyMap open", true, "MinimapHUD", "0 0", "0.15 1", "0 0 0 0.6");
-                }
-            }
-            else
-            {
-                if (close)
-                {
-                    gui.button("MinimapHUD", "MinimapClose", "MiddleCenter", "<size=12>>>></size>", true, "LustyMap close", true, "MinimapHUD", "-0.15 0", "0 1", "0 0 0 0.6");
-                    gui.button("MinimapHUD", "MapOpen", "MiddleCenter", "<size=12>" + txtBtnMap + "</size>", true, "LustyMap map", true, "MinimapHUD", "-0.15 -1.1", "0 -0.1", "0 0 0 0.6");
-                }
-                else
-                {
-                    gui.button("MinimapHUD", "MinimapOpen", "MiddleCenter", "<size=12><<<</size>", true, "LustyMap open", true, "MinimapHUD", "0.85 0", "1 1", "0 0 0 0.6");
-                }
-            }
-            gui.send(player);
-        }
-
-        // Minimap
         private void minimapGUI(BasePlayer player)
         {
-            // Map alignment
-            float offset = 0f;
-            if (!left)
+            MapUser user = getUser(player);
+            int mapslices = 32;
+
+            // Minimap open / allowed?
+            if (minimap)
             {
-                offset = 0.87f;
-            }
-
-            // Complex mode
-            if (mapmode)
-            {
-                string direction = null;
-                double lookRotation = player.eyes.rotation.eulerAngles.y;
-                if (lookRotation > 337.5 || lookRotation < 22.5) { direction = txtCpsN; }
-                else if (lookRotation > 22.5 && lookRotation < 67.5) { direction = txtCpsNE; }
-                else if (lookRotation > 67.5 && lookRotation < 112.5) { direction = txtCpsE; }
-                else if (lookRotation > 112.5 && lookRotation < 157.5) { direction = txtCpsSE; }
-                else if (lookRotation > 157.5 && lookRotation < 202.5) { direction = txtCpsS; }
-                else if (lookRotation > 202.5 && lookRotation < 247.5) { direction = txtCpsSW; }
-                else if (lookRotation > 247.5 && lookRotation < 292.5) { direction = txtCpsW; }
-                else if (lookRotation > 292.5 && lookRotation < 337.5) { direction = txtCpsNW; }
-
-                float x = Convert.ToSingle(player.transform.position.x);
-                float y = Convert.ToSingle(player.transform.position.y);
-                float z = Convert.ToSingle(player.transform.position.z);
-
-                int mapsize = Convert.ToInt32(TerrainMeta.Size.x); // Thanks miRror for the code to get the mapsize
-                x = Convert.ToSingle(x + (mapsize / 2));
-                z = Convert.ToSingle(z + (mapsize / 2));
-
-                int mapres = mapsize / mapslices;
-                double mapX = Convert.ToSingle(x / mapres);
-                double mapZ = Convert.ToSingle(z / mapres);
-
-                mapX = mapX - Math.Truncate(mapX);
-                mapZ = mapZ - Math.Truncate(mapZ);
-
-                int row = 3;
-                int col = 3;
-
-                mapX = (mapX / col) + (1f / col);
-                mapZ = (mapZ / row) + (1f / row);
-
-                mapX = Math.Round(mapX, 4);
-                mapZ = Math.Round(mapZ, 4);
-
-                // Draw GUI
-                lustyGUI gui = new lustyGUI();
-                gui.add("Minimap", false, offset.ToString() + " 0.7699", (0.13 + offset).ToString() + " 1", "0 0 0 0");
-
-                //gui.box("Minimap", "PlayerX", (mapX - 0.001f).ToString() + " 0", (mapX + 0.001f).ToString() + " 1", "0 0 0 1");
-                //gui.box("Minimap", "PlayerY", "0 " + (mapZ - 0.001f).ToString(), "1 " + (mapZ + 0.001f).ToString(), "0 0 0 1");
-                gui.box("Minimap", "PlayerX", (mapX - 0.001f).ToString() + " " + (mapZ - 0.06f).ToString(), (mapX + 0.001f).ToString() + " " + (mapZ + 0.06f).ToString(), "0 0.8 0.2 1");
-                gui.box("Minimap", "PlayerY", (mapX - 0.06f).ToString() + " " + (mapZ - 0.001f).ToString(), (mapX + 0.06f).ToString() + " " + (mapZ + 0.001f).ToString(), "0 0.8 0.2 1");
-
-                if (compass)
+                // Map alignment
+                double offset = 0f;
+                if (!user.minimapLeft)
                 {
-                    gui.text("Minimap", "Location", "UpperCenter", "<size=14>" + txtCpsHead + " " + direction + "</size>\n<size=12>" + player.transform.position.ToString() + "</size>", "0 -0.3", "1 0", "1 1 1 0.8");
+                    offset = 0.87f;
                 }
 
-                gui.send(player);
-            }
-            // Simple mode
-            else
-            {
-                string direction = null;
-                double lookRotation = player.eyes.rotation.eulerAngles.y;
-                if (lookRotation > 337.5 || lookRotation < 22.5) { direction = txtCpsN; }
-                else if (lookRotation > 22.5 && lookRotation < 67.5) { direction = txtCpsNE; }
-                else if (lookRotation > 67.5 && lookRotation < 112.5) { direction = txtCpsE; }
-                else if (lookRotation > 112.5 && lookRotation < 157.5) { direction = txtCpsSE; }
-                else if (lookRotation > 157.5 && lookRotation < 202.5) { direction = txtCpsS; }
-                else if (lookRotation > 202.5 && lookRotation < 247.5) { direction = txtCpsSW; }
-                else if (lookRotation > 247.5 && lookRotation < 292.5) { direction = txtCpsW; }
-                else if (lookRotation > 292.5 && lookRotation < 337.5) { direction = txtCpsNW; }
-
-                float x = Convert.ToSingle(player.transform.position.x);
-                float y = Convert.ToSingle(player.transform.position.y);
-                float z = Convert.ToSingle(player.transform.position.z);
-
-                int mapsize = Convert.ToInt32(TerrainMeta.Size.x); // Thanks miRror for the code to get the mapsize
-                x = Convert.ToSingle(x + (mapsize / 2));
-                z = Convert.ToSingle(z + (mapsize / 2));
-                float mapX = Convert.ToSingle(x / mapsize);
-                float mapZ = Convert.ToSingle(z / mapsize);
-
-                lustyGUI gui = new lustyGUI();
-                gui.add("Minimap", false, offset.ToString() + " 0.7699", (0.13 + offset).ToString() + " 1", "0 0 0 0");
-
-                //gui.box("Minimap", "PlayerX", (mapX - 0.001f).ToString() + " 0", (mapX + 0.001f).ToString() + " 1", "0 0 0 1");
-                //gui.box("Minimap", "PlayerY", "0 " + (mapZ - 0.001f).ToString(), "1 " + (mapZ + 0.001f).ToString(), "0 0 0 1");
-                gui.box("Minimap", "PlayerX", (mapX - 0.001f).ToString() + " " + (mapZ - 0.06f).ToString(), (mapX + 0.001f).ToString() + " " + (mapZ + 0.06f).ToString(), "0 0.8 0.2 1");
-                gui.box("Minimap", "PlayerY", (mapX - 0.06f).ToString() + " " + (mapZ - 0.001f).ToString(), (mapX + 0.06f).ToString() + " " + (mapZ + 0.001f).ToString(), "0 0.8 0.2 1");
-
-                if (compass)
+                // Minimap Hud
+                if (user.minimapRefresh)
                 {
-                    gui.text("Minimap", "Location", "MiddleCenter", "<size=12>" + txtCpsHead + " " + direction + "\n" + player.transform.position.ToString() + "</size>", "0 -0.3", "1 0", "1 1 1 0.8");
-                }
-                gui.send(player);
-            }
-        }
+                    GUIv4 gui = new GUIv4();
+                    gui.add("MinimapHUD", false, offset + " 0.98", (0.13 + offset) + " 1", "0 0 0 0");
 
-        // Minimap background
-        private void minimapBackground(PlayerMap player)
-        {
-            // Map alignment
-            float offset = 0f;
-            if (!left)
-            {
-                offset = 0.87f;
-            }
-
-            // Complex
-            if (mapmode)
-            {
-                // Get center map part 
-                float x = Convert.ToSingle(player.player.transform.position.x);
-                float z = Convert.ToSingle(player.player.transform.position.z);
-                int mapsize = Convert.ToInt32(TerrainMeta.Size.x); // Thanks miRror for the code to get the mapsize
-                x = Convert.ToSingle(x + (mapsize / 2));
-                z = Convert.ToSingle(z + (mapsize / 2));
-
-                int mapres = mapsize / mapslices;
-                int currentx = Convert.ToInt32(Math.Ceiling(x / mapres)) - 2;
-                int currentz = mapslices - Convert.ToInt32(Math.Ceiling(z / mapres)) - 1;
-
-                // Check if it has changed
-                if (player.mapx != currentx || player.mapz != currentz)
-                {
-                    player.mapx = currentx;
-                    player.mapz = currentz;
-
-                    // Start creating GUI
-                    lustyGUI gui = new lustyGUI();
-                    gui.add("MinimapBG", false, offset.ToString() + " 0.7699", (0.13 + offset).ToString() + " 1", "0 0 0 0");
-
-                    // Map parts
-                    int row = 3;
-                    int col = 3;
-                    for (int r = 0; r < row; r++)
+                    if (user.minimapLeft)
                     {
-                        for (int c = 0; c < col; c++)
+                        if (user.minimap)
                         {
-                            string maplink = mapcomplex + "map-" + (currentz + r).ToString() + "-" + (currentx + c).ToString() + ".jpeg";
-                            string sx = Convert.ToSingle(c * (1f / col)).ToString();
-                            string sy = Convert.ToSingle(1 - ((1f / row) * (r + 1))).ToString();
-                            string ex = Convert.ToSingle(((c + 1) * (1f / col)) - 0.005f).ToString();
-                            string ey = Convert.ToSingle((1 - ((1f / row) * (r + 1)) + (1f / row)) - 0.004f).ToString();
-                            gui.url("MinimapBG", "Map", maplink, sx + " " + sy, ex + " " + ey, "0.9");
-
-                            float iconsize = 0.05f;
-                            foreach (lustyMonuments monument in Monuments)
+                            gui.button("{parent}", "MinimapClose", TextAnchor.MiddleCenter, "<size=12><<<</size>", true, "LustyMap close", "1 0", "1.15 1", "0 0 0 0.6");
+                            if (mapmode)
                             {
-                                if (monument.column == (currentz + r) && monument.row == (currentx + c))
-                                {
-                                    float _sx = Convert.ToSingle(c * (1f / col));
-                                    float _sy = Convert.ToSingle(1 - ((1f / row) * (r + 1)));
-                                    float _ex = Convert.ToSingle(((c + 1) * (1f / col)) - 0.005f);
-                                    float _ey = Convert.ToSingle((1 - ((1f / row) * (r + 1)) + (1f / row)) - 0.004f);
-                                    double mapX = (monument.percentX * mapslices) - monument.row;
-                                    double mapZ = ((1 - monument.percentZ) * mapslices) - monument.column;
-                                    float _xd = _ex - _sx;
-                                    mapX = (mapX * _xd) + _sx;
-                                    float _yd = _ey - _sy;
-                                    mapZ = _ey - (mapZ * _yd);
+                                gui.button("{parent}", "MinimapIn", TextAnchor.MiddleCenter, "<size=12>+</size>", false, "LustyMap zoomin", "1 -1.1", "1.1 -0.1", "0 0 0 0.6");
+                                gui.button("{parent}", "MinimapOut", TextAnchor.MiddleCenter, "<size=12>-</size>", false, "LustyMap zoomout", "1 -2.2", "1.1 -1.2", "0 0 0 0.6");
+                            }
+                        }
+                        else
+                        {
+                            gui.button("{parent}", "MinimapOpen", TextAnchor.MiddleCenter, "<size=12>>>></size>", true, "LustyMap open", "0 0", "0.15 1", "0 0 0 0.6");
+                            if (mapmode)
+                            {
+                                gui.button("{parent}", "MinimapIn", TextAnchor.MiddleCenter, "<size=12>+</size>", false, "LustyMap zoomin", "0 -1.5", "0.075 -0.5", "0 0 0 0.6");
+                                gui.button("{parent}", "MinimapOut", TextAnchor.MiddleCenter, "<size=12>-</size>", false, "LustyMap zoomout", "0 -3", "0.075 -2", "0 0 0 0.6");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if (user.minimap)
+                        {
+                            gui.button("{parent}", "MinimapClose", TextAnchor.MiddleCenter, "<size=12>>>></size>", true, "LustyMap close", "-0.15 0", "0 1", "0 0 0 0.6");
+                            if (mapmode)
+                            {
+                                gui.button("{parent}", "MinimapIn", TextAnchor.MiddleCenter, "<size=12>+</size>", false, "LustyMap zoomin", "-0.15 -1.1", "0 -0.1", "0 0 0 0.6");
+                                gui.button("{parent}", "MinimapOut", TextAnchor.MiddleCenter, "<size=12>-</size>", false, "LustyMap zoomout", "-0.15 -2.2", "0 -1.2", "0 0 0 0.6");
+                            }
+                        }
+                        else
+                        {
+                            gui.button("{parent}", "MinimapOpen", TextAnchor.MiddleCenter, "<size=12><<<</size>", true, "LustyMap open", "0.85 0", "1 1", "0 0 0 0.6");
+                            if (mapmode)
+                            {
+                                gui.button("{parent}", "MinimapIn", TextAnchor.MiddleCenter, "<size=12>+</size>", false, "LustyMap zoomin", "0.85 -1.1", "1 -0.1", "0 0 0 0.6");
+                                gui.button("{parent}", "MinimapOut", TextAnchor.MiddleCenter, "<size=12>-</size>", false, "LustyMap zoomout", "0.85 -2.2", "1 -1.2", "0 0 0 0.6");
+                            }
+                        }
+                    }
+                    gui.send(player);
+                }
 
-                                    gui.url("MinimapBG", DateTime.Now.Ticks.ToString(), monument.icon, (mapX - iconsize).ToString() + " " + (mapZ - iconsize).ToString(), (mapX + iconsize).ToString() + " " + (mapZ + iconsize).ToString(), "1");
-                                    //Puts(monument.name + " " + monument.percentX + " (" + monument.row + ") " + " (" + mapX + ") " + monument.percentZ + " (" + monument.column + ")" + " (" + mapZ + ") ");
-                                    //Puts(maplink + " " + (currentz + r) + " " + (currentx + c));
+                // Minimap Simple Mode - Background
+                if (user.minimapRefresh && user.minimap)
+                {
+                    if (!mapmode)
+                    {
+                        GUIv4 gui = new GUIv4();
+                        gui.add("MinimapBG", false, offset + " 0.7699", (0.13 + offset) + " 1", "0 0 0 1");
+                        gui.png("{parent}", "Map", fetchImage("mapimage"), "0 0", "1 1");
+
+                        if (showmonuments && user.mapMonuments)
+                        {
+                            double iconsize = 0.02f;
+                            foreach (MapLocation location in mapMonuments)
+                            {
+                                if (location.name == "Cave" && !showcaves) { continue; }
+                                if (location.name == "Cave" && !user.mapCaves) { continue; }
+                                gui.png("{parent}", "Mon" + DateTime.Now.Ticks, fetchImage(location.icon), (location.percentX - iconsize) + " " + (location.percentZ - iconsize), (location.percentX + iconsize) + " " + (location.percentZ + iconsize));
+                            }
+                        }
+                        if (user.mapCustom)
+                        {
+                            double iconsize = 0.02f;
+                            foreach (MapLocation location in mapCustom)
+                            {
+                                gui.png("{parent}", "Cus" + DateTime.Now.Ticks, fetchImage(location.icon), (location.percentX - iconsize) + " " + (location.percentZ - iconsize), (location.percentX + iconsize) + " " + (location.percentZ + iconsize));
+                            }
+                        }
+
+                        gui.send(player);
+                    }
+                }
+
+                // Minimap Complex Mode - Background Refresh
+                if (mapmode && user.minimap)
+                {
+                    // Get zoom level for user
+                    if (user.minimapZoom == 4)
+                    {
+                        mapslices = 6;
+                    }
+                    else if (user.minimapZoom == 3)
+                    {
+                        mapslices = 12;
+                    }
+                    else if (user.minimapZoom == 2)
+                    {
+                        mapslices = 26;
+                    }
+
+                    // Get center map part
+                    double x = player.transform.position.x + mapSize / 2f;
+                    double z = player.transform.position.z + mapSize / 2f;
+                    var mapres = mapSize / mapslices;
+                    int currentx = Convert.ToInt32(Math.Ceiling(x / mapres)) - 2;
+                    int currentz = mapslices - Convert.ToInt32(Math.Ceiling(z / mapres)) - 1;
+
+                    // Check if it has changed
+                    if (user.mapx != currentx || user.mapz != currentz || user.minimapRefresh)
+                    {
+                        user.mapx = currentx;
+                        user.mapz = currentz;
+
+                        // Start creating GUI
+                        GUIv4 gui = new GUIv4();
+                        gui.add("MinimapBG", false, offset + " 0.7699", (0.13 + offset) + " 1", "0 0 0 0");
+
+                        // Map parts
+                        int row = 3;
+                        int col = 3;
+                        for (int r = 0; r < row; r++)
+                        {
+                            for (int c = 0; c < col; c++)
+                            {
+                                string maplink = "map-" + mapslices + "-" + (currentz + r) + "-" + (currentx + c);
+                                string sx = Convert.ToSingle(c * (1f / col)).ToString();
+                                string sy = Convert.ToSingle(1 - ((1f / row) * (r + 1))).ToString();
+                                string ex = Convert.ToSingle(((c + 1) * (1f / col)) - 0.0005f).ToString();
+                                string ey = Convert.ToSingle((1 - ((1f / row) * (r + 1)) + (1f / row)) - 0.0004f).ToString();
+
+                                if ((currentz + r) >= 0 && (currentz + r) < mapslices && (currentx + c) >= 0 && (currentx + c) < mapslices)
+                                {
+                                    gui.png("{parent}", "Map" + DateTime.Now.Ticks, fetchImage(maplink), sx + " " + sy, ex + " " + ey, "0.9");
+                                }
+                                else
+                                {
+                                    gui.png("{parent}", "Map" + DateTime.Now.Ticks, fetchImage("mapbg"), sx + " " + sy, ex + " " + ey, "0.9");
+                                }
+                                if (showmonuments && user.mapMonuments)
+                                {
+                                    double iconsize = 0.05f;
+                                    foreach (MapLocation location in mapMonuments)
+                                    {
+                                        if (location.name == "Cave" && !showcaves) { continue; }
+                                        if (location.name == "Cave" && !user.mapCaves) { continue; }
+
+                                        int lrow = (Convert.ToInt16(Math.Floor(mapslices * location.percentX)));
+                                        int lcolumn = ((mapslices - 1) - Convert.ToInt16(Math.Floor(mapslices * location.percentZ)));
+
+                                        if (lcolumn == (currentz + r) && lrow == (currentx + c))
+                                        {
+                                            double _sx = Convert.ToSingle(c * (1f / col));
+                                            double _sy = Convert.ToSingle(1 - ((1f / row) * (r + 1)));
+                                            double _ex = Convert.ToSingle(((c + 1) * (1f / col)) - 0.005f);
+                                            double _ey = Convert.ToSingle((1 - ((1f / row) * (r + 1)) + (1f / row)) - 0.004f);
+                                            double mapX = (location.percentX * mapslices) - lrow;
+                                            double mapZ = ((1 - location.percentZ) * mapslices) - lcolumn;
+                                            double _xd = _ex - _sx;
+                                            mapX = (mapX * _xd) + _sx;
+                                            double _yd = _ey - _sy;
+                                            mapZ = _ey - (mapZ * _yd);
+
+                                            gui.png("{parent}", "Mon" + DateTime.Now.Ticks, fetchImage(location.icon), (mapX - iconsize) + " " + (mapZ - iconsize), (mapX + iconsize) + " " + (mapZ + iconsize), "1");
+                                        }
+                                    }
+                                }
+                                if (user.mapCustom)
+                                {
+                                    double iconsize = 0.05f;
+                                    foreach (MapLocation location in mapCustom)
+                                    {
+                                        int lrow = (Convert.ToInt16(Math.Floor(mapslices * location.percentX)));
+                                        int lcolumn = ((mapslices - 1) - Convert.ToInt16(Math.Floor(mapslices * location.percentZ)));
+
+                                        if (lcolumn == (currentz + r) && lrow == (currentx + c))
+                                        {
+                                            double _sx = Convert.ToSingle(c * (1f / col));
+                                            double _sy = Convert.ToSingle(1 - ((1f / row) * (r + 1)));
+                                            double _ex = Convert.ToSingle(((c + 1) * (1f / col)) - 0.005f);
+                                            double _ey = Convert.ToSingle((1 - ((1f / row) * (r + 1)) + (1f / row)) - 0.004f);
+                                            double mapX = (location.percentX * mapslices) - lrow;
+                                            double mapZ = ((1 - location.percentZ) * mapslices) - lcolumn;
+                                            double _xd = _ex - _sx;
+                                            mapX = (mapX * _xd) + _sx;
+                                            double _yd = _ey - _sy;
+                                            mapZ = _ey - (mapZ * _yd);
+
+                                            gui.png("{parent}", "Cus" + DateTime.Now.Ticks, fetchImage(location.icon), (mapX - iconsize) + " " + (mapZ - iconsize), (mapX + iconsize) + " " + (mapZ + iconsize), "1");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        gui.send(player);
+                    }
+                }
+
+                // Static GUI done
+                if (user.minimapRefresh) { user.minimapRefresh = false; }
+
+                // Minimap Player / Entity Locations
+                if (user.minimap)
+                {
+                    // Player Direction
+                    string direction = null;
+                    double lookRotation = player.eyes.rotation.eulerAngles.y;
+                    int playerdirection = (Convert.ToInt16((lookRotation - 5) / 10 + 0.5) * 10);
+                    if (lookRotation > 337.5 || lookRotation < 22.5) { direction = txtCpsN; }
+                    else if (lookRotation > 22.5 && lookRotation < 67.5) { direction = txtCpsNE; }
+                    else if (lookRotation > 67.5 && lookRotation < 112.5) { direction = txtCpsE; }
+                    else if (lookRotation > 112.5 && lookRotation < 157.5) { direction = txtCpsSE; }
+                    else if (lookRotation > 157.5 && lookRotation < 202.5) { direction = txtCpsS; }
+                    else if (lookRotation > 202.5 && lookRotation < 247.5) { direction = txtCpsSW; }
+                    else if (lookRotation > 247.5 && lookRotation < 292.5) { direction = txtCpsW; }
+                    else if (lookRotation > 292.5 && lookRotation < 337.5) { direction = txtCpsNW; }
+
+                    // Player Location
+                    double x = player.transform.position.x + mapSize / 2f;
+                    double z = player.transform.position.z + mapSize / 2f;
+
+                    // Player location in percent
+                    double mapX = GetMapPos(player.transform.position.x);
+                    double mapZ = GetMapPos(player.transform.position.z);
+
+                    // GUI
+                    GUIv4 gui = new GUIv4();
+                    gui.add("Minimap", false, offset + " 0.7699", (0.13 + offset) + " 1", "0 0 0 0");
+
+                    double iconsize = 0.05f;
+                    if (mapmode)
+                    {
+                        var mapres = mapSize / mapslices;
+                        int currentx = Convert.ToInt32(Math.Ceiling(x / mapres)) - 2;
+                        int currentz = mapslices - Convert.ToInt32(Math.Ceiling(z / mapres)) - 1;
+
+                        // Map parts
+                        int row = 3;
+                        int col = 3;
+                        for (int r = 0; r < row; r++)
+                        {
+                            for (int c = 0; c < col; c++)
+                            {
+                                // Planes / Helis / Supply Drops Etc...
+                                if (activeEntities.Count > 0)
+                                {
+                                    foreach (ActiveEntity entity in activeEntities)
+                                    {
+                                        if ((entity.isplane && showplane && user.mapPlane) || (entity.isheli && showheli && user.mapHeli) || (entity.issupply && showsupply && user.mapSupply) || (entity.isdebris && showdebris && user.mapDebris))
+                                        {
+                                            int erow = (Convert.ToInt16(Math.Floor(mapslices * entity.percentX)));
+                                            int ecolumn = ((mapslices - 1) - Convert.ToInt16(Math.Floor(mapslices * entity.percentZ)));
+
+                                            if (ecolumn == (currentz + r) && erow == (currentx + c))
+                                            {
+                                                double _sx = Convert.ToSingle(c * (1f / col));
+                                                double _sy = Convert.ToSingle(1 - ((1f / row) * (r + 1)));
+                                                double _ex = Convert.ToSingle(((c + 1) * (1f / col)) - 0.005f);
+                                                double _ey = Convert.ToSingle((1 - ((1f / row) * (r + 1)) + (1f / row)) - 0.004f);
+                                                double mapXX = (entity.percentX * mapslices) - erow;
+                                                double mapZZ = ((1 - entity.percentZ) * mapslices) - ecolumn;
+                                                double _xd = _ex - _sx;
+                                                mapXX = (mapXX * _xd) + _sx;
+                                                double _yd = _ey - _sy;
+                                                mapZZ = _ey - (mapZZ * _yd);
+
+                                                gui.png("{parent}", "Ent" + DateTime.Now.Ticks, fetchImage(entity.icon), (mapXX - iconsize) + " " + (mapZZ - iconsize), (mapXX + iconsize) + " " + (mapZZ + iconsize), "1");
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Friends
+                                if (user.friends.Count > 0)
+                                {
+                                    foreach (MapLocation friendEntity in user.friends)
+                                    {
+                                        int erow = (Convert.ToInt16(Math.Floor(mapslices * friendEntity.percentX)));
+                                        int ecolumn = ((mapslices - 1) - Convert.ToInt16(Math.Floor(mapslices * friendEntity.percentZ)));
+
+                                        if (ecolumn == (currentz + r) && erow == (currentx + c))
+                                        {
+                                            double _sx = Convert.ToSingle(c * (1f / col));
+                                            double _sy = Convert.ToSingle(1 - ((1f / row) * (r + 1)));
+                                            double _ex = Convert.ToSingle(((c + 1) * (1f / col)) - 0.005f);
+                                            double _ey = Convert.ToSingle((1 - ((1f / row) * (r + 1)) + (1f / row)) - 0.004f);
+                                            double mapXX = (friendEntity.percentX * mapslices) - erow;
+                                            double mapZZ = ((1 - friendEntity.percentZ) * mapslices) - ecolumn;
+                                            double _xd = _ex - _sx;
+                                            mapXX = (mapXX * _xd) + _sx;
+                                            double _yd = _ey - _sy;
+                                            mapZZ = _ey - (mapZZ * _yd);
+
+                                            gui.png("{parent}", "Fnd" + DateTime.Now.Ticks, fetchImage(friendEntity.icon), (mapXX - iconsize) + " " + (mapZZ - iconsize), (mapXX + iconsize) + " " + (mapZZ + iconsize), "1");
+                                        }
+                                    }
+                                }
+
+                                // Player
+                                int prow = (Convert.ToInt16(Math.Floor(mapslices * mapX)));
+                                int pcolumn = ((mapslices - 1) - Convert.ToInt16(Math.Floor(mapslices * mapZ)));
+
+                                if (pcolumn == (currentz + r) && prow == (currentx + c))
+                                {
+                                    double _sx = Convert.ToSingle(c * (1f / col));
+                                    double _sy = Convert.ToSingle(1 - ((1f / row) * (r + 1)));
+                                    double _ex = Convert.ToSingle(((c + 1) * (1f / col)) - 0.005f);
+                                    double _ey = Convert.ToSingle((1 - ((1f / row) * (r + 1)) + (1f / row)) - 0.004f);
+                                    double mapXX = (mapX * mapslices) - prow;
+                                    double mapZZ = ((1 - mapZ) * mapslices) - pcolumn;
+                                    double _xd = _ex - _sx;
+                                    mapXX = (mapXX * _xd) + _sx;
+                                    double _yd = _ey - _sy;
+                                    mapZZ = _ey - (mapZZ * _yd);
+
+                                    gui.png("{parent}", "Player" + DateTime.Now.Ticks, fetchImage("self" + playerdirection), (mapXX - iconsize) + " " + (mapZZ - iconsize), (mapXX + iconsize) + " " + (mapZZ + iconsize));
                                 }
                             }
                         }
                     }
-
-                    gui.send(player.player);
-                    //Puts(player.player.displayName + " " + player.mapx + " " + player.mapz);
-
-                    // Display close button
-                    minimapHUD(player.player, true);
-                }
-            }
-            // Simple
-            else
-            {
-                if (player.refresh)
-                {
-                    lustyGUI gui = new lustyGUI();
-                    gui.add("MinimapBG", false, offset.ToString() + " 0.7699", (0.13 + offset).ToString() + " 1", "0 0 0 1");
-                    gui.url("MinimapBG", "Map", mapurl, "0 0", "1 1");
-
-                    float iconsize = 0.02f;
-                    foreach (lustyMonuments monument in Monuments)
+                    else
                     {
-                        gui.url("MinimapBG", "Mon" + DateTime.Now.Ticks.ToString(), monument.icon, (monument.percentX - iconsize).ToString() + " " + (monument.percentZ - iconsize).ToString(), (monument.percentX + iconsize).ToString() + " " + (monument.percentZ + iconsize).ToString());
+                        if (activeEntities.Count > 0)
+                        {
+                            foreach (ActiveEntity entity in activeEntities)
+                            {
+                                if ((entity.isplane && showplane && user.mapPlane) || (entity.isheli && showheli && user.mapHeli) || (entity.issupply && showsupply && user.mapSupply) || (entity.isdebris && showdebris && user.mapDebris))
+                                {
+                                    if (entity.percentX >= 0 && entity.percentX <= 1 && entity.percentZ >= 0 && entity.percentZ <= 1)
+                                    {
+                                        gui.png("{parent}", "Ent" + DateTime.Now.Ticks, fetchImage(entity.icon), (entity.percentX - iconsize) + " " + (entity.percentZ - iconsize), (entity.percentX + iconsize) + " " + (entity.percentZ + iconsize));
+                                    }
+                                }
+                            }
+                        }
+                        if (user.friends.Count > 0)
+                        {
+                            foreach (MapLocation friendEntity in user.friends)
+                            {
+                                if (friendEntity.percentX >= 0 && friendEntity.percentX <= 1 && friendEntity.percentZ >= 0 && friendEntity.percentZ <= 1)
+                                {
+                                    gui.png("{parent}", "Fnd" + DateTime.Now.Ticks, fetchImage(friendEntity.icon), (friendEntity.percentX - iconsize) + " " + (friendEntity.percentZ - iconsize), (friendEntity.percentX + iconsize) + " " + (friendEntity.percentZ + iconsize));
+                                }
+                            }
+                        }
+                        gui.png("{parent}", "Player" + DateTime.Now.Ticks, fetchImage("self" + playerdirection), (mapX - iconsize) + " " + (mapZ - iconsize), (mapX + iconsize) + " " + (mapZ + iconsize));
                     }
-
-                    gui.send(player.player);
-
-                    // Display close button
-                    minimapHUD(player.player, true);
-
-                    // Finished updating the map background
-                    player.refresh = false;
+                    if (user.compass)
+                    {
+                        gui.text("{parent}", "Location", TextAnchor.UpperCenter, "<size=12>" + txtCpsHead + " " + direction + "\n" + player.transform.position + "</size>", "0 -0.2", "1 0");
+                    }
+                    gui.send(player);
                 }
             }
         }
 
-        // Map Users
-        private class lustyUsers
-        {
-            public ulong userid { get; set; }
-            public List<lustyMarkers> markers { get; set; }
-            public bool minimap { get; set; }
-            public bool minmapleft { get; set; }
-
-        }
-
-        // Map Markers
-        private class lustyMarkers
-        {
-            public int id { get; set; }
-            public string name { get; set; }
-            public float x { get; set; }
-            public float y { get; set; }
-        }
-        
         // GUI Class
-        private class lustyGUIv3a
+        private class GUIv4
         {
-            private string gui = null;
-            private string guiname = null;
-            public string rand = null;
-            private string startblock = @"{""name"": ""{name}{rand}"",""parent"": ""{blockparent}{rand}"",""components"":[";
-            private string imageblock = @"{""type"":""UnityEngine.UI.Image"", ""color"":""{color}""}";
-            private string textblock = @"{""type"":""UnityEngine.UI.Text"",""text"":""{text}"",""fontSize"":20,""align"": ""{align}""}";
-            private string anchorblock = @"{""type"":""RectTransform"",""anchormin"": ""{start}"",""anchormax"": ""{end}""}";
-            private string buttonblock = @"{""type"":""UnityEngine.UI.Button"",{closeblock}{commandblock}""color"": ""{color}"",""imagetype"": ""Tiled""}";
-            private string buttonclose = @"""close"":""{parent}"",";
-            private string buttoncmd = @"""command"":""{command}"",";
-            private string buttontext = @"{""parent"": ""{name}{rand}"",""components"":[{""type"":""UnityEngine.UI.Text"",""text"":""{text}"",""fontSize"":16,""align"": ""{align}""},{""type"":""RectTransform"",""anchormin"": ""0 0"",""anchormax"": ""1 1""}]}";
-            private string urlblock = @"{""type"":""UnityEngine.UI.RawImage"",""imagetype"": ""Tiled"",""url"": ""{url}"",""color"": ""1 1 1 {alpha}""}";
-            private string cursorblock = @"{""type"":""NeedsCursor""}";
-            private string endblock = "]}";
+            string guiname { get; set; }
+            CuiElementContainer container = new CuiElementContainer();
 
-            public void add(string name, bool mouse, string start, string end, string color)
+            public void add(string uiname, bool mouse, string start, string end, string colour)
             {
-                guiname = name;
-                gui = "[" + startblock + imageblock + "," + anchorblock;
-                if (mouse) { gui = gui + "," + cursorblock; }
-                gui = gui + endblock;
-
-
-                gui = gui.Replace("{blockparent}{rand}", "HUD/Overlay");
-                gui = gui.Replace("{name}{rand}", "{parent}");
-                gui = gui.Replace("{color}", color);
-                gui = gui.Replace("{start}", start);
-                gui = gui.Replace("{end}", end);
+                guiname = uiname;
+                if (mouse)
+                {
+                    CuiElement element = new CuiElement
+                    {
+                        Name = guiname,
+                        Parent = "HUD/Overlay",
+                        FadeOut = 0.0f,
+                        Components =
+                        {
+                            new CuiImageComponent
+                            {
+                                Color = colour
+                            },
+                            new CuiRectTransformComponent
+                            {
+                                AnchorMin = start,
+                                AnchorMax = end
+                            },
+                            new CuiNeedsCursorComponent()
+                        }
+                    };
+                    container.Add(element);
+                }
+                else
+                {
+                    CuiElement element = new CuiElement
+                    {
+                        Name = guiname,
+                        Parent = "HUD/Overlay",
+                        FadeOut = 0.0f,
+                        Components =
+                        {
+                            new CuiImageComponent
+                            {
+                                Color = colour
+                            },
+                            new CuiRectTransformComponent
+                            {
+                                AnchorMin = start,
+                                AnchorMax = end
+                            }
+                        }
+                    };
+                    container.Add(element);
+                }
             }
 
-            public void box(string parent, string name, string start, string end, string color)
+            public void box(string uiparent, string uiname, string start, string end, string colour)
             {
-                gui = gui + "," + startblock + imageblock + "," + anchorblock + endblock;
+                if (uiparent == "{parent}") { uiparent = guiname; } else { uiparent += "{rand}"; }
 
-                if (parent == "{parent}")
+                CuiElement element = new CuiElement
                 {
-                    gui = gui.Replace("{blockparent}{rand}", "{parent}");
-                }
-                else
-                {
-                    gui = gui.Replace("{blockparent}", parent);
-                }
-                gui = gui.Replace("{name}", name);
-                gui = gui.Replace("{color}", color);
-                gui = gui.Replace("{start}", start);
-                gui = gui.Replace("{end}", end);
+                    Name = uiname + "{rand}",
+                    Parent = uiparent,
+                    FadeOut = 0.0f,
+                    Components =
+                    {
+                        new CuiImageComponent
+                        {
+                            Color = colour
+                        },
+                        new CuiRectTransformComponent
+                        {
+                            AnchorMin = start,
+                            AnchorMax = end
+                        }
+                    }
+                };
+                container.Add(element);
             }
 
-            public void url(string parent, string name, string url, string start, string end, float alpha = 1f)
+            public void text(string uiparent, string uiname, UnityEngine.TextAnchor textalign, string uitext, string start, string end)
             {
-                gui = gui + "," + startblock + urlblock + "," + anchorblock + endblock;
+                if (uiparent == "{parent}") { uiparent = guiname; } else { uiparent += "{rand}"; }
 
-                if (parent == "{parent}")
+                CuiElement element = new CuiElement
                 {
-                    gui = gui.Replace("{blockparent}{rand}", "{parent}");
-                }
-                else
-                {
-                    gui = gui.Replace("{blockparent}", parent);
-                }
-                gui = gui.Replace("{name}", name);
-                gui = gui.Replace("{url}", url);
-                gui = gui.Replace("{start}", start);
-                gui = gui.Replace("{end}", end);
-                gui = gui.Replace("{alpha}", alpha.ToString());
+                    Name = uiname + "{rand}",
+                    Parent = uiparent,
+                    FadeOut = 0.0f,
+                    Components =
+                        {
+                            new CuiTextComponent
+                            {
+                                Text = uitext,
+                                FontSize = 12,
+                                Align = textalign,
+                                FadeIn = 0.0f
+                            },
+                            new CuiRectTransformComponent
+                            {
+                                AnchorMin = start,
+                                AnchorMax = end
+                            }
+                        }
+                };
+                container.Add(element);
             }
 
-            public void text(string parent, string name, string align, string text, string start, string end)
+            public void png(string uiparent, string uiname, string image, string start, string end, string colour = "1 1 1 1")
             {
-                gui = gui + "," + startblock + textblock + "," + anchorblock + endblock;
+                if (string.IsNullOrEmpty(image)) return;
+                if (uiparent == "{parent}") { uiparent = guiname; } else { uiparent += "{rand}"; }
 
-                if (parent == "{parent}")
+                CuiElement element = new CuiElement
                 {
-                    gui = gui.Replace("{blockparent}{rand}", "{parent}");
-                }
-                else
-                {
-                    gui = gui.Replace("{blockparent}", parent);
-                }
-                gui = gui.Replace("{name}", name);
-                gui = gui.Replace("{align}", align);
-                gui = gui.Replace("{text}", text);
-                gui = gui.Replace("{start}", start);
-                gui = gui.Replace("{end}", end);
+                    Name = uiname + "{rand}",
+                    Parent = uiparent,
+                    FadeOut = 0.0f,
+                    Components =
+                    {
+                        new CuiRawImageComponent
+                        {
+                            Sprite = "assets/content/textures/generic/fulltransparent.tga",
+                            Png = image,
+                            FadeIn = 0.0f
+                        },
+                        new CuiRectTransformComponent
+                        {
+                            AnchorMin = start,
+                            AnchorMax = end
+                        }
+                    }
+                };
+                container.Add(element);
             }
 
-            public void button(string parent, string name, string align, string text, bool cmd, string command, bool cls, string start, string end, string color)
+            public void button(string uiparent, string uiname, UnityEngine.TextAnchor textalign, string uitext, bool closeui, string cmd, string start, string end, string colour)
             {
-                gui = gui + "," + startblock + buttonblock + "," + anchorblock + endblock + "," + buttontext;
+                box(uiparent, uiname + "BoX", start, end, colour);
+                text(uiparent, uiname + "TxT", textalign, uitext, start, end);
 
-                if (cls)
-                {
-                    gui = gui.Replace("{closeblock}", buttonclose);
-                }
-                else
-                {
-                    gui = gui.Replace("{closeblock}", "");
-                }
-                if (cmd)
-                {
-                    gui = gui.Replace("{commandblock}", buttoncmd);
-                    gui = gui.Replace("{command}", command);
-                }
-                else
-                {
-                    gui = gui.Replace("{commandblock}", "");
-                }
+                if (uiparent == "{parent}") { uiparent = guiname; } else { uiparent += "{rand}"; }
+                string closegui = null;
+                if (closeui) { closegui = guiname; }
 
-                if (parent == "{parent}")
+                CuiElement element = new CuiElement
                 {
-                    gui = gui.Replace("{blockparent}{rand}", "{parent}");
-                }
-                else
-                {
-                    gui = gui.Replace("{blockparent}", parent);
-                }
-                gui = gui.Replace("{name}", name);
-                gui = gui.Replace("{color}", color);
-                gui = gui.Replace("{align}", align);
-                gui = gui.Replace("{text}", text);
-                gui = gui.Replace("{start}", start);
-                gui = gui.Replace("{end}", end);
-            }
-
-            public string json()
-            {
-                string json = gui.Replace("{rand}", this.rand).Replace("{parent}", this.guiname) + "]";
-                return json;
+                    Name = uiname + "{rand}",
+                    Parent = uiparent,
+                    FadeOut = 0.0f,
+                    Components =
+                        {
+                            new CuiButtonComponent
+                            {
+                                Command = cmd,
+                                Close = closegui,
+                                Color = "0 0 0 0"
+                            },
+                            new CuiRectTransformComponent
+                            {
+                                AnchorMin = start,
+                                AnchorMax = end
+                            }
+                        }
+                };
+                container.Add(element);
             }
 
             public void send(BasePlayer player)
             {
-                if (guiname != null)
-                {
-                    this.rand = DateTime.Now.Ticks.ToString();
-                    CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "DestroyUI", new Facepunch.ObjectList(guiname));
-                    CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "AddUI", new Facepunch.ObjectList(gui.Replace("{rand}", this.rand).Replace("{parent}", this.guiname) + "]"));
-                }
+                CuiHelper.DestroyUi(player, guiname);
+                CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "AddUI", new Facepunch.ObjectList(container.ToJson().Replace("{rand}", DateTime.Now.Ticks.ToString())));
             }
         }
-
-        // GUI Class - v2
-        private class lustyGUI
-        {
-            private string gui = null;
-            private string guiname = null;
-            private string startblock = @"{""name"": ""{name}{rand}"",""parent"": ""{parent}{rand}"",""components"":[";
-            private string imageblock = @"{""type"":""UnityEngine.UI.Image"", ""color"":""{color}""}";
-            private string textblock = @"{""type"":""UnityEngine.UI.Text"",""text"":""{text}"",""fontSize"":20,""align"": ""{align}""}";
-            private string anchorblock = @"{""type"":""RectTransform"",""anchormin"": ""{start}"",""anchormax"": ""{end}""}";
-            private string buttonblock = @"{""type"":""UnityEngine.UI.Button"",{closeblock}{commandblock}""color"": ""{color}"",""imagetype"": ""Tiled""}";
-            private string buttonclose = @"""close"":""{topparent}{rand}"",";
-            private string buttoncmd = @"""command"":""{command}"",";
-            private string buttontext = @"{""parent"": ""{name}{rand}"",""components"":[{""type"":""UnityEngine.UI.Text"",""text"":""{text}"",""fontSize"":16,""align"": ""{align}""},{""type"":""RectTransform"",""anchormin"": ""0 0"",""anchormax"": ""1 1""}]}";
-            private string urlblock = @"{""type"":""UnityEngine.UI.RawImage"",""imagetype"": ""Tiled"",""sprite"": ""assets/content/textures/generic/fulltransparent.tga"",""color"": ""0.7 0.7 0.7 {alpha}"",""url"": ""{url}""}";
-            private string cursorblock = @"{""type"":""NeedsCursor""}";
-            private string endblock = "]}";
-
-            public string returngui()
-            {
-                gui = gui + "]";
-                gui = gui.Replace("{rand}", "");
-                return gui;
-            }
-
-            public string returnguirand(string rand)
-            {
-                gui = gui + "]";
-                gui = gui.Replace("{rand}", rand);
-                return gui;
-            }
-
-            public void add(string name, bool mouse, string start, string end, string color)
-            {
-                guiname = name;
-                gui = "[" + startblock + imageblock + "," + anchorblock;
-                if (mouse) { gui = gui + "," + cursorblock; }
-                gui = gui + endblock;
-
-                gui = gui.Replace("{parent}{rand}", "HUD/Overlay");
-                gui = gui.Replace("{name}", name);
-                gui = gui.Replace("{color}", color);
-                gui = gui.Replace("{start}", start);
-                gui = gui.Replace("{end}", end);
-            }
-
-            public void box(string parent, string name, string start, string end, string color)
-            {
-                gui = gui + "," + startblock + imageblock + "," + anchorblock + endblock;
-
-                gui = gui.Replace("{parent}", parent);
-                gui = gui.Replace("{name}", name);
-                gui = gui.Replace("{color}", color);
-                gui = gui.Replace("{start}", start);
-                gui = gui.Replace("{end}", end);
-            }
-
-            public void url(string parent, string name, string url, string start, string end, string alpha = "1")
-            {
-                gui = gui + "," + startblock + urlblock + "," + anchorblock + endblock;
-
-                gui = gui.Replace("{parent}", parent);
-                gui = gui.Replace("{name}", name);
-                gui = gui.Replace("{url}", url);
-                gui = gui.Replace("{start}", start);
-                gui = gui.Replace("{end}", end);
-                gui = gui.Replace("{alpha}", alpha);
-            }
-
-            public void text(string parent, string name, string align, string text, string start, string end, string color)
-            {
-                gui = gui + "," + startblock + textblock + "," + anchorblock + endblock;
-
-                gui = gui.Replace("{parent}", parent);
-                gui = gui.Replace("{name}", name);
-                gui = gui.Replace("{align}", align);
-                gui = gui.Replace("{text}", text);
-                gui = gui.Replace("{start}", start);
-                gui = gui.Replace("{end}", end);
-            }
-
-            public void button(string parent, string name, string align, string text, bool cmd, string command, bool cls, string topparent, string start, string end, string color)
-            {
-                gui = gui + "," + startblock + buttonblock + "," + anchorblock + endblock + "," + buttontext;
-
-                if (cls)
-                {
-                    gui = gui.Replace("{closeblock}", buttonclose);
-                    gui = gui.Replace("{topparent}", topparent);
-                }
-                else
-                {
-                    gui = gui.Replace("{closeblock}", "");
-                }
-                if (cmd)
-                {
-                    gui = gui.Replace("{commandblock}", buttoncmd);
-                    gui = gui.Replace("{command}", command);
-                }
-                else
-                {
-                    gui = gui.Replace("{commandblock}", "");
-                }
-
-                gui = gui.Replace("{parent}", parent);
-                gui = gui.Replace("{name}", name + DateTime.Now.Ticks.ToString());
-                gui = gui.Replace("{color}", color);
-                gui = gui.Replace("{align}", align);
-                gui = gui.Replace("{text}", text);
-                gui = gui.Replace("{start}", start);
-                gui = gui.Replace("{end}", end);
-            }
-
-            public void send(BasePlayer player)
-            {
-                if (guiname != null)
-                {                    
-                    CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "DestroyUI", new Facepunch.ObjectList(guiname));
-                    string final = gui.Replace("{rand}", "") + "]";
-                    CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "AddUI", new Facepunch.ObjectList(final));
-                }
-            }
-        }
-
-        private void destroyUI(BasePlayer player, string name)
-        {
-            CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "DestroyUI", new Facepunch.ObjectList(name));
-        }
-        private void addUI(BasePlayer player, string gui)
-        {
-            CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "AddUI", new Facepunch.ObjectList(gui));
-        }
-
-        private void catchMouse(BasePlayer player, bool state)
-        {
-            if (state)
-            {
-                lustyGUIv3a mouse = new lustyGUIv3a();
-                mouse.add("CatchMouse", true, "0 0", "0 0", "0 0 0 0");
-                addUI(player, mouse.json());
-            }
-            else
-            {
-                destroyUI(player, "CatchMouse");
-            }
-        }
-
 
         // Player Messages
         private void playerMsg(BasePlayer player, string msg)
@@ -1493,7 +2352,7 @@ namespace Oxide.Plugins
             }
             return false;
         }
-        
+
         // Config stuff
         private void LoadDefaultConfig() { }
 

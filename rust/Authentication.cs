@@ -3,153 +3,182 @@ using System.Collections.Generic;
 
 namespace Oxide.Plugins
 {
-    [Info("Authentication", "Jos\u00E9 Paulo (FaD)", 0.2)]
+    [Info("Authentication", "Jos\u00E9 Paulo (FaD)", 1.0)]
     [Description("Players must enter a password after they wake up or else they'll be kicked.")]
     public class Authentication : RustPlugin
     {
+		public class Request
+		{
+			public string m_steamID;
+			public BasePlayer m_basePlayer;
+			public bool m_authenticated;
+			//public short m_retries;
+			public Timer m_countdown;
+			
+			public Request(string steamID, BasePlayer basePlayer)
+			{
+				m_steamID = steamID;
+				m_basePlayer = basePlayer;
+				m_authenticated = false;
+			}
+				
+		}
 		/*----------------*/
 		/*Plugin Variables*/
 		/*----------------*/
 		
-		static Dictionary<string, Timer> authing = new Dictionary<string, Timer>();
-		static Dictionary<string, BasePlayer> auths = new Dictionary<string, BasePlayer>();
+		static List<Request> requests = new List<Request>();
 		
 		/*----------------*/
 		/*Plugin Functions*/
 		/*----------------*/
 		
 		/*Message Functions*/
-		private void Write(string message)
+		private void write(string message)
 		{
-			PrintToChat("<color=lightblue>[AUTH]</color> {0}", message);
+			PrintToChat("<color=lightblue>[AUTH]</color> " + message);
 		}
 		
-		private void Write(BasePlayer player, string message)
+		private void write(BasePlayer player, string message)
 		{
-			PrintToChat(player, "<color=lightblue>[AUTH]</color> {0}", message);
+			PrintToChat(player, "<color=lightblue>[AUTH]</color> " + message);
 		}
 		
 		/*Auth Functions*/
-		private void Auth(BasePlayer player, bool authed = true)
+		private bool isEnabled()
 		{
-			//Remove player from the dictionary. This process is done to both authed and non-authed players;
-			Timer auth;
-			string steamID = player.userID.ToString();
-			authing.TryGetValue(steamID, out auth);
-			auth.Destroy();
-			authing.Remove(steamID);
-			
-			//Add player to the auths dictionary to prevent him from using the /auth [password] command again;
-			if(authed)
-			{
-				auths.Add(steamID, player);
-			}
-			
-			//Kick the player after timer ended and no password was entered;
-			if(!authed)
-				player.Kick(Config["AUTHENTICATION_TIMED_OUT"].ToString());
+			return Convert.ToBoolean(Config["ENABLED"]);
 		}
 		
-		private void RequestAuth(BasePlayer player)
+		private void requestAuth(Request request)
 		{
-			string steamID = player.userID.ToString();
-			//Find and replace "{TIMEOUT}" to the timeout set in the config file;
-			string request = Config["PASSWORD_REQUEST"].ToString().Replace("{TIMEOUT}",Config["TIMEOUT"].ToString());
+			//Find and replace "{TIMEOUT}" to the timeout set in the config file
+			string message = Convert.ToString(Config["PASSWORD_REQUEST"]).Replace("{TIMEOUT}",Convert.ToString(Config["TIMEOUT"]));
 			
-			authing.Add( steamID, timer.Once(Convert.ToSingle(Config["TIMEOUT"]), () => Auth(player,false)) );
+			request.m_countdown = timer.Once(Convert.ToInt32(Config["TIMEOUT"]), () => request.m_basePlayer.Kick(Convert.ToString(Config["AUTHENTICATION_TIMED_OUT"])));
 			
-			Write(player, request);
+			write(request.m_basePlayer, message);
 		}
 		
 		/*Chat Commands*/
 		[ChatCommand("auth")]
 		private void cmdAuth(BasePlayer player, string cmd, string[] args)
 		{
-			string steamID = player.userID.ToString();
-			//Limit avaliable commands if player is not authed yet.
-			if(!auths.ContainsKey(steamID))
+			Request request = requests.Find(element => element.m_steamID == player.UserIDString);
+			
+			//Shouldn't happen.
+			if(request == null) return;
+			
+			if(!request.m_authenticated) //Limit available commands if player is not authed yet
+			{		
+				switch(args.Length)
+				{
+					case 0:
+						write(player, Convert.ToString(Config["SYNTAX_ERROR"]));
+						break;
+					case 1:
+						if(args[0] == Convert.ToString(Config["PASSWORD"]))
+						{
+							request.m_countdown.Destroy();
+							request.m_authenticated = true;
+							write(player, Convert.ToString(Config["AUTHENTICATION_SUCCESSFUL"]));
+						}
+						else
+						{
+							write(player, "Incorrect password. Please try again.");
+						}
+						break;
+				}
+			}
+			else if(/* request.m_authenticated && */permission.UserHasPermission(request.m_steamID, "authentication.edit"))
 			{
 				switch(args.Length)
 				{
 					case 0:
-						Write(player, Config["SYNTAX_ERROR"].ToString());
+						write(player, Convert.ToString(Config["SYNTAX_ERROR"]));
 						break;
 					case 1:
-						if(args[0] == Config["PASSWORD"].ToString())
+						if(args[0] == "password")// /auth password
 						{
-							Auth(player);
-							Write(player, Config["AUTHENTICATION_SUCCESSFUL"].ToString());
+							write(player, "Password: " + Convert.ToString(Config["PASSWORD"]));
 						}
-						else
+						else if(args[0] == "toggle")// /auth toggle
 						{
-							Write(player, Config["INCORRECT_PASSWORD"].ToString());
+							Config["ENABLED"] = !isEnabled();
+							SaveConfig();
+							write(player, "Authentication is now " + ((isEnabled()) ? "enabled" : "disabled") + ".");
+						}
+						else if(args[0] == "status")// /auth status
+						{
+							write(player, "Authentication is " + ((isEnabled()) ? "enabled" : "disabled") + ".");
+						}
+						else if(args[0] == "timeout")
+						{
+							write(player, "Timeout: " + Convert.ToString(Config["TIMEOUT"]) + " seconds.");
+						}
+						else if(args[0] == "help")// /auth help
+						{
+							write(player, 
+							"Available commands:\n"
+							+ "Syntax: /auth command [required] (optional)'\n"
+							+ "<color=silver>/auth [password]</color> - Authenticates players;\n"
+							+ "<color=silver>/auth password</color> - Shows password;\n"
+							+ "<color=silver>/auth password [new password]</color> - Sets a new password;\n"
+							+ "<color=silver>/auth timeout</color> - Shows timeout;\n"
+							+ "<color=silver>/auth timeout [new timeout]</color> - Sets a new timeout;\n"
+							+ "<color=silver>/auth toggle (on/off)</color> - Toggles Authentication on/off;");
 						}
 						break;
-					default:
-						Write(player, Config["INVALID_COMMAND"].ToString());
-						break;
-				}
-			}
-			else //Player was already authed;
-			{
-				if(permission.UserHasPermission(steamID, "auth.edit")) // Auth moderator;
-				{
-					switch(args.Length)
-					{
-						case 1:
-							if(args[0] == Config["PASSWORD"].ToString())
+					case 2:
+						if(args[0] == "password")// /auth password [new password]
+						{
+							if(args[1] != "password" && args[1] != "help" && args[1] != "toggle" && args[1] != "status" && args[1] != "timeout")
 							{
-								Write(player, Config["ALREADY_AUTHED"].ToString());
+								Config["PASSWORD"] = args[1];
+								SaveConfig();
+								write(player, "New password: " + Convert.ToString(Config["PASSWORD"]));
 							}
-							else if(args[0] == "help")// /auth help;
+						}
+						else if(args[0] == "toggle")// /auth toggle (on/off)
+						{
+							if(args[1] == "on")
 							{
-								Write(player, 
-								"Available commands:\n"
-								+ "<color=silver>/auth [password]</color> - Authenticates players;\n"
-								+ "<color=silver>/auth password</color> - Shows current password;\n"
-								+ "<color=silver>/auth password [new password]</color> - Sets new password;");
-							}
-							else if(args[0] == "password")// /auth password;
-							{
-								Write(player, "Current password: " + Config["PASSWORD"].ToString());
-							}
-							else
-							{
-								Write(player, Config["HELP"].ToString());
-							}
-							break;
-						case 2:
-							if(args[0] == "password")// /auth password [new password];
-							{
-								if(args[1] != "password" && args[1] != "help")
+								if(!isEnabled())
 								{
-									Config["PASSWORD"] = args[1];
+									Config["ENABLED"] = true;
 									SaveConfig();
-									Write(player, "Current password set to: " + Config["PASSWORD"].ToString());
+									write(player, "Authentication is now enabled.");
 								}
 								else
 								{
-									Write(player, Config["INCORRECT_PASSWORD"].ToString());
+									write(player, "Authentication is already enabled.");
+								}
+							}
+							else if(args[1] == "off")
+							{
+								if(isEnabled())
+								{
+									Config["ENABLED"] = false;
+									SaveConfig();
+									write(player, "Authentication is now disabled.");
+								}
+								else
+								{
+									write(player, "Authentication is already disabled.");
 								}
 							}
 							else
 							{
-								Write(player, Config["HELP"].ToString());
+								write(player, "Correct syntax: /auth toggle (on/off)");
 							}
-							break;
-						default:
-							Write(player, Config["HELP"].ToString());
-							break;
-					}
-				}
-				else //Not an Auth Moderator;
-				{
-					switch(args.Length)
-					{
-						case 1:
-							Write(player, Config["ALREADY_AUTHED"].ToString());
-							break;
-					}
+						}
+						else if(args[0] == "timeout")// /auth timeout [new timeout]
+						{
+							Config["TIMEOUT"] = Convert.ToInt32(args[1]);
+							SaveConfig();
+							write(player, "New timeout: " + Convert.ToString(Config["TIMEOUT"]) + " seconds.");
+						}
+						break;
 				}
 			}
 		}
@@ -160,107 +189,85 @@ namespace Oxide.Plugins
 		
 		void Init()
 		{
-			permission.RegisterPermission("auth.edit", this);
+			permission.RegisterPermission("authentication.edit", this);
 			LoadDefaultConfig();
 		}
 		
-		protected override void LoadDefaultConfig()
+		void Loaded()
 		{
-			bool outdated = false;
-			bool deprecated = false;
+			LoadDefaultConfig();
 			
-			if(Config["TIMEOUT"] == null)
+			List<BasePlayer> online = BasePlayer.activePlayerList as List<BasePlayer>;
+			foreach(BasePlayer player in online)
 			{
-				Config["TIMEOUT"] = 30;
-				outdated = true;
+				Request request = new Request(player.UserIDString, player);
+				//Doesn't request the passsword if player is already connected
+				request.m_authenticated = true;
+				requests.Add(request);
 			}
-			if(Config["PASSWORD"] == null)
-			{
-				Config["PASSWORD"] = "changeme";
-				outdated = true;
-			}
-			if(Config["PASSWORD_REQUEST"] == null)
-			{
-				Config["PASSWORD_REQUEST"] = "Type /auth [password] in the following {TIMEOUT} seconds to authenticate or you'll be kicked.";
-				outdated = true;
-			}
-			if(Config["SYNTAX_ERROR"] == null)
-			{
-				Config["SYNTAX_ERROR"] = "Correct syntax: /auth [password]";
-				outdated = true;
-			}
-			if(Config["INCORRECT_PASSWORD"] == null)
-			{
-				Config["INCORRECT_PASSWORD"] = "Incorrect password. Please try again.";
-				outdated = true;
-			}
-			if(Config["AUTHENTICATION_TIMED_OUT"] == null)
-			{
-				Config["AUTHENTICATION_TIMED_OUT"] = "You took too long to authenticate";
-				outdated = true;
-			}
-			if(Config["AUTHENTICATION_SUCCESSFUL"] == null)
-			{
-				Config["AUTHENTICATION_SUCCESSFUL"] = "Authentication sucessful.";
-				outdated = true;
-			}
-			if(Config["INVALID_COMMAND"] == null)
-			{
-				Config["INVALID_COMMAND"] = "Invalid command or you must be authed to do this.";
-				outdated = true;
-			}
-			if(Config["HELP"] == null)
-			{
-				Config["HELP"] = "Type /help for all available commands.";
-				outdated = true;
-			}
-			if(Config["ALREADY_AUTHED"] == null)
-			{
-				Config["ALREADY_AUTHED"] = "You're already authed.";
-				outdated = true;
-			}
-				
-			/*--------------------*/
-			/*Deprecated Variables*/
-			/*--------------------*/
-			if(Config["AUTHENTICATION_SUCCESSFULL"] != null)
-			{
-				Config["AUTHENTICATION_SUCCESSFULL"] = "DEPRECATED_VARIABLE_VERSION_0.1";
-				deprecated = true;
-			}
-			
-			/*-------------*/
-			/*Print Warning*/
-			/*-------------*/
-			if(outdated)
-			{
-				PrintWarning("New variable(s) added to Config file! Reconfiguration may be required.");
-			}
-			
-			if(deprecated)
-			{
-				PrintWarning("Deprecated variable(s) found and replaced in Config file! Reconfiguration may be required.");
-			}
-				
-			SaveConfig();
-			
 		}
 		
 		void OnPlayerSleepEnded(BasePlayer player)
 		{
-			string steamID = player.userID.ToString();
-			//Prevents request from being executed when player respawn;
-			if(!auths.ContainsKey(steamID))
+			Request request = new Request(player.UserIDString, player);
+			
+			if(!requests.Exists(element => element.m_steamID == request.m_steamID))
 			{
-				timer.Once(1, () => RequestAuth(player));
+				//Authenticate everyone if the plugin is disabled
+				request.m_authenticated = !isEnabled();
+				requests.Add(request);
+				if(isEnabled()) timer.Once(1, () => requestAuth(request));
 			}
+			
 		}
 		
 		void OnPlayerDisconnected(BasePlayer player)
 		{
-			string steamID = player.userID.ToString();
-			auths.Remove(steamID);
+			Request request = requests.Find(element => element.m_steamID == player.UserIDString);
+			requests.RemoveAt(requests.IndexOf(request));
 		}
 		
-    } //End of Plugin;
-} //End of namespace;
+		object OnPlayerChat(ConsoleSystem.Arg arg)
+		{
+			string hidden = "";
+			for(int i = 0; i < Convert.ToString(Config["PASSWORD"]).Length; i++) hidden += "*";
+			string original = arg.GetString(0, "text");
+			string replaced = original.Replace(Convert.ToString(Config["PASSWORD"]), hidden);
+			
+			BasePlayer player = arg.connection.player as BasePlayer;
+			
+			Request request = requests.Find(element => element.m_steamID == player.UserIDString);
+			
+			if(!request.m_authenticated && Convert.ToBoolean(Config["PREVENT_CHAT"]))
+			{
+				write(player, "You cannot chat before authentication.");
+				return false;
+			}
+			
+			if(original != replaced && Convert.ToBoolean(Config["PREVENT_CHAT_PASSWORD"]))
+			{
+				rust.BroadcastChat("<color=#5af>" + player.displayName + "</color>", replaced, player.UserIDString);
+				return false;
+			}
+			
+			return null;
+			
+		}
+		
+		protected override void LoadDefaultConfig()
+		{
+			Config["ENABLED"] = Config["ENABLED"] ?? true;
+			Config["TIMEOUT"] = Config["TIMEOUT"] ?? 30;
+			Config["PASSWORD"] = Config["PASSWORD"] ?? "changeme";
+			Config["PASSWORD_REQUEST"] = Config["PASSWORD_REQUEST"] ?? "Type /auth [password] in the following {TIMEOUT} seconds to authenticate or you'll be kicked.";
+			Config["PREVENT_CHAT"] = Config["PREVENT_CHAT"] ?? true;
+			Config["PREVENT_CHAT_PASSWORD"] = Config["PREVENT_CHAT_PASSWORD"] ?? false;
+			Config["SYNTAX_ERROR"] = Config["SYNTAX_ERROR"] ?? "Correct syntax: /auth [password/command] (arguments)";
+			Config["AUTHENTICATION_TIMED_OUT"] = Config["AUTHENTICATION_TIMED_OUT"] ?? "You took too long to authenticate";
+			Config["AUTHENTICATION_SUCCESSFUL"] = Config["AUTHENTICATION_SUCCESSFUL"] ?? "Authentication successful.";
+				
+			SaveConfig();	
+		}
+		
+    }
+}

@@ -5,19 +5,29 @@ using Oxide.Game.Rust.Cui;
 
 namespace Oxide.Plugins
 {
-    [Info("FireArrows", "Colon Blow", "1.1.5")]
+    [Info("FireArrows", "Colon Blow", "1.1.7")]
     class FireArrows : RustPlugin
     {
 	bool Changed;
-	string SetArrowIcon;
 	
 	Dictionary<ulong, FireArrowData> FireArrowOn = new Dictionary<ulong, FireArrowData>();
+	Dictionary<ulong, FireBallData> FireBallOn = new Dictionary<ulong, FireBallData>();
+	Dictionary<ulong, FireBombData> FireBombOn = new Dictionary<ulong, FireBombData>();
 	Dictionary<ulong, string> GuiInfoFA = new Dictionary<ulong, string>();
 
         class FireArrowData
         {
              	public BasePlayer player;
-	     	public ulong arrowtype;
+        }
+
+        class FireBombData
+        {
+             	public BasePlayer player;
+        }
+
+        class FireBallData
+        {
+             	public BasePlayer player;
         }
 
         void Loaded()
@@ -35,11 +45,11 @@ namespace Oxide.Plugins
             	Config.Clear();
             	LoadVariables();
         }
+	
 
 ////////Configuration Stuff////////////////////////////////////////////////////////////////////////////
 
 	static bool ShowArrowTypeIcon = true;
-	static bool ShowFireOnDraw = true;
 	static float DamageFireArrow = 50f;
 	static float DamageFireBall = 200f;
 	static float DamageFireBomb = 500f;
@@ -66,7 +76,6 @@ namespace Oxide.Plugins
         private void LoadConfigVariables()
         {
         	CheckCfg("Icon - Show Arrow Type", ref ShowArrowTypeIcon);
-		CheckCfg("Effects - Show Fire on Arrow Draw", ref ShowFireOnDraw);
         	CheckCfgFloat("Damage - Fire Arrow", ref DamageFireArrow);
         	CheckCfgFloat("Damage - Fire Ball Arrow", ref DamageFireBall);
         	CheckCfgFloat("Damage - Fire Bomb Arrow", ref DamageFireBomb);
@@ -131,66 +140,43 @@ namespace Oxide.Plugins
 			{"deniedarrowtxt", "No Access to This Arrow Tier."}
             	};
 
-////////Player attack trigger////////////////////////////////////////////////////////////////////////
+////////Arrow Damage and FX control////////////////////////////////////////////////////////////////////
 
 	void OnPlayerAttack(BasePlayer player, HitInfo hitInfo)
 	{
-		if (FireArrowOn.ContainsKey(player.userID))
+           	if (usingCorrectWeapon(player))
 		{
-            		if (usingCorrectWeapon(player))
-			{
-				ArrowFX(player, hitInfo);
-				return;
-			}
+			ArrowFX(player, hitInfo);
+			return;
 		}
 	}
 
-////////Sets Arrow types, messages and damages//////////////////////////////////////////////////////////
-
-	void setInitialArrow(BasePlayer player, ulong arrowtype)
+	void ArrowFX(BasePlayer player, HitInfo hitInfo)
 	{
-		FireArrowOn.Remove(player.userID);
-		FireArrowOn.Add(player.userID, new FireArrowData
-		{
-		player = player,
-		arrowtype = 1
-		});
-		SendReply(player, lang.GetMessage("defaultarrowtxt", this));
-		DestroyCui(player);
+		if (FireArrowOn.ContainsKey(player.userID))
+			{
+			FireArrowFX(player, hitInfo);
+			return;
+			}
+		if (FireBallOn.ContainsKey(player.userID))
+			{
+			FireBallFX(player, hitInfo);
+			return;			
+			}
+		if (FireBombOn.ContainsKey(player.userID))
+			{
+			FireBombFX(player, hitInfo);
+			return;
+			}
+		else
 		return;
 	}
 
-	void setFireArrow(BasePlayer player, ulong arrowtype)
+	void FireArrowFX(BasePlayer player, HitInfo hitInfo)
 	{
-		FireArrowOn.Remove(player.userID);
-		FireArrowOn.Add(player.userID, new FireArrowData
-		{
-		player = player,
-		arrowtype = 2
-		});
-		SendReply(player, lang.GetMessage("firearrowtxt", this));
-		DestroyCui(player);
-		SetArrowIcon = IconFireArrow;
-		ArrowGui(player);
-		return;
-	}
+		if (!hasResources(player)) { tellDoesNotHaveMaterials(player); return; }
+		applyBlastDamage(player, DamageFireArrow, Rust.DamageType.Heat, hitInfo);
 
-	bool gotFireArrowReg(BasePlayer player)
-	{
-              	int cloth_amount = player.inventory.GetAmount(94756378);
-		int fuel_amount = player.inventory.GetAmount(28178745);
-		if (cloth == null) return false;
-               	if (cloth_amount >= cloth && fuel_amount >= fuel)
-               		{
-			player.inventory.Take(null, 28178745, fuel);
-			player.inventory.Take(null, 94756378, cloth);
-                  	return true;
-                  	}
-		return false;
-	}
-
-	void setDamageFireArrow(BasePlayer player, HitInfo hitInfo)
-	{
 		Effect.server.Run("assets/bundled/prefabs/fx/impacts/additive/fire.prefab", hitInfo.HitPositionWorld);
 		BaseEntity FireArrow = GameManager.server.CreateEntity("assets/bundled/prefabs/fireball.prefab", hitInfo.HitPositionWorld);
 		FireArrow?.Spawn(true);
@@ -198,24 +184,14 @@ namespace Oxide.Plugins
 		return;
 	}
 
-	void setFireBallArrow(BasePlayer player, ulong arrowtype)
+	void FireBallFX(BasePlayer player, HitInfo hitInfo)
 	{
-		FireArrowOn.Remove(player.userID);
-		FireArrowOn.Add(player.userID, new FireArrowData
-		{
-		player = player,
-		arrowtype = 3
-		});
-		SendReply(player, lang.GetMessage("fireballarrowtxt", this));
-		DestroyCui(player);
-		SetArrowIcon = IconFireBall;
-		ArrowGui(player);
-		return;
-	}
+		if (!hasResources(player)) { tellDoesNotHaveMaterials(player); return; }
+		applyBlastDamage(player, DamageFireBall, Rust.DamageType.Heat, hitInfo);
+		timer.Once(1, () => applyBlastDamage(player, DamageFireBall, Rust.DamageType.Heat, hitInfo));
+		timer.Once(2, () => applyBlastDamage(player, DamageFireBall, Rust.DamageType.Heat, hitInfo));
+		timer.Once(3, () => applyBlastDamage(player, DamageFireBall, Rust.DamageType.Heat, hitInfo));
 
-	void setDamageFireBall(BasePlayer player, HitInfo hitInfo)
-	{
-		
 		Effect.server.Run("assets/bundled/prefabs/fx/survey_explosion.prefab", hitInfo.HitPositionWorld);
 		BaseEntity FireBallArrow = GameManager.server.CreateEntity("assets/bundled/prefabs/napalm.prefab", hitInfo.HitPositionWorld);
 		FireBallArrow?.Spawn(true);
@@ -223,178 +199,17 @@ namespace Oxide.Plugins
 		return;
 	}
 
-	bool gotFireBallReg(BasePlayer player)
+	void FireBombFX(BasePlayer player, HitInfo hitInfo)
 	{
-              	int cloth_amount = player.inventory.GetAmount(94756378);
-		int fuel_amount = player.inventory.GetAmount(28178745);
-		int oil_amount = player.inventory.GetAmount(1983936587);
-		if (cloth == null) return false;
-               	if (cloth_amount >= cloth && fuel_amount >= fuel && oil_amount >= oil)
-               		{
-			player.inventory.Take(null, 28178745, fuel);
-			player.inventory.Take(null, 94756378, cloth);
-			player.inventory.Take(null, 1983936587, oil);
-                  	return true;
-                  	}
-		return false;
-	}
+		if (!hasResources(player)) { tellDoesNotHaveMaterials(player); return; }
+		applyBlastDamage(player, DamageFireBomb, Rust.DamageType.Explosion, hitInfo);
 
-	void setFireBombArrow(BasePlayer player, ulong arrowtype)
-	{
-		FireArrowOn.Remove(player.userID);
-		FireArrowOn.Add(player.userID, new FireArrowData
-		{
-		player = player,
-		arrowtype = 4
-		});
-		SendReply(player, lang.GetMessage("firebombarrowtxt", this));
-		DestroyCui(player);
-		SetArrowIcon = IconFireBomb;
-		ArrowGui(player);
-		return;
-	}
-
-	void setDamageFireBomb(BasePlayer player, HitInfo hitInfo)
-	{
 		Effect.server.Run("assets/bundled/prefabs/fx/weapons/landmine/landmine_explosion.prefab", hitInfo.HitPositionWorld);
 		BaseEntity FireBombArrow = GameManager.server.CreateEntity("assets/bundled/prefabs/oilfireballsmall.prefab", hitInfo.HitPositionWorld);
 		FireBombArrow?.Spawn(true);
 		timer.Once(DurationFireBombArrow, () => FireBombArrow.Kill());
 		return;
 	}
-
-	bool gotFireBombReg(BasePlayer player)
-	{
-        int cloth_amount = player.inventory.GetAmount(94756378);
-	int fuel_amount = player.inventory.GetAmount(28178745);
-	int oil_amount = player.inventory.GetAmount(1983936587);
-	int explosives_amount = player.inventory.GetAmount(1755466030);
-
-		if (cloth == null) return false;
-               	if (cloth_amount >= cloth && fuel_amount >= fuel && oil_amount >= oil && explosives_amount >= explosives)
-               		{
-			player.inventory.Take(null, 28178745, fuel);
-			player.inventory.Take(null, 94756378, cloth);
-			player.inventory.Take(null, 1983936587, oil);
-			player.inventory.Take(null, 1755466030, explosives);
-                  	return true;
-                  	}
-		return false;
-	}
-
-	void setStandardArrow(BasePlayer player, ulong arrowtype)
-	{
-		FireArrowOn.Remove(player.userID);
-		FireArrowOn.Add(player.userID, new FireArrowData
-		{
-		player = player,
-		arrowtype = 1
-		});
-		SendReply(player, lang.GetMessage("defaultarrowtxt", this));
-		DestroyCui(player);
-		return;
-	}
-	
-	void tellNotGrantedArrow(BasePlayer player)
-	{
-	SendReply(player, lang.GetMessage("deniedarrowtxt", this));
-	}
-
-	void tellDoesNotHaveMaterials(BasePlayer player)
-	{
-	SendReply(player, lang.GetMessage("doesnothavemattxt", this));
-	}
-
-
-
-	void OnUpdate(BasePlayer player, InputState input, ulong arrowtype)
-	{
-		if(Input.GetKey("space"))
-		{
-		SendReply(player, lang.GetMessage("doesnothavemattxt", this));
-		}
-	}
-
-	void arrowTogglecheck(BasePlayer player, ulong arrowtype)
-       	{
-	if (!usingCorrectWeapon(player)) return;
-
-	if (!(FireArrowOn.ContainsKey(player.userID)))
-		{
-			setInitialArrow(player, arrowtype);
-			return;
-		}
-		
-		if (FireArrowOn.ContainsKey(player.userID))
-		{
-		foreach (var FireArrowData in FireArrowOn.Values)
-			{
-			if (FireArrowOn[player.userID].arrowtype == 1)
-				{
-					if (!IsAllowed(player, "firearrows.allowed")) 	
-						{ 
-						setFireArrow(player, arrowtype);
-						tellNotGrantedArrow(player);
-						break;		
-						}
-					setFireArrow(player, arrowtype);
-					return;	
-				}
-			if (FireArrowOn[player.userID].arrowtype == 2)
-				{
-					if (!IsAllowed(player, "firearrows.ball.allowed"))
-						{ 
-						setFireBallArrow(player, arrowtype);
-						tellNotGrantedArrow(player);
-						break;		
-						}
-					setFireBallArrow(player, arrowtype);
-					return;
-				}
-				if (FireArrowOn[player.userID].arrowtype == 3)
-				{
-					if (!IsAllowed(player, "firearrows.bomb.allowed"))
-						{ 
-						
-						setFireBombArrow(player, arrowtype);
-						tellNotGrantedArrow(player);
-						break;		
-						}
-					
-					setFireBombArrow(player, arrowtype);
-					return;
-				}
-				if (FireArrowOn[player.userID].arrowtype == 4)
-				{
-					setStandardArrow(player, arrowtype);
-					return;
-				}
-			}
-		return;
-		}
-        }
-
-////////Changed Arrow Type with mousewheel click or chat command//////////////////////////////////////////////////
-
-	void OnPlayerInput(BasePlayer player, InputState input, ulong arrowtype)
-        {
-        	if (input.WasJustPressed(BUTTON.FIRE_THIRD))
-		{
-		arrowTogglecheck(player, arrowtype);
-		}
-        	if (input.IsDown(BUTTON.FIRE_SECONDARY))
-		{
-		preFireFX(player);
-		}
-	}
-
-	[ChatCommand("firearrow")]
-        void cmdChatfirearrow(BasePlayer player, string command, string[] args, ulong arrowtype)
-	{
-	arrowTogglecheck(player, arrowtype);
-	}
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	void applyBlastDamage(BasePlayer player, float damageamount, Rust.DamageType damagetype, HitInfo hitInfo)
 	{
@@ -409,92 +224,164 @@ namespace Oxide.Plugins
 
 		foreach (BaseCombatEntity p in playerlist)
                 {
-		if (p is BuildingPrivlidge) return;
-		p.Hurt(damageamount, damagetype, player, true);
+		if (!(p is BuildingPrivlidge))
+			{
+			p.Hurt(damageamount, damagetype, player, true);
+			}
                 }
 	}
 
-////////Displays arrow effects and applies damages////////////////////////////////////////////////////////////
+////////Arrow Toggle Control ////////////////////////////////////////////////////////////////////////////
 
-	void preFireFXeffect(BasePlayer player)
-	{
-	timer.Once(0.5f, () => Effect.server.Run("assets/bundled/prefabs/fx/impacts/additive/fire.prefab", player.eyes.position + player.eyes.BodyForward()));
+	void OnPlayerInput(BasePlayer player, InputState input)
+        {
+        	if (input.WasJustPressed(BUTTON.FIRE_THIRD))
+		{
+			ToggleArrowType(player);
+		}
 	}
 
-	void preFireFX(BasePlayer player)
+	[ChatCommand("firearrow")]
+        void cmdChatfirearrow(BasePlayer player, string command, string[] args, ulong arrowtype)
 	{
+		ToggleArrowType(player);
+	}
+
+	void ToggleArrowType(BasePlayer player)
+       	{
 		if (!usingCorrectWeapon(player)) return;
-		if (!ShowFireOnDraw) return;
-		if (!(FireArrowOn.ContainsKey(player.userID)))
-		{
-			return;
-		}
 
 		if (FireArrowOn.ContainsKey(player.userID))
-			foreach (var FireArrowData in FireArrowOn.Values)
-				{
+		{
+			FireBallToggle(player);
+			return;	
+		}
+		if (FireBallOn.ContainsKey(player.userID))
+		{
+			FireBombToggle(player);
+			return;
+		}
+		if (FireBombOn.ContainsKey(player.userID))
+		{
+			NormalArrowToggle(player);
+			return;
+		}
+		if ((!FireArrowOn.ContainsKey(player.userID)) || (!FireBallOn.ContainsKey(player.userID)) || (!FireBombOn.ContainsKey(player.userID)))
+		{
+			FireArrowToggle(player);
+			return;
+		}
+		else
+		NormalArrowToggle(player);
+		return;
+        }
 
-					if (FireArrowOn[player.userID].arrowtype == 1)
-					{
-					return;
-					}
-					if (FireArrowOn[player.userID].arrowtype == 2 && IsAllowed(player, "firearrows.allowed"))
-					{
-						preFireFXeffect(player);
-					}
-					if (FireArrowOn[player.userID].arrowtype == 3 && IsAllowed(player, "firearrows.ball.allowed"))
-					{
-						preFireFXeffect(player);
-					}
-					if (FireArrowOn[player.userID].arrowtype == 4 && IsAllowed(player, "firearrows.bomb.allowed"))
-					{
-						preFireFXeffect(player);
-					}
-				}
+	void NormalArrowToggle(BasePlayer player)
+	{
+		DestroyArrowData(player);
+		SendReply(player, lang.GetMessage("defaultarrowtxt", this));
+		DestroyCui(player);
+		return;
 	}
 
-
-	void ArrowFX(BasePlayer player, HitInfo hitInfo)
+	void FireArrowToggle(BasePlayer player)
 	{
-			if (!(FireArrowOn.ContainsKey(player.userID)))
+		if (!IsAllowed(player, "firearrows.allowed"))
 			{
+			FireBallToggle(player);
 			return;
 			}
+		DestroyArrowData(player);
+		FireArrowOn.Add(player.userID, new FireArrowData
+		{
+		player = player,
+		});
+		SendReply(player, lang.GetMessage("firearrowtxt", this));
+		DestroyCui(player);
+		ArrowGui(player);
+		return;
+	}
 
-			if (FireArrowOn.ContainsKey(player.userID))
+	void FireBallToggle(BasePlayer player)
+	{
+		if (!IsAllowed(player, "firearrows.ball.allowed"))
 			{
-				foreach (var FireArrowData in FireArrowOn.Values)
-				{
+			FireBombToggle(player);
+			return;
+			}
+		DestroyArrowData(player);
+		FireBallOn.Add(player.userID, new FireBallData
+		{
+		player = player,
+		});
+		SendReply(player, lang.GetMessage("fireballarrowtxt", this));
+		DestroyCui(player);
+		ArrowGui(player);
+		return;
+	}
 
-					if (FireArrowOn[player.userID].arrowtype == 1)
-					{
-					return;
-					}
-					if (FireArrowOn[player.userID].arrowtype == 2 && IsAllowed(player, "firearrows.allowed"))
-					{
-						if (!gotFireArrowReg(player)) { tellDoesNotHaveMaterials(player); return; }
-							applyBlastDamage(player, DamageFireArrow, Rust.DamageType.Heat, hitInfo);
-							setDamageFireArrow(player, hitInfo);
-							return;
-					}
-					if (FireArrowOn[player.userID].arrowtype == 3 && IsAllowed(player, "firearrows.ball.allowed"))
-					{
-						if (!gotFireBallReg(player)) { tellDoesNotHaveMaterials(player); return; }
-							applyBlastDamage(player, DamageFireBall, Rust.DamageType.Heat, hitInfo);
-							setDamageFireBall(player, hitInfo);
-							return;
-						
-					}
-					if (FireArrowOn[player.userID].arrowtype == 4 && IsAllowed(player, "firearrows.bomb.allowed"))
-					{
-						if (!gotFireBombReg(player)) { tellDoesNotHaveMaterials(player); return; }
-						applyBlastDamage(player, DamageFireBomb, Rust.DamageType.Explosion, hitInfo);	
-						setDamageFireBomb(player, hitInfo);
-						return;
-					}
+	void FireBombToggle(BasePlayer player)
+	{
+		if (!IsAllowed(player, "firearrows.bomb.allowed"))
+			{
+			NormalArrowToggle(player);
+			return;
+			}
+		DestroyArrowData(player);
+		FireBombOn.Add(player.userID, new FireBombData
+		{
+		player = player,
+		});
+		SendReply(player, lang.GetMessage("firebombarrowtxt", this));
+		DestroyCui(player);
+		ArrowGui(player);
+		return;
+	}
+
+///////////Checks to see if player has resources for Arrow///////////////////////////////////////
+
+	bool hasResources(BasePlayer player)
+	{
+		int cloth_amount = player.inventory.GetAmount(94756378);
+		int fuel_amount = player.inventory.GetAmount(28178745);
+		int oil_amount = player.inventory.GetAmount(1983936587);
+		int explosives_amount = player.inventory.GetAmount(1755466030);
+
+		if (FireArrowOn.ContainsKey(player.userID))
+			{
+			if (cloth_amount >= cloth && fuel_amount >= fuel)
+				{
+				player.inventory.Take(null, 28178745, fuel);
+				player.inventory.Take(null, 94756378, cloth);
+				return true;
 				}
+			return false;
+			}
+		if (FireBallOn.ContainsKey(player.userID))
+			{
+			if (cloth_amount >= cloth && fuel_amount >= fuel && oil_amount >= oil)
+				{
+				player.inventory.Take(null, 28178745, fuel);
+				player.inventory.Take(null, 94756378, cloth);
+				player.inventory.Take(null, 1983936587, oil);
+				return true;
+				}
+			return false;
+			}
+		if (FireBombOn.ContainsKey(player.userID))
+			{
+			if (cloth_amount >= cloth && fuel_amount >= fuel && oil_amount >= oil && explosives_amount >= explosives)
+				{
+				player.inventory.Take(null, 28178745, fuel);
+				player.inventory.Take(null, 94756378, cloth);
+				player.inventory.Take(null, 1983936587, oil);
+				player.inventory.Take(null, 1755466030, explosives);
+				return true;
+				}
+			return false;
 			}
 
+	return false;
 	}
 
 ////////Shows Arrow type icons on player screen////////////////////////////////////////////////////////////////
@@ -512,25 +399,62 @@ namespace Oxide.Plugins
         GuiInfoFA[player.userID] = CuiHelper.GetGuid();
 
         if (ShowArrowTypeIcon)
-        {
+	{
+		if (FireArrowOn.ContainsKey(player.userID))
+        	{
         	elements.Add(new CuiElement
-                {
-                    Name = GuiInfoFA[player.userID],
-                    Components =
-                    {
-                        new CuiRawImageComponent { Color = "1 1 1 1", Url = SetArrowIcon },
-                        new CuiRectTransformComponent { AnchorMin = "0.100 0.04",  AnchorMax = "0.15 0.12"}
-                    }
-                });
-            }
+                	{
+                    	Name = GuiInfoFA[player.userID],
+                    	Components =
+                    		{
+                        	new CuiRawImageComponent { Color = "1 1 1 1", Url = IconFireArrow, Sprite = "assets/content/textures/generic/fulltransparent.tga" },
+                        	new CuiRectTransformComponent { AnchorMin = "0.100 0.04",  AnchorMax = "0.15 0.12"}
+                    		}
+                	});
+         	}
+        	if (FireBallOn.ContainsKey(player.userID))
+        	{
+        	elements.Add(new CuiElement
+                	{
+                    	Name = GuiInfoFA[player.userID],
+                    	Components =
+                    		{
+                        	new CuiRawImageComponent { Color = "1 1 1 1", Url = IconFireBall, Sprite = "assets/content/textures/generic/fulltransparent.tga" },
+                        	new CuiRectTransformComponent { AnchorMin = "0.100 0.04",  AnchorMax = "0.15 0.12"}
+                    		}
+                	});
+         	}
+		if (FireBombOn.ContainsKey(player.userID))
+        	{
+        	elements.Add(new CuiElement
+                	{
+                    	Name = GuiInfoFA[player.userID],
+                    	Components =
+                    		{
+                        	new CuiRawImageComponent { Color = "1 1 1 1", Url = IconFireBomb, Sprite = "assets/content/textures/generic/fulltransparent.tga" },
+                        	new CuiRectTransformComponent { AnchorMin = "0.100 0.04",  AnchorMax = "0.15 0.12"}
+                    		}
+                	});
+         	}
 
-            CuiHelper.AddUi(player, elements);
-	   //timer.Once(3f, () => DestroyCui(player));
+	}
+         CuiHelper.AddUi(player, elements);
         }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////Helpers////////////////////////////////////////////////////////////////////////////////
+	
+	void tellNotGrantedArrow(BasePlayer player)
+	{
+	SendReply(player, lang.GetMessage("deniedarrowtxt", this));
+	}
 
-        bool IsAllowed(BasePlayer player, string perm)
+	void tellDoesNotHaveMaterials(BasePlayer player)
+	{
+	SendReply(player, lang.GetMessage("doesnothavemattxt", this));
+	}
+        
+
+	bool IsAllowed(BasePlayer player, string perm)
         {
         	if (permission.UserHasPermission(player.userID.ToString(), perm)) return true;
         	return false;
@@ -550,16 +474,34 @@ namespace Oxide.Plugins
 		if (GuiInfoFA.TryGetValue(player.userID, out guiInfo)) CuiHelper.DestroyUi(player, guiInfo);
 	}
 
+	void DestroyArrowData(BasePlayer player)
+		{
+		if (FireArrowOn.ContainsKey(player.userID))
+			{
+			FireArrowOn.Remove(player.userID);
+			}
+		if (FireBallOn.ContainsKey(player.userID))
+			{
+			FireBallOn.Remove(player.userID);
+			}
+		if (FireBombOn.ContainsKey(player.userID))
+			{
+			FireBombOn.Remove(player.userID);
+			}
+		else
+		return;
+		}
+
 	void OnPlayerRespawned(BasePlayer player)
 	{
                 DestroyCui(player);
-		FireArrowOn.Remove(player.userID);
+		DestroyArrowData(player);
 	}
 
 	void OnPlayerDisconnected(BasePlayer player, string reason)
 	{
                 DestroyCui(player);
-		FireArrowOn.Remove(player.userID);
+		DestroyArrowData(player);
 	}
 
     }

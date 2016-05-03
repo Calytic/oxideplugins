@@ -1,8 +1,8 @@
 {
-    "name": "Authentication",
-    "description": "Players must enter a password after they wake up or else they'll be kicked.",
+    "name": "GUI Announcements",
+    "description": "Creates announcements with custom messages across the top of every player's screen.",
     "author": "",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "configuration": true,
     "language": "cs",
     "games": [

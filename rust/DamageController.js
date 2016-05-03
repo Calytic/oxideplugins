@@ -2,7 +2,7 @@
  * DamageController
  * By VisionMise
  * 
- * - Powered by VisionEngine -
+ * - Powered by ProtoRust -
  * 
  * Damage Controller uses rule-based game modes to control when damage is
  * dealt to players and objects.
@@ -14,9 +14,9 @@
  * 
  * See README.md for more information
  * 
- * Last Updated April 2016
+ * Last Updated April 20 2016
  * 
- * @version 0.1.2
+ * @version 0.2.5
  * @author VisionMise
  * @repo http://git.kuhlonline.com:8000/rust/damageController.git
  */
@@ -26,16 +26,23 @@
 
     /**
      * engineVersion
-     * @type [String] Version of VisionEngine
+     * @type [String] Version of ProtoRust
      */
-    var engineVersion   = '0.5.2';
+    var engineVersion   = '0.5.4';
+    
+    
+    /**
+     * Plugin Version
+     * @type [String] Version of DamageController
+     */
+    var pluginVersion   = '0.2.5';
     
     
     /**
      * configVersion
      * @type [String] Version of DamageController Config
      */
-    var configVersion   = '1.0.10';
+    var configVersion   = '1.2.7';
     
     
     /**
@@ -45,7 +52,7 @@
      * Developers may want it set to about 3 or 4
      * @type [Integer] debugLevel
      */
-    var debugLevel      = 3;
+    var debugLevel      = 0;
     
     
     /**
@@ -55,18 +62,18 @@
      * attacker and victim types.
      * @type [Boolean] genList
      */
-    var genList         = true;
+    var genList         = false;
 
 
 /**
- * VisionEngine
+ * ProtoRust
  * 
  * Still in alpha, the engine works as a global object
  * central to all functions and responsible for all
  * operations and cross-object method calls and can be
  * used independently or in any OxideMod Plugin
  * 
- * @version 0.5.2
+ * @version 0.5.4
  * @author VisionMise
  * 
  * @param [Object] plugin           The OxideMod Plugin Object
@@ -74,8 +81,9 @@
  * @param [Object] rust             The OxideMod Rust Interop Object
  * @param [Object] data             The OxideMod Data Object
  * @param [Object] dmgController    Custom DamageController OxideMod Plugin Object
+ * @param [String] pluginName       The name of the plugin
  */
-var visionEngine = function(plugin, config, rust, data, dmgController) {
+var ProtoRust = function(oxide_plugin, oxide_config, oxide_rust, oxide_data, dmgController, pluginName) {
     /** Engine Variables */
         
         /**
@@ -97,6 +105,18 @@ var visionEngine = function(plugin, config, rust, data, dmgController) {
          * @type [Object] Extensions catalog
          */
         this.extensions         = {};
+        
+        
+        this.logger     = {};
+        this.events     = {};
+        this.plugin     = {};
+        this.controller = {};
+        this.config     = {};
+        this.data       = {};
+        this.modes      = {};
+        this.rust       = {};
+        this.commands   = {};
+        this.pluginName = '';
     
     
     /** Controllers */
@@ -111,6 +131,7 @@ var visionEngine = function(plugin, config, rust, data, dmgController) {
         
         /**
          * DamageController Mode Controller
+         * @todo remove from engine and move to extension
          */  
         this.modeController     = function() {
             
@@ -119,6 +140,8 @@ var visionEngine = function(plugin, config, rust, data, dmgController) {
             
             /**@type [Object] modeConf Stores the rules for the Mode */
             this.modeConf       = {};
+            
+            this.eventConf      = {};
             
             /** 
              * Init
@@ -130,9 +153,22 @@ var visionEngine = function(plugin, config, rust, data, dmgController) {
                     : 'pvp'
                 ;
                 
+                this.eventConf  = engine.config.settings['events'];
+                
                 engine.logger.debug("Set Damage Mode: " + this.mode, 1);
                 
                 return this.preLoadRules();
+            };
+            
+            this.setMode        = function(mode) {
+                engine.config.settings['gameMode'] =  mode;
+                engine.config.save();
+                
+                engine.logger.debug("Changed mode to " + mode, 3);
+                var popups      = engine.extensions['extPopupNotifications'];
+                popups.notify("Game mode changed to " + mode);
+                
+                return this.init();
             };
             
             /**
@@ -140,8 +176,8 @@ var visionEngine = function(plugin, config, rust, data, dmgController) {
              * Loads the rules for the given DamageController mode in to memory
              */
             this.preLoadRules   = function() {
-                this.modeConf   = (engine.config.settings['modes'][this.mode])
-                    ? engine.config.settings['modes'][this.mode]
+                this.modeConf   = (engine.config.settings['gameModes'][this.mode])
+                    ? engine.config.settings['gameModes'][this.mode]
                     : {}
                 ;
                 
@@ -155,7 +191,7 @@ var visionEngine = function(plugin, config, rust, data, dmgController) {
         };
         
         /**
-         * DamageController Log Controller
+         * ProtoRust Log Controller
          */  
         this.logController      = function() {
             
@@ -172,7 +208,7 @@ var visionEngine = function(plugin, config, rust, data, dmgController) {
              * Sends text to the console
              */
             this.send           = function(text) {
-                print("DMG> " + text);
+                print("[DamageController] " + text);
             };
             
             /**
@@ -182,7 +218,7 @@ var visionEngine = function(plugin, config, rust, data, dmgController) {
              */
             this.debug          = function(text, level) {
                 if (!level) level = 1;
-                if (level <= debugLevel) print ("DMG ["+ level +"]> "+ text);  
+                if (level <= debugLevel) print ("[DamageController] ["+ level +"]> "+ text);  
             };
             
             /** return constructed object */
@@ -206,10 +242,10 @@ var visionEngine = function(plugin, config, rust, data, dmgController) {
              * Constructs Object and loads config
              * @param [Object] config   The OxideMod Config Object
              */
-            this.init           = function(oxideConfig) {
-                if (!oxideConfig) return;
+            this.init           = function(cfg) {
+                if (!cfg) return;
                 
-                this.config     = oxideConfig;
+                this.config     = cfg;
                 this.settings   = this.config.Settings || false;
                 
                 //Create config if it doesn't exist
@@ -221,6 +257,7 @@ var visionEngine = function(plugin, config, rust, data, dmgController) {
                 var confVersion = this.settings['configVersion'];
                 
                 engine.logger.debug("Config version " + confVersion + " Loaded", 1);
+                return this;
             };
             
             /**
@@ -267,6 +304,12 @@ var visionEngine = function(plugin, config, rust, data, dmgController) {
                 
                 engine.controller.interop.SaveConfig();
                 engine.logger.debug("Config Updated", 2);
+                return this;
+            };
+            
+            this.save           = function() {
+                this.config.Settings    = this.settings;
+                engine.controller.interop.SaveConfig();  
                 return this;
             };
             
@@ -334,7 +377,8 @@ var visionEngine = function(plugin, config, rust, data, dmgController) {
         };
         
         /**
-         * Damage Controller
+         * Plugin Interop
+         * @todo Change from Plugin Dependent to generic interop object for portability
          * @param [Object] OxideMod DamageController Object
          */  
         this.dmgController      = function(damageController) {
@@ -357,7 +401,7 @@ var visionEngine = function(plugin, config, rust, data, dmgController) {
         };
         
         /**
-         * DamageController Event Controller
+         * ProtoRust Event Controller
          * Handles Event Hooks and Event Raising
          */  
         this.eventController    = function() {
@@ -384,7 +428,7 @@ var visionEngine = function(plugin, config, rust, data, dmgController) {
                 if (!this.hooks[eventName]) return;
                 if (!engine.extensionsReady || !engine.ready) return;
                 
-                engine.logger.debug("Raised Event: " + eventName, 6);
+                engine.logger.debug("Raised Event: " + eventName, 5);
                 
                 var exts        = this.hooks[eventName];
                 var result      = undefined;
@@ -437,7 +481,87 @@ var visionEngine = function(plugin, config, rust, data, dmgController) {
             /** Return constructed object */
             return this.init();
         };
-    
+        
+        /**
+         * DamageController Command Controller
+         * Handles commands from chat and console
+         * @todo Move to extension and remove from engine, commands are plugin dependent not engine dependent
+         */
+        this.commandController  = function() {
+            
+            this.init           = function() {
+                return this;
+            };
+            
+            this.damageCMD      = function(arg, player) {
+                
+                var subCmd  = (arg[0]) ? arg[0].toLowerCase().trim() : '';                
+                engine.logger.debug("CMD: " + subCmd + " => " + arg[1], 3);
+                
+                if (!subCmd) {
+                    if (player) {
+                        engine.sendChat(player, "Game mode is " + engine.modes.mode);
+                        return;
+                    } else {
+                        engine.logger.send("Game mode is " + engine.modes.mode);
+                    }
+                }
+                
+                var funcName    = "cmd_" + subCmd;
+                
+                if (!this[funcName]) {
+                    if (player) {
+                        engine.sendChat(player, "Command not understood: " + subCmd);
+                    } else {
+                        engine.logger.send("Command not understood: " + subCmd);
+                    }
+                    return;
+                }
+                
+                return this[funcName](arg, player);
+            };
+            
+            this.cmd_mode       = function(arg, player) {
+                
+                var newMode     = (arg[1]) ? arg[1] : '';
+                var msg         = '';
+                
+                if (player) {
+                    if (newMode != '' && player.IsAdmin()) {
+                        engine.modes.setMode(newMode);
+                        msg     = "Game mode changed to " + newMode;
+                        engine.logger.send(msg);
+                    } else {
+                        msg     = "Game mode is " + engine.modes.mode;
+                        engine.sendChat(player, msg);    
+                    }                    
+                } else {
+                    if (newMode) {
+                        engine.modes.setMode(newMode);
+                        msg     = "Game mode changed to " + newMode;
+                        engine.logger.send(msg);
+                    } else {
+                        msg     = "Game mode is " + engine.modes.mode;
+                        engine.logger.send(msg);
+                    }
+                }               
+                
+                return msg;
+            };
+            
+            return this.init();
+        };
+        
+        
+        /**
+         * Send a Chat Message
+         * @global
+         */
+        this.sendChat           = function(player, msg) {
+            rust.SendChatMessage(player.ToPlayer(), msg);
+            return this;  
+        };
+
     
     /** Contructor */
     
@@ -450,8 +574,9 @@ var visionEngine = function(plugin, config, rust, data, dmgController) {
          * @param [Object] data             The OxideMod Data Object
          * @param [Object] dmgController    Custom DamageController OxideMod Plugin Object
          */
-        this.init           = function(oxidePlugin, oxideConfig, oxideRust, oxideData, dmgController) {
+        this.init           = function(oxidePlugin, oxideConfig, oxideRust, oxideData, dmgController, pluginName) {
             
+            this.pluginName = pluginName;
             this.logger     = new this.logController();
             this.events     = new this.eventController();
             
@@ -461,6 +586,7 @@ var visionEngine = function(plugin, config, rust, data, dmgController) {
             this.data       = new this.dataController(oxideData);
             this.modes      = new this.modeController();
             this.rust       = new this.rustController(oxideRust);
+            this.commands   = new this.commandController();
             
             this.ready      = true;
             this.loadExtensions();
@@ -473,180 +599,537 @@ var visionEngine = function(plugin, config, rust, data, dmgController) {
     
         /**
          * Bootstrap
-         * 
+         * @todo Move to outside engine
          * Basic Engine options and default configuration
          */
         this.bootstrap      = function() {
             
-            this.config     = {};
+            this.config             = {};
+            this.chatCommands       = {};
+            this.consoleCommands    = {};
             
             this.init       = function() {
                 
                 this.config = {
                     "engineVersion":    engineVersion,
                     "configVersion":    configVersion,
-                    "gameMode":         "The Purge",
-                    "modes": {
-                        "Safehouse": {
-                            "Rule 1 - Protect the Owner": {
-                                "action": "protect",
-                                "conditions": [
-                                    "victim.GetType = BasePlayer",
-                                    "attacker.GetType = BasePlayer",
-                                    "victim.CanBuild = 1",
-                                    "attacker.CanBuild = 0"
-                                ]
-                            },
-                            "Rule 2 - Protect the Owners' Stuff only if they locked it": {
-                                "action": "protect",
-                                "conditions": [
-                                    "victim.GetType = StorageContainer",
-                                    "victim.Locked = 1",
-                                    "attacker.CanBuild = 0"
-                                ]
-                            },
-                            "Rule 3 - Protect the Owners' Abode": {
-                                "action": "protect",
-                                "conditions": [
-                                    "victim.GetType = BuildingBlock",
-                                    "attacker.CanBuild = 0"
-                                ]
-                            }
-                        },
-                        "Safehouse Purge": {
-                            "Rule 1 - Protect the Owner during the day": {
-                                "action": "protect",
-                                "conditions": [
-                                    "victim.GetType = BasePlayer",
-                                    "attacker.GetType = BasePlayer",
-                                    "victim.CanBuild = 1",
-                                    "attacker.CanBuild = 0",
-                                    "env.isDay = 1"
-                                ]
-                            },
-                            "Rule 2 - Protect the Owners' Stuff only if they locked it during the day": {
-                                "action": "protect",
-                                "conditions": [
-                                    "victim.GetType = StorageContainer",
-                                    "victim.Locked = 1",
-                                    "attacker.CanBuild = 0",
-                                    "env.isDay = 1"
-                                ]
-                            },
-                            "Rule 3 - Protect the Owners' Abode during the day": {
-                                "action": "protect",
-                                "conditions": [
-                                    "victim.GetType = BuildingBlock",
-                                    "attacker.CanBuild = 0",
-                                    "env.isDay = 1"
-                                ]
-                            }
-                        },
-                        "Quiet House": {
-                            "Rule 1 - Protect the Owner during the night": {
-                                "action": "protect",
-                                "conditions": [
-                                    "victim.GetType = BasePlayer",
-                                    "attacker.GetType = BasePlayer",
-                                    "victim.CanBuild = 1",
-                                    "attacker.CanBuild = 0",
-                                    "env.isNight = 1"
-                                ]
-                            },
-                            "Rule 2 - Protect the Owners' Stuff only if they locked it during the night": {
-                                "action": "protect",
-                                "conditions": [
-                                    "victim.GetType = StorageContainer",
-                                    "victim.Locked = 1",
-                                    "attacker.CanBuild = 0",
-                                    "env.isNight = 1"
-                                ]
-                            },
-                            "Rule 3 - Protect the Owners' Abode during the night": {
-                                "action": "protect",
-                                "conditions": [
-                                    "victim.GetType = BuildingBlock",
-                                    "attacker.CanBuild = 0",
-                                    "env.isNight = 1"
-                                ]
-                            }
-                        },
+                    "gameMode":         "Light PVP",
+                    "events": {
                         "The Purge": {
-                            "Rule 1 - PVP at night": {
-                                "action": "damage",
-                                "conditions": [
-                                    "victim.GetType = BasePlayer",
-                                    "attacker.GetType = BasePlayer",
-                                    "env.isNight = 1"
-                                ]
-                            },
-                            "Rule 2 - PVE at day": {
-                                "action": "protect",
-                                "conditions": [
-                                    "victim.GetType = BasePlayer",
-                                    "attacker.GetType = BasePlayer",
-                                    "env.isDay = 1"
-                                ]
-                            }
+                            "day": "[PVE MODE]\nIt is now Daytime and PVP is restricted",
+                            "night": "[PVP MODE]\nIt is now Night and PVP is allowed"
                         },
                         "Quiet Night": {
-                            "Rule 1 - PVE at night": {
-                                "action": "protect",
-                                "conditions": [
-                                    "victim.GetType = BasePlayer",
-                                    "attacker.GetType = BasePlayer",
-                                    "env.isNight = 1"
+                            "night": "[PVE MODE]\nIt is now Night and PVP is restricted",
+                            "day": "[PVP MODE]\nIt is now Day and PVP is allowed"
+                        },
+                        "Safehouse Purge": {
+                            "night": "[SPECIAL PVP MODE]\nIt is now Night and PVP is allowed except for inside player homes",
+                            "day": "[SPECIAL PVE MODE]\nIt is now Daytime and PVP is restricted everywhere"
+                        }
+                    },
+                    "gameModes": {
+                        
+                        "Safehouse Purge": {
+                            "BasePlayer": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Player at Home during the day",
+                                        "conditions": [
+                                            "attacker.GetType = BasePlayer",
+                                            "attacker.CanBuild = 0",
+                                            "victim.CanBuild = 1",
+                                            "env.isDay = 1"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
                                 ]
                             },
-                            "Rule 2 - PVP at day": {
-                                "action": "damage",
-                                "conditions": [
-                                    "victim.GetType = BasePlayer",
-                                    "attacker.GetType = BasePlayer",
-                                    "env.isDay = 1"
+                            "Door": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Door at Home during the day",
+                                        "conditions": [
+                                            "attacker.GetType = BasePlayer",
+                                            "attacker.CanBuild = 0",
+                                            "env.isDay = 1"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            },
+                            "StorageContainer": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Locked Storage Containers at Home during the day",
+                                        "conditions": [
+                                            "attacker.GetType = BasePlayer",
+                                            "attacker.CanBuild = 0",
+                                            "victim.locked = 1",
+                                            "env.isDay = 1"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            },
+                            "BuildingBlock": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Buildings at Home during the day",
+                                        "conditions": [
+                                            "attacker.GetType = BasePlayer",
+                                            "attacker.CanBuild = 0",
+                                            "env.isDay = 1"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
                                 ]
                             }
                         },
-                        "PVP": {
-                            "Rule 1 - Protect Players": {
-                                "action": "damage",
-                                "conditions": [
-                                    "victim.GetType = BasePlayer",
-                                    "attacker.GetType = BasePlayer"
-                                ]    
+                        
+                        "Safehouse": {
+                            "BasePlayer": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Player at Home",
+                                        "conditions": [
+                                            "attacker.GetType = BasePlayer",
+                                            "attacker.CanBuild = 0",
+                                            "victim.CanBuild = 1"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            },
+                            "Door": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Door at Home",
+                                        "conditions": [
+                                            "attacker.GetType = BasePlayer",
+                                            "attacker.CanBuild = 0"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            },
+                            "StorageContainer": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Locked Storage Containers at Home",
+                                        "conditions": [
+                                            "attacker.GetType = BasePlayer",
+                                            "attacker.CanBuild = 0",
+                                            "victim.locked = 1"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            },
+                            "BuildingBlock": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Buildings at Home",
+                                        "conditions": [
+                                            "attacker.GetType = BasePlayer",
+                                            "attacker.CanBuild = 0"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
                             }
-                        }, 
+                        },
+                        
+                        "The Purge": {
+                            "BasePlayer": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Player during the day",
+                                        "conditions": [
+                                            "attacker.GetType = BasePlayer",
+                                            "env.isDay = 1"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            },
+                            "Door": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Door during the day",
+                                        "conditions": [
+                                            "attacker.GetType = BasePlayer",
+                                            "env.isDay = 1"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            },
+                            "StorageContainer": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Locked Storage Containers during the day",
+                                        "conditions": [
+                                            "attacker.GetType = BasePlayer",
+                                            "victim.locked = 1",
+                                            "env.isDay = 1"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            },
+                            "BuildingBlock": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Buildings during the day",
+                                        "conditions": [
+                                            "attacker.GetType = BasePlayer",
+                                            "env.isDay = 1"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        
+                        "Quiet Night": {
+                            "BasePlayer": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Player during the night",
+                                        "conditions": [
+                                            "attacker.GetType = BasePlayer",
+                                            "env.isNight = 1"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            },
+                            "Door": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Door during the night",
+                                        "conditions": [
+                                            "attacker.GetType = BasePlayer",
+                                            "env.isNight = 1"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            },
+                            "StorageContainer": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Locked Storage Containers during the night",
+                                        "conditions": [
+                                            "attacker.GetType = BasePlayer",
+                                            "victim.locked = 1",
+                                            "env.isNight = 1"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            },
+                            "BuildingBlock": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Buildings during the night",
+                                        "conditions": [
+                                            "attacker.GetType = BasePlayer",
+                                            "env.isNight = 1"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        
+                        "Sleepy": {
+                            "BasePlayer": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Sleepers",
+                                        "conditions": [
+                                            "victim.isSleeping = 1"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        
+                        "Save the wounded": {
+                            "BasePlayer": {
+                                "rules": [
+                                    {
+                                        "name": "Protect the Wounded",
+                                        "conditions": [
+                                            "victim.isWounded = 1"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        
+                        "Admin Gods": {
+                            "BasePlayer": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Admins",
+                                        "conditions": [
+                                            "victim.isAdmin = 1"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        
+                        "Locked means no": {
+                            "Door": {
+                                "rules": [
+                                    {
+                                        "name": "Protect doors",
+                                        "conditions": [
+                                            "victim.locked = 1"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            },
+                            "StorageContainer": {
+                                "rules": [
+                                    {
+                                        "name": "Protect storage containers",
+                                        "conditions": [
+                                            "victim.locked = 1"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        
+                        "Light PVP": {
+                            "BasePlayer": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Player at Home",
+                                        "conditions": [
+                                            "attacker.GetType = BasePlayer",
+                                            "attacker.CanBuild = 0",
+                                            "victim.CanBuild = 1"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    },
+                                    {
+                                        "name": "Protect the Wounded",
+                                        "conditions": [
+                                            "victim.isWounded = 1",
+                                            "attacker.CanBuild = 0"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    },
+                                    {
+                                        "name": "Protect Sleepers",
+                                        "conditions": [
+                                            "victim.isSleeping = 1",
+                                            "attacker.CanBuild = 0"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            },
+                            "Door": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Doors at Home",
+                                        "conditions": [
+                                            "attacker.GetType = BasePlayer",
+                                            "attacker.CanBuild = 0"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            },
+                            "StorageContainer": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Locked Storage Containers at Home",
+                                        "conditions": [
+                                            "attacker.GetType = BasePlayer",
+                                            "attacker.CanBuild = 0",
+                                            "victim.locked = 1"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            },
+                            "BuildingBlock": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Buildings",
+                                        "conditions": [
+                                            "attacker.GetType = BasePlayer"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            },
+                            "BuildingPrivlidge": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Tool Cupboards",
+                                        "conditions": [
+                                            "victim.GetType = BuildingPrivlidge",
+                                            "attacker.CanBuild = 0"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        
                         "PVE": {
-                            "Rule 1 - Protect Players": {
-                                "action": "protect",
-                                "conditions": [
-                                    "victim.GetType = BasePlayer",
-                                    "attacker.GetType = BasePlayer"
-                                ]    
-                            },
-                            "Rule 2 - Protect Buildings": {
-                                "action": "protect",
-                                "conditions": [
-                                    "attacker.GetType = BasePlayer",
-                                    "victim.GetType = BuildingBlock"
+                            "BasePlayer": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Players",
+                                        "conditions": [
+                                            "attacker.GetType = BasePlayer"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
                                 ]
                             },
-                            "Rule 3 - Protect Doors": {
-                                "action": "protect",
-                                "conditions": [
-                                    "attacker.GetType = BasePlayer",
-                                    "victim.GetType = Door"
+                            "Door": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Door",
+                                        "conditions": [
+                                            "attacker.GetType = BasePlayer",
+                                            "attacker.CanBuild = 0"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
                                 ]
                             },
-                            "Rule 4 - Protect Containers": {
-                                "action": "protect",
-                                "conditions": [
-                                    "attacker.GetType = BasePlayer",
-                                    "victim.GetType = StorageContainer"
+                            "StorageContainer": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Storage Containers",
+                                        "conditions": [
+                                            "attacker.GetType = BasePlayer",
+                                            "attacker.CanBuild = 0"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
                                 ]
-                            }            
-                        }
-                    }  
+                            },
+                            "BuildingBlock": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Buildings",
+                                        "conditions": [
+                                            "attacker.GetType = BasePlayer",
+                                            "attacker.CanBuild = 0"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            },
+                            "BuildingPrivlidge": {
+                                "rules": [
+                                    {
+                                        "name": "Protect Tool Cupboards",
+                                        "conditions": [
+                                            "victim.GetType = BuildingPrivlidge",
+                                            "attacker.CanBuild = 0"
+                                        ],
+                                        "action": {
+                                            "type": "protect"
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        
+                        "PVP": {}
+                        
+                    }
+                };
+                
+                this.chatCommands   = {
+                    "dmg": "damageCMD"
+                };
+                
+                this.consoleCommands   = {
+                    "mode": "damageCMD"
                 };
                 
                 return this;  
@@ -655,8 +1138,13 @@ var visionEngine = function(plugin, config, rust, data, dmgController) {
             return this.init();  
         };
         
-        this.notify         = function() {
-              return "http://rust.kuhlonline.com/dmg?version=" + engineVersion;
+        
+        /**
+         * Home (Server Host) Location
+         * Checks in with server so
+         */
+        this.location       = function() {
+              return "http://rust.kuhlonline.com/dmg?mod=" + this.pluginName + "&version=" + pluginVersion + "&protorust=" + engineVersion;
         };
         
     
@@ -671,11 +1159,11 @@ var visionEngine = function(plugin, config, rust, data, dmgController) {
             this.extensions['extTime']  = new extTime(engine);
             engine.logger.debug("Loaded Engine Extension: Time", 2);
             
-            this.extensions['extPVP']   = new extPVP(engine);
-            engine.logger.debug("Loaded Engine Extension: PVP", 2);
+            this.extensions['pvx']      = new pvx(engine);
+            engine.logger.debug("Loaded Engine Extension: PVX ", 2);
             
-            this.extensions['extPVO']   = new extPVO(engine);
-            engine.logger.debug("Loaded Engine Extension: PVO ", 2);
+            this.extensions['extPopupNotifications']    = new extPopupNotifications(engine);
+            //engine.logger.debug("Loaded Engine Extension: PopupNotifications ", 2);
             
             for (var ext in this.extensions) {
                 if (this.extensions[ext]['handlers']) {
@@ -691,7 +1179,7 @@ var visionEngine = function(plugin, config, rust, data, dmgController) {
     
     
     /** Construct and Return Self */
-        return this.init(plugin, config, rust, data, dmgController);
+        return this.init(oxide_plugin, oxide_config, oxide_rust, oxide_data, dmgController, pluginName);
 };
 
 
@@ -734,64 +1222,63 @@ var eventReturn = function(result, returnNow) {
 
 
 /**
- * VisionEngine Action Extension
+ * ProtoRust Action Extension
  */
-var extAction   = function(options, action, entities) {
+var extAction   = function(action) {
     
-    this.options    = {};
-    this.action     = '';
-    this.entities   = {};
+    this.type       = '';
+    this.action     = {};
     this.returnCode = false;
   
-    this.init   = function(actionOptions, targetAction, entities) {
-        this.options    = actionOptions;
-        this.action     = targetAction;
+    this.init       = function(action) {
+        this.action = action;
+        this.type   = (this.action['type']) 
+            ? this.action['type'].trim().toLowerCase() 
+            : ''
+        ;
+        
         return this.execute();
     };
     
-    this.execute                = function() {
-        
-        if (this.action = 'protect') {
-            this.returnCode     = true;
-        } else if (this.action = 'damage') {
-            this.returnCode     = false;
-        } else {
-            this.executeTargetAction();    
-        }
+    this.execute    = function() {        
+        switch (this.type) {
+            
+            case 'popup':
+            break;
+            
+            case 'chat':
+            break;
+            
+            case 'command':
+            break;
+            
+            case 'api':
+            break;
+            
+            case 'protect':
+                this.returnCode     = true;
+            break;
+            
+            default:
+            case 'damage':
+            case 'return':
+                this.returnCode     = false;
+            break;
+        };
         
         return this.returnCode;
     };
     
-    this.action_api             = function() {
-        return false;
-    };
-    
-    this.action_script          = function() {
-        return false;
-    };
-    
-    this.executeTargetAction    = function() {
-        var funcName    = "action_" + this.action;
-        var exists      = (!this[funcName]) ? false : true;
-        
-        if (!exists) {
-            this.returnCode     = false;
-            return this;
-        }
-        
-        return this[funcName](this.entities);
-    };
-    
-    return this.init(options, action, entities);  
+    return this.init(action);  
 };
 
 
 /**
- * VisionEngine Time Extension
+ * ProtoRust Time Extension
  * 
  * Gets information releated to time from Rust to 
  * provide time of day or if it's day or night
- * @param [VisionEngine] engine
+ * @param [ProtoRust] engine
  */
 var extTime      = function(engine) {
     
@@ -802,11 +1289,22 @@ var extTime      = function(engine) {
      */
     this.sky            = {};
     
+    this.tod            = '';
+    
     
     /**
      * Event Controller Interface Function 
+     * @param [String] eventName Name of the event to raise
+     * @param [Object] param Arguments for the callback function
      */
-    this.raise          = function(eventName) {};
+    this.raise          = function(eventName, param) {
+        var funcName    = (this.hooks[eventName]) ? this.hooks[eventName] : '';
+        if (!funcName) return;
+        
+        if (!this[funcName]) return;
+        engine.logger.debug("Calling Event Handler: Time " + eventName +"."+ funcName, 6);
+        return this[funcName](param);
+    };
 
 
     /**
@@ -818,7 +1316,10 @@ var extTime      = function(engine) {
 
         if (global['TOD_Sky']['Instance']) {
             this.sky                = global.TOD_Sky.Instance;
-            if (this.sky) engine.logger.debug("Sky Found", 3);
+            if (this.sky) {
+                engine.logger.debug("Sky Found", 3);
+                this.tod            = (this.isDay()) ? 'day' : 'night';
+            }
         }
         
         return this;
@@ -831,6 +1332,7 @@ var extTime      = function(engine) {
      */
     this.hour           = function() {
         if (!this.sky) this.init();
+        if (!this.sky['Cycle']) return;
         var hour = parseInt(this.sky.Cycle.Hour);
         return hour;
     };
@@ -842,6 +1344,7 @@ var extTime      = function(engine) {
      */
     this.time           = function() {
         if (!this.sky) this.init();
+        if (!this.sky['Cycle']) return;
         var time = this.sky.Cycle.Hour;
         return time;
     };
@@ -866,64 +1369,221 @@ var extTime      = function(engine) {
         return this.sky.IsNight;
     };
     
-    this.handlers   = {};
+    
+    this.notifyTime     = function() {
+        var popups      = engine.extensions['extPopupNotifications'];
+        var mode        = engine.modes.mode;
+        var events      = engine.modes.eventConf;
+        var msg         = (events[mode]) ? events[mode] : '';
+        
+        if (!msg) return false;
+        var newTod      = (this.isNight()) ? 'night' : 'day';
+        if (newTod == this.tod) return false;
+        
+        var text        = (msg[newTod]) ? msg[newTod] : '';
+        if (!text) return false;
+        text            = " - " + mode + " - \n" + text;
+        
+        if (this.tod == 'day' && this.isNight()) {
+            this.tod    = newTod;
+            popups.notify(text);
+        } else if (this.tod == 'night' && this.isDay()) {
+            this.tod    = newTod;
+            popups.notify(text);
+        }
+        
+        return true;
+    };
+    
+    this.handlers   = [
+        'OnTick'
+    ];
+    
+    this.hooks      = {
+        'OnTick': 'notifyTime'     
+    };
     
     return this.init();
 };
 
 
 /**
- * VisionEngine PVP Extension
+ * ProtoRust PVX Extension
  * 
- * Monitors damage given from players to players.
+ * Monitors damage given.
  * Uses modeController to store rules in memoery
  * to be evaluated when damage is dealt so it can
  * be allowed or negated based on rule actions
- * @param [VisionEngine] engine
+ * @param [ProtoRust] engine
  */
-var extPVP       = function(engine) {
+var pvx           = function(protoRust) {
+    
+    /**
+     * @type [ProtoRust]
+     */
+    this.engine     = {};
+  
+  
+    /**
+     * Init
+     * Constructed
+     * @param [ProtoRust] engine
+     */
+    this.init       = function(engine) {
+        this.engine = engine;
+        return this;
+    };
+    
+    
+    /**
+     * Config
+     * Static config for exposed object list
+     */
+    this.config     = {
+        'victim':   {
+            'BasePlayer': true,
+            'BaseNPC': true,
+            'Door': true,
+            'StorageContainer': true,
+            'BuildingBlock': true,
+            'BuildingPrivlidge': true
+        },
+        'attacker': {
+            'BasePlayer': true,
+            'BaseNPC': true,
+            'BaseHelicopter': true
+        }
+    };
+    
+    
+    /**
+     * Handlers
+     * List of events that can be handled for EventController
+     */
+    this.handlers   = [
+        'OnEntityTakeDamage'  
+    ];
+    
+    
+    /**
+     * Hooks
+     * Catalog of EventHandlers and callback functions
+     */
+    this.hooks      = {
+        'OnEntityTakeDamage':   'evalDamage'
+    };
+    
     
     /**
      * Event Controller Interface Function 
      * @param [String] eventName Name of the event to raise
      * @param [Object] param Arguments for the callback function
      */
-    this.raise          = function(eventName, param) {
+    this.raise      = function(eventName, param) {
         var funcName    = (this.hooks[eventName]) ? this.hooks[eventName] : '';
-        if (!funcName) return;
         
-        if (!this[funcName]) return;
-        engine.logger.debug("Calling Event Handler: PVP " + eventName +"."+ funcName, 6);
+        if (!funcName)          return;
+        if (!this[funcName])    return;
+        
+        this.engine.logger.debug("Calling Event Handler: PVP " + eventName +"."+ funcName, 6);
         return this[funcName](param);
     };
+    
+    
+    /**
+     * Validate
+     * Filters out any entity that cannot be evaluated
+     * @param [String] attackerType entity object type
+     * @param [String] VictimType entity object type 
+     */
+    this.validate   = function(attackerType, victimType) {
+        //Get Attacker Entities List
+        var entities    = (this.config['attacker'])
+            ? this.config['attacker']
+            : []
+        ;
+        
+        //Make sure the attacker type is on the list
+        if (!entities) {
+            this.engine.logger.debug("No attacker Entities in config", 4);
+            return false;
+        }
+        
+        if (!entities[attackerType]) {
+            this.engine.logger.debug(attackerType  + " attacker not on the list, skipping", 4);
+            return false;
+        }
+        
+        //Get Victim Entities List
+        var entities    = (this.config['victim'])
+            ? this.config['victim']
+            : []
+        ;
+        
+        //Make sure the victim type is on the list
+        if (!entities) {
+            this.engine.logger.debug("No victims Entities in config", 4);
+            return false;
+        }
+        
+        if (!entities[victimType]) {
+            this.engine.logger.debug(victimType  + " victim not on the list, skipping", 4);
+            return false;
+        }
+        
+        return true;
+    };
+    
     
     /**
      * Victim
      * Creates an exposed Entity Object for evaluation
      * @param [Object] entity  
+     * @param [String] type
      */
-    this.victim     = function(entity) {
-       var canBuild    = (entity['CanBuild']) ? entity.CanBuild() : false;
+    this.victim     = function(victim, type) {
+        var canBuild    = (victim['CanBuild']) ? victim.CanBuild() : false;
+        var isAdmin     = (type == 'BasePlayer' && victim.IsAdmin());
+        var isSleeping  = (type == 'BasePlayer' && victim.IsSleeping());
+        var isWounded   = (type == 'BasePlayer' && victim.IsWounded());
+        
+        if (victim['GetSlot']) {
+            var lock        = victim.GetSlot(0);
+            if (!lock) lock = false;
+            
+            var locked      = (!lock['IsLocked']) ? false : lock.IsLocked();    
+        } else {
+            var locked      = false;
+        }
         
         return {
-              'CanBuild': canBuild,
-              'GetType': 'BasePlayer' 
+            'CanBuild': canBuild,
+            'isAdmin': isAdmin,
+            'isSleeping': isSleeping,
+            'isWounded': isWounded,
+            'locked': locked,
+            'GetType': type
         };
     };
+    
     
     /**
      * Attacker
      * Creates an exposed Entity Object for evaluation
      * @param [Object] entity 
+     * @param [String] type
      */
-    this.attacker   = function(entity) {
-        var canBuild    = (entity['CanBuild']) ? entity.CanBuild() : false;
+    this.attacker   = function(attacker, type) {
+        var canBuild    = (attacker['CanBuild']) ? attacker.CanBuild() : false;
+        var isAdmin     = (type == 'BasePlayer' && attacker.isAdmin());
         
         return {
             'CanBuild': canBuild,
-            'GetType': 'BasePlayer'
+            'isAdmin': isAdmin,
+            'GetType': type
         };
     };
+    
     
     /**
      * Area
@@ -932,461 +1592,385 @@ var extPVP       = function(engine) {
      * @param [Object] entity Victim entity Object
      */
     this.area       = function(attacker, victim) {
+        var aCanBuild               = (attacker['CanBuild']) ? attacker.CanBuild() : false;
+        var vCanBuild               = (victim['CanBuild']) ? victim.CanBuild() : false;
         
         if (!attacker) {
-            var friendly            = victim.CanBuild();
-            var privateProperty     = (victim.CanBuild() == false);
+            var friendly            = vCanBuild;
+            var privateProperty     = (vCanBuild == false);
         } else {
-            var friendly            = (attacker.CanBuild() && victim.CanBuild());
-            var privateProperty     = (attacker.CanBuild() == false && victim.CanBuild() == false);
+            var friendly            = (aCanBuild && vCanBuild);
+            var privateProperty     = ((aCanBuild) == false && vCanBuild == false);
         }
         
         return {
-            "contested": friendly,
-            "friendly": friendly,
-            "private": privateProperty
+            "-exp-contested": friendly,
+            "-exp-friendly": friendly,
+            "-exp-private": privateProperty
         };
     };
+    
     
     /**
      * Environment
      * Creates an exposed Entity Object for evaluation
      */
     this.env        = function() {
-        
-        var tm  = engine.extensions['extTime'];
+        var tm  = this.engine.extensions['extTime'];
         
         return {
-            "hour": tm.hour(),
-            "isNight": tm.isNight(),
-            "isDay": tm.isDay()
-        }
+            'hour': tm.hour(),
+            'isNight': tm.isNight(),
+            'isDay': tm.isDay()   
+        };
     };
     
-    /**
-     * Validate
-     * Filters out any entity that cannot be evaluated
-     * @param [String] attackerType entity object type
-     * @param [String] VictimType entity object type 
-     */
-    this.validate     = function(attackerType, victimType) {
-        var ents    = (this.config['attacker'])
-            ? this.config['attacker']
-            : {}
-        ;
-        
-        if (!ents) return false;
-        if (!ents[attackerType]) return false;
-        
-        var ents    = (this.config['victim'])
-            ? this.config['victim']
-            : {}
-        ;
-        
-        if (!ents) return false;
-        if (!ents[victimType]) return false;
-        
-        return true;
-    };
     
     /**
-     * Damage
+     * Eval Damage
      * EventHandler
      * Evaluates rules in DamageController Mode to either take action or not
      * based on conditions
      * 
      * @param [Object] param
      */
-    this.damage     = function(param) {
+    this.evalDamage = function(param) {
         var entity  = param['entity'];
         var hitInfo = param['hitInfo'];
         
-        if (!hitInfo || !hitInfo['Initiator']) return new eventReturn(false, false);
-        if (!entity) return new eventReturn(false, false);
+        this.engine.logger.debug("Evaluating Damage", 6);
         
+        //Make sure there is HitInfo before continuing
+        if (!hitInfo || !hitInfo['Initiator']) {
+            return new eventReturn(false, false);
+        }
+        
+        //Make sure there is a victim
+        if (!entity) {
+            return new eventReturn(false, false);
+        }
+        
+        //Get Attacker if any. If not return
         var attacker        = hitInfo.Initiator;
         if (!attacker)      return new eventReturn(false, false);
         
-        engine.logger.debug("PVP Damage Callback " + entity.GetType() + " attacked by  " + hitInfo.Initiator, 5);
+        //Get Victim
+        var victim          = entity;
+        if (!victim)        return new eventReturn(false, false);
         
+        
+        
+        //Get Attacker and Victim Types
         var attackerType    = attacker.GetType();
         var victimType      = entity.GetType();
-        if (!this.validate(attackerType, victimType)) return new eventReturn(false, false);
         
-        engine.logger.debug("PVP Damage Callback " + attackerType + " attacks " + victimType, 4);
+        this.engine.logger.debug("Checking " + attackerType + " attacking " + victimType, 5);
         
-        var keys            = {
-            'victim':   this.victim(entity),
-            'attacker': this.attacker(attacker),
-            'area': this.area(attacker, entity),
-            'env': this.env()
+        //Validate Attacker and Victim Types
+        if (!this.validate(attackerType, victimType)) {
+            return new eventReturn(false, false);
+        }
+        
+        this.engine.logger.debug("Evaluating " + attackerType + " attacking " + victimType, 4);
+        
+        //Create Public objects for evaluation
+        //prevents rules from exposing all properties and methods
+        var publicObjects   = {
+            'victim':   this.victim(victim, victimType),
+            'attacker': this.attacker(attacker, attackerType),
+            'env':      this.env(),
+            'area':     this.area(attacker, victim)    
         };
         
-        for (var ruleName in engine.modes.modeConf) {
-            var rule        = engine.modes.modeConf[ruleName];
-            var conditions  = (rule['conditions']) ? rule['conditions'] : [];
-            var action      = (rule['action']) ? rule['action'] : '';
-            var actionOpt   = (rule['options']) ? rule['options'] : [];
-            var valid       = false;
-            
-            engine.logger.debug("Evaluating Rule " + ruleName, 3);
-            
-            for (var index in conditions) {
-                var cond    = conditions[index];
-                var obj     = cond.split(" = ", 2);
-                var key     = obj[0];
-                var val     = (obj[1]) ? obj[1] : '';
-                var obj     = key.split(".", 2);
-                var target  = obj[0];
-                var prop    = (obj[1]) ? obj[1] : '';
-                
-                engine.logger.debug("Evaluating Condition: " + condition, 3);
-                engine.logger.debug(target + "|" + key +"."+ prop + " ==? " + val, 3);
-                
-                if (stopEval) engine.logger.debug("\t Breaking out of evaluation", 3);                
-                if (stopEval) break;
-                
-               if (!val || !prop) {
-                    engine.logger.debug("\t No Value or Property Found", 3);
-                    continue;
-                }
-                
-                var comp    = keys[target][prop];
-                
-                if (comp != val) {
-                    valid       = false;
-                    stopEval    = true;
-                    engine.logger.debug("\t" + comp + " does not equal " + val, 3);
-                    continue;
-                }
-                
-                engine.logger.debug("\t" + comp + " equals " + val, 3);
-                valid       = true;
-            }
+        
+        //Get Rules for current mode
+        var modeRules       = this.engine.modes.modeConf;
+        if (!modeRules) {
+            this.engine.logger.debug("No Mode Rules found", 4);
+            return new eventReturn(false, false);
         }
         
-        if (!valid) {
-            engine.logger.debug("Conditions not met, taking no action", 3);
+        //get rules specific to victim type
+        var victimRules     = [];
+        if (modeRules[victimType] && modeRules[victimType]['rules']) {
+            victimRules     = modeRules[victimType]['rules'];
+        }
+          
+        if (!victimRules) {
+            this.engine.logger.debug("No Victim Rules found for " + victimType, 4);
+            return new eventReturn(false, false);
+        }
+        
+        //Set loop break triggers to default
+        var stopRule        = -1;
+        var stopCondition   = -1 
+        var evalResult      = -1;       
+        
+        for (var ruleIndex in victimRules) {
+            var rule        = victimRules[ruleIndex];
+            var ruleName    = (rule['name']) ? rule['name'] : '';
+            var conditions  = (rule['conditions']) ? rule['conditions'] : [];
+            var action      = (rule['action']) ? (rule['action']) : {};
+            
+            this.engine.logger.debug("\tRule: " + ruleName, 3);
+            
+            if (!rule || !ruleName || !conditions || !action) continue;
+            if (stopRule === true) this.engine.logger.debug("\tStopping Rule Eval", 4);
+            if (stopRule === true) break;
+            if (stopRule == -1) stopRule = false;
+            stopCondition       = -1;
+            
+            for (var conditionIndex in conditions) {
+                
+                if (stopCondition === true) this.engine.logger.debug("\tStopping Condition Evaluation", 4);
+                if (stopCondition === true) break;
+                if (stopCondition === -1) stopCondition = false;
+                
+                var condition   = (conditions[conditionIndex]);
+                if (!condition) {
+                    this.engine.logger.debug("No conditions found", 4);
+                    continue;
+                }
+                
+                var parts       = condition.trim().split(" ", 3);
+                var target      = parts[0];
+                var op          = (parts[1]) ? parts[1].trim() : '=';
+                var evalValue   = (parts[2]) ? parts[2].trim() : '';               
+                if (!target || !evalValue) continue;
+                
+                parts           = target.split(".", 2);
+                var key         = parts[0].toLowerCase();
+                var property    = (parts[1]) ? parts[1] : '';
+                if (!key || !property) continue;
+                
+                var compValue   = (publicObjects[key][property]) ? publicObjects[key][property] : '';
+                
+                if (!compValue) continue;
+                
+                evalResult      = this.evalCondition(evalValue, compValue, op);
+                this.engine.logger.debug("\t((" + key +"."+ property +"="+ evalValue +") "+ op +" "+ compValue +") = "+ evalResult, 3);
+                
+                if (evalResult === false) {
+                    stopCondition = true;
+                }
+            }
+            
+            if (evalResult === false || evalResult == -1) {
+                this.engine.logger.debug("\tConditions not met, taking no action", 3);
+                evalResult      = -1
+                stopRule        = false;
+                continue;
+            }
+            
+            if (evalResult === true) {
+                stopRule        = true;
+                this.engine.logger.debug("\tConditions met, taking action", 3);
+                continue;
+            }
+            
+        }
+        
+        if (evalResult == true) {
+            var aType       = (action['type']) ? action['type'] : 'Unknown';
+            this.engine.logger.debug("\tExecuting action: " + aType, 3);
+            return new eventReturn(new extAction(action), true);
+        } else {
             return new eventReturn(false, true);
         }
+    };
         
-        var code    = new extAction(actionOpt, action);
-        engine.logger.debug("Conditions met, taking action: " + action, 3);
-        return new eventReturn(code, true);
-    };
-    
+        
     /**
-     * Config
-     * Static config for exposed object list
+     * Eval Condition
+     * @param [any] evalValue
+     * @param [any] compValue
+     * @param [String] op
      */
-    this.config     = {
-        "victim": {
-            'BasePlayer': true
-        },
-        "attacker": {
-            'BasePlayer': true
+    this.evalCondition      = function(evalValue, compValue, op) {
+        var evalResult      = false;
+        
+        switch (op) {
+            
+            case '<':
+            case '<<':
+                evalResult  = (evalValue < compValue);
+            break;
+            
+            case '<=':
+                evalResult  = (evalValue <= compValue);
+            break;
+            
+            case '>':
+            case '>>':
+                evalResult  = (evalValue > compValue);
+            break;
+            
+            case '>=':
+                evalResult  = (evalValue >= compValue);
+            break;
+            
+            case '=':
+            case '==':
+                evalResult  = (evalValue == compValue);
+            default:
+            break;
         }
+        
+        return evalResult;
     };
     
-    /**
-     * Handlers
-     * List of events that can be handled for EventController
-     */
-    this.handlers   = [
-        'OnEntityTakeDamage'
-    ];
     
     /**
-     * Hooks
-     * Catalog of EventHandlers and callback functions
+     * Construct and return instance
      */
-    this.hooks      = {
-        'OnEntityTakeDamage': 'damage'  
-    };
-    
+    return this.init(protoRust);
 };
 
 
-/**
- * VisionEngine PVO Extension
- * 
- * Monitors damage given from players to object or animals.
- * Uses modeController to store rules in memoery
- * to be evaluated when damage is dealt so it can
- * be allowed or negated based on rule actions
- */
-var extPVO       = function(engine) {
+var extPopupNotifications   = function(engine) {
+  
+    this.instance   = {};
+    this.ready      = false;
     
-    /**
-     * Event Controller Interface Function 
-     * @param [String] eventName Name of the event to raise
-     * @param [Object] param Arguments for the callback function
-     */
-    this.raise          = function(eventName, param) {
-        var funcName    = (this.hooks[eventName]) ? this.hooks[eventName] : '';
-        if (!funcName) return new eventReturn(undefined, true);
+    this.init       = function() {
+        this.instance   = plugins.Find("PopupNotifications");
+        this.ready      = (!this.instance) ? false : true;
         
-        if (!this[funcName]) return new eventReturn(undefined, true);;
-        engine.logger.debug("Calling Event Handler: PVO " + eventName +"."+ funcName, 6);
-        return this[funcName](param);
-    };
-    
-    /**
-     * Victim
-     * Creates an exposed Entity Object for evaluation
-     * @param [Object] entity 
-     */
-    this.victim     = function(entity) {
-        var canBuild    = false;
-        
-        var lock        = entity.GetSlot(0);
-        var locked      = (!lock) ? -1 : lock.IsLocked();
-        
-        return {
-              'CanBuild': canBuild,
-              'GetType': entity.GetType(),
-              'Locked': locked 
-        };
-    };
-    
-    /**
-     * Attacker
-     * Creates an exposed Entity Object for evaluation
-     * @param [Object] entity 
-     */
-    this.attacker   = function(entity) {
-        var canBuild    = (entity['CanBuild']) ? entity.CanBuild() : false;
-        var type        = (entity['GetType']) ? entity.GetType() : 'Unknown';
-        
-        return {
-            'CanBuild': canBuild,
-            'GetType': type
-        };
-    };
-    
-    /**
-     * Environment
-     * Creates an exposed Entity Object for evaluation
-     */
-    this.env        = function() {
-        
-        var tm  = engine.extensions['extTime'];
-        
-        return {
-            "hour": tm.hour(),
-            "isNight": tm.isNight(),
-            "isDay": tm.isDay()
-        }
-    };
-    
-    /**
-     * Validate
-     * Filters out any entity that cannot be evaluated
-     * @param [String] attackerType entity object type
-     * @param [String] VictimType entity object type 
-     */
-    this.validate   = function(attackerType, victimType) {        
-        if (genList) {
-            var list = engine.config.get('generatedVictimList');
-            if (!list) list = {};
-            
-            list[victimType] = victimType;
-            engine.config.set('generatedVictimList', list);  
-            engine.logger.debug("Added " + victimType + " to the list", 2);
-            
-            var list = engine.config.get('generatedAttackerList');
-            if (!list) list = {};
-            
-            list[attackerType] = attackerType;
-            engine.config.set('generatedAttackerList', list);  
-            engine.logger.debug("Added " + attackerType + " to the list", 2);
+        if (this.ready) {
+            engine.logger.debug("PopupNotifications Plugin Found", 2);
         }
         
-        var ents    = (this.config['attacker'])
-            ? this.config['attacker']
-            : {}
-        ;
-        
-        if (!ents) return false;
-        if (!ents[attackerType]) return false;
-        
-        var ents    = (this.config['victim'])
-            ? this.config['victim']
-            : {}
-        ;
-        
-        if (!ents) return false;
-        if (!ents[victimType]) return false;
-        
-        return true;
+        return this;
     };
     
-    /**
-     * Damage
-     * EventHandler
-     * Evaluates rules in DamageController Mode to either take action or not
-     * based on conditions
-     * 
-     * @param [Object] param
-     */
-    this.damage     = function(param) {
-        var entity  = param['entity'];
-        var hitInfo = param['hitInfo'];
+    this.notify     = function(msg) {
+        if (!this.ready) return this;
         
-        if (!hitInfo || !hitInfo['Initiator']) return new eventReturn(false, false);
-        if (!entity) return new eventReturn(false, false);
-        
-        var attacker        = hitInfo.Initiator;
-        if (!attacker)      return new eventReturn(false, false);
-        
-        var attackerType    = attacker.GetType();
-        var victimType      = entity.GetType();
-        if (!this.validate(attackerType, victimType)) return new eventReturn(false, false);
-        
-        engine.logger.debug("PVO Damage Callback " + attackerType + " attacks " + victimType, 4);
-        
-         var keys            = {
-            'victim':   this.victim(entity),
-            'attacker': this.attacker(attacker),
-            'area': {},
-            'env': this.env()
-        };
-        
-        for (var ruleName in engine.modes.modeConf) {
-            var rule        = engine.modes.modeConf[ruleName];
-            var conditions  = (rule['conditions']) ? rule['conditions'] : [];
-            var action      = (rule['action']) ? rule['action'] : '';
-            var actionOpt   = (rule['options']) ? rule['options'] : '';
-            var valid       = false;
-            var stopEval    = false;
-            
-            engine.logger.debug("Checking Rule " + ruleName, 3);
-            
-            for (var index in conditions) {
-                var cond    = conditions[index];
-                var obj     = cond.split(" = ", 2);
-                var key     = obj[0];
-                var val     = (obj[1]) ? obj[1] : '';
-                var obj     = key.split(".", 2);
-                var target  = obj[0];
-                var prop    = (obj[1]) ? obj[1] : '';
-                
-                
-                engine.logger.debug("\tEvaluating Condition: " + cond, 3);
-                engine.logger.debug("\t" + target +"."+ prop + " ==? " + val, 3);
-                
-                if (stopEval) engine.logger.debug("\t Breaking out of evaluation", 3);                
-                if (stopEval) break;
-                
-                if (!val || !prop) {
-                    engine.logger.debug("\t No Value or Property Found", 3);
-                    continue;
-                }
-                
-                var comp    = keys[target][prop];
-                
-                if (comp != val) {
-                    valid       = false;
-                    stopEval    = true;
-                    engine.logger.debug("\t" + comp + " does not equal " + val, 3);
-                    continue;
-                }
-                
-                engine.logger.debug("\t" + comp + " equals " + val, 3);
-                valid       = true;
-            }
-            
-            if (valid) break;
-        }
-        
-        if (!valid) {
-            engine.logger.debug("Conditions not met, taking no action", 3);
-            return new eventReturn(false, true);
-        }
-        
-        var code    = new extAction(actionOpt, action).execute();
-        engine.logger.debug("Conditions met, taking action: " + action, 3);
-        return new eventReturn(code, true);
+        this.instance.CallHook("CreatePopupNotification", msg);
+        return this;  
     };
     
-    /**
-     * Config
-     * Static config for exposed object list
-     */
-    this.config     = {
-        "victim": {
-            'StorageContainer': true,
-            'BuildingBlock': true,
-            'Door': true,
-            'BaseNPC': true
-        },
-        "attacker": {
-            'BasePlayer': true
-        }
-    };
-    
-    /**
-     * Handlers
-     * List of events that can be handled for EventController
-     */
-    this.handlers   = [
-        'OnEntityTakeDamage'
-    ];
-    
-    /**
-     * Hooks
-     * Catalog of EventHandlers and callback functions
-     */
-    this.hooks      = {
-        'OnEntityTakeDamage': 'damage'  
-    };
-    
+    return this.init();
 };
 
 
 /**
  * DamageController
  * 
- * Minimal plugin object for OxideMod to intialize the VisionEngine
+ * Minimal plugin object for OxideMod to intialize the ProtoRust
  * and hook specific events throw by OxideMod
  * 
  * OxideMod Plugin
- * @version 0.1.2
+ * @version 0.2.5
  * @author VisionMise
  */
 var DamageController = {
     
     Title:              "DamageController",
     Author:             "VisionMise",
-    Version:            V(0, 1, 2),
-    ResourceId:         0,
+    Version:            V(0, 2, 5),
+    ResourceId:         1841,
     HasConfig:          true,
     
     engine:             false,
     ready:              false,
     
-    OnPluginLoaded:     function() {
+    Init:               function() {
         
-        this.engine     = new visionEngine(
+        //Create new Engine
+        this.engine     = new ProtoRust(
             this.Plugin,
             this.Config,
             rust,
             data,
-            this
+            this,
+            'DamageController'
         );
         
+        //Plugin is Ready
         this.ready      = true;
+        
+        
+        //Add Chat Commands
+        var cmds        = this.engine.bootstrap().chatCommands;
+        for (var cmd in cmds) {
+            command.AddChatCommand(cmd, this.Plugin, 'OnChatCommand');
+            this.engine.logger.debug("Added chat command: " + cmd, 3);
+        }
+        
+        //Add Console Commands
+        var cnls        = this.engine.bootstrap().consoleCommands;
+        for (var cnl in cnls) {
+            command.AddConsoleCommand("DamageController." + cnl, this.Plugin, 'OnConsoleCommand');
+            this.engine.logger.debug("Added console command: " + cnl, 3);
+        }
+        
+        //Reload Config
+        this.engine.config  = new this.engine.configController(this.Config); 
         this.engine.logger.send("DamageController done loading");
         
-        webrequests.EnqueueGet(this.engine.notify(), function(code, response) {
+        //Track Plugin Usage
+        webrequests.EnqueueGet(this.engine.location(), function(code, response) {
             if (response == null || code != 200) return;
             
-            this.engine.logger.debug(response, 2);
+            this.engine.logger.debug(response, 3);
         }.bind(this), this.Plugin);
+        
     },
     
     OnEntityTakeDamage: function(entity, hitInfo) {
         if (!this.ready || !this.engine) return;
         return this.engine.events.raiseEvent('OnEntityTakeDamage', {'entity': entity, 'hitInfo': hitInfo});
+    },
+    
+     OnTick: function() {
+        if (!this.ready || !this.engine) return;
+        return this.engine.events.raiseEvent('OnTick', {});
+    },
+    
+    OnChatCommand: function(player, cmd, arg) {
+        var cmds        = this.engine.bootstrap().chatCommands;
+        var cmdName     = (cmds[cmd])
+            ? cmds[cmd]
+            : null
+        ;
+        
+        this.engine.config  = new this.engine.configController(this.Config); 
+        this.engine.logger.debug("Chat Command: " + cmd + " => " + cmdName, 3);
+        
+        if (!cmdName) return;
+        if (this.engine.commands[cmdName]) {
+            this.engine.commands[cmdName](arg, player);
+            this.engine.logger.debug("Executed " + cmdName, 4);
+        }
+        
+        return;
+    },
+    
+    OnConsoleCommand: function(arg) {
+        var cmds        = this.engine.bootstrap().consoleCommands;
+        var result      = null;
+        var cmdName     = (cmds[arg.Cmd.name])
+            ? cmds[arg.Cmd.name]
+            : null
+        ;
+        
+        var param       = (arg.Args) ? arg.Args : false;
+        if (!param) {
+            param       = [arg.Cmd.name];
+        } else {
+            param.unshift(arg.Cmd.name);
+        }
+        
+        this.engine.config  = new this.engine.configController(this.Config); 
+        this.engine.logger.debug("Console Command: " + cmdName, 3);
+        
+        if (!cmdName) return;
+        if (this.engine.commands[cmdName]) {
+            result  = this.engine.commands[cmdName](param, false);
+            this.engine.logger.debug("Executed " + cmdName, 4);
+        }
+        
+        return result;
     }
 };

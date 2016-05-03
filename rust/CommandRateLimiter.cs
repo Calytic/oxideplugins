@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("CommandRateLimiter", "Calytic", "0.0.5", ResourceId = 1231)]
+    [Info("CommandRateLimiter", "Calytic", "0.0.5", ResourceId = 1812)]
     public class CommandRateLimiter : RustPlugin
     {
         private int KickAfter;

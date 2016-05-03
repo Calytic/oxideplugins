@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-using Oxide.Core.Plugins;
 using Oxide.Core;
+using Oxide.Core.Configuration;
+using Oxide.Core.Plugins;
+
 using System.Text.RegularExpressions;
 namespace Oxide.Plugins
 {
-    [Info("RadShrinkZone", "vaalberith", "1.0.2", ResourceId = 1828)]
+    [Info("RadShrinkZone", "vaalberith", "1.0.3", ResourceId = 1828)]
 	class RadShrinkZone : RustPlugin
     {
 		
@@ -15,30 +17,31 @@ namespace Oxide.Plugins
 		Vector3 target = new Vector3(0,0,0);
 		float saferadius = 10;
 		float saferadiusmin = 5;
-		float eventradius = 30;
+		float eventradius = 40;
 		float radpower = 50;
 		float step = 1;
 		float period = 20;
 		float drawtime = 5;
+		string drawmode = "safe";
+		
 		string permissionrad="RadShrinkZone.can";
-		bool drawrad=true;
-		bool drawsafe=true;
-		bool breaking = false;
+		bool breaking = true;
 		bool ok = true;
 		
 		//INITIALISATION\DECLARATION
-		
 		List<Vector3> position = new List<Vector3>();
+		readonly DynamicConfigFile dataFile = Interface.Oxide.DataFileSystem.GetFile("RadShrinkZoneDefault");
+		Dictionary<string, List<string>> radzonedata = new Dictionary<string, List<string>>();
 		
 		//LOCALIZATION
 		
 		#region Localization
-		
+		 
 		string GetMessage(string key, string steamId = null) => lang.GetMessage(key, this, steamId);
 		
         void LoadDefaultMessages()
         {
-            var messagesEn = new Dictionary<string, string>
+            var messagesEn = new Dictionary<string, string> 
             {
                 {"EventStart", "Radiation is coming! Run to the centre to safe your life! ( {0} : {1} )"},
                 {"RadiusDecreased", "Radius of safezone decreased!"},
@@ -46,7 +49,7 @@ namespace Oxide.Plugins
                 {"EventStopped", "Event stopped!"},
                 {"NoPerm", "No permission!"},
 				{"Help", "Type /rad for usage help"},
-				{"Helplong", "/rad saferadius saferadiusmin eventradius radpower step period (6 arguments to config) OR \n/rad start|stop|clear (1 argument to launch|stop|clear zones) OR \n/rad x y z (3 arguments to set position) OR\n/rad draw 0|1|2 (2 arguments to draw safezone|radzone|both) OR\n/rad drawtime (seconds) (2 arguments to set draw time)"},
+				{"Helplong", "<color=red>Config:</color>\n/rad drawmod none|safe|rad|both\n/rad drawtime (seconds)\n/rad saferad (m)\n /rad saferadmin (m)\n/rad eventrad (m)\n/rad radpower (%)\n/rad step (num)\n/rad period (seconds)\n/rad x y z\n/rad me (uses your position as target)\n<color=red>Manager:</color>\n/rad start\n/rad stop (stops decrease)\n/rad clear (close event and remove zones)"},
 				{"Erased", "Erased all event rad zones"}
             };
             lang.RegisterMessages(messagesEn, this);
@@ -59,7 +62,7 @@ namespace Oxide.Plugins
 				{"EventStopped", "ÐÐ²ÐµÐ½Ñ Ð·Ð°ÐºÐ¾Ð½ÑÐ¸Ð»ÑÑ!"},
 				{"NoPerm", "ÐÐµÑ Ð¿ÑÐ°Ð²!"},
 				{"Help", "ÐÐ°Ð¿Ð¸ÑÐ¸ /rad Ð´Ð»Ñ Ð¿Ð¾Ð´ÑÐºÐ°Ð·ÐºÐ¸"},
-				{"Helplong", "/rad saferadius saferadiusmin eventradius radpower step period (6 arguments to config) OR \n/rad start|stop|clear (1 argument to launch|stop|clear zones) OR \n/rad x y z (3 arguments to set position) OR\n/rad draw 0|1|2 (2 arguments to draw safezone|radzone|both) OR\n/rad drawtime (seconds) (2 arguments to set draw time)"},
+				{"Helplong", "<color=red>Config:</color>\n/rad drawmod none|safe|rad|both\n/rad drawtime (seconds)\n/rad saferad (m)\n /rad saferadmin (m)\n/rad eventrad (m)\n/rad radpower (%)\n/rad step (num)\n/rad period (seconds)\n/rad x y z\n/rad me (uses your position as target)\n<color=red>Manager:</color>\n/rad start\n/rad stop (stops decrease)\n/rad clear (close event and remove zones)"},
 				{"Erased", "ÐÑÐµ Ð¸Ð²ÐµÐ½Ñ-Ð·Ð¾Ð½Ñ Ð¾ÑÐ¸ÑÐµÐ½Ñ"}
 			};
             lang.RegisterMessages(messagesRu, this, "ru");
@@ -72,6 +75,68 @@ namespace Oxide.Plugins
 		
 		[PluginReference]
         Plugin ZoneManager;
+		
+		void OnServerInitialized()
+        {
+			LoadDefaultMessages();
+            if (plugins.Exists("ZoneManager")) ok = true;
+            else 
+			{
+				PrintWarning("Install ZoneManager!");
+				ok=false;
+			}
+			
+			radzonedata = dataFile.ReadObject<Dictionary<string, List<string>>>();
+			List<string> pos;
+			if (!radzonedata.TryGetValue("Position", out pos))
+			{
+				//first datafile creating ("position" does not exist)
+				safecfg();
+				Puts("BattleRoyale RadZone created for first time.");
+			}
+			else Puts("BattleRoyale RadZone datafile loaded.");
+			execcfg();
+        }
+		
+		void execcfg()
+		{
+			radzonedata = dataFile.ReadObject<Dictionary<string, List<string>>>();
+			List<string> value;
+			if (radzonedata.TryGetValue("Position", out value))
+				target.x=Convert.ToSingle(value[0]);target.y=Convert.ToSingle(value[1]);target.z=Convert.ToSingle(value[2]);
+			if (radzonedata.TryGetValue("SafeRadius", out value))
+				saferadius=Convert.ToSingle(value[0]);
+			if (radzonedata.TryGetValue("SafeRadiusMinimum", out value))
+				saferadiusmin=Convert.ToSingle(value[0]);
+			if (radzonedata.TryGetValue("EventRadius", out value))
+				eventradius=Convert.ToSingle(value[0]);
+			if (radzonedata.TryGetValue("RadiationPower", out value))
+				radpower=Convert.ToSingle(value[0]);
+			if (radzonedata.TryGetValue("DecreaseStep", out value))
+				step=Convert.ToSingle(value[0]);
+			if (radzonedata.TryGetValue("DecreasePeriod", out value))
+				period=Convert.ToSingle(value[0]);
+			if (radzonedata.TryGetValue("DrawTime", out value))
+				drawtime=Convert.ToSingle(value[0]);
+			if (radzonedata.TryGetValue("DrawMode", out value))
+				drawmode=value[0];
+		}
+		
+		void safecfg()
+		{
+			radzonedata["Position"] = new List<string>(){target.x.ToString(),target.y.ToString(),target.z.ToString()};
+			radzonedata["SafeRadius"] = new List<string>(){saferadius.ToString()};
+			radzonedata["SafeRadiusMinimum"] = new List<string>(){saferadiusmin.ToString()};
+			radzonedata["EventRadius"] = new List<string>(){eventradius.ToString()};
+			radzonedata["RadiationPower"] = new List<string>(){radpower.ToString()};
+			radzonedata["DecreaseStep"] = new List<string>(){step.ToString()};
+			radzonedata["DecreasePeriod"] = new List<string>(){period.ToString()};
+			radzonedata["DrawTime"] = new List<string>(){drawtime.ToString()};
+			radzonedata["DrawMode"] = new List<string>(){drawmode};
+			
+			dataFile.WriteObject(radzonedata);
+		}
+		
 		void Unload() 
 		{
 			DelPos();
@@ -84,8 +149,9 @@ namespace Oxide.Plugins
 		
 		void OnEnterZone(string ZoneID, BasePlayer player)
 		{
+			if (breaking) return;
 			if (!ZoneID.Contains("radshrink_pos_")) return;
-			if (drawrad)
+			if (drawmode=="rad" || drawmode=="both")
 			{
 				Regex regex = new Regex(@"\d+");
 				Match match = regex.Match(ZoneID);
@@ -95,20 +161,9 @@ namespace Oxide.Plugins
 					player.SendConsoleCommand("ddraw.sphere", drawtime, Color.red, position[Convert.ToInt32(match.Value, 16)], sphereradius);
 				}
 			}
-			if (drawsafe) player.SendConsoleCommand("ddraw.sphere", drawtime, Color.green, target, saferadius);
+			if (drawmode=="safe"|| drawmode=="both") player.SendConsoleCommand("ddraw.sphere", drawtime, Color.green, target, saferadius);
 		}
 		
-		
-		
-		void OnServerInitialized()
-        {
-			LoadDefaultMessages();
-            if (plugins.Exists("ZoneManager")) ok = true;
-            else {
-				PrintWarning("Install ZoneManager!");
-				ok=false;
-			}
-        }
 		
 		//MAIN FUNCTIONS
 		
@@ -134,7 +189,7 @@ namespace Oxide.Plugins
 			position.Clear();
 			float centerline = (eventradius+saferadius)/2;
 			float sphereradius = (eventradius-saferadius)/2;
-			float corn = centerline *0.71f;
+			float corn = centerline *0.71f; 
 			Vector3 SW = new Vector3(pos.x-corn, pos.y, pos.z-corn); position.Add(SW);
 			Vector3 W = new Vector3(pos.x-centerline, pos.y, pos.z); position.Add(W);
 			Vector3 NW = new Vector3(pos.x-corn, pos.y, pos.z+corn); position.Add(NW);
@@ -167,6 +222,7 @@ namespace Oxide.Plugins
 		private void started()
 		{
 			breaking = false;
+			execcfg();
 			PrintToChat(GetMessage("EventStart"),target.x,target.z);
 			Puts (GetMessage("EventStart"),target.x,target.z);
 			StartZoneShrink();
@@ -210,87 +266,125 @@ namespace Oxide.Plugins
 		// INTERFACE, COMMANDS
 		
 		[ChatCommand("rad")]
-        void rad(BasePlayer player, string cmd, string[] args)
+        void radchat(BasePlayer player, string cmd, string[] args)
         {
 			if (!ok) return;
-			if (!IsAllowed(player, permissionrad))
-			{	
-				PrintToChat(player, GetMessage("NoPerm", player.UserIDString));
-				return;
+			if (player !=null)
+			{
+				if (!IsAllowed(player, permissionrad))
+				{	
+					SendReply(player, GetMessage("NoPerm", player.UserIDString));
+					return;
+				}
 			}
-			if (args.Length == 6)
-			{				
-				saferadius = Convert.ToSingle(args[0]);
-				saferadiusmin = Convert.ToSingle(args[1]);
-				eventradius = Convert.ToSingle(args[2]);
-				radpower = Convert.ToSingle(args[3]);
-				step = Convert.ToSingle(args[4]);
-				period = Convert.ToSingle(args[5]);
-				return;
-			}
+			
 			if (args.Length == 1)
 			{
-				if (args[0]=="start")
+				if (args[0]=="start") 
 				{
 					started();
-					return;
 				}
 				else if (args[0]=="stop")
 				{
 					stop();
-					return;
 				}
 				else if (args[0]=="clear")
 				{
 					DelPos();
-					return;
 				}
-				else PrintToChat(player, GetMessage("Help", player.UserIDString));
+				else if (args[0]=="me")
+				{
+					if (player == null) return;
+					target=player.transform.position;
+					safecfg();
+				}
+				
+				else if (player !=null) SendReply(player, GetMessage("Help", player.UserIDString));
+				
 				return;
 			}
+			
+			if (args.Length == 2)
+			{
+				if (args[0]=="drawmod")
+				{
+					if (args[1] == "safe" || args[1] == "rad" || args[1] == "both" || args[1] == "none")
+					{
+						drawmode=args[1];
+					}
+					else  if (player !=null) SendReply(player, GetMessage("Help", player.UserIDString));
+				}
+				else if (args[0]=="drawtime")
+				{
+					drawtime=Convert.ToSingle(args[1]);
+				}
+				
+				else if (args[0]=="saferad")
+				{				
+					saferadius = Convert.ToSingle(args[1]);
+				}
+				
+				else if (args[0]=="saferadmin")
+				{				
+					saferadiusmin = Convert.ToSingle(args[1]);
+				}
+				
+				else if (args[0]=="eventrad")
+				{				
+					eventradius = Convert.ToSingle(args[1]);
+				}
+				
+				else if (args[0]=="radpower")
+				{				
+					radpower = Convert.ToSingle(args[1]);
+				}
+				
+				else if (args[0]=="step")
+				{				
+					step = Convert.ToSingle(args[1]);
+				}
+				
+				else if (args[0]=="period")
+				{				
+					period = Convert.ToSingle(args[1]);
+				}
+				
+				else if (player !=null) SendReply(player, GetMessage("Help", player.UserIDString));
+				
+				safecfg();
+				return;
+			}
+			
 			if (args.Length == 3)
 			{
 				target.x = Convert.ToSingle(args[0]);
 				target.y = Convert.ToSingle(args[1]);
 				target.z = Convert.ToSingle(args[2]);
-				return;
+				safecfg();
 			}
-			if (args.Length == 2)
-			{
-				if (args[0]=="draw")
-				{
-					if (args[1] == "0")
-					{
-						drawsafe=false;
-						drawrad=false;
-					}
-					else if (args[1] == "1")
-					{
-						drawsafe = true;
-						drawrad = false;
-					}
-					else if (args[1] == "2") 
-					{
-						drawrad = true;
-						drawsafe = false;
-					}
-					else if (args[1] == "3") 
-					{
-						drawsafe = true;
-						drawrad = true;
-					}
-					else PrintToChat(player, GetMessage("Help", player.UserIDString));
+			
+			else if (player !=null) SendReply(player, GetMessage("Helplong", player.UserIDString));
+			return;
+		}
+		
+		[ConsoleCommand("rad")] 
+		void radconsole(ConsoleSystem.Arg arg) 
+		{
+			if (arg.Args == null) return;
+			string [] args = arg.Args;
+			
+			if (arg.connection != null)
+            {
+                BasePlayer player = arg.connection.player as BasePlayer;
+				if (!IsAllowed(player, permissionrad))
+				{	
+					PrintToChat(player, GetMessage("NoPerm", player.UserIDString));
 					return;
 				}
-				if (args[0]=="drawtime")
-				{
-					drawtime=Convert.ToSingle(args[1]);
-					return;
-				}
-				PrintToChat(player, GetMessage("Help", player.UserIDString));
-				return;
+				radchat(player, "rad", args);
 			}
-			PrintToChat(player, GetMessage("Helplong", player.UserIDString));
+			
+			radchat(null, "rad", args);
 			return;
 		}
 	}

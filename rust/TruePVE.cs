@@ -11,7 +11,7 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-	[Info("TruePVE", "ignignokt84", "0.1.6", ResourceId = 1789)]
+	[Info("TruePVE", "ignignokt84", "0.1.9", ResourceId = 1789)]
 	class TruePVE : RustPlugin
 	{
 		/*
@@ -22,7 +22,7 @@ namespace Oxide.Plugins
 		
 		- Prevents player damage which originates from other players
 		- Prevents players from looting sleepers or another player's corpse
-		- Makes most other objects unbreakable by players (except deployables like repair bench, furnace, etc)
+		- Makes most other objects unbreakable by players
 		- Beds and sleeping bags take no damage
 		- Barricades will still take damage
 		- Locked doors and boxes take no damage, however unlocked doors and boxes still take damage and can break
@@ -429,9 +429,6 @@ namespace Oxide.Plugins
 		private bool AllowDamage(BaseCombatEntity entity, HitInfo hitinfo)
 		{
 			if (entity == null) return true;
-			// check for fireball
-			if (!getBool(Option.fire) && hitinfo.Initiator != null && hitinfo.Initiator is FireBall)
-				return false;
 			var resource = entity.GetComponent<ResourceDispenser>();
 			if (resource != null)
 			{
@@ -439,6 +436,9 @@ namespace Oxide.Plugins
 			}
 			else if (entity is BasePlayer)
 			{
+				// check for fireball
+				if (!getBool(Option.fire) && hitinfo.Initiator != null && hitinfo.Initiator is FireBall)
+					return false;
 				// allow environment damage
 				if(hitinfo.Initiator == null)
 					return true;
@@ -474,16 +474,94 @@ namespace Oxide.Plugins
 			}
 			else if (entity is Barricade)
 			{
+				// check for fireball
+				if (!getBool(Option.fire) && hitinfo.Initiator != null && hitinfo.Initiator is FireBall)
+					return false;
+				// Check for heli initiator
+				if(hitinfo.Initiator is BaseHelicopter ||
+				   hitinfo.Initiator is HelicopterTurret)
+					return getBool(Option.heli);
+				else if(hitinfo.WeaponPrefab != null) // prevent null spam
+				{
+					if(hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli.prefab" ||
+					   hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli_napalm.prefab")
+						return getBool(Option.heli);
+				}
 				// if damage not allowed, cancel damage
 				return getBool(Option.barricade);
 			}
 			else if (entity is SleepingBag)
 			{
+				// check for fireball
+				if (!getBool(Option.fire) && hitinfo.Initiator != null && hitinfo.Initiator is FireBall)
+					return false;
+				// Check for heli initiator
+				if(hitinfo.Initiator is BaseHelicopter ||
+				   hitinfo.Initiator is HelicopterTurret)
+					return getBool(Option.heli);
+				else if(hitinfo.WeaponPrefab != null) // prevent null spam
+				{
+					if(hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli.prefab" ||
+					   hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli_napalm.prefab")
+						return getBool(Option.heli);
+				}
 				// if damage not allowed, cancel damage
 				return getBool(Option.sleepingbag);
 			}
 			else if(entity is StorageContainer || entity is Door)
 			{
+				// check misc deployables and prevent damage
+				if(entity.LookupShortPrefabName() == "lantern.deployed.prefab" ||
+				   entity.LookupShortPrefabName() == "ceilinglight.deployed.prefab" ||
+				   entity.LookupShortPrefabName() == "furnace.large.prefab" ||
+				   entity.LookupShortPrefabName() == "furnace.prefab" ||
+				   entity.LookupShortPrefabName() == "refinery_small_deployed.prefab" ||
+				   entity.LookupShortPrefabName() == "waterbarrel.prefab" ||
+				   entity.LookupShortPrefabName() == "jackolantern.angry.prefab" ||
+				   entity.LookupShortPrefabName() == "jackolantern.happy.prefab" ||
+				   entity.LookupShortPrefabName() == "repairbench_deployed.prefab" ||
+				   entity.LookupShortPrefabName() == "researchtable_deployed.prefab")
+				{
+					// Check for heli initiator
+					if(hitinfo.Initiator is BaseHelicopter ||
+					   hitinfo.Initiator is HelicopterTurret)
+						return getBool(Option.heli);
+					else if(hitinfo.WeaponPrefab != null) // prevent null spam
+					{
+						if(hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli.prefab" ||
+						   hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli_napalm.prefab")
+							return getBool(Option.heli);
+					}
+					// don't allow damage
+					return false;
+				}
+				// check campfire/gates
+				if(entity.LookupShortPrefabName() == "campfire.prefab" ||
+				   entity.LookupShortPrefabName() == "gates.external.high.stone" ||
+				   entity.LookupShortPrefabName() == "gates.external.high.wood")
+				{
+					// Check for heli initiator
+					if(hitinfo.Initiator is BaseHelicopter ||
+					   hitinfo.Initiator is HelicopterTurret)
+						return getBool(Option.heli);
+					else if(hitinfo.WeaponPrefab != null) // prevent null spam
+					{
+						if(hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli.prefab" ||
+						   hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli_napalm.prefab")
+							return getBool(Option.heli);
+					}
+					// allow campfire decay
+					if(hitinfo.damageTypes.Get(DamageType.Decay) > 0)
+					{
+						if(TwigsDecay != null) return false; // let TwigsDecay handle decay
+						hitinfo.damageTypes.Set(DamageType.Decay, hitinfo.damageTypes.Get(DamageType.Decay) * getFloat(Option.decay));
+						return true;
+					}
+					return false;
+				}
+				// check for fireball
+				if (!getBool(Option.fire) && hitinfo.Initiator != null && hitinfo.Initiator is FireBall)
+					return false;
 				// if entity is a barrel, allow damage
 				if(entity.LookupShortPrefabName().Contains("barrel"))
 					return true;
@@ -493,7 +571,19 @@ namespace Oxide.Plugins
 				
 				// if damage not allowed, cancel damage
 				if(!getBool(Option.unlocked))
+				{
+					// Check for heli initiator
+					if(hitinfo.Initiator is BaseHelicopter ||
+					   hitinfo.Initiator is HelicopterTurret)
+						return getBool(Option.heli);
+					else if(hitinfo.WeaponPrefab != null) // prevent null spam
+					{
+						if(hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli.prefab" ||
+						   hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli_napalm.prefab")
+							return getBool(Option.heli);
+					}
 					return false;
+				}
 				
 				// if unlocked damage allowed - check for lock
 				BaseLock alock = entity.GetSlot(BaseEntity.Slot.Lock) as BaseLock; // get lock
@@ -511,6 +601,9 @@ namespace Oxide.Plugins
 					 !(entity is Door) &&
 					 !(entity is BaseTrap))
 			{
+				// check for fireball
+				if (!getBool(Option.fire) && hitinfo.Initiator != null && hitinfo.Initiator is FireBall)
+					return false;
 				// prevent damage except for decay and (maybe) heli
 				if(hitinfo.damageTypes.Get(DamageType.Decay) > 0)
 				{
@@ -518,13 +611,23 @@ namespace Oxide.Plugins
 					hitinfo.damageTypes.Set(DamageType.Decay, hitinfo.damageTypes.Get(DamageType.Decay) * getFloat(Option.decay));
 					return true;
 				}
-				if(hitinfo.Initiator is BaseHelicopter || hitinfo.Initiator is HelicopterTurret || hitinfo.Initiator is FireBall)
+				if(hitinfo.Initiator is BaseHelicopter ||
+				   hitinfo.Initiator is HelicopterTurret)
 					return getBool(Option.heli);
+				else if(hitinfo.WeaponPrefab != null) // prevent null spam
+				{
+					if(hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli.prefab" ||
+					   hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli_napalm.prefab")
+						return getBool(Option.heli);
+				}
 				
 				return false; //CancelDamage(hitinfo);
 			}
 			else
 			{
+				// check for fireball
+				if (!getBool(Option.fire) && hitinfo.Initiator != null && hitinfo.Initiator is FireBall)
+					return false;
 				//
 			}
 			return true;
@@ -607,7 +710,7 @@ namespace Oxide.Plugins
 			if(target is BasePlayer && !getBool(Option.sleeper))
 				return false;
 			else if(target is PlayerCorpse && !getBool(Option.corpse))
-				if(Convert.ToString(inventory.GetComponent<BasePlayer>().userID) == Convert.ToString(((PlayerCorpse)target).parentEnt?.ToPlayer().userID))
+				if(Convert.ToString(inventory.GetComponent<BasePlayer>().userID) != Convert.ToString(((PlayerCorpse)target).playerSteamID))
 					return false;
 			return true;
 		}

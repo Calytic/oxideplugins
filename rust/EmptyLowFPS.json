@@ -1,8 +1,8 @@
 {
-    "name": "Fire Arrows",
-    "description": "Players can shoot arrows with fire",
-    "author": "Colon Blow",
-    "version": "1.1.7",
+    "name": "EmptyLowFPS",
+    "description": "Set low fps.limit when no players connected",
+    "author": "Dezito",
+    "version": "0.0.2",
     "configuration": true,
     "language": "cs",
     "games": [

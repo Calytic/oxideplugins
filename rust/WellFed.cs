@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace Oxide.Plugins
 {
-    [Info("WellFed", "ColonBlow", "1.1.3", ResourceId = 1233)]
+    [Info("WellFed", "ColonBlow", "1.1.5", ResourceId = 1233)]
     class WellFed : RustPlugin
     {
 
@@ -12,20 +12,16 @@ namespace Oxide.Plugins
 	public float SpawnWellFedHunger => Config.Get<float>("Spawn Hunger");
 	public float LoginWellFedThirst => Config.Get<float>("Login Thirst");
 	public float SpawnWellFedThirst => Config.Get<float>("Spawn Thirst");
-	public bool WellFedOnLogin => Config.Get<bool>("Enable WellFed On Login");
-	public bool WellFedOnSpawn => Config.Get<bool>("Enable WellFed On Spawn");
 	
         protected override void LoadDefaultConfig()
         {
 
-            Config["Login Health"] = 100;
-            Config["Spawn Health"] = 100;
-	    Config["Login Hunger"] = 1000;
-	    Config["Spawn Hunger"] = 1000;
-	    Config["Login Thirst"] = 1000;
-	    Config["Spawn Thirst"] = 1000;
-            Config["Enable WellFed On Login"] = true;
-	    Config["Enable WellFed On Spawn"] = true;
+            Config["Login Health"] = 100f;
+            Config["Spawn Health"] = 100f;
+	    Config["Login Hunger"] = 500f;
+	    Config["Spawn Hunger"] = 500f;
+	    Config["Login Thirst"] = 500f;
+	    Config["Spawn Thirst"] = 500f;
 
             SaveConfig();
         }
@@ -39,32 +35,24 @@ namespace Oxide.Plugins
 	void OnPlayerInit(BasePlayer player)
 
         {
-	if (WellFedOnLogin == true)
-		{
 		if (CanBeFed(player, "wellfed.onlogin"))
 			{
                 	player.metabolism.hydration.value = LoginWellFedThirst;
                 	player.metabolism.calories.value = LoginWellFedHunger;
-                	player.InitializeHealth(LoginWellFedHealth, 100);
+                	player.health = LoginWellFedHealth;
 			}
-		return;
-		}
 	return;
 	}
 
 	void OnPlayerRespawned(BasePlayer player)
 
         {
-	if (WellFedOnSpawn == true)
-		{
 		if (CanBeFed(player, "wellfed.onspawn"))
 			{
                 	player.metabolism.hydration.value = SpawnWellFedThirst;
                 	player.metabolism.calories.value = SpawnWellFedHunger;
-                	player.InitializeHealth(SpawnWellFedHealth, 100);
+                	player.health = SpawnWellFedHealth;
 			}
-		return;
-		}
 	return;
 	}
 

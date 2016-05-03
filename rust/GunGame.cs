@@ -1,24 +1,26 @@
+// Requires: EventManager
+
 using System.Collections.Generic;
-
+using System.Linq;
+using Oxide.Game.Rust.Cui;
 using UnityEngine;
-
-using Oxide.Core.Plugins;
 
 using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("Gun Game", "k1lly0u", "0.3.4", ResourceId = 1485)]
+    [Info("Gun Game", "k1lly0u", "0.3.5", ResourceId = 1485)]
     class GunGame : RustPlugin
     {
         [PluginReference]
-        Plugin EventManager;
+        EventManager EventManager;
 
         private bool useThisEventGG;
         private bool GGStarted;
 
         private List<GunGamePlayer> GunGamePlayers = new List<GunGamePlayer>();
         private ConfigData configData;
+        private Dictionary<string, ItemDefinition> _itemsDict;
 
         class ConfigData
         {
@@ -55,7 +57,8 @@ namespace Oxide.Plugins
                 level = 1;
             }
         }
-        class RankItem
+
+        internal class RankItem
         {
             public string name;
             public string shortname;
@@ -94,7 +97,7 @@ namespace Oxide.Plugins
         }
         void RegisterGame()
         {
-            var success = EventManager.Call("RegisterEventGame", configData.EventName);
+            var success = EventManager.RegisterEventGame(configData.EventName);
             if (success == null)
             {
                 Puts("Event plugin doesn't exist");
@@ -511,15 +514,15 @@ namespace Oxide.Plugins
             Config.WriteObject(config, true);
         }
         void Unload()
-        {
-            if (useThisEventGG && GGStarted)
-            {
-                EventManager.Call("EndEvent");
-                var objects = UnityEngine.Object.FindObjectsOfType<GunGamePlayer>();
-                if (objects != null)
-                    foreach (var gameObj in objects)
-                        UnityEngine.Object.Destroy(gameObj);
-            }
+        {           
+            foreach (var player in BasePlayer.activePlayerList) DestroyUI(player);               
+            if (useThisEventGG && GGStarted)            
+                EventManager.EndEvent();                
+            
+            var objects = UnityEngine.Object.FindObjectsOfType<GunGamePlayer>();
+            if (objects != null)
+                foreach (var gameObj in objects)
+                    UnityEngine.Object.Destroy(gameObj);
         }
 
         //////////////////////////////////////////////////////////////////////////////////////
@@ -535,6 +538,7 @@ namespace Oxide.Plugins
 
         private void LoadVariables()
         {
+            _itemsDict = ItemManager.itemList.ToDictionary(i => i.shortname);
             LoadConfigVariables();
             SaveConfig();
         }
@@ -542,7 +546,68 @@ namespace Oxide.Plugins
         {
             configData = Config.ReadObject<ConfigData>();
         }
+       
+        class LeaderBoard
+        {
+            public string Name;
+            public int Kills;
+        }
+        #region UI Scoreboard
+        private List<GunGamePlayer> SortScores()
+        {
+            List<GunGamePlayer> sortedScores;
 
+            if (EventManager.EventMode == EventManager.GameMode.Battlefield)
+                sortedScores = GunGamePlayers.OrderByDescending(pair => pair.kills).ToList();
+            else sortedScores = GunGamePlayers.OrderByDescending(pair => pair.level).ToList();               
+            
+            return sortedScores;
+        }
+        private string PlayerMsg(int key, GunGamePlayer player)
+        {
+            var score = player.level;
+            if (EventManager.EventMode == EventManager.GameMode.Battlefield)
+                score = player.kills;
+
+            return $"|  <color=#FF8C00>{key}</color>.  <color=#FF8C00>{player.player.displayName}</color> <color=#939393>--</color> <color=#FF8C00>{score}</color>  |";
+        }
+        private CuiElementContainer CreateScoreboard(BasePlayer player)
+        {
+            DestroyUI(player);
+            string panelName = "GGScoreBoard";
+            var element = EventManager.UI.CreateElementContainer(panelName, "0.3 0.3 0.3 0.6", "0.1 0.95", "0.9 1", false);
+
+            var scores = SortScores();
+            var index = scores.FindIndex(a => a.player == player);
+
+            var scoreMessage = PlayerMsg(index + 1, scores[index]);
+            int amount = 3;
+            for (int i = 0; i < amount; i++)
+            {
+                if (scores.Count >= i + 1)
+                {
+                    if (scores[i].player == player)
+                    {
+                        amount++;
+                        continue;
+                    }
+                    scoreMessage = scoreMessage + PlayerMsg(i + 1, scores[i]);
+                }
+            }
+            EventManager.UI.CreateLabel(ref element, panelName, "", scoreMessage, 18, "0 0", "1 1");
+            return element;
+        }
+        private void RefreshSB()
+        {
+            foreach (var entry in GunGamePlayers)
+            {
+                DestroyUI(entry.player);
+                AddUI(entry.player);
+            }
+        }
+        private void AddUI(BasePlayer player) => CuiHelper.AddUi(player, CreateScoreboard(player));
+        private void DestroyUI(BasePlayer player) => CuiHelper.DestroyUi(player, "GGScoreBoard");
+        #endregion
         //////////////////////////////////////////////////////////////////////////////////////
         // Event Manager Hooks ///////////////////////////////////////////////////////////////
         //////////////////////////////////////////////////////////////////////////////////////
@@ -553,7 +618,7 @@ namespace Oxide.Plugins
             {
                 useThisEventGG = true;
                 if (!string.IsNullOrEmpty(configData.SpawnFile))
-                    EventManager.Call("SelectSpawnfile", configData.SpawnFile);
+                    EventManager.SelectSpawnfile(configData.SpawnFile);                
             }
             else
                 useThisEventGG = false;
@@ -565,6 +630,7 @@ namespace Oxide.Plugins
                 player.health = configData.StartHealth;
                 if (!player.GetComponent<GunGamePlayer>()) GunGamePlayers.Add(player.gameObject.AddComponent<GunGamePlayer>());
                 stripGive(player);
+                AddUI(player);
             }
         }
         object OnSelectSpawnFile(string name)
@@ -606,13 +672,19 @@ namespace Oxide.Plugins
         {
             if (useThisEventGG)
             {
-                EventManager.Call("BroadcastEvent", EventMessageOpenBroadcast);
+                EventManager.BroadcastEvent(EventMessageOpenBroadcast);
+                EventManager.UseClassSelection = false;
                 if (configData.RankLimit > configData.Weapons.Count)
                 {
                     configData.RankLimit = configData.Weapons.Count;
                     SaveConfig(configData);
                 }
             }
+            return null;
+        }
+        object OnEventCancel()
+        {
+            CheckScores(null, false, true);
             return null;
         }
         object OnEventClosePost()
@@ -639,13 +711,13 @@ namespace Oxide.Plugins
             {
                 GGStarted = true;
                 if (configData.CloseEventAtStart)
-                    EventManager.Call("CloseEvent");
+                    EventManager.CloseEvent();
             }
             return null;
         }
         object OnEventStartPost()
         {
-            return null;
+                        return null;
         }
         object CanEventJoin()
         {
@@ -667,7 +739,8 @@ namespace Oxide.Plugins
                     UnityEngine.Object.Destroy(player.GetComponent<GunGamePlayer>());
                 GunGamePlayers.Add(player.gameObject.AddComponent<GunGamePlayer>());
                 player.GetComponent<GunGamePlayer>().level = 1;
-                if (configData.UseMachete) notifyMachete(player);
+                if (GGStarted) AddUI(player);
+                
             }
             return null;
         }
@@ -698,6 +771,7 @@ namespace Oxide.Plugins
         {
             if ((useThisEventGG) && (GGStarted))
             {
+                DestroyUI(victim);
                 BasePlayer attacker = hitinfo?.Initiator?.ToPlayer();
                 if (attacker != null && attacker != victim)
                 {
@@ -756,14 +830,14 @@ namespace Oxide.Plugins
             player.inventory.Strip();
             GiveRankKit(player, player.GetComponent<GunGamePlayer>().level);
             if (configData.UseMachete)
-                GiveItem(player, BuildItem(configData.DowngradeWeapon.shortname), "belt");
+                GiveItem(player, configData.DowngradeWeapon.shortname, "belt");
             if (configData.UseMeds)
                 foreach (var entry in configData.Meds)
-                    GiveItem(player, BuildItem(entry.shortname, entry.amount), entry.container);
+                    GiveItem(player, entry.shortname, entry.container, entry.amount);
             if (configData.UseArmour)
-                GiveItem(player, BuildItem(configData.ArmourType), "wear");
+                GiveItem(player, configData.ArmourType, "wear");
             foreach (var entry in configData.PlayerGear)
-                GiveItem(player, BuildItem(entry.shortname, entry.amount, entry.skin), entry.container);
+                GiveItem(player, entry.shortname, entry.container, entry.amount, entry.skin);
         }
         public void GiveRankKit(BasePlayer player, int rank)
         {
@@ -771,9 +845,7 @@ namespace Oxide.Plugins
             if (configData.Weapons.TryGetValue(rank, out rankItem))
             {
                 for (var i = 0; i < rankItem.amount; i++)
-                    GiveItem(player, BuildWeapon(rankItem), rankItem.container);
-                if (!string.IsNullOrEmpty(rankItem.ammoType))
-                    GiveItem(player, BuildItem(rankItem.ammoType, rankItem.ammo), rankItem.container);
+                    GiveItem(player, rankItem);
                 SendReply(player, string.Format("You are Rank <color=orange>{0}</color> ({1})", rank, rankItem.name));
                 return;
             }
@@ -784,57 +856,118 @@ namespace Oxide.Plugins
         // Give //////////////////////////////////////////////////////////////////////////////
         //////////////////////////////////////////////////////////////////////////////////////
 
-        private Item BuildItem(string shortname, int amount = 1, int skin = 0)
+        private ItemDefinition FindItemDefinition(string shortname)
         {
-            var definition = ItemManager.FindItemDefinition(shortname);
+            ItemDefinition itemDefinition;
+            return _itemsDict.TryGetValue(shortname, out itemDefinition) ? itemDefinition : null;
+        }
+
+        private Item BuildItem(string shortname)
+        {
+            var definition = FindItemDefinition(shortname);
             if (definition != null)
             {
-                var item = ItemManager.Create(definition, amount, false, skin);
+                var item = ItemManager.Create(definition);
                 if (item != null)
                     return item;
             }
             Puts("Error making item: " + shortname);
             return null;
         }
-        private Item BuildWeapon(RankItem rankItem)
+
+        public void GiveItem(BasePlayer player, RankItem rankItem)
         {
-            var item = BuildItem(rankItem.shortname, 1, rankItem.skin);
-            if (item == null) return null;
-            var weapon = item.GetHeldEntity() as BaseProjectile;
-            if (weapon != null)
+            var definition = FindItemDefinition(rankItem.shortname);
+            if (definition == null)
             {
-                weapon.primaryMagazine.contents = weapon.primaryMagazine.capacity;
-                if (!string.IsNullOrEmpty(rankItem.ammoType))
+                Puts("Error making item: " + rankItem.shortname);
+                return;
+            }
+            var stack = definition.stackable;
+            if (stack < 1) stack = 1;
+            for (var i = rankItem.amount; i > 0; i = i - stack)
+            {
+                var giveamount = i >= stack ? stack : i;
+                if (giveamount < 1) return;
+                var item = ItemManager.Create(definition, giveamount, false, rankItem.skin);
+                if (item == null)
                 {
-                    var ammoType = ItemManager.FindItemDefinition(rankItem.ammoType);
-                    if (ammoType != null)
-                        weapon.primaryMagazine.ammoType = ammoType;
+                    Puts("Error making item: " + rankItem.shortname);
+                    return;
                 }
+                var weapon = item.GetHeldEntity() as BaseProjectile;
+                if (weapon != null)
+                {
+                    if (!string.IsNullOrEmpty(rankItem.ammoType))
+                    {
+                        var ammoType = FindItemDefinition(rankItem.ammoType);
+                        if (ammoType != null)
+                            weapon.primaryMagazine.ammoType = ammoType;
+                    }
+                    var ammo = rankItem.ammo - weapon.primaryMagazine.capacity;
+                    if (ammo <= 0)
+                        weapon.primaryMagazine.contents = rankItem.ammo;
+                    else
+                    {
+                        weapon.primaryMagazine.contents = weapon.primaryMagazine.capacity;
+                        GiveItem(player, weapon.primaryMagazine.ammoType.shortname, "main", ammo);
+                    }
+                }
+                if (rankItem.contents != null)
+                    foreach (var content in rankItem.contents)
+                        BuildItem(content)?.MoveToContainer(item.contents);
+                ItemContainer cont;
+                switch (rankItem.container)
+                {
+                    case "wear":
+                        cont = player.inventory.containerWear;
+                        break;
+                    case "belt":
+                        cont = player.inventory.containerBelt;
+                        break;
+                    default:
+                        cont = player.inventory.containerMain;
+                        break;
+                }
+                player.inventory.GiveItem(item, cont);
             }
-            if (rankItem.contents == null) return item;
-
-            foreach (var content in rankItem.contents)
-                BuildItem(content)?.MoveToContainer(item.contents);
-
-            return item;
         }
-        public void GiveItem(BasePlayer player, Item item, string container)
+
+        public void GiveItem(BasePlayer player, string shortname, string container, int amount = 1, int skin = 0)
         {
-            if (item == null) return;
-            ItemContainer cont;
-            switch (container)
+            var definition = FindItemDefinition(shortname);
+            if (definition == null)
             {
-                case "wear":
-                    cont = player.inventory.containerWear;
-                    break;
-                case "belt":
-                    cont = player.inventory.containerBelt;
-                    break;
-                default:
-                    cont = player.inventory.containerMain;
-                    break;
+                Puts("Error making item: " + shortname);
+                return;
             }
-            player.inventory.GiveItem(item, cont);
+            var stack = definition.stackable;
+            if (stack < 1) stack = 1;
+            for (var i = amount; i > 0; i = i - stack)
+            {
+                var giveamount = i >= stack ? stack : i;
+                if (giveamount < 1) return;
+                var item = ItemManager.Create(definition, giveamount, false, skin);
+                if (item == null)
+                {
+                    Puts("Error making item: " + shortname);
+                    return;
+                }
+                ItemContainer cont;
+                switch (container)
+                {
+                    case "wear":
+                        cont = player.inventory.containerWear;
+                        break;
+                    case "belt":
+                        cont = player.inventory.containerBelt;
+                        break;
+                    default:
+                        cont = player.inventory.containerMain;
+                        break;
+                }
+                player.inventory.GiveItem(item, cont);
+            }
         }
 
         private string GetWeapon(HitInfo hitInfo, string def = "")
@@ -874,33 +1007,52 @@ namespace Oxide.Plugins
             {
                 leveled = true;
                 gunGamePlayer.level++;
+                if (EventManager.EventMode == EventManager.GameMode.Battlefield)
+                {
+                    if (gunGamePlayer.level >= (configData.RankLimit + 1))
+                        gunGamePlayer.level = 1;
+                }
             }
-            EventManager.Call("AddTokens", player.UserIDString, configData.TokensPerKill);
-            EventManager.Call("BroadcastEvent", string.Format(GGMessageKill, player.displayName, gunGamePlayer.kills, gunGamePlayer.level, victim.displayName));
+            EventManager.AddTokens(player.UserIDString, configData.TokensPerKill);
+            EventManager.BroadcastEvent(string.Format(GGMessageKill, player.displayName, gunGamePlayer.kills, gunGamePlayer.level, victim.displayName));
 			CheckScores(player, leveled);
+            RefreshSB();
         }
-        void CheckScores(BasePlayer player, bool leveled = false)
+        void CheckScores(BasePlayer player, bool leveled = false, bool timelimitreached = false)
         {
             if (GunGamePlayers.Count <= 1)
             {
-                EventManager.Call("BroadcastEvent", EventMessageNoMorePlayers);
-                EventManager.Call("CloseEvent");
-                EventManager.Call("EndEvent");
+                EventManager.BroadcastEvent(EventMessageNoMorePlayers);
+                EventManager.CloseEvent();
+                EventManager.EndEvent();
                 return;
             }
             BasePlayer winner = null;
-
-            bool finished = false;
+            int topscore = 0;
+            bool finished = false;            
             foreach (GunGamePlayer gungameplayer in GunGamePlayers)
             {
                 if (gungameplayer == null) continue;
-                if (gungameplayer.level >= (configData.RankLimit + 1) || GunGamePlayers.Count <= 1)
+                if (EventManager.EventMode == EventManager.GameMode.Normal)
                 {
-                    winner = gungameplayer.player;
-                    finished = true;
-                    break;
+                    if (gungameplayer.level >= (configData.RankLimit + 1))
+                    {
+                        winner = gungameplayer.player;
+                        finished = true;
+                        break;
+                    }
+                }
+                if (timelimitreached)
+                {                    
+                    if (gungameplayer.kills > topscore)
+                    {
+                        winner = gungameplayer.player;
+                        topscore = gungameplayer.kills;
+                        finished = true;
+                    }
                 }
             }
+           
             if (winner != null)
             {
                 Winner(winner);
@@ -912,10 +1064,10 @@ namespace Oxide.Plugins
         }
         void Winner(BasePlayer player)
         {
-            EventManager.Call("AddTokens", player.UserIDString, configData.TokensOnWin);
-            EventManager.Call("BroadcastEvent", string.Format(EventMessageWon, player.displayName));
-            EventManager.Call("CloseEvent");
-            EventManager.Call("EndEvent");
+            EventManager.AddTokens(player.UserIDString, configData.TokensOnWin);
+            EventManager.BroadcastEvent(string.Format(EventMessageWon, player.displayName));
+            EventManager.CloseEvent();
+            EventManager.EndEvent();
         }
 
         ////////////////////////////////////////////////////////////

@@ -16,27 +16,30 @@ using Oxide.Core.Configuration;
 
 namespace Oxide.Plugins
 {
-    [Info("RustIO: Friends List", "Alphawar", "1.1.1", ResourceId = 1734)]
+    [Info("RustIOFriendListAPI", "Alphawar", "1.3.1", ResourceId = 1734)]
     [Description("Plugin designed work with RustIOs Friend list")]
     class RustIOFriendListAPI : RustPlugin
     {
+        void Loaded()
+        {
+            LoadVariables();
+            loadPermissions();
+            lang.RegisterMessages(messages, this);
+        }
+        [HookMethod("OnServerInitialized")]
+        void OnServerInitialized()
+        {
+            InitializeRustIO();
+        }
 
-        private bool DebugMode = false;
-        private string ChatPrefixColor = "008800";
-        private string ChatPrefix = "Server";
-
-        #region Rust:IO Bindings
-
+        //////////////////////////////////////////////////////////////////////////////////////
+        // RustIO ////////////////////////////////////////////////////////////////////////////
+        //////////////////////////////////////////////////////////////////////////////////////
         private Library lib;
         private MethodInfo isInstalled;
         private MethodInfo hasFriend;
         private MethodInfo addFriend;
         private MethodInfo deleteFriend;
-
-        void Loaded()
-        {
-            lang.RegisterMessages(messages, this);
-        }
         private void InitializeRustIO()
         {
             lib = Interface.GetMod().GetLibrary<Library>("RustIO");
@@ -46,7 +49,6 @@ namespace Oxide.Plugins
                 Puts("{0}: {1}", Title, "Rust:IO is not present. You need to install Rust:IO first in order to use this plugin!");
             }
         }
-
         private bool IsInstalled()
         {
             if (lib == null) return false;
@@ -71,308 +73,287 @@ namespace Oxide.Plugins
             return (bool)deleteFriend.Invoke(lib, new object[] { playerId, friendId });
         }
 
-        #endregion
 
-        [HookMethod("OnServerInitialized")]
-        void OnServerInitialized()
-        {
-            InitializeRustIO();
-        }
-
-        #region Rust:Chat Functions
-        
-        void BroadcastToChat(string msg)
-        {
-            PrintToChat($"<color={ChatPrefixColor}>{ChatPrefix}</color>: {msg}");
-        }
-        void ChatMessageHandler(BasePlayer player, string message)
-        {
-            PrintToChat(player, $"<color={ChatPrefixColor}>{ChatPrefix}</color>: {message}");
-        }
-
-        #endregion
 
         //////////////////////////////////////////////////////////////////////////////////////
-        // Compatability Hooks ///////////////////////////////////////////////////////////////
+        // Main Function /////////////////////////////////////////////////////////////////////
         //////////////////////////////////////////////////////////////////////////////////////
-
-        public bool areFriends(string _Player1, string _Player2)
-        {
-            if (string.IsNullOrEmpty(_Player1) || string.IsNullOrEmpty(_Player2)) return false;
-            Puts("The areFriends code is being called"); //debug
-            bool test = HasFriend(_Player1, _Player2);
-            bool test1 = HasFriend(_Player2, _Player1);
-            if (test && test1)
-            {
-                Puts("returning true"); //debug
-                return true;
-            }
-            return false;
-        }
-        public bool AreFriends(ulong _Player1, ulong _Player2)
-        {
-            if ((_Player1 == 0) || (_Player2 == 0)) return false;
-            string _Player1ID = Convert.ToString(_Player1);
-            string _Player2ID = Convert.ToString(_Player2);
-            bool _test1 = HasFriend(_Player1ID, _Player2ID);
-            bool _test2 = HasFriend(_Player2ID, _Player1ID);
-            if (_test1 && _test2)
-            {
-                Puts("returning true"); //debug
-                return true;
-            }
-            return false;
-        }
-        private bool AreFriendsS(string _Player1, string _Player2)
-        {
-            if (string.IsNullOrEmpty(_Player1) || string.IsNullOrEmpty(_Player2)) return false;
-            bool _test1 = HasFriend(_Player1, _Player2);
-            bool _test2 = HasFriend(_Player2, _Player1);
-            if (_test1 && _test2)
-            {
-                Puts("returning true"); //debug
-                return true;
-            }
-            return false;
-        }
-        public bool HasFriendCompatability(ulong _Player1, ulong _Player2)
-        {
-            if ((_Player1 == 0) || (_Player2 == 0)) return false;
-            string _Player1ID = Convert.ToString(_Player1);
-            string _Player2ID = Convert.ToString(_Player2);
-            bool _test1 = HasFriend(_Player1ID, _Player2ID);
-            bool _test2 = HasFriend(_Player2ID, _Player1ID);
-            if (_test1 && _test2)
-            {
-                Puts("returning true"); //debug
-                return true;
-            }
-            return false;
-        }
-
-        //////////////////////////////////////////////////////////////////////////////////////
-        // New Hooks /////////////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-
-        [HookMethod("ANDFriends")]
-        private bool ANDFriends(ulong _Player1, ulong _Player2)
-        {
-            if ((_Player1 == 0) || (_Player2 == 0)) return false;
-            string _Player1ID = Convert.ToString(_Player1);
-            string _Player2ID = Convert.ToString(_Player2);
-            bool _test1 = HasFriend(_Player1ID, _Player2ID);
-            bool _test2 = HasFriend(_Player2ID, _Player1ID);
-            if (_test1 && _test2)
-            {
-                Puts("returning true"); //debug
-                return true;
-            }
-            return false;
-        }
-        [HookMethod("ORFriends")]
-        bool ORFriends(ulong _Player1, ulong _Player2)
-        {
-            if ((_Player1 == 0) || (_Player2 == 0)) return false;
-            string _Player1ID = Convert.ToString(_Player1);
-            string _Player2ID = Convert.ToString(_Player2);
-            bool _test1 = HasFriend(_Player1ID, _Player2ID);
-            bool _test2 = HasFriend(_Player2ID, _Player1ID);
-            if (_test1)
-            {
-                Puts("returning true"); //debug
-                return true;
-            }
-            else if (_test2)
-            {
-                Puts("returning true"); //debug
-                return true;
-            }
-            else return false;
-        }
-
-        //////////////////////////////////////////////////////////////////////////////////////
-        // String Hooks //////////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-
-        [HookMethod("ANDFriendsS")]
-        private bool ANDFriendsS(string _Player1, string _Player2)
-        {
-            if (string.IsNullOrEmpty(_Player1) || string.IsNullOrEmpty(_Player2)) return false;
-            bool _test1 = HasFriend(_Player1, _Player2);
-            bool _test2 = HasFriend(_Player2, _Player1);
-            if (_test1) { Puts("returning true"); return true; }
-            else if (_test2) { Puts("returning true"); return true; }
-            else return false;
-        }
-        [HookMethod("ORFriendsS")]
-        private bool ORFriendsS(string _Player1, string _Player2)
-        {
-            if (string.IsNullOrEmpty(_Player1) || string.IsNullOrEmpty(_Player2)) return false;
-            bool _test1 = HasFriend(_Player1, _Player2);
-            bool _test2 = HasFriend(_Player2, _Player1);
-            if (_test1){Puts("returning true");return true;}
-            else if (_test2){Puts("returning true");return true;}
-            else return false;
-        }
-
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Friend Control Hooks //////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-
         [ChatCommand("friend")]
-        void friendFunction(BasePlayer player, string cmd, string[] args)
+        void friendFunction(BasePlayer _player, string cmd, string[] args)
         {
-            bool result = false;
-            string FriendsNameID = null;
+            //bool result = false;
+            //string FriendsNameID = null;
             if (args == null || args.Length == 0)
             {
-                ChatMessageHandler(player, lang.GetMessage("FriendHelp", this, player.UserIDString));
+                ChatMessageHandler(_player, lang.GetMessage("FriendHelp", this, _player.UserIDString));
                 return;
             }
             if (!IsInstalled())
             {
-                ChatMessageHandler(player, lang.GetMessage("RustIOMissing", this, player.UserIDString));
+                ChatMessageHandler(_player, lang.GetMessage("RustIOMissing", this, _player.UserIDString));
                 return;
             }
             switch (args[0].ToLower())
             {
                 case "add":
                 case "+":
-                    if (args.Length == 1)
-                    {
-                        ChatMessageHandler(player, lang.GetMessage("ToADD", this, player.UserIDString));
-                        return;
-                    }
-                    FriendsNameID = getFullName(args[1]).UserIDString;
-                    if (FriendsNameID == player.UserIDString)
-                    {
-                        ChatMessageHandler(player, lang.GetMessage("YouYou", this, player.UserIDString));
-                        return;
-                    }
-                    result = AddFriend(player.UserIDString, FriendsNameID);
-                    if (result == true)
-                    {
-                        ChatMessageHandler(player, lang.GetMessage("PlayerAdded", this, player.UserIDString));
-                    }
-                    else
-                    {
-                        ChatMessageHandler(player, lang.GetMessage("PlayerNotAdded", this, player.UserIDString));
-                    }
+                    friendAdd(args, _player);
                     return;
 
                 case "remove":
                 case "-":
-                    if (args.Length == 1)
-                    {
-                        ChatMessageHandler(player, lang.GetMessage("ToRemove", this, player.UserIDString));
-                        return;
-                    }
-                    FriendsNameID = getFullName(args[1]).UserIDString;
-                    if (FriendsNameID == player.UserIDString)
-                    {
-                        ChatMessageHandler(player, lang.GetMessage("RemoveSelf", this, player.UserIDString));
-                        return;
-                    }
-                    result = DeleteFriend(player.UserIDString, FriendsNameID);
-                    if (result == true)
-                    {
-                        ChatMessageHandler(player, lang.GetMessage("PlayerRemoved", this, player.UserIDString));
-                    }
-                    else
-                    {
-                        ChatMessageHandler(player, lang.GetMessage("PlayerNotRemoved", this, player.UserIDString));
-                    }
+                    friendRemove(args, _player);
                     return;
 
                 case "check":
                 case "?":
-                    if (args.Length == 1)
-                    {
-                        ChatMessageHandler(player, lang.GetMessage("ToCheck", this, player.UserIDString));
-                        return;
-                    }
-                    FriendsNameID = getFullName(args[1]).UserIDString;
-                    if (FriendsNameID == player.UserIDString)
-                    {
-                        ChatMessageHandler(player, lang.GetMessage("YouYou", this, player.UserIDString));
-                        return;
-                    }
-                    result = HasFriend(player.UserIDString, FriendsNameID);
-                    if (result == true)
-                    {
-                        ChatMessageHandler(player, lang.GetMessage("YouFriend", this, player.UserIDString));
-                    }
-                    else
-                    {
-                        ChatMessageHandler(player, lang.GetMessage("YouHFriend", this, player.UserIDString));
-                    }
-                    result = HasFriend(FriendsNameID, player.UserIDString);
-                    if (result == true)
-                    {
-                        ChatMessageHandler(player, lang.GetMessage("TheyFriend", this, player.UserIDString));
-                    }
-                    else
-                    {
-                        ChatMessageHandler(player, lang.GetMessage("TheyHFriend", this, player.UserIDString));
-                    }
+                    friendCheck(args, _player);
                     return;
 
                 case "help":
-                    ChatMessageHandler(player, lang.GetMessage("ToADD", this, player.UserIDString));
-                    ChatMessageHandler(player, lang.GetMessage("ToRemove", this, player.UserIDString));
-                    ChatMessageHandler(player, lang.GetMessage("ToCheck", this, player.UserIDString));
+                    ChatMessageHandler(_player, lang.GetMessage("ToADD", this, _player.UserIDString));
+                    ChatMessageHandler(_player, lang.GetMessage("ToRemove", this, _player.UserIDString));
+                    ChatMessageHandler(_player, lang.GetMessage("ToCheck", this, _player.UserIDString));
+                    return;
+
+                case "admin":
+                    Puts("im here admin");
+                    friendAdmin(args, _player);
+                    return;
+
+                case "debug":
+
                     return;
 
                 default:
-                    ChatMessageHandler(player, lang.GetMessage("IncorrectFormat1", this, player.UserIDString));
-                    ChatMessageHandler(player, lang.GetMessage("IncorrectFormat2", this, player.UserIDString));
-                    ChatMessageHandler(player, lang.GetMessage("IncorrectFormat3", this, player.UserIDString));
+                    ChatMessageHandler(_player, lang.GetMessage("IncorrectFormat1", this, _player.UserIDString));
+                    ChatMessageHandler(_player, lang.GetMessage("IncorrectFormat2", this, _player.UserIDString));
+                    ChatMessageHandler(_player, lang.GetMessage("IncorrectFormat3", this, _player.UserIDString));
                     return;
             }
         }
 
-
-
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Part Name Handler//////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-
-        private BasePlayer getFullName(string name)
+        void friendAdd (string[] _args, BasePlayer _player)
         {
-            if (string.IsNullOrEmpty(name))
+            if (_args.Length == 1){
+                ChatMessageHandler(_player, lang.GetMessage("ToADD", this, _player.UserIDString));
+                return;}
+            BasePlayer _result = FindPlayer(_args[1], _player);
+            if (_result == null) return;
+            string _targetID = _result.UserIDString;
+            if (_targetID == _player.UserIDString){
+                ChatMessageHandler(_player, lang.GetMessage("YouYou", this, _player.UserIDString));
+                return;}
+            bool result = AddFriend(_player.UserIDString, _targetID);
+            if (result == true)ChatMessageHandler(_player, lang.GetMessage("PlayerAdded", this, _player.UserIDString), _result.displayName);
+            else ChatMessageHandler(_player, lang.GetMessage("PlayerNotAdded", this, _player.UserIDString), _result.displayName);
+        }
+
+        void friendRemove(string[] _args, BasePlayer _player)
+        {
+            if (_args.Length == 1){
+                ChatMessageHandler(_player, lang.GetMessage("ToRemove", this, _player.UserIDString));
+                return;}
+            BasePlayer _result = FindPlayer(_args[1], _player);
+            if (_result == null) return;
+            string _targetID = _result.UserIDString;
+            if (_targetID == _player.UserIDString){
+                ChatMessageHandler(_player, lang.GetMessage("RemoveSelf", this, _player.UserIDString));
+                return;}
+            bool result = DeleteFriend(_player.UserIDString, _targetID);
+            if (result == true) ChatMessageHandler(_player, lang.GetMessage("PlayerRemoved", this, _player.UserIDString), _result.displayName);
+            else ChatMessageHandler(_player, lang.GetMessage("PlayerNotRemoved", this, _player.UserIDString), _result.displayName);
+        }
+
+        void friendCheck(string[] _args, BasePlayer _player)
+        {
+            if (_args.Length == 1){
+                ChatMessageHandler(_player, lang.GetMessage("ToADD", this, _player.UserIDString));
+                return;}
+            BasePlayer _result = FindPlayer(_args[1], _player);
+            if (_result == null) return;
+            string _targetID = _result.UserIDString;
+            if (_targetID == _player.UserIDString){
+                ChatMessageHandler(_player, lang.GetMessage("YouYou", this, _player.UserIDString));
+                return;}
+            bool result = HasFriend(_player.UserIDString, _targetID);
+            if (result == true){
+                ChatMessageHandler(_player, lang.GetMessage("YouFriend", this, _player.UserIDString), _result.displayName);}
+            else{
+                ChatMessageHandler(_player, lang.GetMessage("YouHFriend", this, _player.UserIDString), _result.displayName);}
+            result = HasFriend(_targetID, _player.UserIDString);
+            if (result == true){
+                ChatMessageHandler(_player, lang.GetMessage("TheyFriend", this, _player.UserIDString), _result.displayName);}
+            else{
+                ChatMessageHandler(_player, lang.GetMessage("TheyHFriend", this, _player.UserIDString), _result.displayName);}
+        }
+
+        void friendAdmin(string[] _args, BasePlayer _player)
+        {
+            if (!permissionCheck(_player, "admin")) return;
+            if ((_args[1] == "check" || _args[1] == "?") && (_args.Length == 4))
+            {
+                BasePlayer _target1 = FindPlayer(_args[2], _player);
+                BasePlayer _target2 = FindPlayer(_args[3], _player);
+                if (_target1 == null) return;
+                if (_target2 == null) return;
+                bool result = HasFriend(_target1.UserIDString, _target2.UserIDString);
+                if (result == true){
+                    ChatMessageHandler(_player, lang.GetMessage("AdminCheck1-2Y", this, _player.UserIDString), _target1.displayName, _target2.displayName);}
+                else{
+                    ChatMessageHandler(_player, lang.GetMessage("AdminCheck1-2N", this, _player.UserIDString), _target1.displayName, _target2.displayName);}
+                result = HasFriend(_target2.UserIDString, _target1.UserIDString);
+                if (result == true){
+                    ChatMessageHandler(_player, lang.GetMessage("AdminCheck2-1Y", this, _player.UserIDString), _target2.displayName, _target1.displayName);}
+                else{
+                    ChatMessageHandler(_player, lang.GetMessage("AdminCheck2-1N", this, _player.UserIDString), _target2.displayName, _target1.displayName);}
+            }
+        }
+
+        void DebugFunction (string[] _args, BasePlayer _player)
+        {
+
+        }
+
+        //////////////////////////////////////////////////////////////////////////////////////
+        // Other Functions ///////////////////////////////////////////////////////////////////
+        //////////////////////////////////////////////////////////////////////////////////////
+
+
+        private BasePlayer FindPlayer(string _target, BasePlayer player)
+        {
+            var players = new List<BasePlayer>();
+            foreach (var activePlayer in BasePlayer.activePlayerList)
+            {
+                if (activePlayer.UserIDString.Equals(_target)) players.Add(activePlayer);
+                else if (activePlayer.displayName.Contains(_target, CompareOptions.OrdinalIgnoreCase)) players.Add(activePlayer);
+            }
+            if (!(IsDigitsOnly(_target)) && (NamesIncludeSleepers == false)) Puts("Skipping sleepers(Add Debug message)");
+            else
+            {
+                foreach (var sleepingPlayer in BasePlayer.sleepingPlayerList)
+                {
+                    if (sleepingPlayer.UserIDString.Equals(_target)) players.Add(sleepingPlayer);
+                    else if (sleepingPlayer.displayName.Contains(_target, CompareOptions.OrdinalIgnoreCase)) players.Add(sleepingPlayer);
+                }
+            }
+            if (players.Count <= 0)
+            {
+                ChatMessageHandler(player, lang.GetMessage("NotFound", this, player.UserIDString));
                 return null;
-            BasePlayer player = null;
-            name = name.ToLower();
-            var allPlayers = BasePlayer.activePlayerList.ToArray();
-            // Try to find an exact match first
-            foreach (var p in allPlayers)
+            }
+            if (players.Count > 1)
             {
-                if (p.displayName == name)
+                ChatMessageHandler(player, lang.GetMessage("MultiplePlayers", this, player.UserIDString));
+                ChatMessageHandler(player, string.Join("<color=with>,</color> ", players.ConvertAll(p => p.displayName).ToArray()));
+                return null;
+            }
+            return players[0];
+        }
+
+        bool IsDigitsOnly(string str)
+        {
+            foreach (char c in str)
+            {
+                if (!char.IsDigit(c))
                 {
-                    if (player != null)
-                        return null; // Not unique
-                    player = p;
+                    Puts("Character Detected Returning false");
+                    return false;
                 }
             }
-            if (player != null)
-                return player;
-            // Otherwise try to find a partial match
-            foreach (var p in allPlayers)
+            Puts("Detected no Characters Returning true");
+            return true;
+        }
+
+
+
+
+
+
+        //////////////////////////////////////////////////////////////////////////////////////
+        // MessageHandles ////////////////////////////////////////////////////////////////////
+        //////////////////////////////////////////////////////////////////////////////////////
+        void ChatMessageHandler(BasePlayer player, string message, params object[] args)
+        {
+            PrintToChat(player, $"<color={ChatPrefixColor}>{ChatPrefix}</color>: <color={ChatMessageColor}>{message}</color>", args);
+        }
+
+        //////////////////////////////////////////////////////////////////////////////////////
+        // Config ////////////////////////////////////////////////////////////////////////////
+        //////////////////////////////////////////////////////////////////////////////////////
+        private bool DebugMode;
+        private bool NamesIncludeSleepers;
+        private string ChatPrefixColor;
+        private string ChatPrefix;
+        private string ChatMessageColor;
+
+        protected override void LoadDefaultConfig()
+        {
+            Puts("Creating a new configuration file!");
+            Config.Clear();
+            LoadVariables();
+        }
+        void LoadVariables() //Stores Default Values, calling GetConfig passing: menu, dataValue, defaultValue
+        {
+            //Booleans
+            DebugMode = Convert.ToBoolean(GetConfig("Settings", "DebugMode", false));
+            NamesIncludeSleepers = Convert.ToBoolean(GetConfig("Settings", "NamesIncludeSleepers", false));
+            //Ints
+            //Floats
+            //Strings
+            ChatPrefix = Convert.ToString(GetConfig("ChatSettings", "ChatPrefix", "FriendList:"));
+            ChatPrefixColor = Convert.ToString(GetConfig("ChatSettings", "ChatPrefixColor", "008800"));
+            ChatMessageColor = Convert.ToString(GetConfig("ChatSettings", "ChatMessageColor", "yellow"));
+        }
+
+        object GetConfig(string menu, string dataValue, object defaultValue)
+        {
+            var data = Config[menu] as Dictionary<string, object>;
+            if (data == null)
             {
-                if (p.displayName.ToLower().IndexOf(name) >= 0)
+                data = new Dictionary<string, object>();
+                Config[menu] = data;
+            }
+            object value;
+            if (!data.TryGetValue(dataValue, out value))
+            {
+                value = defaultValue;
+                data[dataValue] = value;
+            }
+            return value;
+        }
+
+        //////////////////////////////////////////////////////////////////////////////////////
+        // Permision /////////////////////////////////////////////////////////////////////////
+        //////////////////////////////////////////////////////////////////////////////////////
+        void loadPermissions()
+        {
+            string[] Permissionarray = { "admin", "debug" };
+            foreach (string i in Permissionarray)
+            {
+                string regPerm = Title.ToLower() + "." + i;
+                Puts("Checking if " + regPerm + " is registered.");
+                if (!permission.PermissionExists(regPerm))
                 {
-                    if (player != null)
-                        return null; // Not unique
-                    player = p;
+                    permission.RegisterPermission(regPerm, this);
+                    Puts(regPerm + " is registered.");
+                }
+                else
+                {
+                    Puts(regPerm + " is already registered.");
                 }
             }
-            return player;
+        }
+        bool permissionCheck(BasePlayer _player, string i)
+        {
+            string regPerm = Title.ToLower() + "." + i;
+            if (permission.UserHasPermission(_player.userID.ToString(), regPerm)) return true;
+            return false;
         }
 
         //////////////////////////////////////////////////////////////////////////////////////
         // Messages //////////////////////////////////////////////////////////////////////////
         //////////////////////////////////////////////////////////////////////////////////////
-
         Dictionary<string, string> messages = new Dictionary<string, string>()
         {
             {"IncorrectFormat1", "Incorrect Format, please use one of the following:" },
@@ -381,18 +362,24 @@ namespace Oxide.Plugins
             {"ToADD", "  To ADD a friend use:/friend <add|+> Name" },
             {"ToRemove", "  To REMOVE a friend use:/friend <remove|-> Name" },
             {"ToCheck", "  To CHECK if you are friends use: /friend <check|?> Name" },
-            {"TheyFriend", "You have set them as a friend." },
-            {"TheyHFriend", "They havent set you as a friend." },
-            {"YouHFriend", "You havent set them as a friend." },
-            {"YouFriend", "You have set them as a friend." },
+            {"TheyFriend", "<color=orange>{0}</color> set u as a friend." },
+            {"TheyHFriend", "<color=orange>{0}</color> havent set you as a friend." },
+            {"YouHFriend", "You havent set <color=orange>{0}</color> as a friend." },
+            {"YouFriend", "You have set <color=orange>{0}</color> as a friend." },
             {"YouYou", "Why did you do you?" },
-            {"PlayerNotRemoved", "Player Not removed, are you enemies already, use check command." },
-            {"PlayerRemoved", "Player has been removed" },
+            {"PlayerNotRemoved", "<color=orange>{0}</color> Not removed, are you enemies already, use check command." },
+            {"PlayerRemoved", "<color=orange>{0}</color> has been removed" },
             {"RemoveSelf", "why do you hate yourself, see theropy, from server <3." },
-            {"PlayerNotAdded", "Player Not Added, are you friends already, use check command." },
-            {"PlayerAdded", "Player Added."},
+            {"PlayerNotAdded", "<color=orange>{0}</color> Not Added, are you friends already, use check command." },
+            {"PlayerAdded", "<color=orange>{0}</color> Added."},
             {"FriendHelp", "Incorrect Command, Use /friend help" },
-            {"RustIOMissing", "Rust:IO Does not seem to be installed" }
+            {"RustIOMissing", "Rust:IO Does not seem to be installed" },
+            {"NotFound", "The specified player couldn't be found." },
+            {"MultiplePlayers", "Found multiple players:" },
+            {"AdminCheck1-2Y", "<color=orange>{0}</color> has added <color=orange>{1}</color>" },
+            {"AdminCheck1-2N", "<color=orange>{0}</color> hasnt added <color=orange>{1}</color>" },
+            {"AdminCheck2-1Y", "<color=orange>{0}</color> has added <color=orange>{1}</color>" },
+            {"AdminCheck2-1N", "<color=orange>{0}</color> hasnt added <color=orange>{1}</color>" }
         };
     }
 }

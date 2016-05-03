@@ -1,17 +1,21 @@
 {
     "name": "Ping",
-    "description": "Automatic kicking of players with high pings",
+    "description": "Ping command and automatic kicking of players with high pings",
     "author": "Wulf",
-    "version": "1.2.4",
+    "version": "1.3.1",
     "configuration": true,
     "language": "cs",
     "games": [
+        "rustlegacy",
         "rust",
-        "hurtworld"
+        "hurtworld",
+        "reignofkings"
     ],
     "keywords": [
         "oxide",
+        "rustlegacy",
         "rust",
-        "hurtworld"
+        "hurtworld",
+        "reignofkings"
     ]
 }

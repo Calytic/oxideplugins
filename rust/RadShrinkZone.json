@@ -1,8 +1,8 @@
 {
-    "name": "Radiation Shrinking Zone",
+    "name": "BattleRoyale Local RadZone",
     "description": "BattleRoyale-styled radiation system",
     "author": "",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "configuration": true,
     "require": {
         "ZoneManager": "*"

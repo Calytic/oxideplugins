@@ -2,7 +2,7 @@
     "name": "CraftLog",
     "description": "Logs crafting and crafter information",
     "author": "sqroot",
-    "version": "1.2.0",
+    "version": "1.4.0",
     "configuration": true,
     "language": "py",
     "games": [

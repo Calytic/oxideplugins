@@ -2,7 +2,7 @@
     "name": "Timed Events",
     "description": "Allows automatic events to take place depending on server time.",
     "author": "insane8472",
-    "version": "1.1.1",
+    "version": "1.1.2",
     "configuration": true,
     "language": "lua",
     "games": [

@@ -1,10 +1,10 @@
 {
     "name": "LootProtection",
-    "description": "Prevents players with permission from being looted by other players",
+    "description": "Protects players with permission from being looted by other players",
     "author": "Wulf",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "configuration": true,
-    "language": "lua",
+    "language": "cs",
     "games": [
         "rust"
     ],

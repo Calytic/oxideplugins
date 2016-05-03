@@ -1,0 +1,15 @@
+{
+    "name": "Scuba Steve",
+    "description": "Be the SEAL, this will protect you from drowning and cold damage while swimming",
+    "author": "DaBludger",
+    "version": "1.6",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -5,12 +5,15 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("InventoryGuardian", "k1lly0u", "0.2.11", ResourceId = 773)]
+    [Info("InventoryGuardian", "k1lly0u", "0.2.21", ResourceId = 773)]
     class InventoryGuardian : RustPlugin
     {
         #region Fields
         IGData igData;
         private DynamicConfigFile Inventory_Data;
+
+        private Dictionary<ulong, PlayerInfo> cachedInventories = new Dictionary<ulong, PlayerInfo>();
+
         #endregion
 
         #region Oxide Hooks
@@ -21,35 +24,25 @@ namespace Oxide.Plugins
             LoadData();
             RegisterPermisions();
             CheckProtocol();
+            SaveLoop();
         }
         void OnPlayerInit(BasePlayer player)
         {
             if (igData.IsActivated)
-                if (igData.Inventorys.ContainsKey(player.userID))
-                    if (igData.Inventorys[player.userID].RestoreOnce)
+                if (cachedInventories.ContainsKey(player.userID))
+                    if (cachedInventories[player.userID].RestoreOnce)
                     {
                         RestoreInventory(player);
                         RemoveInventory(player);
                     }
-        }
-        void OnPlayerRespawned(BasePlayer player)
-        {
-            if (igData.IsActivated)
-                if (igData.RestoreUponDeath)            
-                    RestoreInventory(player);
-        }
-        void OnEntityDeath(BaseCombatEntity entity, HitInfo info)
-        {
-            if (entity.ToPlayer() != null)
-                if (igData.IsActivated)
-                    if (igData.RestoreUponDeath)                
-                        SaveInventory(entity.ToPlayer());
-        }
+        }       
+        
         void OnPlayerDisconnected(BasePlayer player)
         {
             if (igData.IsActivated)
                 SaveInventory(player);
         }
+        void Unload() => SaveData();
 
         #endregion
 
@@ -60,11 +53,10 @@ namespace Oxide.Plugins
             if (igData.AutoRestore)
                 if (igData.ProtocolVersion != protocol)
                 {
-                    foreach (var entry in igData.Inventorys)
+                    foreach (var entry in cachedInventories)
                         entry.Value.RestoreOnce = true;
-                    igData.ProtocolVersion = protocol;
-                    SaveData();
-                    Puts("Protocol change has been detected. Activing Auto Restore for all saved inventorys");
+                    igData.ProtocolVersion = protocol;                    
+                    Puts("Protocol change has been detected. Activating Auto Restore for all saved inventories");
                 }
         }
         private void RestoreAll()
@@ -85,7 +77,7 @@ namespace Oxide.Plugins
         }
         private void RemoveAll()
         {
-            igData.Inventorys.Clear();
+            cachedInventories.Clear();
             SaveData();
         }
         private BasePlayer FindPlayer(BasePlayer player, string arg)
@@ -160,9 +152,9 @@ namespace Oxide.Plugins
         private bool SaveInventory(BasePlayer player)
         {
             List<SavedItem> items = GetPlayerItems(player);
-            if (!igData.Inventorys.ContainsKey(player.userID))
-                igData.Inventorys.Add(player.userID, new PlayerInfo {  });
-            igData.Inventorys[player.userID].Items = items;
+            if (!cachedInventories.ContainsKey(player.userID))
+                cachedInventories.Add(player.userID, new PlayerInfo {  });
+            cachedInventories[player.userID].Items = items;
             return true;  
         }
         private List<SavedItem> GetPlayerItems(BasePlayer player)
@@ -228,9 +220,9 @@ namespace Oxide.Plugins
         }
         private bool RemoveInventory(BasePlayer player)
         {
-            if (igData.Inventorys.ContainsKey(player.userID))
+            if (cachedInventories.ContainsKey(player.userID))
             {
-                igData.Inventorys.Remove(player.userID);
+                cachedInventories.Remove(player.userID);
                 return true;
             }
             return false;
@@ -240,11 +232,11 @@ namespace Oxide.Plugins
         #region Give
         private bool RestoreInventory(BasePlayer player)
         {
-            if (!igData.Inventorys.ContainsKey(player.userID))
+            if (!cachedInventories.ContainsKey(player.userID))
                 return false;
             
             player.inventory.Strip();
-            foreach (SavedItem kitem in igData.Inventorys[player.userID].Items)
+            foreach (SavedItem kitem in cachedInventories[player.userID].Items)
             {
                 if (kitem.weapon)
                     GiveItem(player, BuildWeapon(kitem), kitem.container);
@@ -337,7 +329,6 @@ namespace Oxide.Plugins
                     MSG(player, " - Delete <playername>'s saved inventory", "/ig delsaved <playername>");
                     MSG(player, " - Strip <playername>'s current inventory", "/ig strip <playername>");
                     MSG(player, " - Change the minimum authlevel required to use admin commands", "/ig authlevel <1/2>");                    
-                    MSG(player, " - Toggles the restore upon death function", "/ig restoreupondeath");
                     MSG(player, " - Toggles InventoryGuardian on/off", "/ig toggle");
                     MSG(player, " - Toggles the auto restore funtion", "/ig autorestore");                    
                     MSG(player, " - Toggles the restoration of item condition", "/ig keepcondition");
@@ -364,6 +355,7 @@ namespace Oxide.Plugins
                     {
                         case "save":
                             if (IsAdmin(player))
+                            {
                                 if (args.Length == 2)
                                 {
                                     BasePlayer target = FindPlayer(player, args[1]);
@@ -378,19 +370,21 @@ namespace Oxide.Plugins
                                     }
                                     return;
                                 }
-                                else if (IsUser(player))
+                            }
+                            else if (IsUser(player))
+                            {
+                                if (SaveInventory(player))
                                 {
-                                    if (SaveInventory(player))
-                                    {
-                                        MSG(player, "", "You have successfully saved your inventory");
-                                        return;
-                                    }
-                                    MSG(player, "", "The was a error saving your inventory");
+                                    MSG(player, "", "You have successfully saved your inventory");
+                                    return;
                                 }
-                                else MSG(player, "You do not have permission to use this command", "", true);
+                                MSG(player, "", "The was a error saving your inventory");
+                            }
+                            else MSG(player, "You do not have permission to use this command", "", true);
                             return;
                         case "restore":
                             if (IsAdmin(player))
+                            {
                                 if (args.Length == 2)
                                 {
                                     BasePlayer target = FindPlayer(player, args[1]);
@@ -405,19 +399,21 @@ namespace Oxide.Plugins
                                     }
                                     return;
                                 }
-                                else if (IsUser(player))
+                            }
+                            else if (IsUser(player))
+                            {
+                                if (RestoreInventory(player))
                                 {
-                                    if (RestoreInventory(player))
-                                    {
-                                        MSG(player, "", "You have successfully restored your inventory");
-                                        return;
-                                    }
-                                    MSG(player, "", "You do not have a saved inventory");
+                                    MSG(player, "", "You have successfully restored your inventory");
+                                    return;
                                 }
-                                else MSG(player, "You do not have permission to use this command", "", true);
+                                MSG(player, "", "You do not have a saved inventory");
+                            }
+                            else MSG(player, "You do not have permission to use this command", "", true);
                             return;
                         case "delsaved":
                             if (IsAdmin(player))
+                            {
                                 if (args.Length == 2)
                                 {
                                     BasePlayer target = FindPlayer(player, args[1]);
@@ -432,36 +428,18 @@ namespace Oxide.Plugins
                                     }
                                     return;
                                 }
-                                else if (IsUser(player))
-                                {
-                                    if (RemoveInventory(player))
-                                    {
-                                        MSG(player, "", "You have successfully removed your saved inventory");
-                                        return;
-                                    }
-                                    MSG(player, "", "You do not have a saved inventory");
-                                }
-                                else MSG(player, "You do not have permission to use this command", "", true);
-                            return;
-                        case "restoreupondeath":
-                            if (IsAdmin(player))
-                            {
-                                if (igData.RestoreUponDeath)
-                                {
-                                    igData.RestoreUponDeath = false;
-                                    SaveData();
-                                    MSG(player, "You have disabled restore upon death", "", true);
-                                    return;
-                                }
-                                else
-                                {
-                                    igData.RestoreUponDeath = true;
-                                    SaveData();
-                                    MSG(player, "You have enabled restore upon death", "", true);
-                                    return;
-                                }
                             }
-                            return;
+                            else if (IsUser(player))
+                            {
+                                if (RemoveInventory(player))
+                                {
+                                    MSG(player, "", "You have successfully removed your saved inventory");
+                                    return;
+                                }
+                                MSG(player, "", "You do not have a saved inventory");
+                            }
+                            else MSG(player, "You do not have permission to use this command", "", true);
+                            return;                       
                         case "toggle":
                             if (IsAdmin(player))
                             {
@@ -510,6 +488,7 @@ namespace Oxide.Plugins
                             return;
                         case "strip":
                             if (IsAdmin(player))
+                            {
                                 if (args.Length == 2)
                                 {
                                     BasePlayer target = FindPlayer(player, args[1]);
@@ -520,12 +499,13 @@ namespace Oxide.Plugins
                                     }
                                     return;
                                 }
-                                else if (IsUser(player))
-                                {
-                                    player.inventory.Strip();
-                                    MSG(player, "", $"You have successfully stripped your inventory");
-                                }
-                                else MSG(player, "You do not have permission to use this command", "", true);
+                            }
+                            else if (IsUser(player))
+                            {
+                                player.inventory.Strip();
+                                MSG(player, "", $"You have successfully stripped your inventory");
+                            }
+                            else MSG(player, "You do not have permission to use this command", "", true);
                             return;
                         case "keepcondition":
                             if (IsAdmin(player))
@@ -563,12 +543,11 @@ namespace Oxide.Plugins
                 SendReply(arg, "ig restore <playername> - Restore <playername>'s inventory");
                 SendReply(arg, "ig delsaved <playername> - Delete <playername>'s saved inventory");
                 SendReply(arg, "ig strip <playername> - Strip <playername>'s current inventory");
-                SendReply(arg, "ig save all - Save all inventorys");
-                SendReply(arg, "ig restore all - Restore all inventorys");
-                SendReply(arg, "ig delete all - Delete all saved inventorys");
-                SendReply(arg, "ig strip all - Strip all player inventorys");
+                SendReply(arg, "ig save all - Save all inventories");
+                SendReply(arg, "ig restore all - Restore all inventories");
+                SendReply(arg, "ig delete all - Delete all saved inventories");
+                SendReply(arg, "ig strip all - Strip all player inventories");
                 SendReply(arg, "ig authlevel <1/2> - Change the minimum authlevel required to use admin commands");
-                SendReply(arg, "ig restoreupondeath - Toggles the restore upon death function");
                 SendReply(arg, "ig toggle - Toggles InventoryGuardian on/off");
                 SendReply(arg, "ig autorestore - Toggles the auto restore funtion");
                 SendReply(arg, "ig keepcondition - Toggles the restoration of item condition");
@@ -583,7 +562,7 @@ namespace Oxide.Plugins
                             if (arg.Args[1].ToLower() == "all")
                             {
                                 SaveAll();
-                                SendReply(arg, "You have successfully saved all player inventorys");
+                                SendReply(arg, "You have successfully saved all player inventories");
                                 return;
                             }
                             BasePlayer target = FindPlayer(null, arg.Args[1]);
@@ -604,7 +583,7 @@ namespace Oxide.Plugins
                             if (arg.Args[1].ToLower() == "all")
                             {
                                 RestoreAll();
-                                SendReply(arg, "You have successfully restored all player inventorys");
+                                SendReply(arg, "You have successfully restored all player inventories");
                                 return;
                             }
                             BasePlayer target = FindPlayer(null, arg.Args[1]);
@@ -641,24 +620,9 @@ namespace Oxide.Plugins
                             if (arg.Args[1].ToLower() == "all")
                             {
                                 RemoveAll();
-                                SendReply(arg, "You have successfully removed all player inventorys");
+                                SendReply(arg, "You have successfully removed all player inventories");
                             }
-                        return;
-                    case "restoreupondeath":
-                        if (igData.RestoreUponDeath)
-                        {
-                            igData.RestoreUponDeath = false;
-                            SaveData();
-                            SendReply(arg, "You have disabled restore upon death", true);
-                            return;
-                        }
-                        else
-                        {
-                            igData.RestoreUponDeath = true;
-                            SaveData();
-                            SendReply(arg, "You have enabled restore upon death", true);
-                            return;
-                        }
+                        return;                    
                     case "toggle":
                         if (igData.IsActivated)
                         {
@@ -712,7 +676,7 @@ namespace Oxide.Plugins
                                     player.inventory.Strip();
                                 foreach (var player in BasePlayer.sleepingPlayerList)
                                     player.inventory.Strip();
-                                SendReply(arg, "You have successfully stripped all player inventorys");
+                                SendReply(arg, "You have successfully stripped all player inventories");
                                 return;
                             }
                             BasePlayer target = FindPlayer(null, arg.Args[1]);
@@ -746,13 +710,12 @@ namespace Oxide.Plugins
         #region Classes
         class IGData
         {
-            public bool RestoreUponDeath = false;
             public bool IsActivated = true;
             public bool AutoRestore = true;
             public bool KeepCondition = true;
             public int AuthLevel = 2;
             public int ProtocolVersion = 0;
-            public Dictionary<ulong, PlayerInfo> Inventorys = new Dictionary<ulong, PlayerInfo>();
+            public Dictionary<ulong, PlayerInfo> Inventories = new Dictionary<ulong, PlayerInfo>();
         }        
         class PlayerInfo
         {
@@ -778,14 +741,17 @@ namespace Oxide.Plugins
         #region Data Management
         void SaveData()
         {
+            igData.Inventories = cachedInventories;
             Inventory_Data.WriteObject(igData);
             Puts("Saved data");
-        }    
+        }
+        void SaveLoop() => timer.Once(900, () => { SaveData(); SaveLoop(); });
         void LoadData()
         {
             try
             {
                 igData = Inventory_Data.ReadObject<IGData>();
+                cachedInventories = igData.Inventories;
             }
             catch
             {
