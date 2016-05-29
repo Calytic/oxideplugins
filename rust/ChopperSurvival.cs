@@ -1,15 +1,16 @@
 // Requires: EventManager
 using System.Collections.Generic;
-using System.Reflection;
 using System;
 using UnityEngine;
 using Oxide.Core.Plugins;
 using Oxide.Game.Rust.Cui;
 using System.Linq;
+using Facepunch;
+using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("ChopperSurvival", "k1lly0u", "0.2.2", ResourceId = 1590)]
+    [Info("ChopperSurvival", "k1lly0u", "0.2.3", ResourceId = 1590)]
     class ChopperSurvival : RustPlugin
     {        
         [PluginReference] EventManager EventManager;
@@ -61,8 +62,10 @@ namespace Oxide.Plugins
             {
                 Helicopter = GetComponent<BaseHelicopter>();                
                 AI = Helicopter.GetComponent<PatrolHelicopterAI>();
-                Helicopter.maxCratesToSpawn = 0;               
+                Helicopter.maxCratesToSpawn = 0;
+                enabled = true;         
                 InvokeRepeating("CheckDistance", 5, 5);
+
             }
             private void OnDestroy()
             {
@@ -136,8 +139,7 @@ namespace Oxide.Plugins
                 var currentPos = entity.transform.position;
                 if (Destination != null)
                 {
-                    AI.SetTargetDestination(Destination + new Vector3(0.0f, 10f, 0.0f));                    
-
+                    AI.SetTargetDestination(Destination + new Vector3(0.0f, 10f, 0.0f));
                     if (Vector3Ex.Distance2D(currentPos, Destination) < 60)
                     {
                         if (useRockets)
@@ -210,14 +212,17 @@ namespace Oxide.Plugins
         private void DestroyUI(BasePlayer player) => CuiHelper.DestroyUi(player, "CSScoreBoard");
         void ShowHealth()
         {
-            foreach (var p in CSPlayers)            
-                foreach (var heli in CSHelicopters) 
-                    GameTimers.Add(timer.Repeat(0.1f, 0, () =>
-                    {
-                        if (heli != null)
-                            if (Vector3.Distance(p.player.transform.position, heli.Helicopter.transform.position) > 40)
-                            p.player.SendConsoleCommand("ddraw.text", 0.1f, Color.green, heli.Helicopter.transform.position + new Vector3(0, 2, 0), $"<size=16>H: { (int)heli.BodyHealth }, MR: {(int)heli.MainHealth}, TR: {(int)heli.TailHealth}, EN: {(int)heli.EngineHealth}</size>");
-                    }));
+            if (showHeliHealth)
+            {
+                foreach (var p in CSPlayers)
+                    foreach (var heli in CSHelicopters)
+                        GameTimers.Add(timer.Repeat(0.1f, 0, () =>
+                        {
+                            if (heli != null)
+                                if (Vector3.Distance(p.player.transform.position, heli.Helicopter.transform.position) > 40)
+                                    p.player.SendConsoleCommand("ddraw.text", 0.1f, Color.green, heli.Helicopter.transform.position + new Vector3(0, 2, 0), $"<size=16>H: { (int)heli.BodyHealth }, MR: {(int)heli.MainHealth}, TR: {(int)heli.TailHealth}, EN: {(int)heli.EngineHealth}</size>");
+                        }));
+            }
         }        
         #endregion
 
@@ -278,7 +283,9 @@ namespace Oxide.Plugins
                             if (entity.GetComponent<CS_Helicopter>())
                             {
                                 int points = entity.GetComponent<CS_Helicopter>().DealDamage(hitInfo);
-                                hitInfo.damageTypes.ScaleAll(0);
+                                hitInfo.damageTypes = new DamageTypeList();
+                                hitInfo.HitMaterial = 0;
+                                hitInfo.PointStart = Vector3.zero;
                                 attacker.GetComponent<CS_Player>().points += points;
                             }
                     }
@@ -300,8 +307,8 @@ namespace Oxide.Plugins
                         if (!useRockets)
                             KillEntity(entity as BaseEntity);
 
-                    if (entityName.Contains("servergibs_patrolhelicopter"))                    
-                        KillEntity(entity as BaseEntity);                    
+                    if (entityName.Contains("servergibs_patrolhelicopter"))
+                        entity.KillMessage();
                 }
             }
         }    
@@ -373,7 +380,7 @@ namespace Oxide.Plugins
         {
             if (isCurrent && Active)
             {                
-                var num = Math.Ceiling(((float)WaveNumber / (float)MaximumWaves) * (float)MaximumHelicopters);
+                var num = System.Math.Ceiling(((float)WaveNumber / (float)MaximumWaves) * (float)MaximumHelicopters);
                 if (num < 1) num = 1;
                 if (WaveNumber == 1) InitStatModifiers();
                 else SetStatModifiers();
@@ -392,8 +399,8 @@ namespace Oxide.Plugins
                 {
                     BaseHelicopter heli = entity.GetComponent<BaseHelicopter>();
                     entity.Spawn(true);
-                    heli.health = 10000;
                     CSHelicopters.Add(heli.gameObject.AddComponent<CS_Helicopter>());
+                    heli.GetComponent<CS_Helicopter>().enabled = true;
                     MoveToArena(entity);
                 }
             }
@@ -491,14 +498,11 @@ namespace Oxide.Plugins
                 var allobjects = Physics.OverlapSphere(pos, 150);
                 foreach (var gobject in allobjects)
                 {                   
-                    if (gobject.name.ToLower().Contains("fireball"))
+                    if (gobject.name.ToLower().Contains("oilfireballsmall") || gobject.name.ToLower().Contains("napalm"))
                     {                       
-                        var fire = gobject.GetComponent<BaseEntity>();
-                        if (Vector3.Distance(fire.transform.position, pos) < 200)
-                        {
-                            KillEntity(fire);
-                            UnityEngine.Object.Destroy(gobject);
-                        }
+                        var fire = gobject.GetComponent<BaseEntity>();                        
+                        KillEntity(fire);
+                        UnityEngine.Object.Destroy(gobject);                       
                     }
                 }
             });
@@ -575,8 +579,12 @@ namespace Oxide.Plugins
         }
         object OnEventEndPre()
         {
-            if (isCurrent)            
-                DestroyEvent();            
+            if (isCurrent)
+            {
+                DestroyTimers();
+                FindWinner();
+                DestroyEvent();
+            }           
             return null;
         }    
         object OnEventEndPost()
@@ -710,7 +718,7 @@ namespace Oxide.Plugins
             {"nextWave", "Next wave in {0} seconds!"},
             {"noPlayers", "The event has no more players, auto-closing."},
             {"openBroad", "Fend off waves of attacking helicopters! Each hit gives you a point, Rotor hits are worth more. The last player standing, or the player with the most points wins!"},
-            {"eventWin", "{0} has won the event with {1} points!"},
+            {"eventWon", "{0} has won the event with {1} points!"},
             {"eventDeath", "{0} has died {1}/{2} times!"},
             {"waveInbound", "Wave {0} inbound!"},
             {"firstWave", "You have {0} seconds to prepare for the first wave!"},
@@ -756,6 +764,7 @@ namespace Oxide.Plugins
         static int MaximumHelicopters = 4;        
 
         static bool showStats = true;
+        static bool showHeliHealth = true;
 
         static string MainColor = "<color=#FF8C00>";
         static string MSGColor = "<color=#939393>";
@@ -781,6 +790,7 @@ namespace Oxide.Plugins
             CheckCfgFloat("Helicopter - Base Stats- Accuracy", ref HeliAccuracy);
             CheckCfgFloat("Helicopter - Base Stats- Bullet damage", ref HeliBulletDamage);
             CheckCfg("Helicopter - Use rockets", ref useRockets);
+            CheckCfg("Helicopter - Show health", ref showHeliHealth);
             CheckCfgFloat("Helicopter - Stat modifier", ref HeliModifier);
 
             CheckCfgFloat("Player - Starting Health", ref StartHealth);
@@ -844,7 +854,7 @@ namespace Oxide.Plugins
         void AddPoints()
         {
             foreach (CS_Player helisurvivalplayer in CSPlayers)            
-                EventManager.AddTokens(helisurvivalplayer.player.UserIDString, (SurvivalPoints * (WaveNumber / 2)));
+                EventManager.AddTokens(helisurvivalplayer.player.UserIDString, SurvivalPoints);
         }
         void FindWinner()
         {            

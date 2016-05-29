@@ -2,7 +2,7 @@
     "name": "Warp System",
     "description": "Create warp points for players",
     "author": "PaiN",
-    "version": "1.9.6",
+    "version": "1.9.7",
     "configuration": true,
     "language": "cs",
     "games": [

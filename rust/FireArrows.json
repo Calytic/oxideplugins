@@ -2,7 +2,7 @@
     "name": "Fire Arrows",
     "description": "Players can shoot arrows with fire",
     "author": "Colon Blow",
-    "version": "1.1.7",
+    "version": "1.2.0",
     "configuration": true,
     "language": "cs",
     "games": [

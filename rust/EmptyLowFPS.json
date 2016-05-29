@@ -1,8 +1,8 @@
 {
     "name": "EmptyLowFPS",
-    "description": "Set low fps.limit when no players connected",
-    "author": "Dezito",
-    "version": "0.0.2",
+    "description": "Set low cpu usage when no players connected",
+    "author": "",
+    "version": "0.0.3",
     "configuration": true,
     "language": "cs",
     "games": [

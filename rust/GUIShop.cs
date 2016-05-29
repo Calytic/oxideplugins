@@ -128,7 +128,7 @@ namespace Oxide.Plugins
             SaveData();
         }
 
-        static int CurrentTime() { return Facepunch.Math.unixTimestamp; }
+        static int CurrentTime() { return Facepunch.Math.Epoch.Current; }
 
         //////////////////////////////////////////////////////////////////////////////////////
         // Default Shops for Tutorial purpoise ///////////////////////////////////////////////

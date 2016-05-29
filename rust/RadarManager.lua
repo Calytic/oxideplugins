@@ -1,7 +1,7 @@
 PLUGIN.Title        = "Radar Manager"
 PLUGIN.Description  = "Shows clan members, mutual friends, attackers and hit mark locations to other players."
 PLUGIN.Author       = "InSaNe8472"
-PLUGIN.Version      = V(1,0,7)
+PLUGIN.Version      = V(1,0,8)
 PLUGIN.ResourceID   = 1392
 
 local ClanPlugin = "Clans"
@@ -903,7 +903,11 @@ function PLUGIN:OnRocketLaunched(player, entity)
 	if self.Config.Attack.EnabledRocket == "true" then self:DrawAttackRadar(player) end
 end
 
-function PLUGIN:OnWeaponThrown(player, entity)
+function PLUGIN:OnExplosiveThrown(player, entity)
+	if self.Config.Attack.EnabledThrow == "true" then self:DrawAttackRadar(player) end
+end
+
+function PLUGIN:OnMeleeThrown(player, entity)
 	if self.Config.Attack.EnabledThrow == "true" then self:DrawAttackRadar(player) end
 end
 

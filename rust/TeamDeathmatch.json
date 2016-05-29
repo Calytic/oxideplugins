@@ -2,7 +2,7 @@
     "name": "Team Deathmatch",
     "description": "Team Deathmatch event arena game",
     "author": "k1lly0u",
-    "version": "0.2.2",
+    "version": "0.2.21",
     "configuration": true,
     "require": {
         "EventManager": "*",

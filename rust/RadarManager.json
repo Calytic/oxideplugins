@@ -2,7 +2,7 @@
     "name": "Radar Manager",
     "description": "Shows clan members, mutual friends, attackers and hit mark locations to other players.",
     "author": "insane8472",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "configuration": true,
     "require": {
         "Clans": "*",

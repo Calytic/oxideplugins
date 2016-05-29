@@ -14,7 +14,7 @@ class rankme:
     def __init__(self):
 
         self.Title = 'Rank-ME'
-        self.Version = V(2, 6, 0)
+        self.Version = V(2, 6, 1)
         self.Author = 'SkinN'
         self.Description = 'Complex ranking system based on player statistics'
         self.ResourceId = 1074
@@ -225,8 +225,6 @@ class rankme:
     def Init(self):
         '''Hook called when the plugin initializes '''
 
-        self.con(LINE)
-
         # Update System
         self.UpdateConfig()
 
@@ -280,8 +278,6 @@ class rankme:
             self.store_player(i)
 
         # Start Timers
-        self.con('* Starting timers:')
-
         for i in (
                     ('AUTO-SAVE', self.save_data),
                     ('TOP3 ADVERT', self.top_advert)
@@ -291,49 +287,28 @@ class rankme:
 
             # Is System Enabled?
             if PLUGIN['ENABLE ' + name]:
-
                 a = name + ' INTERVAL'
-
                 if a in PLUGIN:
-
                     mins = PLUGIN[a]
                     secs = mins * 60 if mins else 60
-
                     self.timers[name] = timer.Repeat(secs, 0, Action(func), self.Plugin)
-
-                    self.con('  - Started %s timer, set to %s minute/s' % (name.title(), mins))
 
         # Commands System
         n = 0
-
-        self.con('* Enabling commands:')
-
         for cmd in CMDS:
-
             if PLUGIN['ENABLE %s' % cmd]:
-
                 n += 1
-
                 if isinstance(CMDS[cmd], tuple):
-
                     for i in CMDS[cmd]:
-
                         command.AddChatCommand(i, self.Plugin, '%s_CMD' % cmd.replace(' ','_').lower())
-
-                    self.con('  - %s (/%s)' % (cmd.title(), ', /'.join(CMDS[cmd])))
-
                 else:
-
                     command.AddChatCommand(CMDS[cmd], self.Plugin, '%s_CMD' % cmd.replace(' ','_').lower())
-
-                    self.con('  - %s (/%s)' % (cmd.title(), CMDS[cmd]))
-
-        if not n: self.con('  - No commands are enabled')
 
         # Plugin Command
         command.AddChatCommand('rankme', self.Plugin, 'plugin_CMD')
-
-        self.con(LINE)
+        
+        command.AddConsoleCommand('rankme.savedata', self.Plugin, 'Console_Save_CMD')
+        command.AddConsoleCommand('rankme.resetdata', self.Plugin, 'Console_Reset_CMD')
 
     # -------------------------------------------------------------------------
     def Unload(self):
@@ -916,6 +891,16 @@ class rankme:
             self.tell(player, '<orange><size=18>Rank-ME</size> <grey>v%s<end><end>' % self.Version, f=False)
             self.tell(player, self.Description, f=False)
             self.tell(player, 'Plugin developed by <#9810FF>SkinN<end>, powered by <orange>Oxide 2<end>.', profile='76561197999302614', f=False)
+    
+    # -------------------------------------------------------------------------
+    def Console_Save_CMD(self, args):
+    
+        self.save_data()
+    
+    # -------------------------------------------------------------------------
+    def Console_Reset_CMD(self, args):
+    
+        self.reset_data()
 
     # -------------------------------------------------------------------------
     # - PLUGIN FUNCTIONS / HOOKS

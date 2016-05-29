@@ -2,7 +2,7 @@
     "name": "NoEscape",
     "description": "Prevent teleportation (and remover tool) while raid\/combat is occuring",
     "author": "Calytic",
-    "version": "0.3.0",
+    "version": "0.3.1",
     "configuration": true,
     "suggest": {
         "Clans": "*",

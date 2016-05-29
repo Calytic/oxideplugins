@@ -1,29 +1,38 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Oxide.Core;
 using UnityEngine;
+using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("CommandRateLimiter", "Calytic", "0.0.5", ResourceId = 1812)]
-    public class CommandRateLimiter : RustPlugin
+    [Info("CommandRateLimiter", "Calytic", "0.0.61", ResourceId = 1812)]
+    public class CommandRateLimiter : CovalencePlugin
     {
         private int KickAfter;
         private int CooldownMS;
         private int ClearRateCountSeconds;
         private bool LogExcessiveUsage;
+        private bool SendPlayerMessage;
 
-        Dictionary<ulong, DateTime> lastRun = new Dictionary<ulong, DateTime>();
-        Dictionary<ulong, Timer> rateTimer = new Dictionary<ulong, Timer>();
-        Dictionary<ulong, int> rateCount = new Dictionary<ulong, int>();
+        Dictionary<string, DateTime> lastRun = new Dictionary<string, DateTime>();
+        Dictionary<string, Timer> rateTimer = new Dictionary<string, Timer>();
+        Dictionary<string, int> rateCount = new Dictionary<string, int>();
+        List<object> commandWhitelist = new List<object>();
+
+        private Dictionary<string, Dictionary<string, int>> spamLog = new Dictionary<string, Dictionary<string, int>>();
 
         void OnServerInitialized()
         {
-            CooldownMS = GetConfig("CooldownMS", 195);
-            KickAfter = GetConfig("KickAfter", 10);
-            ClearRateCountSeconds = GetConfig("ClearRateCountSeconds", 5);
-            LogExcessiveUsage = GetConfig("LogExcessiveUsage", false);
-            GetConfig("Version", Version.ToString());
+            Config["CooldownMS"] = CooldownMS = GetConfig("CooldownMS", 195);
+            Config["KickAfter"] = KickAfter = GetConfig("KickAfter", 10);
+            Config["ClearRateCountSeconds"] = ClearRateCountSeconds = GetConfig("ClearRateCountSeconds", 5);
+            Config["LogExcessiveUsage"] = LogExcessiveUsage = GetConfig("LogExcessiveUsage", false);
+            Config["SendPlayerMessage"] = SendPlayerMessage = GetConfig("SendPlayerMessage", true);
+            Config["CommandWhitelist"] = commandWhitelist = GetConfig("CommandWhitelist", new List<object>());
+            Config["Version"] = Version.ToString();
+            SaveConfig();
             LoadMessages();
         }
 
@@ -42,6 +51,8 @@ namespace Oxide.Plugins
             Config["KickAfter"] = 10;
             Config["ClearRateCountSeconds"] = 5;
             Config["LogExcessiveUsage"] = false;
+            Config["SendPlayerMessage"] = true;
+            Config["CommandWhitelist"] = new List<string>();
             Config["Version"] = Version.ToString();
         }
 
@@ -59,82 +70,129 @@ namespace Oxide.Plugins
         {
             if (arg.cmd == null) return null;
 
-            if (arg.connection != null)
+            if (arg.Player() == null)
             {
-                if (arg.Player() == null) return true;
+                return null;
             }
 
-            BasePlayer player = arg.Player();
-            if (player == null)
-                return null;
+            IPlayer player = null;
+#if RUST
+            player = covalence.Players.GetPlayer(arg.Player().UserIDString);
+#endif
+            if (player == null) return null;
 
-            if (player.IsAdmin())
+            if (player.ConnectedPlayer == null) return null;
+
+            if (arg.isAdmin)
                 return null;
 
             DateTime lastTime;
 
-            if(lastRun.TryGetValue(player.userID, out lastTime)) {
+            if (lastRun.TryGetValue(player.Id, out lastTime))
+            {
                 TimeSpan ts = DateTime.Now - lastTime;
-                if(ts.TotalMilliseconds < CooldownMS) {
-                    if (LogExcessiveUsage && arg.cmd.name != null)
+                if (ts.TotalMilliseconds < CooldownMS)
+                {
+                    if (arg.cmd.name != null)
                     {
-                        PrintWarning(player.displayName + " (" + player.UserIDString + ") spamming command: " + arg.cmd.name);
+                        if (commandWhitelist.Contains(arg.cmd.name))
+                        {
+                            return null;
+                        }
+
+                        if (LogExcessiveUsage)
+                        {
+                            if (!spamLog.ContainsKey(player.Id))
+                            {
+                                spamLog.Add(player.Id, new Dictionary<string, int>());
+
+                                timer.In(ClearRateCountSeconds, delegate()
+                                {
+                                    List<string> msgs = new List<string>();
+
+                                    foreach (KeyValuePair<string, int> kvp in spamLog[player.Id])
+                                    {
+                                        msgs.Add(kvp.Key + " (" + kvp.Value + ")");
+                                    }
+                                    string cmds = string.Join(", ", msgs.ToArray());
+                                    PrintWarning(player.Name + " (" + player.Id + ") spamming commands: " + cmds);
+                                    spamLog.Remove(player.Id);
+                                });
+                            }
+
+                            if (!spamLog[player.Id].ContainsKey(arg.cmd.name))
+                            {
+                                spamLog[player.Id].Add(arg.cmd.name, 1);
+                            }
+                            else
+                            {
+                                spamLog[player.Id][arg.cmd.name]++;
+                            }
+                        }
                     }
 
                     int c = 0;
-                    if (rateCount.TryGetValue(player.userID, out c))
+                    bool kicked = false;
+                    if (rateCount.TryGetValue(player.Id, out c))
                     {
-                        rateCount[player.userID]++;
+                        rateCount[player.Id]++;
                         if (KickAfter > 0 && (c + 1) >= KickAfter)
                         {
-                            player.Kick(GetMsg("Kick Message"));
+                            player.ConnectedPlayer.Kick(GetMsg("Kick Message"));
+                            kicked = true;
                         }
                     }
                     else
                     {
-                        rateCount.Add(player.userID, 1); 
+                        rateCount.Add(player.Id, 1);
                     }
 
                     if (ClearRateCountSeconds > 0)
                     {
                         Timer rtimer;
-                        if (rateTimer.TryGetValue(player.userID, out rtimer))
+                        if (rateTimer.TryGetValue(player.Id, out rtimer))
                         {
                             if (!rtimer.Destroyed)
                             {
                                 rtimer.Destroy();
                             }
 
-                            rateTimer.Remove(player.userID);
+                            rateTimer.Remove(player.Id);
                         }
 
                         timer.In(ClearRateCountSeconds, delegate()
                         {
-                            if (!player.IsConnected()) return;
-                            if (rateCount.TryGetValue(player.userID, out c))
+                            if (rateCount.TryGetValue(player.Id, out c))
                             {
-                                rateCount[player.userID] = 0;
+                                rateCount[player.Id] = 0;
                             }
                         });
                     }
-                   
-                    SendReply(player, GetMsg("Player Message"));
-                } else {
-                    lastRun[player.userID] = DateTime.Now;
+
+                    if (player.ConnectedPlayer != null && SendPlayerMessage && !kicked)
+                    {
+                        player.Reply(GetMsg("Player Message"));
+                    }
                 }
-            } else {
-                lastRun.Add(player.userID, DateTime.Now);
+                else
+                {
+                    lastRun[player.Id] = DateTime.Now;
+                }
+            }
+            else
+            {
+                lastRun.Add(player.Id, DateTime.Now);
             }
 
             return null;
         }
 
-        void OnPlayerDisconnected(BasePlayer player)
+        void OnUserDisconnected(IPlayer player)
         {
             int c = 0;
-            if (rateCount.TryGetValue(player.userID, out c))
+            if (rateCount.TryGetValue(player.Id, out c))
             {
-                rateCount.Remove(player.userID);
+                rateCount.Remove(player.Id);
             }
         }
 

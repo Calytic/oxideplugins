@@ -2,11 +2,10 @@
     "name": "BoobyTraps",
     "description": "Booby trap boxes with a variety of traps",
     "author": "k1lly0u",
-    "version": "0.1.6",
+    "version": "0.1.7",
     "configuration": true,
     "suggest": {
-        "ZoneManager": "*",
-        "EntityOwner": "*"
+        "ZoneManager": "*"
     },
     "language": "cs",
     "games": [

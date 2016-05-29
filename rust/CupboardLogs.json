@@ -1,0 +1,15 @@
+{
+    "name": "CupboardLogs",
+    "description": "Creates a log for cupboard placements",
+    "author": "DylanSMR",
+    "version": "1.0.2",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

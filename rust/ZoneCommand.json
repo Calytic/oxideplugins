@@ -1,9 +1,9 @@
 {
     "name": "Zone Command",
-    "description": "Executes commands when player is entering a zone",
+    "description": "Executes the commands when a player is entering a zone",
     "author": "deer_SWAG",
-    "version": "0.0.25",
-    "configuration": true,
+    "version": "0.0.35",
+    "configuration": false,
     "require": {
         "ZoneManager": "*"
     },

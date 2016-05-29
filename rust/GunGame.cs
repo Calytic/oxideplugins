@@ -9,7 +9,7 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("Gun Game", "k1lly0u", "0.3.5", ResourceId = 1485)]
+    [Info("Gun Game", "k1lly0u", "0.3.51", ResourceId = 1485)]
     class GunGame : RustPlugin
     {
         [PluginReference]
@@ -80,13 +80,11 @@ namespace Oxide.Plugins
         //////////////////////////////////////////////////////////////////////////////////////
         // Oxide Hooks ///////////////////////////////////////////////////////////////////////
         //////////////////////////////////////////////////////////////////////////////////////
-        void Loaded()
+
+        void OnServerInitialized()
         {
             useThisEventGG = false;
             GGStarted = false;
-        }
-        void OnServerInitialized()
-        {
             if (EventManager == null)
             {
                 Puts("Event plugin doesn't exist");
@@ -517,12 +515,20 @@ namespace Oxide.Plugins
         {           
             foreach (var player in BasePlayer.activePlayerList) DestroyUI(player);               
             if (useThisEventGG && GGStarted)            
-                EventManager.EndEvent();                
+                EventManager.EndEvent();
+            DestroyEvent();              
             
             var objects = UnityEngine.Object.FindObjectsOfType<GunGamePlayer>();
             if (objects != null)
                 foreach (var gameObj in objects)
                     UnityEngine.Object.Destroy(gameObj);
+        }
+        private void DestroyEvent()
+        {
+            GGStarted = false;
+            foreach (var player in GunGamePlayers)            
+                UnityEngine.Object.Destroy(player);            
+            GunGamePlayers.Clear();
         }
 
         //////////////////////////////////////////////////////////////////////////////////////
@@ -695,14 +701,17 @@ namespace Oxide.Plugins
         {
             if (useThisEventGG)
             {
-                GGStarted = false;
-                useThisEventGG = false;
-                GunGamePlayers.Clear();
+                CheckScores(null, false, true);
+                DestroyEvent();
             }
             return null;
         }
         object OnEventEndPost()
         {
+            var objPlayers = UnityEngine.Object.FindObjectsOfType<GunGamePlayer>();
+            if (objPlayers != null)
+                foreach (var gameObj in objPlayers)
+                    UnityEngine.Object.Destroy(gameObj);
             return null;
         }
         object OnEventStartPre()
@@ -717,7 +726,7 @@ namespace Oxide.Plugins
         }
         object OnEventStartPost()
         {
-                        return null;
+            return null;
         }
         object CanEventJoin()
         {
@@ -806,9 +815,8 @@ namespace Oxide.Plugins
         object OnRequestZoneName()
         {
             if (useThisEventGG)
-            {
-                return configData.ZoneName;
-            }
+                if (!string.IsNullOrEmpty(configData.ZoneName))
+                    return configData.ZoneName;            
             return null;
         }
 

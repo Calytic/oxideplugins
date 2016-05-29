@@ -1,8 +1,8 @@
 {
     "name": "QuickSort",
-    "description": "Allows players to quickly sort their items into containers",
+    "description": "Adds a new GUI that allows players to quickly sort items into containers",
     "author": "Wulf",
-    "version": "0.1.1",
+    "version": "1.0.1",
     "configuration": true,
     "language": "cs",
     "games": [

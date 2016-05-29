@@ -2,7 +2,7 @@
     "name": "Rust:IO Friends List API",
     "description": "A simple API designed to interact with RustIOs friend list",
     "author": "Alphawar",
-    "version": "1.3.1",
+    "version": "1.4.0",
     "configuration": true,
     "require": {},
     "language": "cs",

@@ -13,7 +13,7 @@ using Oxide.Core.Database;
 
 namespace Oxide.Plugins
 {
-    [Info("Zeiser Levels REMASTERED", "Zeiser/Visagalis", "1.6.0", ResourceId = 1453)]
+    [Info("Zeiser Levels REMASTERED", "Zeiser/Visagalis", "1.6.1", ResourceId = 1453)]
     [Description("Lets players level up as they harvest different resources and when crafting.")]
     public class ZLevelsRemastered : RustPlugin
     {
@@ -1128,6 +1128,10 @@ namespace Oxide.Plugins
                     break;
                 case "cloth":
                 case "mushroom":
+				case "corn":
+				case "pumpkin":
+				case "seed.pumpkin":
+				case "seed.corn":
                     skillName = Skills.SKINNING;
                     break;
                 case "metal.ore":

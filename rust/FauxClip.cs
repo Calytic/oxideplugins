@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-     [Info("FauxClip", "Colon Blow", "1.3.5", ResourceId = 1299)]
+     [Info("FauxClip", "Colon Blow", "1.3.6", ResourceId = 1299)]
      class FauxClip : RustPlugin
      {
 	public float GracefulLandingTime => Config.Get<float>("GracefulLandingTime");
@@ -76,7 +76,7 @@ namespace Oxide.Plugins
                 {          
                      var input = playerData.input;
                      var newPos = playerData.oldPos;
-			var currentRot = Quaternion.Euler(input.current.aimAngles);
+		     var currentRot = Quaternion.Euler(input.current.aimAngles);
                      var speedMult = playerData.speed;
 
                      if (input.IsDown(BUTTON.SPRINT))
@@ -115,8 +115,7 @@ namespace Oxide.Plugins
              		ForcePlayerPosition(player, newPos);
                      } 
                      else
-                      newPos = player.transform.position;
-                      lastPositionValue.SetValue(player, player.transform.position);
+                      newPos = player.transform.position;          
                       if (newPos == playerData.oldPos) continue;
                       ForcePlayerPosition(player, newPos);
                       playerData.oldPos = newPos;

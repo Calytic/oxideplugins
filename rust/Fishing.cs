@@ -8,7 +8,7 @@ using Oxide.Game.Rust.Cui;
 
 namespace Oxide.Plugins
 {
-     [Info("Fishing", "Colon Blow", "1.1.8", ResourceId = 1537)]
+     [Info("Fishing", "Colon Blow", "1.1.9", ResourceId = 1537)]
      class Fishing : RustPlugin
      {
 	public int fishchance;
@@ -245,25 +245,29 @@ namespace Oxide.Plugins
 		{
 		FishIcon = iconrarefish1;
 		SendReply(player, lang.GetMessage("rarefish", this));
-		player.inventory.GiveItem(ItemManager.CreateByItemID(-253819519, 5));
+		player.inventory.GiveItem(ItemManager.CreateByItemID(865679437, 5));
+		player.Command("note.inv", 865679437, 5);
 		}
 	if (fishtyperoll >= 90 && fishtyperoll < 100)
 		{
 		FishIcon = iconuncommonfish1;
 		SendReply(player, lang.GetMessage("uncommonfish1", this));
-		player.inventory.GiveItem(ItemManager.CreateByItemID(179448791, 2));
+		player.inventory.GiveItem(ItemManager.CreateByItemID(865679437, 2));
+		player.Command("note.inv", 865679437, 2);
 		}
 	if (fishtyperoll > 45 && fishtyperoll < 90)
 		{
 		FishIcon = iconcommonfish2;
 		SendReply(player, lang.GetMessage("commonfish2", this));
-		player.inventory.GiveItem(ItemManager.CreateByItemID(179448791, 2));
+		player.inventory.GiveItem(ItemManager.CreateByItemID(88869913, 1));
+		player.Command("note.inv", 88869913, 1);
 		}
 	if (fishtyperoll >= 1 && fishtyperoll <= 45)
 		{
 		FishIcon = iconcommonfish1;
 		SendReply(player, lang.GetMessage("commonfish1", this));
-		player.inventory.GiveItem(ItemManager.CreateByItemID(-1658459025, 1));
+		player.inventory.GiveItem(ItemManager.CreateByItemID(865679437, 1));
+		player.Command("note.inv", 865679437, 1);
 		}
 	if (fishtyperoll < randomitemchance && allowrandomitemchance)
 		{

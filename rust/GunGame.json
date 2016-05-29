@@ -2,7 +2,7 @@
     "name": "GunGame",
     "description": "GunGame event arena game",
     "author": "k1lly0u",
-    "version": "0.3.5",
+    "version": "0.3.51",
     "configuration": true,
     "require": {
         "EventManager": "*",

@@ -1,8 +1,8 @@
 {
     "name": "Chopper Survival",
-    "description": "Survival event arena game with helicopters as enemys",
+    "description": "Survival event arena game with helicopters as enemies",
     "author": "k1lly0u",
-    "version": "0.2.2",
+    "version": "0.2.3",
     "configuration": true,
     "require": {
         "EventManager": "*",

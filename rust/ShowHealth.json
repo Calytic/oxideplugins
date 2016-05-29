@@ -1,7 +1,7 @@
 {
     "name": "ShowHealth",
     "description": "Check any player's health",
-    "author": "",
+    "author": "Troubled",
     "version": "0.2.1",
     "configuration": false,
     "language": "cs",

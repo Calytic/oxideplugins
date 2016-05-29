@@ -1,18 +1,22 @@
 using System;
 using System.Collections.Generic;
 
-
 namespace Oxide.Plugins
 {
-    [Info("DeathKick", "k1lly0u", "0.1.1", ResourceId = 1779)]
+    [Info("DeathKick", "k1lly0u", "0.1.2", ResourceId = 1779)]
     public class DeathKick : RustPlugin
-    {
+    {        
         private Dictionary<ulong, double> deadPlayers = new Dictionary<ulong, double>();
         private List<Timer> Timers = new List<Timer>();
+        private Dictionary<ulong, int> deathCounts = new Dictionary<ulong, int>();
 
         #region oxide hooks
         void Loaded() => lang.RegisterMessages(messages, this);
-        void OnServerInitialized() => LoadVariables();
+        void OnServerInitialized()
+        {
+            LoadVariables();
+            permission.RegisterPermission("deathkick.exempt", this);
+        }
         void Unload() => ClearData();
         #endregion
 
@@ -29,13 +33,23 @@ namespace Oxide.Plugins
             {
             }
         }
-        private void ProcessDeath(BasePlayer player, HitInfo info)
+        private void ProcessDeath(BasePlayer player, HitInfo info, bool isBounty = false)
         {            
             if (!GetDeathType(player, info)) return;
+            if (player.IsAdmin() || permission.UserHasPermission(player.UserIDString, "deathkick.exempt")) return;
+            if (useBounty && !isBounty) return;
 
-            deadPlayers.Add(player.userID, GrabCurrentTime() + (cooldownTime * 60));
-            Timers.Add(timer.Once(cooldownTime * 60, () => deadPlayers.Remove(player.userID)));
-            Network.Net.sv.Kick(player.net.connection, string.Format(lang.GetMessage("died", this, player.UserIDString), cooldownTime, lang.GetMessage("minutes", this, player.UserIDString)));
+            if (!deathCounts.ContainsKey(player.userID))
+                deathCounts.Add(player.userID, 0);
+            deathCounts[player.userID]++;
+
+            if (deathCounts[player.userID] >= deathLimit)
+            {
+                deadPlayers.Add(player.userID, GrabCurrentTime() + (cooldownTime * 60));
+                Timers.Add(timer.Once(cooldownTime * 60, () => deadPlayers.Remove(player.userID)));
+                Network.Net.sv.Kick(player.net.connection, string.Format(lang.GetMessage("died", this, player.UserIDString), cooldownTime, lang.GetMessage("minutes", this, player.UserIDString)));
+                deathCounts.Remove(player.userID);
+            }
         }
         public bool GetDeathType(BasePlayer player, HitInfo info)
         {
@@ -89,6 +103,7 @@ namespace Oxide.Plugins
 
         #region config
         static int cooldownTime = 30;
+        static int deathLimit = 1;
         static bool usePlayers = true;
         static bool useHeli = true;
         static bool useAnimals = true;
@@ -99,6 +114,7 @@ namespace Oxide.Plugins
         static bool useAutoturret = true;
         static bool useSuicide = true;
         static bool useFall = true;
+        static bool useBounty = false;
 
         private bool changed;
 
@@ -125,6 +141,8 @@ namespace Oxide.Plugins
             CheckCfg("Death types - Autoturrets", ref useAutoturret);
             CheckCfg("Death types - Suicide", ref useSuicide);
             CheckCfg("Death types - Fall", ref useFall);
+            CheckCfg("Death Limit", ref deathLimit);
+            CheckCfg("Bounty kills only", ref useBounty);
             CheckCfg("Timer - Amount of time a player is kicked for (minutes)", ref cooldownTime);            
         }
         private void CheckCfg<T>(string Key, ref T var)

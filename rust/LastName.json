@@ -2,7 +2,7 @@
     "name": "LastName",
     "description": "Stores all player usernames",
     "author": "deer_SWAG",
-    "version": "0.1.14",
+    "version": "0.1.15",
     "configuration": true,
     "language": "cs",
     "games": [

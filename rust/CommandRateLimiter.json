@@ -2,7 +2,7 @@
     "name": "CommandRateLimiter",
     "description": "Prevent bind abuse now!",
     "author": "Calytic",
-    "version": "0.0.5",
+    "version": "0.0.61",
     "configuration": true,
     "language": "cs",
     "games": [

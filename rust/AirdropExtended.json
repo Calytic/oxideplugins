@@ -2,7 +2,7 @@
     "name": "Airdrop Extended",
     "description": "Airdrop controller with lot of features.",
     "author": "baton256",
-    "version": "1.0.5",
+    "version": "1.0.7",
     "configuration": true,
     "suggest": {
         "CompassGUI": "*",

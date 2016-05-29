@@ -2,7 +2,7 @@
     "name": "SSNNotifier",
     "description": "Collects and sends game information to the Survival Servers Network",
     "author": "",
-    "version": "0.0.4",
+    "version": "0.0.5",
     "configuration": true,
     "language": "cs",
     "games": [

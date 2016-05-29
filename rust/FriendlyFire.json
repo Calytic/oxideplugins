@@ -1,10 +1,12 @@
 {
-    "name": "Rust:IO FriendlyFire",
-    "description": "Disables friendly fire for Rust:IO friends",
-    "author": "dcode",
-    "version": "1.6.0",
+    "name": "FriendlyFire",
+    "description": "Toggle friendly fire on\/off for Friends API",
+    "author": "Nogrod",
+    "version": "2.0.1",
     "configuration": true,
-    "require": {},
+    "require": {
+        "Friends": "*"
+    },
     "language": "cs",
     "games": [
         "rust"

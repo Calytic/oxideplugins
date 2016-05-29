@@ -13,10 +13,11 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Linq;
 using Oxide.Core.Configuration;
+using Oxide.Game.Rust.Cui;
 
 namespace Oxide.Plugins
 {
-    [Info("RustIOFriendListAPI", "Alphawar", "1.3.1", ResourceId = 1734)]
+    [Info("RustIOFriendListAPI", "Alphawar", "1.4.0", ResourceId = 1734)]
     [Description("Plugin designed work with RustIOs Friend list")]
     class RustIOFriendListAPI : RustPlugin
     {
@@ -216,6 +217,145 @@ namespace Oxide.Plugins
         }
 
         //////////////////////////////////////////////////////////////////////////////////////
+        // Compatability Hooks ///////////////////////////////////////////////////////////////
+        //////////////////////////////////////////////////////////////////////////////////////
+
+        public bool areFriends(string _Player1, string _Player2)
+        {
+            if (string.IsNullOrEmpty(_Player1) || string.IsNullOrEmpty(_Player2)) return false;
+            Puts("The areFriends code is being called"); //debug
+            bool test = HasFriend(_Player1, _Player2);
+            bool test1 = HasFriend(_Player2, _Player1);
+            if (test && test1)
+            {
+                //Puts("returning true"); //debug
+                return true;
+            }
+            return false;
+        }
+        public bool AreFriends(ulong _Player1, ulong _Player2)
+        {
+            if ((_Player1 == 0) || (_Player2 == 0)) return false;
+            string _Player1ID = Convert.ToString(_Player1);
+            string _Player2ID = Convert.ToString(_Player2);
+            bool _test1 = HasFriend(_Player1ID, _Player2ID);
+            bool _test2 = HasFriend(_Player2ID, _Player1ID);
+            if (_test1 && _test2)
+            {
+                //Puts("returning true"); //debug
+                return true;
+            }
+            return false;
+        }
+        private bool AreFriendsS(string _Player1, string _Player2)
+        {
+            if (string.IsNullOrEmpty(_Player1) || string.IsNullOrEmpty(_Player2)) return false;
+            bool _test1 = HasFriend(_Player1, _Player2);
+            bool _test2 = HasFriend(_Player2, _Player1);
+            if (_test1 && _test2)
+            {
+                //Puts("returning true"); //debug
+                return true;
+            }
+            return false;
+        }
+        public bool HasFriendcmp(ulong _Player1, ulong _Player2)
+        {
+            if ((_Player1 == 0) || (_Player2 == 0)) return false;
+            string _Player1ID = Convert.ToString(_Player1);
+            string _Player2ID = Convert.ToString(_Player2);
+            bool _test1 = HasFriend(_Player1ID, _Player2ID);
+            bool _test2 = HasFriend(_Player2ID, _Player1ID);
+            if (_test1 && _test2)
+            {
+                //Puts("returning true"); //debug
+                return true;
+            }
+            return false;
+        }
+
+        //////////////////////////////////////////////////////////////////////////////////////
+        // New Hooks /////////////////////////////////////////////////////////////////////////
+        //////////////////////////////////////////////////////////////////////////////////////
+
+        [HookMethod("ANDFriends")]
+        private bool ANDFriends(ulong _Player1, ulong _Player2)
+        {
+            if ((_Player1 == 0) || (_Player2 == 0)) return false;
+            string _Player1ID = Convert.ToString(_Player1);
+            string _Player2ID = Convert.ToString(_Player2);
+            bool _test1 = HasFriend(_Player1ID, _Player2ID);
+            bool _test2 = HasFriend(_Player2ID, _Player1ID);
+            if (_test1 && _test2)
+            {
+                //Puts("returning true"); //debug
+                return true;
+            }
+            return false;
+        }
+        [HookMethod("ORFriends")]
+        bool ORFriends(ulong _Player1, ulong _Player2)
+        {
+            if ((_Player1 == 0) || (_Player2 == 0)) return false;
+            string _Player1ID = Convert.ToString(_Player1);
+            string _Player2ID = Convert.ToString(_Player2);
+            bool _test1 = HasFriend(_Player1ID, _Player2ID);
+            bool _test2 = HasFriend(_Player2ID, _Player1ID);
+            if (_test1)
+            {
+                //Puts("returning true"); //debug
+                return true;
+            }
+            else if (_test2)
+            {
+                //Puts("returning true"); //debug
+                return true;
+            }
+            else return false;
+        }
+
+
+        [HookMethod("chkFriend")]
+        public bool chkFriend(ulong _Player1, ulong _Player2)
+        {
+            if ((_Player1 == 0) || (_Player2 == 0)) return false;
+            string _Player1ID = Convert.ToString(_Player1);
+            string _Player2ID = Convert.ToString(_Player2);
+            bool _test1 = HasFriend(_Player1ID, _Player2ID);
+            if (_test1)
+            {
+                //Puts("returning true"); //debug
+                return true;
+            }
+            return false;
+        }
+        //////////////////////////////////////////////////////////////////////////////////////
+        // String Hooks //////////////////////////////////////////////////////////////////////
+        //////////////////////////////////////////////////////////////////////////////////////
+
+        [HookMethod("ANDFriendsS")]
+        private bool ANDFriendsS(string _Player1, string _Player2)
+        {
+            if (string.IsNullOrEmpty(_Player1) || string.IsNullOrEmpty(_Player2)) return false;
+            bool _test1 = HasFriend(_Player1, _Player2);
+            bool _test2 = HasFriend(_Player2, _Player1);
+            if (_test1) { Puts("returning true"); return true; }
+            else if (_test2) { Puts("returning true"); return true; }
+            else return false;
+        }
+        [HookMethod("ORFriendsS")]
+        private bool ORFriendsS(string _Player1, string _Player2)
+        {
+            if (string.IsNullOrEmpty(_Player1) || string.IsNullOrEmpty(_Player2)) return false;
+            bool _test1 = HasFriend(_Player1, _Player2);
+            bool _test2 = HasFriend(_Player2, _Player1);
+            if (_test1) { Puts("returning true"); return true; }
+            else if (_test2) { Puts("returning true"); return true; }
+            else return false;
+        }
+
+
+        //////////////////////////////////////////////////////////////////////////////////////
         // Other Functions ///////////////////////////////////////////////////////////////////
         //////////////////////////////////////////////////////////////////////////////////////
 
@@ -265,11 +405,7 @@ namespace Oxide.Plugins
             return true;
         }
 
-
-
-
-
-
+        
         //////////////////////////////////////////////////////////////////////////////////////
         // MessageHandles ////////////////////////////////////////////////////////////////////
         //////////////////////////////////////////////////////////////////////////////////////

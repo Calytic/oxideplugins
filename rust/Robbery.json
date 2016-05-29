@@ -2,14 +2,13 @@
     "name": "Robbery",
     "description": "Players can steal Economics money from other players",
     "author": "Wulf",
-    "version": "2.3.0",
+    "version": "2.4.1",
     "configuration": true,
     "suggest": {
+        "Economics": "*",
+        "ServerRewards": "*",
         "EventManager": "*",
         "ZoneManager": "*"
-    },
-    "require": {
-        "Economics": "*"
     },
     "language": "cs",
     "games": [

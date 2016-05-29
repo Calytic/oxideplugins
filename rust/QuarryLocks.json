@@ -2,7 +2,7 @@
     "name": "QuarryLocks",
     "description": "Ads customizable locks to a quarry",
     "author": "DylanSMR",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "configuration": true,
     "language": "cs",
     "games": [

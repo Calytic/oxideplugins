@@ -10,7 +10,7 @@ using Oxide.Core;
 //NAMESPACE OXIDE//
 namespace Oxide.Plugins
 {
-    [Info("Quarry-Locks", "DylanSMR", "1.0.4", ResourceId = 1819)]
+    [Info("Quarry-Locks", "DylanSMR", "1.0.5", ResourceId = 1819)]
     [Description("Added customizable locks to a quarry")]
     class QuarryLocks : RustPlugin
     {
@@ -187,7 +187,6 @@ namespace Oxide.Plugins
                 ["QL_MESSAGE"] = "<color='{0}'>{1}:</color><color='{2}'> {3}</color>",
                 ["QL_ALERTMESSAGES"] = "<color='{0}'>{1}:</color><color='{2}'> You have {3} new messagse! Do /qlock rmessage to check them!</color>",
                 ["QL_MAYNOTOPEN"] = "<color='{0}'>{1}:</color><color='{2}'> You may not open this mans quarry.</color>",
-                ["QL_FIXMOUSE"] = "<color='{0}'>{1}:</color><color='{2}'> Open your inventory and close it to fix your mouse.</color>",
                 ["QL_NOTENOUGHLOCKS"] = "<color='{0}'>{1}:</color><color='{2}'> You only had {3} out of the {4} needed to create a code lock for your quarry.</color>",
                 ["QL_ALREADYBLOCKED"] = "<color='{0}'>{1}:</color><color='{2}'> {3} is already blocked!</color>",
                 ["QL_BLOCKED"] = "<color='{0}'>{1}:</color><color='{2}'> {3} is now blocked!</color>",
@@ -608,6 +607,7 @@ namespace Oxide.Plugins
                         if (ent is MiningQuarry)
                             quarry = ent.GetComponent<MiningQuarry>();
                             
+                    if(quarry.OwnerID == null) return;
                     BasePlayer owner = BasePlayer.FindByID(quarry.OwnerID);                           
                     if (quarry != null)
                     {
@@ -644,12 +644,18 @@ namespace Oxide.Plugins
                             if (owner != null)
                             {
                                 SendReply(looter, string.Format(GetMessage("QL_MAYNOTOPEN", looter.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"]));
-                                SendReply(looter, string.Format(GetMessage("QL_FIXMOUSE", looter.UserIDString), Config["ChatPrefixColor"], Config["ChatPrefix"], Config["ChatColor"]));
-                                looter.SetPlayerFlag(BasePlayer.PlayerFlags.ReceivingSnapshot, true);
-                                looter.UpdateNetworkGroup();
-                                looter.SendNetworkUpdateImmediate(false);
-                                looter.ClientRPCPlayer(null, looter, "StartLoading", null, null, null, null, null);
-                                looter.SendFullSnapshot();
+                                NextTick(() =>
+                                {
+                                    looter.EndLooting();    
+                                });
+                                NextTick(() =>
+                                {
+                                    looter.EndLooting();    
+                                });
+                                NextTick(() =>
+                                {
+                                    looter.EndLooting();    
+                                });
                                 if(quarryData.QD[owner.userID].LogsFromPlayer.ContainsKey(looter.userID))
                                 {
                                     if(quarryData.QD[owner.userID].LogsFromPlayer[looter.userID].Logs != quarryData.QD[owner.userID].MaxLogsFromPlayer && quarryData.QD[owner.userID].MaxLogsAllowed != quarryData.QD[owner.userID].LogsFromPlayer[looter.userID].Logs)
@@ -681,16 +687,7 @@ namespace Oxide.Plugins
             }
             catch(System.Exception)
             {
-                if(WarningE == false)
-                {
-                    PrintWarning("Error with hook: OnLootEntity! Please consider removing all quarrys installed before the plugin.");    
-                    WarningE = true;
-                    timer.Once(60, () => 
-                    {
-                       WarningE = false; 
-                    });
-                    throw;
-                }                                 
+                return;                                
             }
         }              
     }

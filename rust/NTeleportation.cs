@@ -19,7 +19,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("NTeleportation", "Nogrod", "1.0.9", ResourceId = 1832)]
+    [Info("NTeleportation", "Nogrod", "1.0.10", ResourceId = 1832)]
     class NTeleportation : RustPlugin
     {
         private const string NewLine = "\n";
@@ -1269,7 +1269,7 @@ namespace Oxide.Plugins
                 changedHome = true;
                 return;
             }
-            var timestamp = Facepunch.Math.unixTimestamp;
+            var timestamp = Facepunch.Math.Epoch.Current;
             var currentDate = DateTime.Now.ToString("d");
             if (homeData.Teleports.Date != currentDate)
             {
@@ -1451,7 +1451,7 @@ namespace Oxide.Plugins
                 PrintMsgL(player, err);
                 return;
             }
-            var timestamp = Facepunch.Math.unixTimestamp;
+            var timestamp = Facepunch.Math.Epoch.Current;
             var currentDate = DateTime.Now.ToString("d");
             TeleportData tprData;
             if (!TPR.TryGetValue(player.userID, out tprData))
@@ -1551,8 +1551,7 @@ namespace Oxide.Plugins
             var originPlayer = PlayersRequests[player.userID];
             if (configData.TPR.BlockTPAOnCeiling)
             {
-                var position = player.transform.position;
-                position.y = TerrainMeta.HeightMap.GetHeight(position);
+                var position = GetGround(player.transform.position);
                 if (Vector3.Distance(position, player.transform.position) > 2)
                 {
                     RaycastHit hitInfo;
@@ -1569,7 +1568,7 @@ namespace Oxide.Plugins
             var countdown = GetLower(originPlayer, configData.TPR.VIPCountdowns, configData.TPR.Countdown);
             PrintMsgL(originPlayer, "Accept", player.displayName, countdown);
             PrintMsgL(player, "AcceptTarget", originPlayer.displayName);
-            var timestamp = Facepunch.Math.unixTimestamp;
+            var timestamp = Facepunch.Math.Epoch.Current;
             TeleportTimers[originPlayer.userID] = new TeleportTimer
             {
                 OriginPlayer = originPlayer,
@@ -1664,7 +1663,7 @@ namespace Oxide.Plugins
             {
                 var module = args[0].ToLower();
                 var msg = _($"TPSettings{module}", player);
-                var timestamp = Facepunch.Math.unixTimestamp;
+                var timestamp = Facepunch.Math.Epoch.Current;
                 var currentDate = DateTime.Now.ToString("d");
                 TeleportData teleportData;
                 int limit;
@@ -1827,7 +1826,7 @@ namespace Oxide.Plugins
             TeleportData teleportData;
             if (!Town.TryGetValue(player.userID, out teleportData))
                 Town[player.userID] = teleportData = new TeleportData();
-            var timestamp = Facepunch.Math.unixTimestamp;
+            var timestamp = Facepunch.Math.Epoch.Current;
             var currentDate = DateTime.Now.ToString("d");
             if (teleportData.Date != currentDate)
             {
@@ -2237,7 +2236,7 @@ namespace Oxide.Plugins
             for (var i = 0; i < hits.Count; i++)
             {
                 var entity = hits[i];
-                if (!entity.LookupPrefabName().Contains("foundation")/* || Vector3.Distance(position, entity.CenterPoint()) > 4*/) continue;
+                if (!entity.LookupPrefabName().Contains("foundation") || positionCoordinates.y < entity.WorldSpaceBounds().ToBounds().max.y) continue;
                 entities.Add(entity);
             }
             Pool.FreeList(ref hits);
@@ -2537,7 +2536,7 @@ namespace Oxide.Plugins
         {
             if (player == null || string.IsNullOrEmpty(type)) return 0;
             var currentDate = DateTime.Now.ToString("d");
-            var timestamp = Facepunch.Math.unixTimestamp;
+            var timestamp = Facepunch.Math.Epoch.Current;
             int cooldown;
             var remaining = -1;
             switch (type.ToLower())

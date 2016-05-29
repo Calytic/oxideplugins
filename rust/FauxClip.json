@@ -2,7 +2,7 @@
     "name": "FauxClip",
     "description": "NoClip Simulator for players with permission",
     "author": "Colon Blow",
-    "version": "1.3.5",
+    "version": "1.3.6",
     "configuration": true,
     "language": "cs",
     "games": [

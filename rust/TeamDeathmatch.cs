@@ -7,7 +7,7 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("Team Deathmatch", "k1lly0u", "0.2.2", ResourceId = 1484)]
+    [Info("Team Deathmatch", "k1lly0u", "0.2.21", ResourceId = 1484)]
     class TeamDeathmatch : RustPlugin
     {
         #region Fields        
@@ -199,6 +199,7 @@ namespace Oxide.Plugins
         object OnEventEndPre()
         {
             if (!UseTDM) return null;
+            CheckScores(true);
             foreach (TDMPlayer p in TDMPlayers)
             {
                 p.team = Team.NONE;

@@ -2,7 +2,7 @@
     "name": "KillStreaks",
     "description": "Keep track of player kill streaks and either reward or punish them",
     "author": "k1lly0u",
-    "version": "0.1.4",
+    "version": "0.1.5",
     "configuration": true,
     "suggest": {
         "Airstrike": "*",

@@ -8,7 +8,7 @@ using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("LustyPort", "Kayzor", "1.1.9", ResourceId = 1250)]
+    [Info("LustyPort", "Kayzor", "1.1.11", ResourceId = 1250)]
     [Description("A simple teleportation plugin!")]
     public class LustyPort : RustPlugin
     {
@@ -20,7 +20,7 @@ namespace Oxide.Plugins
 				
         List<LustyPorts> lustyPorts = new List<LustyPorts>();
 		List<LustyPlayers> lustyPlayers = new List<LustyPlayers>();
-		List<TeleportingPlayers> teleportingPlayers = new List<TeleportingPlayers>();
+		List<LustyTeleportings> teleportingPlayers = new List<LustyTeleportings>();
 
         int teleportDuration = 10; // Seconds
 
@@ -160,7 +160,7 @@ namespace Oxide.Plugins
             playerMsg(player, "Type <color=#00ff00ff>/tp_back</color> - Teleports you back to your original location");
             playerMsg(player, "Type <color=#00ff00ff>/tp_list</color> - Lists all available locations");
             if (isAdmin(player)) {
-                playerMsg(player, "Type <color=#00ff00ff>/tp_add <name> (optional)<true></color> - Adds a new location set to your current position (optional)Admin only");
+                playerMsg(player, "Type <color=#00ff00ff>/tp_add <name> (optional)true</color> - Adds a new location set to your current position (optional)Admin only");
                 playerMsg(player, "Type <color=#00ff00ff>/tp_del <name></color> - Deletes a location");
             }
             playerMsg(player, "Type <color=#00ff00ff>/tp_about</color> - Information about the plugin");
@@ -168,7 +168,7 @@ namespace Oxide.Plugins
         }
 		
 		// Teleporting Class
-		private class TeleportingPlayers
+		private class LustyTeleportings
 		{
 			public ulong userid { get; set; }
 			public DateTime starttime { get; set; }
@@ -309,7 +309,7 @@ namespace Oxide.Plugins
 
         private void startPort(BasePlayer player, LustyPorts lustyPort, bool back)
         {
-            TeleportingPlayers tpPlayer = new TeleportingPlayers();
+            LustyTeleportings tpPlayer = new LustyTeleportings();
             tpPlayer.starttime = DateTime.UtcNow;
             tpPlayer.userid = player.userID;
             tpPlayer.x = player.transform.position.x;
@@ -321,9 +321,9 @@ namespace Oxide.Plugins
             playerMsg(player, "Teleport initiated, you will be teleported in <color=#00ff00ff>" + teleportDuration + "</color> seconds, remain still!");
         }
 
-        private TeleportingPlayers findTeleportingPlayer(ulong userid)
+        private LustyTeleportings findTeleportingPlayer(ulong userid)
         {
-            TeleportingPlayers teleportingPlayer = teleportingPlayers.Find(r => r.userid == userid);
+            LustyTeleportings teleportingPlayer = teleportingPlayers.Find(r => r.userid == userid);
             if (teleportingPlayer != null)
             {
                 return teleportingPlayer;
@@ -348,7 +348,7 @@ namespace Oxide.Plugins
             {
                 for (int i = teleportingPlayers.Count - 1; i >= 0; i--)
                 {
-                    TeleportingPlayers teleportingPlayer = teleportingPlayers[i];
+                    LustyTeleportings teleportingPlayer = teleportingPlayers[i];
                     BasePlayer player = findPlayer(teleportingPlayer.userid);
 
                     if (checkTeleport(player, teleportingPlayer))
@@ -418,19 +418,26 @@ namespace Oxide.Plugins
             savePlayers();
         }
 
-        private bool checkTeleport(BasePlayer player, TeleportingPlayers teleportingPlayer)
-        { 
-            if (Convert.ToSingle(player.transform.position.x) >= (teleportingPlayer.x - 0.2) && Convert.ToSingle(player.transform.position.x) <= (teleportingPlayer.x + 0.2))
+        private bool checkTeleport(BasePlayer player, LustyTeleportings teleportingPlayer)
+        {
+            try
             {
-                if (Convert.ToSingle(player.transform.position.y) >= (teleportingPlayer.y - 0.2) && Convert.ToSingle(player.transform.position.y) <= (teleportingPlayer.y + 0.2))
+                if (Convert.ToSingle(player.transform.position.x) >= (teleportingPlayer.x - 0.2) && Convert.ToSingle(player.transform.position.x) <= (teleportingPlayer.x + 0.2))
                 {
-                    if (Convert.ToSingle(player.transform.position.z) >= (teleportingPlayer.z - 0.2) && Convert.ToSingle(player.transform.position.z) <= (teleportingPlayer.z + 0.2))
+                    if (Convert.ToSingle(player.transform.position.y) >= (teleportingPlayer.y - 0.2) && Convert.ToSingle(player.transform.position.y) <= (teleportingPlayer.y + 0.2))
                     {
-                        return true;
+                        if (Convert.ToSingle(player.transform.position.z) >= (teleportingPlayer.z - 0.2) && Convert.ToSingle(player.transform.position.z) <= (teleportingPlayer.z + 0.2))
+                        {
+                            return true;
+                        }
                     }
                 }
+                return false;
             }
-            return false;
+            catch
+            {
+                return false;
+            }
         }
 
 
@@ -470,24 +477,18 @@ namespace Oxide.Plugins
 
         void TeleportPlayerPosition(BasePlayer player, Vector3 destination)
         {
-            player.ClientRPCPlayer(null, player, "StartLoading");
+            player.ClientRPCPlayer(null, player, "StartLoading", null, null, null, null, null);
             player.SetPlayerFlag(BasePlayer.PlayerFlags.Sleeping, true);
-            if (BasePlayer.sleepingPlayerList.Contains(player) == false) BasePlayer.sleepingPlayerList.Add(player);
-            player.transform.position = destination;
-
-            var LastPositionValue = typeof(BasePlayer).GetField("lastPositionValue", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
-
-            LastPositionValue.SetValue(player, player.transform.position);
+            if (!BasePlayer.sleepingPlayerList.Contains(player)) BasePlayer.sleepingPlayerList.Add(player);
+            player.MovePosition(destination);
             player.ClientRPCPlayer(null, player, "ForcePositionTo", destination);
             player.TransformChanged();
-
             player.SetPlayerFlag(BasePlayer.PlayerFlags.ReceivingSnapshot, true);
             player.UpdateNetworkGroup();
-
             player.SendNetworkUpdateImmediate(false);
+            try { player.ClearEntityQueue(null); } catch { }
             player.SendFullSnapshot();
-            player.SetPlayerFlag(BasePlayer.PlayerFlags.ReceivingSnapshot, false);
-            player.ClientRPCPlayer(null, player, "FinishLoading");
+            player.EndSleeping();
         }        
     }
 }

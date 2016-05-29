@@ -10,7 +10,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("NoEscape", "Calytic", "0.3.0", ResourceId = 1394)]
+    [Info("NoEscape", "Calytic", "0.3.1", ResourceId = 1394)]
     [Description("Prevent tp/remove/bgrade while raid/combat is occuring")]
     class NoEscape : RustPlugin
     {
@@ -389,10 +389,10 @@ namespace Oxide.Plugins
                 }
 
                 if (ownerBlock)
-                    OwnerBlock(source, target.UniqueID, targetEntity.transform.position, sourceMembers);
+                    OwnerBlock(source, target.Id, targetEntity.transform.position, sourceMembers);
 
                 if (raiderBlock)
-                    RaiderBlock(source, target.UniqueID, targetEntity.transform.position, sourceMembers);
+                    RaiderBlock(source, target.Id, targetEntity.transform.position, sourceMembers);
             }
         }
 

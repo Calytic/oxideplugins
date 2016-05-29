@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Enhanced Hammer", "Visagalis", "0.4.9", ResourceId = 1439)]
+    [Info("Enhanced Hammer", "Visagalis", "0.5.0", ResourceId = 1439)]
     public class EnhancedHammer : RustPlugin
     {
         public class PlayerDetails
@@ -30,13 +30,12 @@ namespace Oxide.Plugins
         public static Dictionary<ulong, PlayerDetails> playersInfo = new Dictionary<ulong, PlayerDetails>();
         public static Dictionary<ulong, Timer> playersTimers = new Dictionary<ulong, Timer>();
 
-        void OnStructureRepair(BuildingBlock block, BasePlayer player)
+        void OnStructureRepair(BaseCombatEntity entity, BasePlayer player)
         {
-            if (PlayerHasFlag(player.userID, PlayerFlags.PLUGIN_DISABLED))
+            BuildingBlock block = entity as BuildingBlock;
+
+            if (PlayerHasFlag(player.userID, PlayerFlags.PLUGIN_DISABLED) || block == null)
                 return;
-
-            
-
 
             if (playersInfo[player.userID].upgradeInfo == BuildingGrade.Enum.Count
                 || playersInfo[player.userID].upgradeInfo <= block.currentGrade.gradeBase.type
@@ -129,7 +128,7 @@ namespace Oxide.Plugins
             playersTimers.Add(player.userID, timerIn);
         }
 
-        void OnStructureUpgrade(BuildingBlock block, BasePlayer player, BuildingGrade.Enum grade)
+        void OnStructureUpgrade(BaseCombatEntity block, BasePlayer player, BuildingGrade.Enum grade)
         {
             if (PlayerHasFlag(player.userID, PlayerFlags.PLUGIN_DISABLED))
                 return;

@@ -1,0 +1,20 @@
+{
+    "name": "Factions",
+    "description": "A Configurable 3-Faction system with Faction Leader and Tax System",
+    "author": "",
+    "version": "1.4",
+    "configuration": true,
+    "suggest": {
+        "Economics": "*",
+        "ServerRewards": "*",
+        "EventManager": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -32,7 +32,7 @@ using Timer = Oxide.Core.Libraries.Timer;
 
 namespace Oxide.Plugins
 {
-	[Info(Constants.PluginName, "baton", "1.0.5", ResourceId = 1210)]
+	[Info(Constants.PluginName, "baton", "1.0.7", ResourceId = 1210)]
 	[Description("Customizable airdrop")]
 	public class AirdropExtended : RustPlugin
 	{
@@ -96,10 +96,10 @@ namespace Oxide.Plugins
 			_airdropController.Cleanup();
 		}
 
-		void OnPlayerLoot(PlayerLoot lootInventory, BaseEntity targetEntity)
+		void OnLootEntity(BasePlayer player, BaseEntity entity)
 		{
-			var supplyDrop = targetEntity as SupplyDrop;
-			if (lootInventory == null || targetEntity == null || supplyDrop == null)
+			var supplyDrop = entity as SupplyDrop;
+			if (entity == null || player == null || supplyDrop == null)
 				return;
 
 			var settings = _settingsContext.Settings;
@@ -107,7 +107,7 @@ namespace Oxide.Plugins
 			Diagnostics.MessageTo(
 				settings.Localization.NotifyOnPlayerLootingStartedMessage,
 				settings.CommonSettings.NotifyOnPlayerLootingStarted,
-				lootInventory.GetComponent<BasePlayer>().displayName);
+				player.displayName);
 		}
 
 		private void OnEntitySpawned(BaseEntity entity)
@@ -880,7 +880,7 @@ namespace AirdropExtended.Commands
 			SettingsContext context,
 			PluginSettingsRepository repository,
 			AirdropController controller)
-			: base("aire.load", "aire.canLoad")
+			: base("aire.load", "airdropextended.canLoad")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			if (repository == null) throw new ArgumentNullException("repository");
@@ -930,7 +930,7 @@ namespace AirdropExtended.Commands
 			SettingsContext context,
 			PluginSettingsRepository repository,
 			AirdropController controller)
-			: base("aire.reload", "aire.canReload")
+			: base("aire.reload", "airdropextended.canReload")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			if (repository == null) throw new ArgumentNullException("repository");
@@ -961,7 +961,7 @@ namespace AirdropExtended.Commands
 		private readonly PluginSettingsRepository _pluginSettingsRepository;
 
 		public SaveSettingsCommand(SettingsContext context, PluginSettingsRepository pluginSettingsRepository)
-			: base("aire.save", "aire.canSave")
+			: base("aire.save", "airdropextended.canSave")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			if (pluginSettingsRepository == null) throw new ArgumentNullException("pluginSettingsRepository");
@@ -996,7 +996,7 @@ namespace AirdropExtended.Commands
 	public class GenerateDefaultSettingsAndSaveCommand : AirdropExtendedCommand
 	{
 		public GenerateDefaultSettingsAndSaveCommand()
-			: base("aire.generate", "aire.canGenerate")
+			: base("aire.generate", "airdropextended.canGenerate")
 		{ }
 
 		protected override void ExecuteInternal(ConsoleSystem.Arg arg, BasePlayer player)
@@ -1032,7 +1032,7 @@ namespace AirdropExtended.Commands
 		private readonly AirdropController _controller;
 
 		public SetDropMinFrequencyCommand(SettingsContext context, AirdropController controller)
-			: base("aire.minfreq", "aire.canMinFreq")
+			: base("aire.minfreq", "airdropextended.canMinFreq")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			if (controller == null) throw new ArgumentNullException("controller");
@@ -1068,7 +1068,7 @@ namespace AirdropExtended.Commands
 		private readonly AirdropController _controller;
 
 		public SetDropMaxFrequencyCommand(SettingsContext context, AirdropController controller)
-			: base("aire.maxfreq", "aire.canMaxFreq")
+			: base("aire.maxfreq", "airdropextended.canMaxFreq")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			if (controller == null) throw new ArgumentNullException("controller");
@@ -1105,7 +1105,7 @@ namespace AirdropExtended.Commands
 		private readonly AirdropController _controller;
 
 		public SetPlayersCommand(SettingsContext context, AirdropController controller)
-			: base("aire.players", "aire.canPlayers")
+			: base("aire.players", "airdropextended.canPlayers")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			if (controller == null) throw new ArgumentNullException("controller");
@@ -1141,7 +1141,7 @@ namespace AirdropExtended.Commands
 		private readonly AirdropController _controller;
 
 		public SetTimerEnabledCommand(SettingsContext context, AirdropController controller)
-			: base("aire.timer", "aire.canTimer")
+			: base("aire.timer", "airdropextended.canTimer")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			if (controller == null) throw new ArgumentNullException("controller");
@@ -1177,7 +1177,7 @@ namespace AirdropExtended.Commands
 		private readonly AirdropController _controller;
 
 		public SetEventEnabledCommand(SettingsContext context, AirdropController controller)
-			: base("aire.event", "aire.canEvent")
+			: base("aire.event", "airdropextended.canEvent")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			if (controller == null) throw new ArgumentNullException("controller");
@@ -1213,7 +1213,7 @@ namespace AirdropExtended.Commands
 		private readonly AirdropController _controller;
 
 		public SetSupplyDropEnabledCommand(SettingsContext context, AirdropController controller)
-			: base("aire.supply", "aire.canSupply")
+			: base("aire.supply", "airdropextended.canSupply")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			if (controller == null) throw new ArgumentNullException("controller");
@@ -1249,7 +1249,7 @@ namespace AirdropExtended.Commands
 		private readonly AirdropController _controller;
 
 		public SetPlaneSpeedCommand(SettingsContext context, AirdropController controller)
-			: base("aire.planespeed", "aire.canPlaneSpeed")
+			: base("aire.planespeed", "airdropextended.canPlaneSpeed")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			if (controller == null) throw new ArgumentNullException("controller");
@@ -1284,7 +1284,7 @@ namespace AirdropExtended.Commands
 		private readonly AirdropController _controller;
 
 		public SetCrateCountCommand(SettingsContext context, AirdropController controller)
-			: base("aire.crates", "aire.canCrates")
+			: base("aire.crates", "airdropextended.canCrates")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			if (controller == null) throw new ArgumentNullException("controller");
@@ -1321,7 +1321,7 @@ namespace AirdropExtended.Commands
 		private readonly AirdropController _controller;
 
 		public SetDropToOneLocationCommand(SettingsContext context, AirdropController controller)
-			: base("aire.onelocation", "aire.canOneLocation")
+			: base("aire.onelocation", "airdropextended.canOneLocation")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			if (controller == null) throw new ArgumentNullException("controller");
@@ -1356,7 +1356,7 @@ namespace AirdropExtended.Commands
 		private readonly AirdropController _controller;
 
 		public SetPlaneLimitEnabledCommand(SettingsContext context, AirdropController controller)
-			: base("aire.enableplanelimit", "aire.canEnablePlaneLimit")
+			: base("aire.enableplanelimit", "airdropextended.canEnablePlaneLimit")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			if (controller == null) throw new ArgumentNullException("controller");
@@ -1392,7 +1392,7 @@ namespace AirdropExtended.Commands
 		private readonly AirdropController _controller;
 
 		public SetPlaneLimitCommand(SettingsContext context, AirdropController controller)
-			: base("aire.planelimit", "aire.canPlaneLimit")
+			: base("aire.planelimit", "airdropextended.canPlaneLimit")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			if (controller == null) throw new ArgumentNullException("controller");
@@ -1428,7 +1428,7 @@ namespace AirdropExtended.Commands
 		private readonly AirdropController _controller;
 
 		public SetDespawnTimeCommand(SettingsContext context, AirdropController controller)
-			: base("aire.despawntime", "aire.canDespawnTime")
+			: base("aire.despawntime", "airdropextended.canDespawnTime")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			if (controller == null) throw new ArgumentNullException("controller");
@@ -1465,7 +1465,7 @@ namespace AirdropExtended.Commands
 		private readonly string _usageString;
 
 		public SetItemSettingsCommand(SettingsContext context, AirdropController controller)
-			: base("aire.setitem", "aire.canSetItem")
+			: base("aire.setitem", "airdropextended.canSetItem")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			if (controller == null) throw new ArgumentNullException("controller");
@@ -1542,7 +1542,7 @@ namespace AirdropExtended.Commands
 		private readonly string _usageString;
 
 		public SetItemGroupSettingsCommand(SettingsContext context, AirdropController controller)
-			: base("aire.setitemgroup", "aire.canSetItemGroup")
+			: base("aire.setitemgroup", "airdropextended.canSetItemGroup")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			if (controller == null) throw new ArgumentNullException("controller");
@@ -1615,7 +1615,7 @@ namespace AirdropExtended.Commands
 		private readonly AirdropController _controller;
 
 		public SetAirdropCapacityCommand(SettingsContext context, AirdropController controller)
-			: base("aire.capacity", "aire.canCapacity")
+			: base("aire.capacity", "airdropextended.canCapacity")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			if (controller == null) throw new ArgumentNullException("controller");
@@ -1650,7 +1650,7 @@ namespace AirdropExtended.Commands
 		private readonly SettingsContext _context;
 
 		public CallRandomDropCommand(SettingsContext context)
-			: base("aire.drop", "aire.canDrop")
+			: base("aire.drop", "airdropextended.canDrop")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			_context = context;
@@ -1673,7 +1673,7 @@ namespace AirdropExtended.Commands
 		private readonly SettingsContext _context;
 
 		public CallMassDropCommand(SettingsContext context)
-			: base("aire.massdrop", "aire.canMassDrop")
+			: base("aire.massdrop", "airdropextended.canMassDrop")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			_context = context;
@@ -1700,7 +1700,7 @@ namespace AirdropExtended.Commands
 		private static readonly char[] Separators = { ';', ',' };
 
 		public CallToPosCommand()
-			: base("aire.topos", "aire.canDropToPos")
+			: base("aire.topos", "airdropextended.canDropToPos")
 		{ }
 
 		protected override void ExecuteInternal(ConsoleSystem.Arg arg, BasePlayer player)
@@ -1745,7 +1745,7 @@ namespace AirdropExtended.Commands
 		private static readonly string[] UsageStrings = { "aire.toplayer steamId", "aire.toplayer nickname" };
 
 		public CallToPlayerCommand()
-			: base("aire.toplayer", "aire.canDropToPlayer")
+			: base("aire.toplayer", "airdropextended.canDropToPlayer")
 		{ }
 
 		protected override void ExecuteInternal(ConsoleSystem.Arg arg, BasePlayer player)
@@ -1782,7 +1782,7 @@ namespace AirdropExtended.Commands
 	public class CallToMeCommand : AirdropExtendedCommand
 	{
 		public CallToMeCommand()
-			: base("aire.tome", "aire.canDropToMe", true)
+			: base("aire.tome", "airdropextended.canDropToMe", true)
 		{ }
 
 		protected override void ExecuteInternal(ConsoleSystem.Arg arg, BasePlayer player)
@@ -1808,7 +1808,7 @@ namespace AirdropExtended.Commands
 		private static readonly Type LocalizationType = typeof(LocalizationSettings);
 
 		public LocalizeCommand(SettingsContext context, AirdropController controller)
-			: base("aire.localize", "aire.canLocalize")
+			: base("aire.localize", "airdropextended.canLocalize")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			if (controller == null) throw new ArgumentNullException("controller");
@@ -1858,7 +1858,7 @@ namespace AirdropExtended.Commands
 		private static readonly Type LocalizationType = typeof(CommonSettings);
 
 		public SetNotifyEnabledCommand(SettingsContext context, AirdropController controller)
-			: base("aire.notify", "aire.canNotify")
+			: base("aire.notify", "airdropextended.canNotify")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			if (controller == null) throw new ArgumentNullException("controller");
@@ -1908,7 +1908,7 @@ namespace AirdropExtended.Commands
 		private readonly AirdropController _controller;
 
 		public SetCustomLootEnabledCommand(SettingsContext context, AirdropController controller)
-			: base("aire.customloot", "aire.canSetCustomLoot")
+			: base("aire.customloot", "airdropextended.canSetCustomLoot")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			if (controller == null) throw new ArgumentNullException("controller");
@@ -1944,7 +1944,7 @@ namespace AirdropExtended.Commands
 		private readonly AirdropController _controller;
 
 		public SetPickStrategyCommand(SettingsContext context, AirdropController controller)
-			: base("aire.pick", "aire.canSetPickStrategy")
+			: base("aire.pick", "airdropextended.canSetPickStrategy")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			if (controller == null) throw new ArgumentNullException("controller");
@@ -1984,7 +1984,7 @@ namespace AirdropExtended.Commands
 		private readonly SettingsContext _context;
 
 		public PrintTestDropContentsCommand(SettingsContext context)
-			: base("aire.test", "aire.canTest")
+			: base("aire.test", "airdropextended.canTest")
 		{
 			if (context == null) throw new ArgumentNullException("context");
 			_context = context;

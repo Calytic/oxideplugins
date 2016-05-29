@@ -1,0 +1,15 @@
+{
+    "name": "TimedHeliCall",
+    "description": "Call a heli every x seconds to a certain location.",
+    "author": "Troubled",
+    "version": "0.1",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

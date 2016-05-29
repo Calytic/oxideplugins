@@ -3,13 +3,11 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Hammer Time", "Shady", "1.0.4", ResourceId = 1711)]
+    [Info("Hammer Time", "Shady", "1.0.6", ResourceId = 1711)]
     [Description("Tweak settings for building blocks like demolish time, and rotate time.")]
     class HammerTime : RustPlugin
     {
         bool configWasChanged = false;
-        private List<BuildingBlock> entityBuiltList = new List<BuildingBlock>();
-
 
         /*--------------------------------------------------------------//
 		//			Load up the default config on first use				//
@@ -50,6 +48,25 @@ namespace Oxide.Plugins
             if (configWasChanged) SaveConfig();
         }
 
+        void OnServerInitialized()
+        {
+            var doDemo = (bool)Config["AllowDemolishAfterServerRestart"];
+            var doRotate = (bool)Config["AllowRotateAfterServerRestart"];
+            if (!doDemo && !doRotate) return;
+            var blocks = GameObject.FindObjectsOfType<BuildingBlock>();
+            foreach(var block in blocks)
+            {
+                var name = block?.LookupShortPrefabName() ?? string.Empty;
+                if (string.IsNullOrEmpty(name)) continue;
+                var grade = block.grade.ToString();
+                if (grade.ToLower().Contains("twig")) continue; //ignore twigs (performance)
+                if (block.Health() <= block.MaxHealth() / 2.75f) continue; //ignore blocks that are weak (performance)
+                   
+                if (name.Contains("foundation") || name.Contains("pillar") || name.Contains("roof") || name.Contains("floor")) doRotate = false;
+                DoInvokes(block, doDemo, doRotate, false);
+            }
+        }
+
         /*--------------------------------------------------------------//
         //			Localization Stuff			                        //
         //--------------------------------------------------------------*/
@@ -71,8 +88,8 @@ namespace Oxide.Plugins
         {
             var demoTime = 600f;
             var rotateTime = 600f;
-            float.TryParse(Config["DemolishTime"].ToString(), out demoTime);
-            float.TryParse(Config["RotateTime"].ToString(), out rotateTime);
+            TryParseFloat(Config["DemolishTime"].ToString(), ref demoTime);
+            TryParseFloat(Config["RotateTime"].ToString(), ref rotateTime);
             if (demo)
             {
                 if (demoTime < 0)
@@ -116,32 +133,9 @@ namespace Oxide.Plugins
             if (getType != "BuildingBlock") return;
             var block = entity?.GetComponent<BuildingBlock>() ?? null;
             if (block == null) return;
-            entityBuiltList.Remove(block);
         }
-
-            void OnEntitySpawned(BaseNetworkable entity)
-        {
-            //Use next tick to make sure it's partially delayed in case list is slow at updating (unknown)
-            NextTick(() =>
-            {
-                if (entity == null) return;
-                var doDemolish = false;
-                var doRotate = true;
-                var getType = entity?.GetType()?.ToString() ?? string.Empty;
-                if (!getType.Contains("BuildingB")) return;
-                var block = entity?.GetComponent<BuildingBlock>() ?? null;
-                if (block == null) return;
-                if (entityBuiltList.Contains(block)) return;
-                if ((bool)Config["AllowDemolishAfterServerRestart"]) doDemolish = true;
-                if (!(bool)Config["AllowRotateAfterServerRestart"]) doRotate = false;
-                timer.Once(7f, () =>
-                {
-                    if (block == null) return;
-                    DoInvokes(block, doDemolish, doRotate, true);
-                });
-            });      
-        }
-
+        
+    
         private void OnEntityBuilt(Planner plan, GameObject objectBlock)
         {
             var GetTypeString = objectBlock?.ToBaseEntity()?.GetType()?.ToString();
@@ -149,22 +143,43 @@ namespace Oxide.Plugins
             if (!isBuildingBlock) return;
             var block = (BuildingBlock)objectBlock.ToBaseEntity();
             if (block == null) return;
-            DoInvokes(block, true, true, true);
-            entityBuiltList.Add(block);
+            var name = block?.LookupShortPrefabName() ?? string.Empty;
+            if (string.IsNullOrEmpty(name)) return;
+            var doRotate = true;
+            if (name.Contains("foundation") || name.Contains("pillar") || name.Contains("floor") || name.Contains("roof")) doRotate = false;
+            DoInvokes(block, true, doRotate, true);
         }
 
         private void OnStructureUpgrade(BuildingBlock block, BasePlayer player, BuildingGrade.Enum grade)
         {
             if (block == null) return;
-            DoInvokes(block, false, true, false);
+            var name = block?.LookupShortPrefabName() ?? string.Empty;
+            if (string.IsNullOrEmpty(name)) return;
+            var doRotate = true;
+            if (name.Contains("foundation") || name.Contains("pillar") || name.Contains("floor") || name.Contains("roof")) doRotate = false;   
+            DoInvokes(block, false, doRotate, false);
         }
 
-       object OnStructureRepair(BuildingBlock block, BasePlayer player)
+       object OnStructureRepair(BaseCombatEntity block, BasePlayer player)
         {
-            var cooldown = 0f;
-            float.TryParse(Config["RepairDamageCooldown"].ToString(), out cooldown);
-            if (cooldown == 0f || cooldown == 8f) return null;
-            if (block.TimeSinceAttacked() <= cooldown) return false;
+            if (block == null || player == null) return null;
+            var cooldown = 8f;
+            TryParseFloat(Config["RepairDamageCooldown"].ToString(), ref cooldown);
+            if (cooldown < 1f) cooldown = 0f;
+            if (cooldown == 8f) return null;
+            if (block.TimeSinceAttacked() < cooldown) return false;
+            return null;
+        }
+
+        object OnHammerHit(BasePlayer player, HitInfo hitInfo)
+        {
+            var entity = hitInfo?.HitEntity?.GetComponent<BaseCombatEntity>() ?? null;
+            if (entity == null) return null;
+            var cooldown = 8f;
+            TryParseFloat(Config["RepairDamageCooldown"].ToString(), ref cooldown);
+            if (cooldown < 1f) cooldown = 0f;
+            if (cooldown == 8f) return null;
+            if (entity.TimeSinceAttacked() < cooldown) return false;
             return null;
         }
 
@@ -179,7 +194,6 @@ namespace Oxide.Plugins
                 SendReply(player, GetMessage("doesNotOwnDemo"));
                 return true;
             }
-            if (entityBuiltList.Contains(block)) entityBuiltList.Remove(block);
             return null;
         }
 
@@ -195,6 +209,29 @@ namespace Oxide.Plugins
                 
             return null;
         }
+
+        public bool TryParseFloat(string text, ref float value)
+        {
+            float tmp;
+            if (float.TryParse(text, out tmp))
+            {
+                value = tmp;
+                return true;
+            }
+            else return false;
+        }
+
+        public bool TryParseInt(string text, ref int value)
+        {
+            int tmp;
+            if (int.TryParse(text, out tmp))
+            {
+                value = tmp;
+                return true;
+            }
+            else return false;
+        }
+
 
     }
 }

@@ -9,7 +9,7 @@ using Oxide.Game.Rust.Cui;
 
 namespace Oxide.Plugins
 {
-    [Info("Killstreaks", "k1lly0u", "0.1.4", ResourceId = 1752)]
+    [Info("Killstreaks", "k1lly0u", "0.1.5", ResourceId = 1752)]
     class KillStreaks : RustPlugin
     {
 
@@ -21,6 +21,10 @@ namespace Oxide.Plugins
         Plugin Friends;
         [PluginReference]
         Plugin EventManager;
+        [PluginReference]
+        Plugin Economics;
+        [PluginReference]
+        Plugin ServerRewards;
 
         private Dictionary<ulong, int> cachedData = new Dictionary<ulong, int>();
         private List<BaseHelicopter> activeHelis = new List<BaseHelicopter>();
@@ -48,7 +52,9 @@ namespace Oxide.Plugins
             { 8, StreakType.ArtilleryGrenade },
             { 9, StreakType.HelicopterGrenade },
             { 10, StreakType.Martyrdom },
-            { 11, StreakType.TurretDrop }
+            { 11, StreakType.TurretDrop },
+            { 12, StreakType.Coins },
+            { 13, StreakType.RP }
         };
 
 
@@ -95,8 +101,16 @@ namespace Oxide.Plugins
                     useAirstrike = false;
                 }
             }
+            if (Economics == null)
+            {
+                PrintWarning("Economics could not be found! Unable to issue monetary rewards");
+            }
+            if (ServerRewards == null)
+            {
+                PrintWarning("ServerRewards could not be found! Unable to issue RP rewards");
+            }
         }
-        void LoadDefaultConfig()
+        protected override void LoadDefaultConfig()
         {
             Puts("Creating a new config file");
             Config.Clear();
@@ -368,6 +382,14 @@ namespace Oxide.Plugins
                             GiveRewardGrenade(player, StreakType.TurretDrop);
                             message = lang.GetMessage("tuGrenade", this, player.UserIDString);
                             break;
+                        case StreakType.Coins:
+                            if (!Economics) return;
+                            message = GiveEconomics(player, count);                            
+                            break;
+                        case StreakType.RP:
+                            if (!ServerRewards) return;
+                            message = GiveRP(player, count);
+                            break;
                     }
                     GUIToPlayer(player, message, lang.GetMessage("warning", this));
                     Effect.server.Run("assets/prefabs/npc/autoturret/effects/targetacquired.prefab", player.transform.position);
@@ -631,10 +653,25 @@ namespace Oxide.Plugins
                     if (entry != null)
                         turret.authorizedPlayers.Add(new ProtoBuf.PlayerNameID() { userid = entry.userID, username = entry.displayName });
             }
-            //turret.authorizedPlayers.Add(new ProtoBuf.PlayerNameID() { userid = player.userID, username = player.displayName });            
-            turret.inventory.AddItem(ItemManager.FindItemDefinition(turretAmmoType), turretAmmoCount);
+            turret.inventory.AddItem(ItemManager.FindItemDefinition(turretAmmoTypeName), turretAmmoCount);
             turret.InitiateStartup();
         }
+        #endregion
+
+        #region payment
+        private string GiveEconomics(BasePlayer player, int streaknum)
+        {
+            int amount = data.killStreaks[streaknum].Amount;
+            Economics?.Call("Deposit", player.userID, amount);
+            return string.Format(lang.GetMessage("coinsActive", this, player.UserIDString), amount);
+        }
+        private string GiveRP(BasePlayer player, int streaknum)
+        {
+            int amount = data.killStreaks[streaknum].Amount;
+            ServerRewards?.Call("AddPoints", player.userID, amount);
+            return string.Format(lang.GetMessage("rpActive", this, player.UserIDString), amount);
+        }
+
         #endregion
 
         #region damage
@@ -693,14 +730,12 @@ namespace Oxide.Plugins
             {
                 case "top":
                     if (args.Length >= 1)
-                    {
-                        
-                            int amount = 5;
-                            if (args.Length >= 2) int.TryParse(args[1], out amount);
-                            Dictionary<string, float> topHits = new Dictionary<string, float>();
-                            foreach (var entry in data.killStreakData)
-                                topHits.Add(entry.Value.Name, entry.Value.highestKS);
-                            Dictionary<string, float> top5 = topHits.OrderByDescending(pair => pair.Value).Take(amount).ToDictionary(pair => pair.Key, pair => pair.Value);
+                    {                        
+                        int amount = 5;
+                        if (args.Length >= 2)
+                            if (!int.TryParse(args[1], out amount))
+                                amount = 5;
+                        Dictionary<string, int> top5 = data.killStreakData.OrderByDescending(pair => pair.Value.highestKS).Take(amount).ToDictionary(pair => pair.Value.Name, pair => pair.Value.highestKS);
                         if (top5.Count > 0)
                         {
                             SendReply(player, fontColor1 + lang.GetMessage("title", this, player.UserIDString) + "</color>" + fontColor2 + lang.GetMessage("bestHits", this, player.UserIDString) + "</color>");
@@ -864,7 +899,7 @@ namespace Oxide.Plugins
                         turret.Remove(ID);
                         BroadcastToPlayer(player, "", lang.GetMessage("tuActive", this, player.UserIDString));
                     }
-                    return;
+                    return;                
             }
         }
         
@@ -991,7 +1026,7 @@ namespace Oxide.Plugins
         static float explosiveDamage = 110f;
 
         static float nearbyRadius = 50f;
-        static int turretAmmoType = 1152393492;
+        static string turretAmmoTypeName = "ammo.rifle";
         static int turretAmmoCount = 1000;
 
         private void LoadVariables()
@@ -1021,7 +1056,7 @@ namespace Oxide.Plugins
             CheckCfgFloat("Martyrdom - Explosive damage - Explosive", ref explosiveDamage);
 
             CheckCfgFloat("TurretDrop - Auto-authorize radius", ref nearbyRadius);
-            CheckCfg("TurretDrop - Ammunition type", ref turretAmmoType);
+            CheckCfg("TurretDrop - Ammunition type shortname", ref turretAmmoTypeName);
             CheckCfg("TurretDrop - Ammunition amount", ref turretAmmoCount);
 
             CheckCfg("Options - Use FriendsAPI", ref useFriendsAPI);
@@ -1135,7 +1170,9 @@ namespace Oxide.Plugins
             ArtilleryGrenade,
             HelicopterGrenade,
             Martyrdom,
-            TurretDrop
+            TurretDrop,
+            Coins,
+            RP
         }
         #endregion
 
@@ -1229,6 +1266,8 @@ namespace Oxide.Plugins
             { "arActive", "You have activated your Artillery Strike, throw the supply signal to launch" },
             { "heActive", "You have activated your Helicopter Strike, throw the supply signal to call it" },
             { "tuActive", "You have activated your Turret Drop, throw the supply signal to call it" },
+            { "coinsActive", "You have earnt {0} coins" },
+            { "rpActive", "You have earnt {0} RP"},
             { "messageCheck", "1234" }
         };
         #endregion

@@ -1,42 +1,40 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 
 using Oxide.Core;
 using Oxide.Core.Configuration;
 
 namespace Oxide.Plugins
 {
-	[Info("LastName", "deer_SWAG", "0.1.14", ResourceId = 1227)]
+	[Info("LastName", "deer_SWAG", "0.1.15", ResourceId = 1227)]
 	[Description("Stores all usernames")]
 	public class LastName : RustPlugin
 	{
 		const string databaseName = "LastName";
 
-		private class StoredData
+		class StoredData
 		{
 			public HashSet<Player> Players = new HashSet<Player>();
 
-			public StoredData() {}
+			public StoredData() { }
 
-			public void Add(Player player) {Players.Add(player);}
+			public void Add(Player player) => Players.Add(player);
 		}
 
-		private class Player
+		class Player
 		{
 			public ulong userID;
 			public HashSet<string> Names = new HashSet<string>();
 
-			public Player() {}
-			public Player(ulong userID) {this.userID = userID;}
+			public Player() { }
+			public Player(ulong userID) { this.userID = userID; }
 
-			public void Add(string name) {Names.Add(name);}
+			public void Add(string name) => Names.Add(name);
 		}
 
-		private StoredData 		  _data;
-		private DynamicConfigFile _nameChangeData;
-		private StringBuilder	  _stringBuilder;
+		StoredData 		  data;
+		DynamicConfigFile nameChangeData;
 
 		protected override void LoadDefaultConfig()
 		{
@@ -51,84 +49,88 @@ namespace Oxide.Plugins
 		{
 			CheckConfig();
 
-			_data = Interface.GetMod().DataFileSystem.ReadObject<StoredData>(databaseName);
+			data = Interface.GetMod().DataFileSystem.ReadObject<StoredData>(databaseName);
 
-			if(_data == null)
+			if (data == null)
 			{
-				PrintError("Unable to load data file");
+				RaiseError("Unable to load data file");
 				ConsoleSystem.Run.Server.Normal("oxide.unload LastName");
 			}
 
-			if(IsPluginExists("NameChange"))
-				_nameChangeData = Interface.GetMod().DataFileSystem.GetDatafile("NameChange");
-
-			_stringBuilder = new StringBuilder();
+			if (IsPluginExists("NameChange"))
+				nameChangeData = Interface.GetMod().DataFileSystem.GetDatafile("NameChange");
 		}
 
 		private void OnPlayerConnected(Network.Message packet)
 		{
-			if((bool)Config["ReplaceWithFirstName"])
-				if(_data.Players.Count > 0)
-					if(_nameChangeData != null)
+			if ((bool)Config["ReplaceWithFirstName"] && data.Players.Count > 0)
+			{
+				if (nameChangeData != null)
+				{
+					foreach (KeyValuePair<string, object> item in nameChangeData)
 					{
-						foreach(KeyValuePair<string, object> a in _nameChangeData)
+						if (Convert.ToUInt64(item.Key) != packet.connection.userid)
 						{
-							if(Convert.ToUInt64(a.Key) != packet.connection.userid)
-								foreach(Player p in _data.Players)
-									if(packet.connection.userid == p.userID)
-									{
-										packet.connection.username = p.Names.First();
-										goto end;
-									}
-						} end:;
-					}
-					else
-					{
-						foreach(Player p in _data.Players)
-						{
-							if(packet.connection.userid == p.userID)
+							foreach (Player dataPlayer in data.Players)
 							{
-								packet.connection.username = p.Names.First();
-								break;
+								if (packet.connection.userid == dataPlayer.userID)
+								{
+									packet.connection.username = dataPlayer.Names.First();
+									goto end;
+								}
 							}
 						}
 					}
+					end:;
+				}
+				else
+				{
+					foreach (Player dataPlayer in data.Players)
+					{
+						if (packet.connection.userid == dataPlayer.userID)
+						{
+							packet.connection.username = dataPlayer.Names.First();
+							break;
+						}
+					}
+				}
+			}
 		}
 
 		private void OnPlayerInit(BasePlayer player)
 		{
-			if(_data.Players.Count > 0)
+			if (data.Players.Count > 0)
 			{
 				bool found = false;
 				bool newName = false;
 
-				foreach(Player p in _data.Players)
+				foreach (Player dataPlayer in data.Players)
 				{
-					if(p.userID == player.userID)
+					if (dataPlayer.userID == player.userID)
 					{
 						found = true;
 
-						foreach(string s in p.Names)
+						foreach (string name in dataPlayer.Names)
 						{
-							if(s == player.displayName)
+							if (name == player.displayName)
 								break;
 							else
 								newName = true;
 						}
 
-						if(newName)
-							p.Add(player.displayName);
+						if (newName)
+							dataPlayer.Add(player.displayName);
 
 						break;
 					}
 				}
 
-				if(!found)
+				if (!found)
 				{
 					Player p = new Player(player.userID);
 					p.Add(player.displayName);
 
-					_data.Add(p);
+					data.Add(p);
 				}
 			}
 			else
@@ -136,7 +138,7 @@ namespace Oxide.Plugins
 				Player p = new Player(player.userID);
 				p.Add(player.displayName);
 
-				_data.Add(p);
+				data.Add(p);
 			}
 
 			SaveData();
@@ -145,7 +147,7 @@ namespace Oxide.Plugins
 		[ChatCommand("lastname")]
 		private void cmdChat(BasePlayer player, string command, string[] args)
 		{
-			if ((int)Config["CommandAuthLevel"] <= player.net.connection.authLevel)
+			if (player.net.connection.authLevel >= (int)Config["CommandAuthLevel"])
 				if (args.Length > 0)
 					PrintToChat(player, GetNames(args));
 				else
@@ -165,32 +167,30 @@ namespace Oxide.Plugins
 
 		private string GetNames(string[] args)
 		{
-			string message = "";
-			string name = "";
-
-			message = ((string)Config["Message", "PlayerWasFound"]);
+			string message = (string)Config["Message", "PlayerWasFound"];
+			string name = string.Empty;
 
 			try
 			{
 				ulong id = Convert.ToUInt64(args[0]);
 
-				foreach(Player p in _data.Players)
+				foreach (Player dataPlayer in data.Players)
 				{
-					if(p.userID == id)
+					if (dataPlayer.userID == id)
 					{
-						name = p.Names.First();
+						name = dataPlayer.Names.First();
 
-						foreach(string s in p.Names)
-							message += s + ", ";
+						foreach (string n in dataPlayer.Names)
+							message += n + ", ";
 
 						break;
 					}
 				}
 			}
-			catch {}
+			catch { }
 			finally
 			{
-				if(name.Length > 0)
+				if (name.Length > 0)
 				{
 					message = message.Substring(0, message.Length - 2).Replace("%name%", name).Replace("%id%", args[0]);
 				}
@@ -198,34 +198,36 @@ namespace Oxide.Plugins
 				{
 					Player found = null;
 
-					for(int i = 0; i < args.Length; i++)
+					for (int i = 0; i < args.Length; i++)
 						name += args[i] + " ";
 
 					name = name.TrimEnd();
 
-					foreach(Player p in _data.Players)
+					foreach (Player dataPlayer in data.Players)
 					{
-						foreach(string s in p.Names)
-							if(s.Equals(name, StringComparison.CurrentCultureIgnoreCase))
+						foreach (string s in dataPlayer.Names)
+						{
+							if (s.Equals(name, StringComparison.CurrentCultureIgnoreCase))
 							{
-								found = p;
-								goto done;
+								found = dataPlayer;
+								goto end;
 							}
-							else if(s.StartsWith(name, StringComparison.CurrentCultureIgnoreCase))
+							else if (s.StartsWith(name, StringComparison.CurrentCultureIgnoreCase))
 							{
-								found = p;
-								goto done;
+								found = dataPlayer;
+								goto end;
 							}
-							else if(StringContains(s, name, StringComparison.CurrentCultureIgnoreCase))
+							else if (StringContains(s, name, StringComparison.CurrentCultureIgnoreCase))
 							{
-								found = p;
-								goto done;
+								found = dataPlayer;
+								goto end;
 							}
-					} done:;
+						}
+					} end:;
 
-					if(found != null)
+					if (found != null)
 					{
-						foreach(string s in found.Names)
+						foreach (string s in found.Names)
 							message += s + ", ";
 
 						message = message.Substring(0, message.Length - 2).Replace("%name%", name).Replace("%id%", found.userID.ToString());
@@ -242,7 +244,7 @@ namespace Oxide.Plugins
 
 		void SendHelpText(BasePlayer player)
 		{
-			if((int)Config["CommandAuthLevel"] <= player.net.connection.authLevel)
+			if (player.net.connection.authLevel >= (int)Config["CommandAuthLevel"])
 				PrintToChat(player, (string)Config["Message", "WrongQuery"]);
 		}
 
@@ -260,7 +262,7 @@ namespace Oxide.Plugins
 
 		private void SaveData()
 		{
-			Interface.GetMod().DataFileSystem.WriteObject(databaseName, _data);
+			Interface.GetMod().DataFileSystem.WriteObject(databaseName, data);
 		}
 
 		// ----------------------------- UTILS -----------------------------
@@ -278,7 +280,7 @@ namespace Oxide.Plugins
 
 		private bool IsPluginExists(string name)
 		{
-			return Interface.GetMod().GetLibrary<Oxide.Core.Libraries.Plugins>("Plugins").Exists(name);
+			return Interface.GetMod().GetLibrary<Core.Libraries.Plugins>("Plugins").Exists(name);
 		}
 
 		private bool StringContains(string source, string value, StringComparison comparison)

@@ -15,7 +15,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Entity Owner", "Calytic", "3.0.3", ResourceId = 1255)]
+    [Info("Entity Owner", "Calytic", "3.0.4", ResourceId = 1255)]
     [Description("Modify entity ownership and cupboard/turret authorization")]
     class EntityOwner : RustPlugin
     {
@@ -844,7 +844,7 @@ namespace Oxide.Plugins
                     else
                     {
                         IPlayer pl = covalence.Players.GetPlayer(target.ToString());
-                        SendReply(player, string.Format(messages["Owner: {0}"], pl.Nickname));
+                        SendReply(player, string.Format(messages["Owner: {0}"], pl.Name));
                     }
                 }
             }
@@ -1683,7 +1683,7 @@ namespace Oxide.Plugins
             var p = covalence.Players.GetPlayer(playerID.ToString());
             if (p != null)
             {
-                return $"{p.Nickname} [<color=red>Offline</color>]";
+                return $"{p.Name} [<color=red>Offline</color>]";
             }
 
             return $"Unknown : {playerID}";
@@ -1723,7 +1723,7 @@ namespace Oxide.Plugins
             IPlayer player = covalence.Players.FindPlayer(name);
 
             if(player != null) {
-                return Convert.ToUInt64(player.UniqueID);
+                return Convert.ToUInt64(player.Id);
             }
             
             return 0;

@@ -4,10 +4,9 @@ using Oxide.Core.Plugins;
 using Oxide.Game.Rust.Cui;
 using System;
 
-
 namespace Oxide.Plugins
 {
-    [Info("TeamBattlefield", "BodyweightEnergy / k1lly0u", "2.0.2", ResourceId = 1330)]
+    [Info("TeamBattlefield", "BodyweightEnergy / k1lly0u", "2.0.3", ResourceId = 1330)]
     class TeamBattlefield : RustPlugin
     {
         #region Fields
@@ -141,9 +140,9 @@ namespace Oxide.Plugins
                 if (player.GetComponent<TBPlayer>())
                 {
                     Team team = player.GetComponent<TBPlayer>().team;
+                    player.inventory.Strip();
                     if (team != Team.SPECTATOR)
-                    {
-                        player.inventory.Strip();
+                    {                        
                         GivePlayerWeapons(player);
                         GivePlayerGear(player, team);
 
@@ -501,6 +500,43 @@ namespace Oxide.Plugins
                 }
             }
             return true;
+        }
+        [ChatCommand("t")]
+        private void cmdTeamChat(BasePlayer player, string command, string[] args)
+        {
+            if (player.GetComponent<TBPlayer>())
+            {
+                var message = string.Join(" ", args);
+                if (string.IsNullOrEmpty(message))
+                    return;
+
+                var sendingPlayer = player.GetComponent<TBPlayer>();
+                var team = sendingPlayer.team;
+                string color = "";                
+                switch (team)
+                {
+                    case Team.A:
+                        color = configData.TeamA_Chat_Color;
+                        break;
+                    case Team.B:
+                        color = configData.TeamB_Chat_Color;
+                        break;
+                    case Team.ADMIN:
+                        color = configData.Admin_Chat_Color;
+                        return;
+                    case Team.SPECTATOR:
+                        color = configData.Spectator_Chat_Color;
+                        return;
+                }               
+
+                foreach (var p in TBPlayers)
+                {
+                    if (p.team == player.GetComponent<TBPlayer>().team)
+                    {
+                        SendReply(p.player, $"{color}Team Chat : </color>{message}");
+                    }
+                }
+            }
         }
         #endregion
 

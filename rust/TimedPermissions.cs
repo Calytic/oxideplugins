@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Oxide.Core.Libraries.Covalence;
 using System.Collections.Generic;
 using System.Linq;
 using Oxide.Core;
@@ -6,12 +7,12 @@ using System;
 
 namespace Oxide.Plugins
 {
-    [Info("Timed Permissions", "LaserHydra", "1.1.5", ResourceId = 1705)]
-    [Description("Allows you to grant permissions for a specific time")]
-    class TimedPermissions : RustPlugin
+    [Info("Timed Permissions", "LaserHydra", "1.2.1", ResourceId = 1926)]
+    [Description("Allows you to grant permissions or groups for a specific time")]
+    class TimedPermissions : CovalencePlugin
     {
         static TimedPermissions Instance = null;
-        static List<Player> players = new List<Player>();
+        static List<Player> _players = new List<Player>();
 
         #region Classes
 
@@ -21,73 +22,109 @@ namespace Oxide.Plugins
             public List<TimedPermission> permissions = new List<TimedPermission>();
             public List<TimedGroup> groups = new List<TimedGroup>();
             public string name = "unknown";
-            public ulong steamID = 0;
+            public string steamID = "0";
 
             public Player()
             {
                 timer.Repeat(60, 0, () => Update());
             }
 
-            internal Player(BasePlayer player)
+            internal Player(IPlayer player)
             {
-                steamID = player.userID;
-                name = player.displayName;
+                steamID = player.Id;
+                name = player.Name;
 
                 timer.Repeat(60, 0, () => Update());
             }
 
-            internal Player(ulong steamID)
+            internal Player(string steamID)
             {
                 this.steamID = steamID;
 
                 timer.Repeat(1, 0, () => Update());
             }
 
-            internal static Player Get(BasePlayer player) => players.Find((p) => p.steamID == player.userID);
+            internal static Player Get(IPlayer player) => Get(player.Id);
 
-            internal static Player Get(ulong steamID) => players.Find((p) => p.steamID == steamID);
+            internal static Player Get(string steamID) => _players.Find((p) => p.steamID == steamID);
+
+            internal static Player GetOrCreate(IPlayer player)
+            {
+                Player pl = Get(player);
+
+                if (pl == null)
+                {
+                    pl = new Player(player);
+
+                    _players.Add(pl);
+                    SaveData(ref _players);
+                }
+
+                return pl;
+            }
+
+            internal static Player GetOrCreate(string steamID)
+            {
+                Player pl = Get(steamID);
+
+                if (pl == null)
+                {
+                    pl = new Player(steamID);
+
+                    _players.Add(pl);
+                    SaveData(ref _players);
+                }
+
+                return pl;
+            }
 
             internal void AddPermission(string permission, DateTime expireDate)
             {
                 permissions.Add(new TimedPermission(permission, expireDate));
-                GrantPerm(steamID, permission);
+                Instance.permission.GrantUserPermission(steamID, permission, null);
 
                 Instance.Puts($"----> {name} ({steamID}) - Permission Granted: {permission} for {expireDate - DateTime.Now}" + Environment.NewLine);
 
-                SaveData(ref players);
+                SaveData(ref _players);
             }
 
             internal void RemovePermission(string permission)
             {
                 permissions.Remove(TimedPermission.Get(permission, this));
-                RevokePerm(steamID, permission);
+                Instance.permission.RevokeUserPermission(steamID, permission);
                 
                 Instance.Puts($"----> {name} ({steamID}) - Permission Expired: {permission}" + Environment.NewLine);
 
-                SaveData(ref players);
+                if (groups.Count == 0 && permissions.Count == 0)
+                    _players.Remove(this);
+
+                SaveData(ref _players);
             }
 
             internal void AddGroup(string group, DateTime expireDate)
             {
                 groups.Add(new TimedGroup(group, expireDate));
-                AddToGroup(steamID, group);
+                Instance.permission.AddUserGroup(steamID, group);
 
                 Instance.Puts($"----> {name} ({steamID}) - Added to Group: {group} for {expireDate - DateTime.Now}" + Environment.NewLine);
 
-                SaveData(ref players);
+                SaveData(ref _players);
             }
 
             internal void RemoveGroup(string group)
             {
                 groups.Remove(TimedGroup.Get(group, this));
-                RemoveFromGroup(steamID, group);
+                Instance.permission.RemoveUserGroup(steamID, group);
                 
                 Instance.Puts($"----> {name} ({steamID}) - Group Expired: {group}" + Environment.NewLine);
 
-                SaveData(ref players);
+                if (groups.Count == 0 && permissions.Count == 0)
+                    _players.Remove(this);
+
+                SaveData(ref _players);
             }
 
-            internal void UpdatePlayer(BasePlayer player) => name = player.displayName;
+            internal void UpdatePlayer(IPlayer player) => name = player.Name;
             
             internal void Update()
             {
@@ -215,30 +252,13 @@ namespace Oxide.Plugins
 
         void Loaded()
         {
-#if !RUST
-            throw new NotSupportedException("This plugin or the version of this plugin does not support this game!");
-#endif
-
             Instance = this;
 
-            RegisterPerm("use");
-
             LoadMessages();
-            LoadData(ref players);
+            LoadData(ref _players);
 
-            foreach (BasePlayer player in BasePlayer.activePlayerList)
-                if (Player.Get(player) == null)
-                    players.Add(new Player(player));
-
-            SaveData(ref players);
-        }
-
-        void OnPlayerInit(BasePlayer player)
-        {
-            if (Player.Get(player) == null)
-                players.Add(new Player(player));
-
-            SaveData(ref players);
+            PrintWarning("This plugin was moved! New URL: http://oxidemod.org/plugins/timed-permissions.1926/");
+            timer.Repeat(120, 0, () => PrintWarning("This plugin was moved! New URL: http://oxidemod.org/plugins/timed-permissions.1926/"));
         }
 
         ////////////////////////////////////////
@@ -250,7 +270,9 @@ namespace Oxide.Plugins
             lang.RegisterMessages(new Dictionary<string, string>
             {
                 {"No Permission", "You don't have permission to use this command."},
-                {"Invalid Time Format", "Invalid Time Format: Ex: 1d12h30m | d = days, h = hours, m = minutes"}
+                {"Invalid Time Format", "Invalid Time Format: Ex: 1d12h30m | d = days, h = hours, m = minutes"},
+                {"Player Has No Info", "There is no info about this player."},
+                {"Player Info", $"Info about <color=#C4FF00>{{player}}</color>:{Environment.NewLine}<color=#C4FF00>Groups</color>: {{groups}}{Environment.NewLine}<color=#C4FF00>Permissions</color>: {{permissions}}"}
             }, this);
         }
         
@@ -258,32 +280,17 @@ namespace Oxide.Plugins
 
         #region Commands
 
-        [ConsoleCommand("grantperm")]
-        void ccmdGrantPerm(ConsoleSystem.Arg arg)
+        [Command("grantperm", "global.grantperm"), Permission("timedpermissions.use")]
+        void cmdGrantPerm(IPlayer player, string cmd, string[] args)
         {
-            BasePlayer player = (BasePlayer) arg?.connection?.player ?? null;
-            string[] args = arg.HasArgs() ? arg.Args : new string[0];
-
-            cmdGrantPerm(player, arg.cmd.name, args);
-        }
-
-        [ChatCommand("grantperm")]
-        void cmdGrantPerm(BasePlayer player, string cmd, string[] args)
-        {
-            if (player != null && !HasPerm(player.userID, "use"))
-            {
-                SendChatMessage(player, GetMsg("No Permission", player.userID));
-                return;
-            }
-
             if (args.Length != 3)
             {
-                SendChatMessage(player, $"Syntax: {(player == null ? string.Empty : "/")}grantperm <player|steamid> <permission> <time Ex: 1d12h30m>");
+                player.Reply($"Syntax: {(player.ConnectedPlayer.LastCommand == CommandType.Console ? string.Empty : "/")}grantperm <player|steamid> <permission> <time Ex: 1d12h30m>");
                 return;
             }
             
             ulong steamID = 0;
-            BasePlayer target = null;
+            IPlayer target = null;
             string permission = args[1];
             DateTime expireDate;
 
@@ -295,52 +302,37 @@ namespace Oxide.Plugins
 
             if (!TryGetDateTime(args[2], out expireDate))
             {
-                SendChatMessage(player, GetMsg("Invalid Time Format", player?.userID ?? null));
+                player.Reply(GetMsg("Invalid Time Format", player?.Id ?? null));
                 return;
             }
 
             if (target != null)
             {
-                if (Player.Get(target) == null)
-                    players.Add(new Player(target));
+                if (Player.GetOrCreate(target) == null)
+                    _players.Add(new Player(target));
 
-                Player.Get(target).AddPermission(permission, expireDate);
+                Player.GetOrCreate(target).AddPermission(permission, expireDate);
             }
             else if (steamID != 0)
             {
-                if (Player.Get(steamID) == null)
-                    players.Add(new Player(steamID));
+                if (Player.GetOrCreate(steamID.ToString()) == null)
+                    _players.Add(new Player(steamID.ToString()));
 
-                Player.Get(steamID).AddPermission(permission, expireDate);
+                Player.GetOrCreate(steamID.ToString()).AddPermission(permission, expireDate);
             }
         }
 
-        [ConsoleCommand("addgroup")]
-        void ccmdAddGroup(ConsoleSystem.Arg arg)
+        [Command("addgroup", "global.addgroup"), Permission("timedpermissions.use")]
+        void cmdAddGroup(IPlayer player, string cmd, string[] args)
         {
-            BasePlayer player = (BasePlayer) arg?.connection?.player ?? null;
-            string[] args = arg.HasArgs() ? arg.Args : new string[0];
-
-            cmdAddGroup(player, arg.cmd.name, args);
-        }
-
-        [ChatCommand("addgroup")]
-        void cmdAddGroup(BasePlayer player, string cmd, string[] args)
-        {
-            if (player != null && !HasPerm(player.userID, "use"))
-            {
-                SendChatMessage(player, GetMsg("No Permission", player.userID));
-                return;
-            }
-
             if (args.Length != 3)
             {
-                SendChatMessage(player, $"Syntax: {(player == null ? string.Empty : "/")}addgroup <player|steamid> <group> <time Ex: 1d12h30m>");
+                player.Reply($"Syntax: {(player == null ? string.Empty : "/")}addgroup <player|steamid> <group> <time Ex: 1d12h30m>");
                 return;
             }
 
             ulong steamID = 0;
-            BasePlayer target = null;
+            IPlayer target = null;
             string group = args[1];
             DateTime expireDate;
 
@@ -352,23 +344,84 @@ namespace Oxide.Plugins
 
             if (!TryGetDateTime(args[2], out expireDate))
             {
-                SendChatMessage(player, GetMsg("Invalid Time Format", player?.userID ?? null));
+                player.Reply(GetMsg("Invalid Time Format", player?.Id ?? null));
                 return;
             }
 
             if (target != null)
             {
-                if (Player.Get(target) == null)
-                    players.Add(new Player(target));
+                if (Player.GetOrCreate(target) == null)
+                    _players.Add(new Player(target));
 
-                Player.Get(target).AddGroup(group, expireDate);
+                Player.GetOrCreate(target).AddGroup(group, expireDate);
             }
             else if (steamID != 0)
             {
-                if (Player.Get(steamID) == null)
-                    players.Add(new Player(steamID));
+                if (Player.GetOrCreate(steamID.ToString()) == null)
+                    _players.Add(new Player(steamID.ToString()));
 
-                Player.Get(steamID).AddGroup(group, expireDate);
+                Player.GetOrCreate(steamID.ToString()).AddGroup(group, expireDate);
+            }
+        }
+
+        [Command("pinfo", "global.pinfo"), Permission("timedpermissions.use")]
+        void cmdPlayerInfo(IPlayer player, string cmd, string[] args)
+        {
+            if (args.Length != 3)
+            {
+                player.Reply($"Syntax: {(player == null ? string.Empty : "/")}pinfo <player|steamid>");
+                return;
+            }
+
+            ulong steamID = 0;
+            IPlayer target = null;
+            string group = args[1];
+
+            if (!TryConvert(args[0], out steamID))
+                target = GetPlayer(args[0], player);
+
+            if (steamID == 0 && target == null)
+                return;
+
+            if (target != null)
+            {
+                if (Player.GetOrCreate(target) == null)
+                    _players.Add(new Player(target));
+
+                Player pl = Player.Get(target);
+
+                if (pl == null)
+                    player.Reply(GetMsg("Player Has No Info"));
+                else
+                {
+                    string msg = GetMsg("Player info");
+                    
+                    msg = msg.Replace("{player}", $"{pl.name} ({pl.steamID})");
+                    msg = msg.Replace("{groups}", string.Join(", ", (from g in pl.groups select $"{g.@group} until {g.expireDate}").ToArray()));
+                    msg = msg.Replace("{permissions}", string.Join(", ", (from p in pl.permissions select $"{p.permission} until {p.expireDate}").ToArray()));
+
+                    player.Reply(msg);
+                }
+            }
+            else if (steamID != 0)
+            {
+                if (Player.GetOrCreate(steamID.ToString()) == null)
+                    _players.Add(new Player(steamID.ToString()));
+
+                Player pl = Player.Get(steamID.ToString());
+
+                if (pl == null)
+                    player.Reply(GetMsg("Player Has No Info"));
+                else
+                {
+                    string msg = GetMsg("Player info");
+
+                    msg = msg.Replace("{player}", $"{pl.name} ({pl.steamID})");
+                    msg = msg.Replace("{groups}", string.Join(", ", (from g in pl.groups select $"{g.@group} until {g.expireDate}").ToArray()));
+                    msg = msg.Replace("{permissions}", string.Join(", ", (from p in pl.permissions select $"{p.permission} until {p.expireDate}").ToArray()));
+                    
+                    player.Reply(msg);
+                }
             }
         }
 
@@ -417,30 +470,30 @@ namespace Oxide.Plugins
         ///     Player Finding
         ////////////////////////////////////////
 
-        BasePlayer GetPlayer(string searchedPlayer, BasePlayer player)
+        IPlayer GetPlayer(string searchedPlayer, IPlayer player)
         {
-            foreach (BasePlayer current in BasePlayer.activePlayerList)
-                if (current.displayName.ToLower() == searchedPlayer.ToLower())
-                    return current;
+            foreach (ILivePlayer current in players.GetAllOnlinePlayers())
+                if (current.BasePlayer.Name.ToLower() == searchedPlayer.ToLower())
+                    return current.BasePlayer;
 
-            List<BasePlayer> foundPlayers =
-                (from current in BasePlayer.activePlayerList
-                 where current.displayName.ToLower().Contains(searchedPlayer.ToLower())
-                 select current).ToList();
+            List<IPlayer> foundPlayers =
+                (from current in players.GetAllOnlinePlayers()
+                 where current.BasePlayer.Name.ToLower().Contains(searchedPlayer.ToLower())
+                 select current.BasePlayer).ToList();
 
             switch (foundPlayers.Count)
             {
                 case 0:
-                    SendChatMessage(player, "The player can not be found.");
+                    player.Reply("The player can not be found.");
                     break;
 
                 case 1:
                     return foundPlayers[0];
 
                 default:
-                    List<string> playerNames = (from current in foundPlayers select current.displayName).ToList();
+                    List<string> playerNames = (from current in foundPlayers select current.Name).ToList();
                     string players = ListToString(playerNames, 0, ", ");
-                    SendChatMessage(player, "Multiple matching players found: \n" + players);
+                    player.Reply("Multiple matching players found: \n" + players);
                     break;
             }
 
@@ -531,27 +584,9 @@ namespace Oxide.Plugins
             }
         }
 
-        static void GrantPerm(object uid, string permission) => ConsoleSystem.Run.Server.Normal("oxide.grant user", uid.ToString(), permission);
-
-        static void RevokePerm(object uid, string permission) => ConsoleSystem.Run.Server.Normal("oxide.revoke user", uid.ToString(), permission);
-
-        static void AddToGroup(object uid, string permission) => ConsoleSystem.Run.Server.Normal("oxide.usergroup add", uid.ToString(), permission);
-
-        static void RemoveFromGroup(object uid, string permission) => ConsoleSystem.Run.Server.Normal("oxide.usergroup remove", uid.ToString(), permission);
-
         ////////////////////////////////////////
         ///     Messaging
         ////////////////////////////////////////
-
-        void BroadcastChat(string prefix, string msg = null) => rust.BroadcastChat(msg == null ? prefix : "<color=#C4FF00>" + prefix + "</color>: " + msg);
-
-        void SendChatMessage(BasePlayer player, string prefix, string msg = null)
-        {
-            if (player == null)
-                Puts(msg == null ? prefix : msg);
-            else
-                rust.SendChatMessage(player, msg == null ? prefix : "<color=#C4FF00>" + prefix + "</color>: " + msg);
-        }
 
         static void Print(string message) => ConsoleSystem.Run.Server.Normal($"echo {message}");
 

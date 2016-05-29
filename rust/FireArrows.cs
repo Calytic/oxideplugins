@@ -5,7 +5,7 @@ using Oxide.Game.Rust.Cui;
 
 namespace Oxide.Plugins
 {
-    [Info("FireArrows", "Colon Blow", "1.1.7")]
+    [Info("FireArrows", "Colon Blow", "1.2.0")]
     class FireArrows : RustPlugin
     {
 	bool Changed;
@@ -37,6 +37,15 @@ namespace Oxide.Plugins
 		permission.RegisterPermission("firearrows.allowed", this);
 		permission.RegisterPermission("firearrows.ball.allowed", this);
 		permission.RegisterPermission("firearrows.bomb.allowed", this);
+        }
+
+        void Unload()
+        {
+            foreach (var player in BasePlayer.activePlayerList)
+            {
+		string guiInfo;
+		if (GuiInfoFA.TryGetValue(player.userID, out guiInfo)) CuiHelper.DestroyUi(player, guiInfo);
+            }
         }
 
         void LoadDefaultConfig()
@@ -242,8 +251,20 @@ namespace Oxide.Plugins
 	}
 
 	[ChatCommand("firearrow")]
-        void cmdChatfirearrow(BasePlayer player, string command, string[] args, ulong arrowtype)
+        void cmdChatfirearrow(BasePlayer player, string command, string[] args)
 	{
+		ToggleArrowType(player);
+	}
+
+	[ConsoleCommand("firearrow")]
+        void cmdConsolefirearrow(ConsoleSystem.Arg arg)
+	{
+            if (arg.connection == null)
+            {
+                SendReply(arg, "You can't use this command from the server console");
+                return;
+            }
+		var player = arg.Player();
 		ToggleArrowType(player);
 	}
 
@@ -353,6 +374,8 @@ namespace Oxide.Plugins
 				{
 				player.inventory.Take(null, 28178745, fuel);
 				player.inventory.Take(null, 94756378, cloth);
+				player.Command("note.inv", 28178745, -fuel);
+				player.Command("note.inv", 94756378, -cloth);
 				return true;
 				}
 			return false;
@@ -364,6 +387,9 @@ namespace Oxide.Plugins
 				player.inventory.Take(null, 28178745, fuel);
 				player.inventory.Take(null, 94756378, cloth);
 				player.inventory.Take(null, 1983936587, oil);
+				player.Command("note.inv", 28178745, -fuel);
+				player.Command("note.inv", 94756378, -cloth);
+				player.Command("note.inv", 1983936587, -oil);
 				return true;
 				}
 			return false;
@@ -376,6 +402,10 @@ namespace Oxide.Plugins
 				player.inventory.Take(null, 94756378, cloth);
 				player.inventory.Take(null, 1983936587, oil);
 				player.inventory.Take(null, 1755466030, explosives);
+				player.Command("note.inv", 28178745, -fuel);
+				player.Command("note.inv", 94756378, -cloth);
+				player.Command("note.inv", 1983936587, -oil);
+				player.Command("note.inv", 1755466030, -explosives);
 				return true;
 				}
 			return false;

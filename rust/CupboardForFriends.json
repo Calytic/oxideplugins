@@ -2,7 +2,7 @@
     "name": "Cupboard  Friends",
     "description": "Only allow friends of already authorized people to authorize themselves.",
     "author": "LaserHydra",
-    "version": "1.2.3",
+    "version": "1.2.4",
     "configuration": false,
     "suggest": {
         "Clans": "*"

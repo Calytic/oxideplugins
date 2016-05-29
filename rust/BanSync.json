@@ -1,0 +1,15 @@
+{
+    "name": "BanSync",
+    "description": "Syncs bans across multiple servers.",
+    "author": "sqroot",
+    "version": "1.0.2",
+    "configuration": true,
+    "language": "py",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

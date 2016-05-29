@@ -11,14 +11,11 @@ using Oxide.Core.Configuration;
 
 namespace Oxide.Plugins
 {
-    [Info("BoobyTraps", "k1lly0u", "0.1.6", ResourceId = 1549)]
+    [Info("BoobyTraps", "k1lly0u", "0.1.7", ResourceId = 1549)]
     class BoobyTraps : RustPlugin
     {
         [PluginReference]
         Plugin ZoneManager;
-
-        [PluginReference]
-        Plugin EntityOwner;
 
         private bool Changed;
 
@@ -55,15 +52,10 @@ namespace Oxide.Plugins
             {
                 Puts(lang.GetMessage("noZoneManager", this));
                 return;
-            }
-            if (!plugins.Exists("EntityOwner") && (useOwners))
-            {
-                Puts(lang.GetMessage("noEntityOwner", this));
-                return;
-            }
+            }           
                   
         }
-        void LoadDefaultConfig()
+        protected override void LoadDefaultConfig()
         {
             Puts("Creating a new config file");
             Config.Clear();
@@ -92,7 +84,7 @@ namespace Oxide.Plugins
                 return;
             }
         }
-        void OnPlayerLoot(PlayerLoot inventory, BaseEntity target)
+        void OnLootEntity(BasePlayer inventory, BaseEntity target)
         {
             if (target is StorageContainer)
             {
@@ -177,7 +169,7 @@ namespace Oxide.Plugins
             CheckCfg("Options - Autotraps - Loot Containers", ref boobyTrapLoot);
             CheckCfg("Options - Autotraps - Loot Container - Chance", ref lootChance);
             CheckCfg("Options - Traps - Trap timer", ref trapCountdown);
-            CheckCfg("Options - Plugins - Use EntityOwner ", ref useOwners);
+            CheckCfg("Options - Plugins - Use Owners ", ref useOwners);
             CheckCfg("Options - Tool Cupboard - Use Building Privileges ", ref buildingPriv);
 
             CheckCfg("Traps - Grenade", ref grenadeTraps);
@@ -262,7 +254,6 @@ namespace Oxide.Plugins
         {
             {"title", "<color=orange>BoobyTraps</color> : " },
             {"noZoneManager", "ZoneManager is not installed, unable to generate radiation traps" },
-            {"noEntityOwner", "EntityOwner is not installed, players can set traps on any other players box"},
             {"alreadyTrapped", "This box is already booby trapped!"},
             {"notYourBox", "This is not your box"},
             {"noBox", "You are not looking at a box"},
@@ -480,19 +471,16 @@ namespace Oxide.Plugins
                 }
                 if (useOwners)
                 {
-                    if (plugins.Exists("EntityOwner"))
+                    var owner = box.OwnerID;
+                    if (owner == 0 || owner == player.userID)
                     {
-                        var owner = FindOwner(box);
-                        if (owner == null || owner == "")
-                        {
-                            chargeTraps(player, box, trap);
-                            return;
-                        }
-                        if (!(player.userID.ToString() == owner))
-                        {
-                            SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("notYourBox", this, player.UserIDString));
-                                return;
-                        }
+                        chargeTraps(player, box, trap);
+                        return;
+                    }
+                    if (owner != player.userID)
+                    {
+                        SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("notYourBox", this, player.UserIDString));
+                        return;
                     }
                 }
                 if (buildingPriv)
@@ -758,23 +746,8 @@ namespace Oxide.Plugins
             }
             sourcePos.y = Mathf.Max(sourcePos.y, TerrainMeta.HeightMap.GetHeight(sourcePos));
             return sourcePos;
-        }        
-        private string FindOwner(BaseEntity entity)
-        {
-            object returnhook = null;
-            string ownerid = "";
-            returnhook = EntityOwner?.Call("FindEntityData", entity);
-
-            if (returnhook != null)
-            {
-                if (!(returnhook is bool))
-                {
-                    ownerid = Convert.ToString(returnhook);
-                }
-            }
-
-            return ownerid;
-        } // credit Calytic
+        }       
+       
         private bool removeTrap(uint id)
         {
             if (currentTraps.ContainsKey(id))

@@ -3,7 +3,7 @@ using System.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("Cupboard for Friends", "LaserHydra", "1.2.3", ResourceId = 1578)]
+    [Info("Cupboard for Friends", "LaserHydra", "1.2.4", ResourceId = 1578)]
     [Description("Only allow friends of already authorized people to authorize themselves.")]
     class CupboardForFriends : RustPlugin
     {
@@ -63,7 +63,7 @@ namespace Oxide.Plugins
             }, this);
         }
 
-        void LoadConfig()
+        new void LoadConfig()
         {
             SetConfig("Settings", "Block Damage", true);
 
@@ -86,7 +86,8 @@ namespace Oxide.Plugins
 
             if (vic != null && vic is BuildingPrivlidge && info != null && info?.Initiator != null && info?.Initiator?.ToPlayer() != null)
             {
-                object blocked = TestForFriends((BuildingPrivlidge) vic, info.Initiator.ToPlayer());
+                object blocked = TestForFriends((BuildingPrivlidge) vic, info.Initiator.ToPlayer(), true);
+                info.damageTypes.Scale(Rust.DamageType.Heat, 0f);
 
                 if (blocked != null)
                 {
@@ -106,7 +107,7 @@ namespace Oxide.Plugins
 
         object OnCupboardAuthorize(BuildingPrivlidge priviledge, BasePlayer player) => TestForFriends(priviledge, player);
 
-        object TestForFriends(BuildingPrivlidge priviledge, BasePlayer player)
+        object TestForFriends(BuildingPrivlidge priviledge, BasePlayer player, bool isDamage = false)
         {
             DevMsg($"-------------------------------------------");
             DevMsg($"Any authed: {priviledge.AnyAuthed()}");
@@ -139,7 +140,9 @@ namespace Oxide.Plugins
 
                 if (!isFriend)
                 {
-                    SendChatMessage(player, GetMsg("Blocked Authorization", player.UserIDString));
+                    if (!isDamage)
+                        SendChatMessage(player, GetMsg("Blocked Authorization", player.UserIDString));
+
                     return false;
                 }
             }

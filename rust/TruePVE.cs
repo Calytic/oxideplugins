@@ -11,7 +11,7 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-	[Info("TruePVE", "ignignokt84", "0.1.9", ResourceId = 1789)]
+	[Info("TruePVE", "ignignokt84", "0.2.0", ResourceId = 1789)]
 	class TruePVE : RustPlugin
 	{
 		/*
@@ -108,7 +108,11 @@ namespace Oxide.Plugins
 				
 				{"DescFire", "Whether to enable fire damage\n" +
 							   " true: Fire can damage anything\n" +
-							   " false: Fire cannot damage anything"}
+							   " false: Fire cannot damage anything"},
+				
+				{"DescHeliLocked", "Whether locked boxes/doors take damage from heli\n" +
+								   " true: Heli can damage/destroy locked doors/boxes\n" +
+								   " false: Heli cannot damage locked doors/boxes"}
 			};
 			lang.RegisterMessages(messages, this);
         }
@@ -129,9 +133,9 @@ namespace Oxide.Plugins
 		// command enum
 		private enum Command { usage, set, get, desc, list, version, def };
 		// option enum
-		private enum Option { barricade, unlocked, sleepingbag, heli, sleeper, corpse, suicide, decay, hookdamage, hookloot, turret, fire};
+		private enum Option { barricade, unlocked, sleepingbag, heli, sleeper, corpse, suicide, decay, hookdamage, hookloot, turret, fire, helilocked};
 		// default values array
-		private object[] def = { true, true, false, true, false, false, true, 1.0f, true, true, false, false };
+		private object[] def = { true, true, false, true, false, false, true, 1.0f, true, true, false, false, false };
 		
 		// load
 		void Loaded()
@@ -341,6 +345,9 @@ namespace Oxide.Plugins
 					break;
 				case Option.fire:
 					showDesc(arg, opt, GetMessage("DescFire"));
+					break;
+				case Option.helilocked:
+					showDesc(arg, opt, GetMessage("DescHeliLocked"));
 					break;
 			}
 			
@@ -589,8 +596,20 @@ namespace Oxide.Plugins
 				BaseLock alock = entity.GetSlot(BaseEntity.Slot.Lock) as BaseLock; // get lock
 				if (alock == null) return true; // no lock, allow damage
 
-				if (alock.IsLocked()) // is locked, cancel damage
+				if (alock.IsLocked()) // is locked, cancel damage except heli
 				{
+					// if helilocked option is false or heli damage is false, all damage is cancelled
+					if(!getBool(Option.helilocked) || !getBool(Option.heli)) return false;
+					// Check for heli initiator
+					if(hitinfo.Initiator is BaseHelicopter ||
+					   hitinfo.Initiator is HelicopterTurret)
+						return getBool(Option.heli);
+					else if(hitinfo.WeaponPrefab != null) // prevent null spam
+					{
+						if(hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli.prefab" ||
+						   hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli_napalm.prefab")
+							return getBool(Option.heli);
+					}
 					return false; //CancelDamage(hitinfo);
 				}
 			}
@@ -707,7 +726,9 @@ namespace Oxide.Plugins
 		[HookMethod("AllowLoot")]
 		private bool AllowLoot(PlayerLoot inventory, BaseEntity target)
 		{
-			if(target is BasePlayer && !getBool(Option.sleeper))
+			if(isAdmin(inventory.GetComponent<BasePlayer>()))
+				return true;
+			else if(target is BasePlayer && !getBool(Option.sleeper))
 				return false;
 			else if(target is PlayerCorpse && !getBool(Option.corpse))
 				if(Convert.ToString(inventory.GetComponent<BasePlayer>().userID) != Convert.ToString(((PlayerCorpse)target).playerSteamID))
@@ -745,5 +766,13 @@ namespace Oxide.Plugins
 		{
 			return (PopupNotifications != null && usePopups);
 		}
+		
+		// is admin
+        private bool isAdmin(BasePlayer player)
+        {
+        	if (player == null) return false;
+            if (player?.net?.connection == null) return true;
+            return player.net.connection.authLevel > 0;
+        }
 	}
 }
