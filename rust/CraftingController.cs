@@ -2,12 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+
+using Oxide.Core.Plugins;
+
 using UnityEngine;
 
 namespace Oxide.Plugins
 {
 
-    [Info("Crafting Controller", "Mughisi", "2.4.3", ResourceId = 695)]
+    [Info("Crafting Controller", "Mughisi", "2.4.6", ResourceId = 695)]
     class CraftingController : RustPlugin
     {
 
@@ -27,11 +30,13 @@ namespace Oxide.Plugins
 
         // Plugin options
         private const float DefaultCraftingRate = 100;
+        private const float DefaultCraftingExperience = 100;
         private const bool DefaultAdminInstantCraft = true;
         private const bool DefaultModeratorInstantCraft = false;
         private const bool DefaultCompleteCurrentCraftingOnShutdown = false;
 
         public float CraftingRate { get; private set; }
+        public float CraftingExperience { get; private set; }
         public bool AdminInstantCraft { get; private set; }
         public bool ModeratorInstantCraft { get; private set; }
         public bool CompleteCurrentCrafting { get; private set; }
@@ -78,6 +83,12 @@ namespace Oxide.Plugins
 
         #endregion
 
+        [PluginReference]
+        private Plugin XpBooster;
+
+        [PluginReference]
+        private Plugin XPManager;
+
         List<ItemBlueprint> blueprintDefinitions = new List<ItemBlueprint>();
 
         public Dictionary<string, float> Blueprints { get; } = new Dictionary<string, float>();
@@ -121,6 +132,7 @@ namespace Oxide.Plugins
             AdminInstantCraft = GetConfigValue("Options", "InstantCraftForAdmins", DefaultAdminInstantCraft);
             ModeratorInstantCraft = GetConfigValue("Options", "InstantCraftForModerators", DefaultModeratorInstantCraft);
             CraftingRate = GetConfigValue("Options", "CraftingRate", DefaultCraftingRate);
+            CraftingExperience = GetConfigValue("Options", "CraftingExperienceRate", DefaultCraftingExperience);
             CompleteCurrentCrafting = GetConfigValue("Options", "CompleteCurrentCraftingOnShutdown", DefaultCompleteCurrentCraftingOnShutdown);
 
 
@@ -561,6 +573,13 @@ namespace Oxide.Plugins
             var crafter = task.owner.inventory.crafting;
             if (crafter.queue.Count == 0) return;
             crafter.queue.First().endTime = 1f;
+        }
+
+        private object OnXpEarn(ulong id, float amount, string source)
+        {
+            if (XpBooster != null || XPManager != null) return null;
+            if (!source.Equals("UsedForCrafting")) return amount;
+            return amount * CraftingExperience / 100;
         }
 
         #region Helper methods

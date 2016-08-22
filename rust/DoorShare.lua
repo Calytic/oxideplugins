@@ -1,7 +1,7 @@
 PLUGIN.Title        = "Door Share"
 PLUGIN.Description  = "Allows players to share all doors they own with other players."
 PLUGIN.Author       = "InSaNe8472"
-PLUGIN.Version      = V(1,1,2)
+PLUGIN.Version      = V(1,1,3)
 PLUGIN.ResourceID   = 1251
 
 local DataFile_PL = "DoorShare_Players"
@@ -12,10 +12,10 @@ local CoolDown = {}
 local MasterKey
 
 function PLUGIN:Init()
-	permission.RegisterPermission("share.use", self.Plugin)
-	permission.RegisterPermission("share.owner", self.Plugin)
-	permission.RegisterPermission("share.nocd", self.Plugin)
-	permission.RegisterPermission("share.admin", self.Plugin)
+	permission.RegisterPermission("doorshare.use", self.Plugin)
+	permission.RegisterPermission("doorshare.owner", self.Plugin)
+	permission.RegisterPermission("doorshare.nocd", self.Plugin)
+	permission.RegisterPermission("doorshare.admin", self.Plugin)
 	command.AddChatCommand("share", self.Plugin, "cmdShareDoor")
 	self:LoadDataFile()
 	self:LoadDefaultConfig()
@@ -138,13 +138,13 @@ end
 function PLUGIN:cmdShareDoor(player, cmd, args)
 	local playerSteamID = rust.UserIDFromPlayer(player)
 	if self.Config.Settings.UsePermissions == "true" then
-		if not permission.UserHasPermission(playerSteamID, "share.admin") and not permission.UserHasPermission(playerSteamID, "share.use") then
+		if not permission.UserHasPermission(playerSteamID, "doorshare.admin") and not permission.UserHasPermission(playerSteamID, "doorshare.use") then
 			rust.SendChatMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.NoPermission)
 			return
 		end
 	end
 	if args.Length > 0 and args[0] == "toggle" then
-		if not permission.UserHasPermission(playerSteamID, "share.admin") then
+		if not permission.UserHasPermission(playerSteamID, "doorshare.admin") then
 			rust.SendChatMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.NoPermission)
 			return
 		end
@@ -165,7 +165,7 @@ function PLUGIN:cmdShareDoor(player, cmd, args)
 		return
 	end
 	if args.Length == 0 then
-		if permission.UserHasPermission(playerSteamID, "share.admin") then
+		if permission.UserHasPermission(playerSteamID, "doorshare.admin") then
 			rust.SendChatMessage(player,
 				self.Config.Settings.Prefix.." <color=#ffd479>/share toggle</color> - Enable or disable door sharing system\n"..
 				self.Config.Settings.Prefix.." <color=#ffd479>/share auth</color> - Temporarily authorize on all nearby cupboards"
@@ -186,7 +186,7 @@ function PLUGIN:cmdShareDoor(player, cmd, args)
 			return
 		end
 		if func == "auth" then
-			if not permission.UserHasPermission(playerSteamID, "share.admin") then
+			if not permission.UserHasPermission(playerSteamID, "doorshare.admin") then
 				rust.SendChatMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.NoPermission)
 				return
 			end
@@ -208,7 +208,7 @@ function PLUGIN:cmdShareDoor(player, cmd, args)
 				return
 			end
 			local playerData = self:GetPlayerData(playerSteamID, true)
-			if not permission.UserHasPermission(playerSteamID, "share.admin") then
+			if not permission.UserHasPermission(playerSteamID, "doorshare.admin") then
 				if tonumber(#playerData.Shared) >= tonumber(self.Config.Settings.MaxShare) then
 					local message = FormatMessage(self.Config.Messages.MaxShare, { limit = self.Config.Settings.MaxShare })
 					rust.SendChatMessage(player, self.Config.Settings.Prefix.." "..message)
@@ -231,7 +231,7 @@ function PLUGIN:cmdShareDoor(player, cmd, args)
 			self:SaveDataFile(1)
 			local message = FormatMessage(self.Config.Messages.PlayerAdded, { player = targetname })
 			rust.SendChatMessage(player, self.Config.Settings.Prefix.." "..message)
-			if not permission.UserHasPermission(playerSteamID, "share.admin") and not permission.UserHasPermission(playerSteamID, "share.nocd") then
+			if not permission.UserHasPermission(playerSteamID, "doorshare.admin") and not permission.UserHasPermission(playerSteamID, "doorshare.nocd") then
 				CoolDown[playerSteamID] = time.GetUnixTimestamp()
 			end
 			if targetplayer:IsConnected() then
@@ -248,8 +248,8 @@ function PLUGIN:cmdShareDoor(player, cmd, args)
 			end
 			local found, targetplayer, targetname, targetid = self:CheckPlayer(player, args[1])
 			if not found then return end
-			local playerData = self:GetPlayerData(playerSteamID, true)
-			if #playerData.Shared > 0 then
+			local playerData = self:GetPlayerData(playerSteamID, false)
+			if playerData and #playerData.Shared > 0 then
 				for current, data in pairs(playerData.Shared) do
 					if data.id == targetid then
 						table.remove(playerData.Shared, current)
@@ -266,21 +266,21 @@ function PLUGIN:cmdShareDoor(player, cmd, args)
 			end
 			local message = FormatMessage(self.Config.Messages.PlayerNotExists, { player = targetname })
 			rust.SendChatMessage(player, self.Config.Settings.Prefix.." "..message)
-			if not permission.UserHasPermission(playerSteamID, "share.admin") and not permission.UserHasPermission(playerSteamID, "share.nocd") then
+			if not permission.UserHasPermission(playerSteamID, "doorshare.admin") and not permission.UserHasPermission(playerSteamID, "doorshare.nocd") then
 				CoolDown[playerSteamID] = time.GetUnixTimestamp()
 			end
 			return
 		end
 		if func == "removeall" then
 			if not self:CheckCooldown(player, 1) then return end
-			local playerData = self:GetPlayerData(playerSteamID, true)
-			if #playerData.Shared == 0 then
+			local playerData = self:GetPlayerData(playerSteamID, false)
+			if not playerData or #playerData.Shared == 0 then
 				rust.SendChatMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.NoShares)
 				return
 			end
 			local message = FormatMessage(self.Config.Messages.DeleteAll, { entries = #playerData.Shared })
 			rust.SendChatMessage(player, self.Config.Settings.Prefix.." "..message)
-			if not permission.UserHasPermission(playerSteamID, "share.admin") and not permission.UserHasPermission(playerSteamID, "share.nocd") then
+			if not permission.UserHasPermission(playerSteamID, "doorshare.admin") and not permission.UserHasPermission(playerSteamID, "doorshare.nocd") then
 				CoolDown[playerSteamID] = time.GetUnixTimestamp()
 			end
 			playerData.Shared = {}
@@ -288,8 +288,8 @@ function PLUGIN:cmdShareDoor(player, cmd, args)
 			return
 		end
 		if func == "list" then
-			local playerData = self:GetPlayerData(playerSteamID, true)
-			if #playerData.Shared == 0 then
+			local playerData = self:GetPlayerData(playerSteamID, false)
+			if not playerData or #playerData.Shared == 0 then
 				rust.SendChatMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.NoShares)
 				return
 			end
@@ -306,9 +306,10 @@ function PLUGIN:cmdShareDoor(player, cmd, args)
 end
 
 function PLUGIN:OnItemDeployed(deployer, entity)
-	if entity.name == "assets/prefabs/locks/keypad/lock.code.prefab" or entity.name == "assets/prefabs/locks/keylock/lock.key.prefab" then
-		local doorname, doorid = tostring(entity):match"([^%[]*)%[([^%]]*)"
-		local playerSteamID = rust.UserIDFromPlayer(deployer.ownerPlayer)
+	if string.match(entity.name, "door.hinged") or string.match(entity.name, "gates.external") then
+		local player = deployer:GetOwnerPlayer()
+		local doorname, doorid = tostring(entity):match("([^%[]*)%[([^%]]*)")
+		local playerSteamID = rust.UserIDFromPlayer(player)
 		for current, data in pairs(Data_DR.Doors) do
 			if data.door == doorid then
 				data.door, data.player = doorid, playerSteamID
@@ -316,7 +317,7 @@ function PLUGIN:OnItemDeployed(deployer, entity)
 				return
 			end
 		end
-		local newDoor = {["door"] = doorid, ["player"] = deployer.ownerPlayer.displayName, ["id"] = playerSteamID}
+		local newDoor = {["door"] = doorid, ["player"] = player.displayName, ["id"] = playerSteamID}
 		table.insert(Data_DR.Doors, newDoor)
 		self:SaveDataFile(2)
 		return
@@ -339,14 +340,15 @@ function PLUGIN:CanUseDoor(player, lock)
 end
 
 function PLUGIN:ProcessDoor(player, lock)
+	self:CheckOwner(lock, player)
 	local playerSteamID = rust.UserIDFromPlayer(player)
-	if permission.UserHasPermission(playerSteamID, "share.admin") then
+	if permission.UserHasPermission(playerSteamID, "doorshare.admin") then
 		self:PlayDoorSound(player, lock)
 		return true
 	end
 	local Access = true
 	if self.Config.Settings.UsePermissions == "true" then
-		if not permission.UserHasPermission(playerSteamID, "share.use") then Access = false end
+		if not permission.UserHasPermission(playerSteamID, "doorshare.use") then Access = false end
 	end
 	if Access then
 		local doorname, doorid = tostring(lock):match"([^%[]*)%[([^%]]*)"
@@ -363,8 +365,8 @@ function PLUGIN:ProcessDoor(player, lock)
 			end
 		end
 		if founddoor then
-			local playerData = self:GetPlayerData(founddoor, true)
-			if #playerData.Shared > 0 then
+			local playerData = self:GetPlayerData(founddoor, false)
+			if playerData and #playerData.Shared > 0 then
 				for current, data in pairs(playerData.Shared) do
 					if data.id == playerSteamID then
 						self:PlayDoorSound(player, lock)
@@ -409,13 +411,13 @@ end
 
 function PLUGIN:CheckOwner(lock, player)
 	local playerSteamID = rust.UserIDFromPlayer(player)
-	if self:CheckCooldown(player, 2) and permission.UserHasPermission(playerSteamID, "share.owner") then
+	if self:CheckCooldown(player, 2) and permission.UserHasPermission(playerSteamID, "doorshare.owner") then
 		local doorname, doorid = tostring(lock):match"([^%[]*)%[([^%]]*)"
 		for current, data in pairs(Data_DR.Doors) do
 			if tonumber(data.door) == tonumber(doorid) then
 				local message = FormatMessage(self.Config.Messages.DoorOwner, { player = data.player, id = data.id })
 				rust.SendChatMessage(player, self.Config.Settings.Prefix.." "..message)
-				if not permission.UserHasPermission(playerSteamID, "share.admin") and not permission.UserHasPermission(playerSteamID, "share.nocd") then
+				if not permission.UserHasPermission(playerSteamID, "doorshare.admin") and not permission.UserHasPermission(playerSteamID, "doorshare.nocd") then
 					CoolDown[playerSteamID] = time.GetUnixTimestamp()
 				end
 				break
@@ -426,7 +428,7 @@ end
 
 function PLUGIN:CheckCooldown(player, call)
 	local playerSteamID = rust.UserIDFromPlayer(player)
-	if not permission.UserHasPermission(playerSteamID, "share.admin") and not permission.UserHasPermission(playerSteamID, "share.nocd") then
+	if not permission.UserHasPermission(playerSteamID, "doorshare.admin") and not permission.UserHasPermission(playerSteamID, "doorshare.nocd") then
 		if CoolDown[playerSteamID] then
 			local Timestamp = time.GetUnixTimestamp()
 			if Timestamp - CoolDown[playerSteamID] < tonumber(self.Config.Settings.Cooldown) then

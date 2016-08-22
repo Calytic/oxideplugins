@@ -2,10 +2,12 @@
     "name": "R-Remover Tool",
     "description": "Remover tool",
     "author": "Reneb",
-    "version": "3.0.15",
+    "version": "4.0.4",
     "configuration": true,
     "suggest": {
-        "BuildingOwners": "*"
+        "BuildingOwners": "*",
+        "Friends": "*",
+        "Economics": "*"
     },
     "language": "cs",
     "games": [

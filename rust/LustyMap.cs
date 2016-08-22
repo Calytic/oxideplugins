@@ -12,7 +12,7 @@ using Oxide.Core.Libraries;
 
 namespace Oxide.Plugins
 {
-    [Info("LustyMap", "Kayzor", "1.1.19", ResourceId = 1333)]
+    [Info("LustyMap", "Kayzor", "1.1.28", ResourceId = 1333)]
     [Description("In-game Map and Minimap GUI")]
     public class LustyMap : RustPlugin
     {
@@ -26,7 +26,6 @@ namespace Oxide.Plugins
         bool left = true;
         bool compass = true;
         bool startopen = true;
-        bool mapbutton = false;
         bool showmonuments = true;
         bool showcaves = true;
         bool showheli = true;
@@ -36,14 +35,23 @@ namespace Oxide.Plugins
         bool shownames = true;
         bool showplayers = true;
         bool useurl = false;
-        bool rustiofriends = false;
-        bool rustio = false;
-        bool friendapi = false;
-        bool friendsapifriends = false;
+        bool pluginRustIO = false;
+        bool pluginFriendAPI = false;
+        bool pluginFactions = false;
+        bool pluginEventManager = false;
+        bool useFriendsAPI = false;
+        bool useRustIO = false;
+        bool useFactions = false;
+        bool useHideEventFriends = true;
+        bool showallplayers = false;
+        bool tryclose = false;
+        string keybind = "m";
         float offsetTop = 0;
         float offsetSide = 0;
         float scale = 0;
-        int workmaxcycle = 196;   
+        int workmaxcycle = 196;
+
+        string dataDirectory = "file://" + Interface.Oxide.DataDirectory + Path.DirectorySeparatorChar + "LustyMap" + Path.DirectorySeparatorChar;
 
         // Lists
         List<MapLocation> mapCustom = new List<MapLocation>();
@@ -73,6 +81,8 @@ namespace Oxide.Plugins
         string txtCmdMap = null;
         string txtCmdIOFriends = null;
         string txtCmdAPIFriends = null;
+        string txtCmdFactionFriends = null;
+        string txtCmdHideEventFriends = null;
         string txtCmdAdmin = null;
         string txtCmdUseUrl = null;
 
@@ -98,8 +108,12 @@ namespace Oxide.Plugins
         string txtCmtImageFail = null;
         string txtCmtIOFriends = null;
         string txtCmtAPIFriends = null;
+        string txtCmtFactionFriends = null;
+        string txtCmtHideEventFriends = null;
         string txtCmtAdmin = null;
         string txtCmtUseUrl = null;
+
+        string txtDisabed = null;
 
         string txtCpsHead = null;
         string txtCpsN = null;
@@ -110,8 +124,6 @@ namespace Oxide.Plugins
         string txtCpsSW = null;
         string txtCpsW = null;
         string txtCpsNW = null;
-        string txtBtnClose = null;
-        string txtBtnMap = null;
 
         string txtMonLight = null;
         string txtMonCave = null;
@@ -125,14 +137,14 @@ namespace Oxide.Plugins
         string txtMonWater = null;
         string txtMonRad = null;
 
-        private float mapSize;
+        float mapSize;
 
         // RustIO Support
-        private Library RustIOLib;
-        private MethodInfo isRustIOInstalled;
-        private MethodInfo hasRustIOFriend;
+        Library RustIOLib;
+        MethodInfo isRustIOInstalled;
+        MethodInfo hasRustIOFriend;
 
-        private void InitializeRustIO()
+        void InitializeRustIO()
         {
             RustIOLib = Interface.GetMod().GetLibrary<Library>("RustIO");
             if (RustIOLib == null || (isRustIOInstalled = RustIOLib.GetFunction("IsInstalled")) == null || (hasRustIOFriend = RustIOLib.GetFunction("HasFriend")) == null)
@@ -142,23 +154,23 @@ namespace Oxide.Plugins
 
             if (IsRustIOInstalled())
             {
-                rustio = true;
+                pluginRustIO = true;
                 if (debug) { Puts("Rust:IO detected!"); }
             }
             else
             {
-                rustio = false;
+                pluginRustIO = false;
                 if (debug) { Puts("Rust:IO not detected..."); }
             }
         }
 
-        private bool IsRustIOInstalled()
+        bool IsRustIOInstalled()
         {
             if (RustIOLib == null) return false;
             return (bool)isRustIOInstalled.Invoke(RustIOLib, new object[] { });
         }
 
-        private bool HasRustIOFriend(string playerId, string friendId)
+        bool HasRustIOFriend(string playerId, string friendId)
         {
             if (RustIOLib == null) return false;
             return (bool)hasRustIOFriend.Invoke(RustIOLib, new object[] { playerId, friendId });
@@ -166,27 +178,89 @@ namespace Oxide.Plugins
 
         // Friends API Support
         [PluginReference]
-        private Plugin Friends;
+        Plugin Friends;
 
-        private void InitializeFriendsAPI()
+        void InitializeFriendsAPI()
         {
             if (Friends != null)
             {
-                friendapi = true;
+                pluginFriendAPI = true;
                 if (debug) { Puts("FriendsAPI detected!"); }
             }
             else
             {
-                friendapi = false;
+                pluginFriendAPI = false;
                 if (debug) { Puts("FriendsAPI not detected..."); }
             }
         }
 
-        private bool AreFriendsAPIFriend(string playerId, string friendId)
+        bool AreFriendsAPIFriend(string playerId, string friendId)
         {
             try
             {
                 bool result = (bool)Friends?.CallHook("AreFriends", playerId, friendId);
+                return result;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+        
+        // Factions Support
+        [PluginReference]
+        Plugin Factions;
+
+        void InitializeFactions()
+        {
+            if (Factions != null)
+            {
+                pluginFactions = true;
+                if (debug) { Puts("Factions detected!"); }
+            }
+            else
+            {
+                pluginFactions = false;
+                if (debug) { Puts("Factions not detected..."); }
+            }
+        }
+
+        bool SameFaction(ulong playerId, ulong friendId)
+        {
+            try
+            {
+                bool result = (bool)Factions?.Call("CheckSameFaction", playerId, friendId);
+                return result;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        //EventManager Support
+        [PluginReference]
+        Plugin EventManager;
+
+        void InitializeEventManager()
+        {
+            if (EventManager != null)
+            {
+                pluginEventManager = true;
+                if (debug) { Puts("EventManager detected!"); }
+            }
+            else
+            {
+                pluginEventManager = false;
+                if (debug) { Puts("EventManager not detected..."); }
+            }
+        }
+        
+        bool InEvent(BasePlayer player)
+        {
+            try
+            {
+                bool result = (bool)EventManager?.Call("isPlaying", new object[] { player });
                 return result;
             }
             catch
@@ -206,7 +280,6 @@ namespace Oxide.Plugins
             set("LustyMap", "Compass", true, false);
             set("LustyMap", "StartOpen", true, false);
             set("LustyMap", "Debug", false, false);
-            set("LustyMap", "MapButton", false, false);
             set("LustyMap", "ShowMonuments", true, false);
             set("LustyMap", "ShowCaves", true, false);
             set("LustyMap", "ShowHeli", true, false);
@@ -216,7 +289,14 @@ namespace Oxide.Plugins
             set("LustyMap", "ShowPlayers", true, false);
             set("LustyMap", "RustIOFriends", false, false);
             set("LustyMap", "FriendsAPIFriends", false, false);
+            set("LustyMap", "FactionFriends", false, false);
+            set("LustyMap", "HideEventFriends", true, false);
             set("LustyMap", "UseURL", false, false);
+            set("LustyMap", "ShowAllPlayers", false, false);
+            set("LustyMap", "Keybind", keybind, false);
+            set("LustyMap", "TryClose", tryclose, false);
+
+            set("Images", "Location", dataDirectory, false);
 
             set("Performance", "WorkPerCycle", workmaxcycle, false);
 
@@ -233,9 +313,24 @@ namespace Oxide.Plugins
                 set("FirstUse", "1.1.12", false, true);
             }
 
+            set("FirstUse", "1.1.20", true, false);
+            if (Convert.ToBoolean(get("FirstUse", "1.1.20")))
+            {
+                set("TextStrings", "UnknownCommand", "Unknown command", true);
+                set("FirstUse", "1.1.20", true, true);
+            }
+
+            set("FirstUse", "1.1.26", true, false);
+            if (Convert.ToBoolean(get("FirstUse", "1.1.20")))
+            {
+                set("TextStrings", "MapCommand", "<color=#00ff00ff>/map</color> has been <color=#00ff00ff>removed</color>, Please use keybind <color=#00ff00ff>{0}</color> to toggle the map instead.", true);
+                set("FirstUse", "1.1.26", true, true);
+            }
+            
+
             // Default/English text strings
             set("TextStrings", "InvalidSyntex", "Invalid syntex! usage: ", false);
-            set("TextStrings", "UnknownCommand", "Unknown command, type <color=#00ff00ff>/map help</color> for a list of commands.", false);
+            set("TextStrings", "UnknownCommand", "Unknown command", false);
             set("TextStrings", "MinimapCommand", "<color=#00ff00ff>/map minimap <true|false|left|right></color> - Enables, disables or sets the default alignment for the minimap.", false);
             set("TextStrings", "ModeCommand", "<color=#00ff00ff>/map mode <true|false></color> - Enables or disables complex mode.", false);
             set("TextStrings", "CompassCommand", "<color=#00ff00ff>/map compass <true|false></color> - Enables or disables the minimap compass.", false);
@@ -251,12 +346,13 @@ namespace Oxide.Plugins
             set("TextStrings", "DebrisCommand", "<color=#00ff00ff>/map showdebris <true|false></color> - Enables or disables Helicopter Debris from showing on the map.", false);
             set("TextStrings", "PlayersCommand", "<color=#00ff00ff>/map showplayers <true|false></color> - Enables or disables Players from showing on the map.", false);
             set("TextStrings", "LocationCommand", "<color=#00ff00ff>/map <add|remove> <name> (optional)<image name></color> - Adds|Removes a location from the map, (optional)using a custom image.", false);
-            set("TextStrings", "ImageCommand", "<color=#00ff00ff>/map <addimage|removeimage> <name></color> - Adds a custom image which can be used with a custom map location.", false);
-            set("TextStrings", "MapCommand", "<color=#00ff00ff>/map</color> has been <color=#00ff00ff>removed</color>, Please use keybind <color=#00ff00ff>M</color> to toggle the map instead.", false);
+            set("TextStrings", "ImageCommand", "<color=#00ff00ff>/map <addimage|removeimage> <name></color> - Adds a custom image which can be used with a custom map location.", false);            
             set("TextStrings", "RustIOFriendsCommand", "<color=#00ff00ff>/map rustiofriends <true|false></color> - Enables or disables RustIO Friends displaying on the map and minimap for players.", false);
             set("TextStrings", "FriendsAPIFriendsCommand", "<color=#00ff00ff>/map friendsapifriends <true|false></color> - Enables or disables FriendsAPI Friends displaying on the map and minimap for players.", false);
+            set("TextStrings", "FactionsFriendsCommand", "<color=#00ff00ff>/map factionsfriends <true|false></color> - Enables or disables Factions Friends displaying on the map and minimap for players.", false);
+            set("TextStrings", "EventManagerFriendsCommand", "<color=#00ff00ff>/map hideeventfriends <true|false></color> - Enables or disables Friends in an Event from displaying on the map and minimap for players.", false);
             set("TextStrings", "AdminViewCommand", "<color=#00ff00ff>/map adminview</color> - Toggles Admin View for the map and minimap.", false);
-
+            
             set("TextStrings", "ModeCommit", "Complex mode has been <color=#00ff00ff>{0}</color>.", false);
             set("TextStrings", "MinimapCommit", "Minimap has been <color=#00ff00ff>{0}</color> for all players.", false);
             set("TextStrings", "AlignCommit", "Minimap has been set to the <color=#00ff00ff>{0}</color>.", false);
@@ -274,11 +370,12 @@ namespace Oxide.Plugins
             set("TextStrings", "UseUrlCommit", "Map URL mode has been <color=#00ff00ff>{0}</color>.", false);
             set("TextStrings", "RustIOFriendsCommit", "RustIO Friends has been <color=#00ff00ff>{0}</color>.", false);
             set("TextStrings", "FriendsAPIFriendsCommit", "FriendsAPI Friends has been <color=#00ff00ff>{0}</color>.", false);
+            set("TextStrings", "FactionsFriendsCommit", "Factions Friends has been <color=#00ff00ff>{0}</color>.", false);
+            set("TextStrings", "EventManagerFriendsCommit", "Hiding of Friends in Events has been <color=#00ff00ff>{0}</color>.", false);
             set("TextStrings", "AdminViewCommit", "Admin View has been <color=#00ff00ff>{0}</color>.", false);
 
-            set("TextStrings", "CloseButton", "Close Map", false);
-            set("TextStrings", "MapButton", "Map", false);
-
+            set("TextStrings", "DisabedByAdmin", "That Command has been <color=#00ff00ff>Disabled</color> by the Server Administrator.", false);
+            
             set("CompassStrings", "Head", "Heading:", false);
             set("CompassStrings", "N", "North", false);
             set("CompassStrings", "NE", "North East", false);
@@ -308,7 +405,6 @@ namespace Oxide.Plugins
             compass = Convert.ToBoolean(get("LustyMap", "Compass"));
             startopen = Convert.ToBoolean(get("LustyMap", "StartOpen"));
             debug = Convert.ToBoolean(get("LustyMap", "Debug"));
-            mapbutton = Convert.ToBoolean(get("LustyMap", "MapButton"));
             showmonuments = Convert.ToBoolean(get("LustyMap", "ShowMonuments"));
             showcaves = Convert.ToBoolean(get("LustyMap", "ShowCaves"));
             showheli = Convert.ToBoolean(get("LustyMap", "ShowHeli"));
@@ -318,8 +414,15 @@ namespace Oxide.Plugins
             showplayers = Convert.ToBoolean(get("LustyMap", "ShowPlayers"));
             useurl = Convert.ToBoolean(get("LustyMap", "UseURL"));
             mapurl = Convert.ToString(get("LustyMap", "MapURL"));
-            rustiofriends = Convert.ToBoolean(get("LustyMap", "RustIOFriends"));
-            friendsapifriends = Convert.ToBoolean(get("LustyMap", "FriendsAPIFriends"));
+            useRustIO = Convert.ToBoolean(get("LustyMap", "RustIOFriends"));
+            useFriendsAPI = Convert.ToBoolean(get("LustyMap", "FriendsAPIFriends"));
+            useHideEventFriends = Convert.ToBoolean(get("LustyMap", "HideEventFriends"));
+            useFactions = Convert.ToBoolean(get("LustyMap", "FactionFriends"));
+            showallplayers = Convert.ToBoolean(get("LustyMap", "ShowAllPlayers"));
+            keybind = (string)get("LustyMap", "Keybind");
+            tryclose = Convert.ToBoolean(get("LustyMap", "TryClose"));
+
+            dataDirectory = (string)get("Images", "Location");
 
             workmaxcycle = Convert.ToInt16(get("Performance", "WorkPerCycle"));
 
@@ -349,6 +452,8 @@ namespace Oxide.Plugins
             txtCmdMap = (string)get("TextStrings", "MapCommand");
             txtCmdIOFriends = (string)get("TextStrings", "RustIOFriendsCommand");
             txtCmdAPIFriends = (string)get("TextStrings", "FriendsAPIFriendsCommand");
+            txtCmdFactionFriends = (string)get("TextStrings", "FactionsFriendsCommand");
+            txtCmdHideEventFriends = (string)get("TextStrings", "EventManagerFriendsCommand");
             txtCmdAdmin = (string)get("TextStrings", "AdminViewCommand");
 
             txtCmtMode = (string)get("TextStrings", "ModeCommit");
@@ -368,10 +473,10 @@ namespace Oxide.Plugins
             txtCmtUseUrl = (string)get("TextStrings", "UseUrlCommit");
             txtCmtIOFriends = (string)get("TextStrings", "RustIOFriendsCommit");
             txtCmtAPIFriends = (string)get("TextStrings", "FriendsAPIFriendsCommit");
+            txtCmtFactionFriends = (string)get("TextStrings", "FactionsFriendsCommit");
+            txtCmtHideEventFriends = (string)get("TextStrings", "EventManagerFriendsCommit");
             txtCmtAdmin = (string)get("TextStrings", "AdminViewCommit");
-
-            txtBtnClose = (string)get("TextStrings", "CloseButton");
-            txtBtnMap = (string)get("TextStrings", "MapButton");
+            txtDisabed = (string)get("TextStrings", "DisabedByAdmin");
 
             txtCpsHead = (string)get("CompassStrings", "Head");
             txtCpsN = (string)get("CompassStrings", "N");
@@ -398,14 +503,17 @@ namespace Oxide.Plugins
             // Load custom lists
             customIamges = Interface.Oxide.DataFileSystem.ReadObject<List<string>>("LustyMapImages");
             mapCustom = Interface.Oxide.DataFileSystem.ReadObject<List<MapLocation>>("LustyMapLocations");
+
+            if (customIamges == null) { customIamges = new List<string>(); }
+            if (mapCustom == null) { mapCustom = new List<MapLocation>(); }
         }
 
         // Monuments
-        private class MapLocation
+        class MapLocation
         {
             public string name { get; set; }
-            public double percentX { get; set; }
-            public double percentZ { get; set; }
+            public float percentX { get; set; }
+            public float percentZ { get; set; }
             public string icon { get; set; }
         }
 
@@ -531,24 +639,183 @@ namespace Oxide.Plugins
                 }
             }
 
-            // Check for RustIO (need a delay to allow RustIO to start)
-            InitializeRustIO();
-            timer.Once(30f, InitializeRustIO);
+            // Initialize Plugins
+            Initialize();
 
-            // Check for FriendsAPI
-            InitializeFriendsAPI();
+            // Re-run Checks (need a delay to allow RustIO to start)
+            timer.Once(30f, Initialize);
+            timer.Once(60f, Initialize);
 
             // Download Images
             cacheImages();
         }
 
-        private double GetMapPos(float pos)
+        void Initialize()
         {
-            return (pos + mapSize / 2.0) / mapSize;
+            InitializeRustIO();
+            InitializeFriendsAPI();
+            InitializeFactions();
+            InitializeEventManager();            
+
+            if (!runningfriends)
+            {
+                UpdateFriendsTimer();
+                if (debug) { Puts("Starting Friends Timer"); }
+            }
+            else
+            {
+                if (debug) { Puts("Friends Timer Running"); }
+            }
+        }
+
+        // Hooks \\
+
+        // Open Minimap
+        void MinimapOpen(BasePlayer player)
+        {
+            MapUser user = getUser(player);
+            user.minimapReOpen = true;
+            user.minimap = true;
+            user.minimapRefresh = true;
+            minimapGUI(player);
+        }
+
+        void MinimapReOpen(BasePlayer player)
+        {
+            MapUser user = getUser(player);
+            if (user.minimapReOpen)
+            {
+                user.minimap = true;
+                user.minimapRefresh = true;
+                minimapGUI(player);
+
+                user.trackEsc = false;
+                user.trackInv = false;
+                user.trackCraft = false;
+            }
+        }
+
+        // Close Minimap
+        void MinimapClose(BasePlayer player, bool tracker = false)
+        {
+            MapUser user = getUser(player);
+            if (user.minimap)
+            {
+                user.minimapReOpen = true;
+            }
+            else
+            {
+                if (!tracker)
+                {
+                    user.minimapReOpen = false;
+                }
+            }
+            user.minimap = false;
+            user.minimapRefresh = true;
+            CuiHelper.DestroyUi(player, "Minimap");
+            CuiHelper.DestroyUi(player, "MinimapBG");
+            CuiHelper.DestroyUi(player, "MinimapHUD");
+            minimapGUI(player);
+        }
+
+        // Toggle Map (Keybind M)
+        void MapToggle(BasePlayer player)
+        {
+            MapUser user = getUser(player);
+            if (user.map)
+            {
+                MapClose(player);
+            }
+            else
+            {
+                MapOpen(player);
+            }
+        }
+
+        // Open Map
+        void MapOpen(BasePlayer player)
+        {
+            MinimapClose(player);
+
+            MapUser user = getUser(player);            
+            user.map = true;
+            user.mapRefresh = true;
+            mapGUI(player);
+        }
+
+        // Close Map
+        void MapClose(BasePlayer player)
+        {
+            MapUser user = getUser(player);
+            if (user.map)
+            {
+                user.map = false;
+                user.mapRefresh = false;
+                CuiHelper.DestroyUi(player, "MapGUI");
+                CuiHelper.DestroyUi(player, "MapGUIBG");
+            }
+            MinimapReOpen(player);
+        }
+
+        // Close Map and Minimap
+        void CloseMaps(BasePlayer player)
+        {
+            MapClose(player);
+            MinimapClose(player);            
+        }
+
+        void DisableMaps(BasePlayer player)
+        {
+            // Clear GUIs
+            MapUser user = getUser(player);
+            if (user.map)
+            {
+                user.map = false;
+                user.mapRefresh = false;
+                CuiHelper.DestroyUi(player, "MapGUI");
+                CuiHelper.DestroyUi(player, "MapGUIBG");
+            }
+
+            if (user.minimap)
+            {
+                user.minimapReOpen = true;
+            }
+            else
+            {
+                user.minimapReOpen = false;
+            }
+            user.minimap = false;
+            user.minimapRefresh = false;
+            CuiHelper.DestroyUi(player, "Minimap");
+            CuiHelper.DestroyUi(player, "MinimapBG");
+            CuiHelper.DestroyUi(player, "MinimapHUD");
+
+            // Clear Keybinds
+            player.Command("bind " + keybind + " \"\"");
+        }
+
+        void EnableMaps(BasePlayer player, string oldbind = "m")
+        {
+            // Minimap GUI
+            MinimapReOpen(player);
+
+            // Keybinds
+            player.Command("bind m \"\"");
+            player.Command("bind " + oldbind + " \"\"");
+            player.Command("bind " + keybind + " \"LustyMap map\"");
+
+            // Traker Keybinds
+            if (tryclose)
+            {
+                player.Command("bind tab \"inventory.toggle;LustyMap toggleinventory\"");
+                player.Command("bind q \"inventory.togglecrafting;LustyMap togglecrafting\"");
+                player.Command("bind escape \"LustyMap escape\"");
+            }
+
         }
 
         // Custom map locations
-        bool addLocation(BasePlayer player, string name, string icon = "special")
+        bool AddMarker(float x, float z, string name, string icon = "special")
         {
             if (mapCustom.Find(r => string.Equals(r.name, name, StringComparison.CurrentCultureIgnoreCase)) == null)
             {
@@ -556,8 +823,8 @@ namespace Oxide.Plugins
                 {
                     name = name,
                     icon = icon,
-                    percentX = GetMapPos(player.transform.position.x),
-                    percentZ = GetMapPos(player.transform.position.z)
+                    percentX = GetMapPos(x),
+                    percentZ = GetMapPos(z)
                 };
 
                 // Add to list
@@ -568,9 +835,31 @@ namespace Oxide.Plugins
             return false;
         }
 
-        bool removeLocation(string name)
+        bool addLocation(BasePlayer player, string name, string icon = "special")
         {
-            var loc = mapCustom.Find(r => string.Equals(r.name, name, StringComparison.CurrentCultureIgnoreCase));
+            return AddMarker(player.transform.position.x, player.transform.position.z, name, icon);
+        }
+
+        void UpdateMarker(float x, float z, string name, string icon = "special")
+        {
+            MapLocation location = mapCustom.Find(r => string.Equals(r.name, name, StringComparison.CurrentCultureIgnoreCase));
+            if (location == null)
+            {
+                AddMarker(x, z, name, icon);
+            }
+            else
+            {
+                location.icon = icon;
+                location.percentX = GetMapPos(x);
+                location.percentZ = GetMapPos(z);
+
+                Interface.Oxide.DataFileSystem.WriteObject("LustyMapLocations", mapCustom);
+            }
+        }
+
+        bool RemoveMarker(string name)
+        {
+            MapLocation loc = mapCustom.Find(r => string.Equals(r.name, name, StringComparison.CurrentCultureIgnoreCase));
             if (loc != null)
             {
                 mapCustom.Remove(loc);
@@ -593,8 +882,8 @@ namespace Oxide.Plugins
 
             public string name { get; set; }
             public Vector3 position { get; set; }
-            public double percentX { get; set; }
-            public double percentZ { get; set; }
+            public float percentX { get; set; }
+            public float percentZ { get; set; }
             public int row { get; set; }
             public int column { get; set; }
             public string icon { get; set; }
@@ -649,7 +938,7 @@ namespace Oxide.Plugins
             }
         }
 
-        int directionEntity(double rotation)
+        int directionEntity(float rotation)
         {
             return (int)((rotation - 5) / 10 + 0.5) * 10;
         }
@@ -701,7 +990,7 @@ namespace Oxide.Plugins
         ImageCache ImageAssets;
         GameObject LustyObject;
 
-        private void cacheImages()
+        void cacheImages()
         {
             // Disable map updates while downloading images...
             run = false;
@@ -713,7 +1002,6 @@ namespace Oxide.Plugins
 
             // Icons
             if (debug) { Puts("Downloading images..."); }
-            string dataDirectory = "file://" + Interface.Oxide.DataDirectory + Path.DirectorySeparatorChar + "LustyMap" + Path.DirectorySeparatorChar;
 
             List<string> files = new List<string>()
             {
@@ -780,7 +1068,7 @@ namespace Oxide.Plugins
             }
 
             // Wait for downloads to complete...
-            download();
+            timer.Once(0.15f, download);
         }
 
 
@@ -798,7 +1086,7 @@ namespace Oxide.Plugins
                 public string name { get; set; }
             }
 
-            private void OnDestroy()
+            void OnDestroy()
             {
                 foreach (var value in imageFiles.Values)
                 {
@@ -832,7 +1120,9 @@ namespace Oxide.Plugins
                     // check for errors
                     if (string.IsNullOrEmpty(www.error))
                     {
-                        imageFiles.Add(queue.name, FileStorage.server.Store(www.bytes, FileStorage.Type.png, uint.MaxValue).ToString());
+                        MemoryStream stream = new MemoryStream();
+                        stream.Write(www.bytes, 0, www.bytes.Length);
+                        imageFiles.Add(queue.name, FileStorage.server.Store(stream, FileStorage.Type.png, uint.MaxValue).ToString());
                         downloading--;
                     }
                     else
@@ -945,7 +1235,7 @@ namespace Oxide.Plugins
 
         // Worker Processes
         // Update Map
-        private void UpdateMapTimer()
+        void UpdateMapTimer()
         {
             // Check / Update Plane / Heli
             checkActive();
@@ -974,48 +1264,56 @@ namespace Oxide.Plugins
 
         // Update Firends
         int workCounter = 0;
-        private void UpdateFriendsTimer()
+        void UpdateFriendsTimer()
         {
             // Refresh Friends if Enabled
-            if ((rustio && rustiofriends) || (friendapi && friendsapifriends))
+            if ((pluginRustIO && useRustIO) || (pluginFriendAPI && useFriendsAPI) || (pluginFactions && useFactions))
             {
                 runningfriends = true;
                 if (BasePlayer.activePlayerList.Count > 0)
                 {
-                    float workneeded = BasePlayer.activePlayerList.Count * BasePlayer.activePlayerList.Count;
-                    int worktodo = 0;
-                    if (workneeded < workmaxcycle)
+                    try
                     {
-                        worktodo = BasePlayer.activePlayerList.Count;
-                        workCounter = 0;
-                    }
-                    else
-                    {
-                        float cyclesneeded = workneeded / workmaxcycle;
-                        worktodo = Convert.ToInt16(BasePlayer.activePlayerList.Count / cyclesneeded);
-                    }
+                        float workneeded = BasePlayer.activePlayerList.Count * BasePlayer.activePlayerList.Count;
+                        int worktodo = 0;
+                        if (workneeded < workmaxcycle)
+                        {
+                            worktodo = BasePlayer.activePlayerList.Count;
+                            workCounter = 0;
+                        }
+                        else
+                        {
+                            float cyclesneeded = workneeded / workmaxcycle;
+                            worktodo = Convert.ToInt16(BasePlayer.activePlayerList.Count / cyclesneeded);
+                        }
 
-                    for (int i = 0; i < worktodo; i++)
+                        for (int i = 0; i < worktodo; i++)
+                        {
+                            if (workCounter >= BasePlayer.activePlayerList.Count) { workCounter = 0; }
+                            try
+                            {
+                                BasePlayer player = BasePlayer.activePlayerList[workCounter];
+                                updateFriends(player);
+                            }
+                            catch (Exception e)
+                            {
+                                if (debug) { Puts("Error: UpdateFriends: " + e); }
+                            }
+                            workCounter++;
+                        }
+                    }
+                    catch (Exception e)
                     {
-                        if (workCounter >= BasePlayer.activePlayerList.Count) { workCounter = 0; }
-                        try
-                        {
-                            BasePlayer player = BasePlayer.activePlayerList[workCounter];
-                            updateFriends(player);
-                        }
-                        catch (Exception e)
-                        {
-                            if (debug) { Puts("Error: UpdateFriendsTimer: " + e); }
-                        }
-                        workCounter++;
+                        if (debug) { Puts("Error: UpdateFriendsTimer: " + e); }
                     }
                 }
                 // Renew timer
-                if (run) { timer.Once(1f, UpdateFriendsTimer); }
+                if (run) { timer.Once(0.98f, UpdateFriendsTimer); }
             }
             else
             {
                 runningfriends = false;
+                if (debug) { Puts("Stopping Friends Timer"); }
             }
         }
 
@@ -1025,8 +1323,8 @@ namespace Oxide.Plugins
             MapUser user = getUser(player);
             user.friends.Clear();
 
-            // No need to run if user is admin
-            if (user.adminView)
+            // No need to run if user is admin or show all enabled
+            if (user.adminView || showallplayers)
             {
                 return;
             }
@@ -1036,8 +1334,17 @@ namespace Oxide.Plugins
                 // Skip self
                 if (wannabe.userID == player.userID) { continue; }
 
+                // Skip if in Event
+                if (pluginEventManager && useHideEventFriends)
+                {
+                    if (InEvent(wannabe))
+                    {
+                        continue;
+                    }
+                }
+
                 // FriendsAPI
-                if (friendapi && friendsapifriends)
+                if (pluginFriendAPI && useFriendsAPI)
                 {
                     if (AreFriendsAPIFriend(wannabe.userID.ToString(), player.userID.ToString()))
                     {
@@ -1045,10 +1352,21 @@ namespace Oxide.Plugins
                         continue;
                     }
                 }
+
                 // RustIO
-                if (rustio && rustiofriends)
+                if (pluginRustIO && useRustIO)
                 {
                     if (HasRustIOFriend(wannabe.userID.ToString(), player.userID.ToString()) && HasRustIOFriend(player.userID.ToString(), wannabe.userID.ToString()))
+                    {
+                        user.friends.Add(wannabe.userID, "friend");
+                        continue;
+                    }
+                }
+
+                // Factions
+                if (pluginFactions && useFactions)
+                {
+                    if (SameFaction(wannabe.userID, player.userID))
                     {
                         user.friends.Add(wannabe.userID, "friend");
                         continue;
@@ -1076,17 +1394,35 @@ namespace Oxide.Plugins
 
         // Chat commands
         [ChatCommand("map")]
-        private void chatCmd(BasePlayer player, string command, string[] args)
+        void chatCmd(BasePlayer player, string command, string[] args)
         {
             if (args == null || args.Length == 0)
             {
-                playerMsg(player, txtCmdMap);
+                playerMsg(player, String.Format(txtCmdMap,keybind));
             }
             else
             {
                 if (isAdmin(player))
                 {
-                    if (args[0].ToLower() == "mode")
+
+                    if (args[0].ToLower() == "keybind")
+                    {
+                        if (args.Length > 1)
+                        {
+                            string oldbind = keybind;
+                            keybind = args[1];
+                            set("LustyMap", "Keybind", keybind);
+                            playerMsg(player, "Map Keybind set to: " + keybind);
+                            if (BasePlayer.activePlayerList.Count > 0)
+                            {
+                                foreach (BasePlayer activeplayer in BasePlayer.activePlayerList)
+                                {
+                                    EnableMaps(activeplayer, oldbind);
+                                }
+                            }
+                        }
+                    }
+                    else if (args[0].ToLower() == "mode")
                     {
                         if (args.Length > 1)
                         {
@@ -1459,17 +1795,17 @@ namespace Oxide.Plugins
                     }
                     else if (args[0].ToLower() == "rustiofriends")
                     {
-                        if (rustio)
+                        if (pluginRustIO)
                         {
                             if (args.Length > 1)
                             {
                                 try
                                 {
-                                    rustiofriends = Convert.ToBoolean(args[1]);
-                                    set("LustyMap", "RustIOFriends", rustiofriends);
+                                    useRustIO = Convert.ToBoolean(args[1]);
+                                    set("LustyMap", "RustIOFriends", useRustIO);
                                     if (!runningfriends) { UpdateFriendsTimer(); }
                                     string disabled = "Disabled";
-                                    if (rustiofriends) { disabled = "Enabled"; }
+                                    if (useRustIO) { disabled = "Enabled"; }
                                     playerMsg(player, string.Format(txtCmtIOFriends, disabled));
                                     return;
                                 }
@@ -1480,7 +1816,7 @@ namespace Oxide.Plugins
                             }
                             if (debug)
                             {
-                                playerMsg(player, "RustIOFriends: " + rustiofriends);
+                                playerMsg(player, "RustIOFriends: " + useRustIO);
                             }
                             else
                             {
@@ -1489,24 +1825,88 @@ namespace Oxide.Plugins
                         }
                         else
                         {
-                            rustiofriends = false;
+                            useRustIO = false;
                             playerMsg(player, "RustIO not detected...");
                         }
                     }
-                    else if (args[0].ToLower() == "friendsapifriends")
+                    else if (args[0].ToLower() == "hideeventfriends")
                     {
-                        if (friendapi)
+                        // Recheck for EventManager (might have been installed since plugin load)
+                        InitializeEventManager();
+                        if (pluginEventManager)
                         {
                             if (args.Length > 1)
                             {
                                 try
                                 {
-                                    friendsapifriends = Convert.ToBoolean(args[1]);
-                                    set("LustyMap", "FriendsAPIFriends", friendsapifriends);
+                                    useHideEventFriends = Convert.ToBoolean(args[1]);
+                                    set("LustyMap", "HideEventFriends", useHideEventFriends);
                                     if (!runningfriends) { UpdateFriendsTimer(); }
                                     string disabled = "Disabled";
-                                    if (friendsapifriends) { disabled = "Enabled"; }
-                                    playerMsg(player, string.Format(txtCmtAPIFriends, disabled));                                    
+                                    if (useHideEventFriends) { disabled = "Enabled"; }
+                                    playerMsg(player, string.Format(txtCmtHideEventFriends, disabled));
+                                    return;
+                                }
+                                catch
+                                {
+
+                                }
+                            }
+                            playerMsg(player, txtInvalid + txtCmdHideEventFriends);
+                        }
+                        else
+                        {
+                            useHideEventFriends = false;
+                            playerMsg(player, "EventManager not detected...");
+                        }
+                    }
+                    else if (args[0].ToLower() == "factionsfriends")
+                    {
+                        // Recheck for Factions (might have been installed since plugin load)
+                        InitializeFactions();
+                        if (pluginFactions)
+                        {
+                            if (args.Length > 1)
+                            {
+                                try
+                                {
+                                    useFactions = Convert.ToBoolean(args[1]);
+                                    set("LustyMap", "FactionFriends", useFactions);
+                                    if (!runningfriends) { UpdateFriendsTimer(); }
+                                    string disabled = "Disabled";
+                                    if (useFactions) { disabled = "Enabled"; }
+                                    playerMsg(player, string.Format(txtCmtFactionFriends, disabled));
+                                    return;
+                                }
+                                catch
+                                {
+
+                                }
+                            }
+                            playerMsg(player, txtInvalid + txtCmdFactionFriends);
+                        }
+                        else
+                        {
+                            useFactions = false;
+                            playerMsg(player, "Factions not detected...");
+                        }
+                    }
+                    else if (args[0].ToLower() == "friendsapifriends")
+                    {
+                        // Recheck for Friends API (might have been installed since plugin load)
+                        InitializeFriendsAPI();
+                        if (pluginFriendAPI)
+                        {
+                            if (args.Length > 1)
+                            {
+                                try
+                                {
+                                    useFriendsAPI = Convert.ToBoolean(args[1]);
+                                    set("LustyMap", "FriendsAPIFriends", useFriendsAPI);
+                                    if (!runningfriends) { UpdateFriendsTimer(); }
+                                    string disabled = "Disabled";
+                                    if (useFriendsAPI) { disabled = "Enabled"; }
+                                    playerMsg(player, string.Format(txtCmtAPIFriends, disabled));
                                     return;
                                 }
                                 catch
@@ -1518,7 +1918,7 @@ namespace Oxide.Plugins
                         }
                         else
                         {
-                            friendsapifriends = false;
+                            useFriendsAPI = false;
                             playerMsg(player, "FriendsAPI not detected...");
                         }
                     }
@@ -1555,7 +1955,7 @@ namespace Oxide.Plugins
                     {
                         if (args.Length > 1)
                         {
-                            if (removeLocation(args[1].ToLower()))
+                            if (RemoveMarker(args[1].ToLower()))
                             {
                                 playerMsg(player, "location removed");
                             }
@@ -1621,7 +2021,7 @@ namespace Oxide.Plugins
 
         // Console commands
         [ConsoleCommand("LustyMap")]
-        private void lustyConsole(ConsoleSystem.Arg arg)
+        void lustyConsole(ConsoleSystem.Arg arg)
         {
             var player = arg.Player();
 
@@ -1635,51 +2035,46 @@ namespace Oxide.Plugins
                 {
                     if (arg.Args[0].ToLower() == "close")
                     {
-                        MapUser user = getUser(player);
-                        user.minimapReOpen = false;
-                        user.minimap = false;
-                        user.minimapRefresh = true;
-                        CuiHelper.DestroyUi(player, "Minimap");
-                        CuiHelper.DestroyUi(player, "MinimapBG");
-                        CuiHelper.DestroyUi(player, "MinimapHUD");
-                        minimapGUI(player);
+                        MinimapClose(player);
                     }
                     else if (arg.Args[0].ToLower() == "open")
                     {
-                        MapUser user = getUser(player);
-                        user.minimapReOpen = true;
-                        user.minimap = true;
-                        user.minimapRefresh = true;
-                        minimapGUI(player);
+                        MinimapOpen(player);
                     }
                     else if (arg.Args[0].ToLower() == "map")
                     {
-                        mapToggle(player);
+                        MapToggle(player);
                     }
                     else if (arg.Args[0].ToLower() == "return")
                     {
-                        mapClose(player);
-                    }
-                    else if (arg.Args[0].ToLower() == "zoomin")
-                    {
-                        MapUser user = getUser(player);
-                        // Check if at max zoom
-                        if (user.minimapZoom > 1)
-                        {
-                            user.minimapZoom--;
-                            user.minimapRefresh = true;
-                        }
+                        MapClose(player);
                     }
                     else if (arg.Args[0].ToLower() == "zoomout")
                     {
                         MapUser user = getUser(player);
-                        // Check if at min zoom
+                        if (user.minimapZoom > 1)
+                        {
+                            user.minimapZoom--;
+                            user.minimapRefresh = true;
+                            minimapGUI(player);
+                        }
+                    }
+                    else if (arg.Args[0].ToLower() == "zoomin")
+                    {
+                        MapUser user = getUser(player);
                         if (user.minimapZoom < 4)
                         {
                             user.minimapZoom++;
                             user.minimapRefresh = true;
+                            minimapGUI(player);
                         }
                     }
+                    else if (arg.Args[0].ToLower() == "togglecrafting" || arg.Args[0].ToLower() == "toggleinventory" || arg.Args[0].ToLower() == "escape")
+                    {
+                        toggle(player, arg.Args[0].ToLower());
+                    }
+                    // Track Windows
+                    
                 }
                 catch
                 {
@@ -1688,53 +2083,53 @@ namespace Oxide.Plugins
             }
         }
 
-        void mapToggle(BasePlayer player)
+        void toggle(BasePlayer player, string window)
         {
-            MapUser user = getUser(player);
-            if (user.map)
+            if (tryclose)
             {
-                mapClose(player);
-            }
-            else
-            {
-                mapOpen(player);
-            }
-        }
-
-        void mapOpen(BasePlayer player)
-        {
-            MapUser user = getUser(player);
-            user.minimap = false;
-            CuiHelper.DestroyUi(player,"Minimap");
-            CuiHelper.DestroyUi(player,"MinimapBG");
-            CuiHelper.DestroyUi(player,"MinimapHUD");
-            user.map = true;
-            user.minimapRefresh = true;
-            user.mapRefresh = true;
-            minimapGUI(player);
-            mapGUI(player);
-        }
-
-        void mapClose(BasePlayer player)
-        {
-            MapUser user = getUser(player);
-            if (user.map)
-            {
-                user.map = false;
-                user.minimapRefresh = true;
-                user.mapRefresh = false;
-                CuiHelper.DestroyUi(player,"MapGUI");
-                CuiHelper.DestroyUi(player,"MapGUIBG");
-                if (user.minimapReOpen)
+                MapUser user = getUser(player);
+                if (window == "togglecrafting")
                 {
-                    user.minimap = true;
-                    minimapGUI(player);
+                    if (user.trackCraft)
+                    {
+                        user.trackCraft = false;
+                    }
+                    else
+                    {
+                        user.trackCraft = true;
+                        user.trackInv = false;
+                    }
+                }
+                else if (window == "toggleinventory")
+                {
+                    if (user.trackInv)
+                    {
+                        user.trackInv = false;
+                    }
+                    else
+                    {
+                        user.trackInv = true;
+                        user.trackCraft = false;
+                    }
+                }
+                else if (window == "escape")
+                {
+                    user.trackInv = false;
+                    user.trackCraft = false;
+                }
+                if (user.trackCraft || user.trackInv)
+                {
+                    MinimapClose(player, true);
+                }
+                else
+                {
+                    MinimapReOpen(player);
                 }
             }
         }
 
         // User settings
-        private class MapUser
+        class MapUser
         {
             public ulong userid { get; set; }
             public bool minimap { get; set; }
@@ -1757,6 +2152,11 @@ namespace Oxide.Plugins
             public bool mapMode { get; set; }
             public bool mapNames { get; set; }
             public bool adminView { get; set; }
+
+            public bool trackInv { get; set; } = false;
+            public bool trackCraft { get; set; } = false;
+            public bool trackEsc { get; set; } = false;
+
             public int mapx { get; set; }
             public int mapz { get; set; }
             public Dictionary<ulong, string> friends { get; set; }
@@ -1764,15 +2164,15 @@ namespace Oxide.Plugins
 
         Dictionary<ulong, MapUser> mapUsers = new Dictionary<ulong, MapUser>();
 
-        private MapUser getUser(BasePlayer player) => getUser(player.userID);
-        private MapUser getUser(ulong userid)
+        MapUser getUser(BasePlayer player) => getUser(player.userID);
+        MapUser getUser(ulong userid)
         {
             // Find player...
             MapUser user;
             return mapUsers.TryGetValue(userid, out user) ? user : newUser(userid);
         }
 
-        private MapUser newUser(ulong userid)
+        MapUser newUser(ulong userid)
         {
             MapUser user = new MapUser
             {
@@ -1794,13 +2194,147 @@ namespace Oxide.Plugins
                 mapx = 0,
                 mapz = 0,
                 minimapRefresh = true,
-                minimapZoom = 1,
+                minimapZoom = 3,
                 friends = new Dictionary<ulong, string>(),
                 mapMode = mapmode,
                 adminView = false
             };
             mapUsers.Add(userid, user);
             return user;
+        }
+
+        bool TryUpdatePlayer(BasePlayer player, string setting, bool value)
+        {
+            MapUser user = getUser(player);
+            if (setting.ToLower() == "left")
+            {
+                if (user.minimapLeft)
+                {
+                    user.minimapLeft = false;
+                    return true;
+                }
+                user.minimapLeft = true;
+                return true;
+            }
+            else if (setting.ToLower() == "grid")
+            {
+                if (user.mapGrid)
+                {
+                    user.mapGrid = false;
+                    return true;
+                }
+                user.mapGrid = true;
+                return true;
+            }
+            else if (setting.ToLower() == "markers")
+            {
+                if (user.mapCustom)
+                {
+                    user.mapCustom = false;
+                    return true;
+                }
+                user.mapCustom = true;
+                return true;
+            }
+            else if (setting.ToLower() == "caves")
+            {
+                if (showcaves)
+                {
+                    if (user.mapCaves)
+                    {
+                        user.mapCaves = false;
+                        return true;
+                    }
+                    user.mapCaves = true;
+                    return true;
+                }
+            }
+            else if (setting.ToLower() == "monuments")
+            {
+                if (showmonuments)
+                {
+                    if (user.mapMonuments)
+                    {
+                        user.mapMonuments = false;
+                        return true;
+                    }
+                    user.mapMonuments = true;
+                    return true;
+                }
+            }
+            else if (setting.ToLower() == "names")
+            {
+                if (showplayers)
+                {
+                    if (user.mapNames)
+                    {
+                        user.mapNames = false;
+                        return true;
+                    }
+                    user.mapNames = true;
+                    return true;
+                }
+            }
+            else if (setting.ToLower() == "plane")
+            {
+                if (showplane)
+                {
+                    if (user.mapPlane)
+                    {
+                        user.mapPlane = false;
+                        return true;
+                    }
+                    user.mapPlane = true;
+                    return true;
+                }
+            }
+            else if (setting.ToLower() == "supply")
+            {
+                if (showsupply)
+                {
+                    if (user.mapSupply)
+                    {
+                        user.mapSupply = false;
+                        return true;
+                    }
+                    user.mapSupply = true;
+                    return true;
+                }
+            }
+            else if (setting.ToLower() == "heli")
+            {
+                if (showheli)
+                {
+                    if (user.mapHeli)
+                    {
+                        user.mapHeli = false;
+                        return true;
+                    }
+                    user.mapHeli = true;
+                    return true;
+                }
+            }
+            else if (setting.ToLower() == "debris")
+            {
+                if (showdebris)
+                {
+                    if (user.mapDebris)
+                    {
+                        user.mapDebris = false;
+                        return true;
+                    }
+                    user.mapDebris = true;
+                    return true;
+                }
+            }
+            else
+            {
+                if (debug) { Puts("Error: TryUpdatePlayer - " + setting); }
+                return false;
+            }
+
+            playerMsg(player, txtDisabed);
+            return false;
         }
 
         // Player Join
@@ -1810,7 +2344,7 @@ namespace Oxide.Plugins
             OnPlayerReady(player);
         }
 
-        private void OnPlayerReady(BasePlayer player)
+        void OnPlayerReady(BasePlayer player)
         {
             if (player.HasPlayerFlag(BasePlayer.PlayerFlags.ReceivingSnapshot))
             {
@@ -1818,22 +2352,24 @@ namespace Oxide.Plugins
             }
             else
             {
-                InitUser(player);
+                try
+                {
+                    InitUser(player);
+                }
+                catch
+                {
 
+                }
             }
         }
 
         void InitUser(BasePlayer player)
         {
-            // Keybinds
-            player.Command("bind m \"LustyMap map\"");
-
-            // Variables
-            MapUser user = getUser(player);
-            user.minimapRefresh = true;
-
             // Make sure no exiting map gui exists (in case of disconnect with map open)
-            mapClose(player);
+            MapClose(player);
+
+            // Enable Maps
+            EnableMaps(player);
         }
 
         // Player Disconnect
@@ -1843,7 +2379,7 @@ namespace Oxide.Plugins
         }
 
         // Map GUI
-        private void mapGUI(BasePlayer player)
+        void mapGUI(BasePlayer player)
         {
             MapUser user = getUser(player);
             if (user.map)
@@ -1862,15 +2398,15 @@ namespace Oxide.Plugins
                         int rows = 25;
                         for (int i = 1; i < 25; i++)
                         {
-                            double s = ((1f / rows) * i) - 0.000001f;
-                            double e = ((1f / rows) * i) + 0.000001f;
+                            float s = ((1f / rows) * i) - 0.000001f;
+                            float e = ((1f / rows) * i) + 0.000001f;
 
                             gui.box("{parent}", "X" + i, s + " 0", e + " 1", "0.2 0.2 0.2 8");
                             gui.box("{parent}", "Y" + i, "0 " + s, "1 " + e, "0.2 0.2 0.2 8");
                         }
                     }
 
-                    double iconsize = 0.01f;
+                    float iconsize = 0.01f;
                     if (showmonuments && user.mapMonuments)
                     {
                         foreach (MapLocation location in mapMonuments)
@@ -1889,6 +2425,14 @@ namespace Oxide.Plugins
                             gui.text("{parent}", "TxT" + DateTime.Now.Ticks, TextAnchor.UpperCenter, "<size=10>" + location.name + "</size>", (location.percentX - 0.1) + " " + (location.percentZ - iconsize - 0.05), (location.percentX + 0.1) + " " + (location.percentZ - iconsize));
                         }
                     }
+
+                    // Display Admin Settings Pane
+                    //if (isAdmin(player))
+                    //{
+                    //    gui.box("{parent}", "Settings", "1.01 0.5", "1.2 1", "0 0 0 1");
+
+                    //}
+
                     gui.send(player);
                     user.mapRefresh = false;
                 }
@@ -1898,7 +2442,7 @@ namespace Oxide.Plugins
             {
                 // Player Direction
                 string direction = null;
-                double lookRotation = player.eyes.rotation.eulerAngles.y;
+                float lookRotation = player.eyes.rotation.eulerAngles.y;
                 int playerdirection = (Convert.ToInt16((lookRotation - 5) / 10 + 0.5) * 10);
                 if (lookRotation >= 355) playerdirection = 0;
                 if (lookRotation > 337.5 || lookRotation < 22.5) { direction = txtCpsN; }
@@ -1910,15 +2454,15 @@ namespace Oxide.Plugins
                 else if (lookRotation > 247.5 && lookRotation < 292.5) { direction = txtCpsW; }
                 else if (lookRotation > 292.5 && lookRotation < 337.5) { direction = txtCpsNW; }
 
-                double mapX = GetMapPos(player.transform.position.x);
-                double mapZ = GetMapPos(player.transform.position.z);
+                float mapX = GetMapPos(player.transform.position.x);
+                float mapZ = GetMapPos(player.transform.position.z);
 
                 GUIv4 gui = new GUIv4();
                 gui.add("MapGUI", false, "0.2271875 0.015", "0.7728125 0.985", "0 0 0 0");
 
                 bool grid = false;
 
-                double iconsize = 0.02f;
+                float iconsize = 0.02f;
                 if (activeEntities.Count > 0)
                 {
                     foreach (ActiveEntity entity in activeEntities)
@@ -1935,8 +2479,8 @@ namespace Oxide.Plugins
 
                 if (showplayers)
                 {
-                    // Admin View, just add everyone...
-                    if (user.adminView)
+                    // Admin View or Show All, just add everyone...
+                    if (user.adminView || showallplayers)
                     {
                         foreach (BasePlayer other in BasePlayer.activePlayerList)
                         {
@@ -1980,13 +2524,16 @@ namespace Oxide.Plugins
                         gui.text("{parent}", "Pn" + DateTime.Now.Ticks, TextAnchor.LowerCenter, "<size=8><color=#00ff00ff>" + RemoveSpecialCharacters(player.displayName) + "</color></size>", (mapX - 0.1) + " " + (mapZ + (iconsize / 1.5)), (mapX + 0.1) + " " + (mapZ + (iconsize / 1.5) + 0.1));
                     }
                 }
-                gui.text("{parent}", "Direction", TextAnchor.UpperRight, "<size=16>" + txtCpsHead + " " + direction + "</size>\n<size=12>" + player.transform.position + "</size>", "0.6 0.9", "0.99 0.99");
+                if (user.compass)
+                {
+                    gui.text("{parent}", "Direction", TextAnchor.UpperRight, "<size=16>" + txtCpsHead + " " + direction + "</size>\n<size=12>" + player.transform.position + "</size>", "0.6 0.9", "0.99 0.99");
+                }
                 gui.send(player);
             }
         }
 
         // Minimap Menu
-        private void minimapGUI(BasePlayer player)
+        void minimapGUI(BasePlayer player)
         {
             MapUser user = getUser(player);
             int mapslices = 32;
@@ -1995,14 +2542,14 @@ namespace Oxide.Plugins
             if (minimap)
             {
                 // 16:9 Ratio
-                double width = 0.13 * scale;
-                double height = 0.2301 * scale;
+                float width = 0.13f * scale;
+                float height = 0.2301f * scale;
 
-                double startx = 0 + offsetSide;
-                double endx = startx + width;
+                float startx = 0f + offsetSide;
+                float endx = startx + width;
 
-                double endy = 1 - offsetTop;
-                double starty = endy - height;
+                float endy = 1f - offsetTop;
+                float starty = endy - height;
 
                 // Map alignment
                 if (!left)
@@ -2065,7 +2612,7 @@ namespace Oxide.Plugins
                 // Minimap Simple Mode - Background
                 if (user.minimapRefresh && user.minimap)
                 {
-                    if (!mapmode)
+                    if (!mapmode || user.minimapZoom == 0)
                     {
                         GUIv4 gui = new GUIv4();
                         gui.add("MinimapBG", false, startx + " " + starty, endx + " " + endy, "0 0 0 1");
@@ -2073,7 +2620,7 @@ namespace Oxide.Plugins
 
                         if (showmonuments && user.mapMonuments)
                         {
-                            double iconsize = 0.02f;
+                            float iconsize = 0.02f;
                             foreach (MapLocation location in mapMonuments)
                             {
                                 if (location.name == "Cave" && !showcaves) { continue; }
@@ -2083,7 +2630,7 @@ namespace Oxide.Plugins
                         }
                         if (user.mapCustom)
                         {
-                            double iconsize = 0.02f;
+                            float iconsize = 0.02f;
                             foreach (MapLocation location in mapCustom)
                             {
                                 gui.png("{parent}", "Cus" + DateTime.Now.Ticks, fetchImage(location.icon), (location.percentX - iconsize) + " " + (location.percentZ - iconsize), (location.percentX + iconsize) + " " + (location.percentZ + iconsize));
@@ -2095,25 +2642,25 @@ namespace Oxide.Plugins
                 }
 
                 // Minimap Complex Mode - Background Refresh
-                if (mapmode && user.minimap)
+                if (mapmode && user.minimap && user.minimapZoom > 0)
                 {
                     // Get zoom level for user
-                    if (user.minimapZoom == 4)
+                    if (user.minimapZoom == 1)
                     {
                         mapslices = 6;
                     }
-                    else if (user.minimapZoom == 3)
+                    else if (user.minimapZoom == 2)
                     {
                         mapslices = 12;
                     }
-                    else if (user.minimapZoom == 2)
+                    else if (user.minimapZoom == 3)
                     {
                         mapslices = 26;
                     }
 
                     // Get center map part
-                    double x = player.transform.position.x + mapSize / 2f;
-                    double z = player.transform.position.z + mapSize / 2f;
+                    float x = player.transform.position.x + mapSize / 2f;
+                    float z = player.transform.position.z + mapSize / 2f;
                     var mapres = mapSize / mapslices;
                     int currentx = Convert.ToInt32(Math.Ceiling(x / mapres)) - 2;
                     int currentz = mapslices - Convert.ToInt32(Math.Ceiling(z / mapres)) - 1;
@@ -2151,7 +2698,7 @@ namespace Oxide.Plugins
                                 }
                                 if (showmonuments && user.mapMonuments)
                                 {
-                                    double iconsize = 0.05f;
+                                    float iconsize = 0.05f;
                                     foreach (MapLocation location in mapMonuments)
                                     {
                                         if (location.name == "Cave" && !showcaves) { continue; }
@@ -2162,15 +2709,15 @@ namespace Oxide.Plugins
 
                                         if (lcolumn == (currentz + r) && lrow == (currentx + c))
                                         {
-                                            double _sx = Convert.ToSingle(c * (1f / col));
-                                            double _sy = Convert.ToSingle(1 - ((1f / row) * (r + 1)));
-                                            double _ex = Convert.ToSingle(((c + 1) * (1f / col)) - 0.005f);
-                                            double _ey = Convert.ToSingle((1 - ((1f / row) * (r + 1)) + (1f / row)) - 0.004f);
-                                            double mapX = (location.percentX * mapslices) - lrow;
-                                            double mapZ = ((1 - location.percentZ) * mapslices) - lcolumn;
-                                            double _xd = _ex - _sx;
+                                            float _sx = Convert.ToSingle(c * (1f / col));
+                                            float _sy = Convert.ToSingle(1 - ((1f / row) * (r + 1)));
+                                            float _ex = Convert.ToSingle(((c + 1) * (1f / col)) - 0.005f);
+                                            float _ey = Convert.ToSingle((1 - ((1f / row) * (r + 1)) + (1f / row)) - 0.004f);
+                                            float mapX = (location.percentX * mapslices) - lrow;
+                                            float mapZ = ((1 - location.percentZ) * mapslices) - lcolumn;
+                                            float _xd = _ex - _sx;
                                             mapX = (mapX * _xd) + _sx;
-                                            double _yd = _ey - _sy;
+                                            float _yd = _ey - _sy;
                                             mapZ = _ey - (mapZ * _yd);
 
                                             gui.png("{parent}", "Mon" + DateTime.Now.Ticks, fetchImage(location.icon), (mapX - iconsize) + " " + (mapZ - iconsize), (mapX + iconsize) + " " + (mapZ + iconsize), "1");
@@ -2179,7 +2726,7 @@ namespace Oxide.Plugins
                                 }
                                 if (user.mapCustom)
                                 {
-                                    double iconsize = 0.05f;
+                                    float iconsize = 0.05f;
                                     foreach (MapLocation location in mapCustom)
                                     {
                                         int lrow = (Convert.ToInt16(Math.Floor(mapslices * location.percentX)));
@@ -2187,15 +2734,15 @@ namespace Oxide.Plugins
 
                                         if (lcolumn == (currentz + r) && lrow == (currentx + c))
                                         {
-                                            double _sx = Convert.ToSingle(c * (1f / col));
-                                            double _sy = Convert.ToSingle(1 - ((1f / row) * (r + 1)));
-                                            double _ex = Convert.ToSingle(((c + 1) * (1f / col)) - 0.005f);
-                                            double _ey = Convert.ToSingle((1 - ((1f / row) * (r + 1)) + (1f / row)) - 0.004f);
-                                            double mapX = (location.percentX * mapslices) - lrow;
-                                            double mapZ = ((1 - location.percentZ) * mapslices) - lcolumn;
-                                            double _xd = _ex - _sx;
+                                            float _sx = Convert.ToSingle(c * (1f / col));
+                                            float _sy = Convert.ToSingle(1 - ((1f / row) * (r + 1)));
+                                            float _ex = Convert.ToSingle(((c + 1) * (1f / col)) - 0.005f);
+                                            float _ey = Convert.ToSingle((1 - ((1f / row) * (r + 1)) + (1f / row)) - 0.004f);
+                                            float mapX = (location.percentX * mapslices) - lrow;
+                                            float mapZ = ((1 - location.percentZ) * mapslices) - lcolumn;
+                                            float _xd = _ex - _sx;
                                             mapX = (mapX * _xd) + _sx;
-                                            double _yd = _ey - _sy;
+                                            float _yd = _ey - _sy;
                                             mapZ = _ey - (mapZ * _yd);
 
                                             gui.png("{parent}", "Cus" + DateTime.Now.Ticks, fetchImage(location.icon), (mapX - iconsize) + " " + (mapZ - iconsize), (mapX + iconsize) + " " + (mapZ + iconsize), "1");
@@ -2216,7 +2763,7 @@ namespace Oxide.Plugins
                 {
                     // Player Direction
                     string direction = null;
-                    double lookRotation = player.eyes.rotation.eulerAngles.y;
+                    float lookRotation = player.eyes.rotation.eulerAngles.y;
                     int playerdirection = (Convert.ToInt16((lookRotation - 5) / 10 + 0.5) * 10);
                     if (lookRotation > 337.5 || lookRotation < 22.5) { direction = txtCpsN; }
                     else if (lookRotation > 22.5 && lookRotation < 67.5) { direction = txtCpsNE; }
@@ -2228,19 +2775,19 @@ namespace Oxide.Plugins
                     else if (lookRotation > 292.5 && lookRotation < 337.5) { direction = txtCpsNW; }
 
                     // Player Location
-                    double x = player.transform.position.x + mapSize / 2f;
-                    double z = player.transform.position.z + mapSize / 2f;
+                    float x = player.transform.position.x + mapSize / 2f;
+                    float z = player.transform.position.z + mapSize / 2f;
 
                     // Player location in percent
-                    double mapX = GetMapPos(player.transform.position.x);
-                    double mapZ = GetMapPos(player.transform.position.z);
+                    float mapX = GetMapPos(player.transform.position.x);
+                    float mapZ = GetMapPos(player.transform.position.z);
 
                     // GUI
                     GUIv4 gui = new GUIv4();
                     gui.add("Minimap", false, startx + " " + starty, endx + " " + endy, "0 0 0 0");
 
-                    double iconsize = 0.05f;
-                    if (mapmode)
+                    float iconsize = 0.05f;
+                    if (mapmode && user.minimapZoom > 0)
                     {
                         var mapres = mapSize / mapslices;
                         int currentx = Convert.ToInt32(Math.Ceiling(x / mapres)) - 2;
@@ -2265,15 +2812,15 @@ namespace Oxide.Plugins
 
                                             if (ecolumn == (currentz + r) && erow == (currentx + c))
                                             {
-                                                double _sx = Convert.ToSingle(c * (1f / col));
-                                                double _sy = Convert.ToSingle(1 - ((1f / row) * (r + 1)));
-                                                double _ex = Convert.ToSingle(((c + 1) * (1f / col)) - 0.005f);
-                                                double _ey = Convert.ToSingle((1 - ((1f / row) * (r + 1)) + (1f / row)) - 0.004f);
-                                                double mapXX = (entity.percentX * mapslices) - erow;
-                                                double mapZZ = ((1 - entity.percentZ) * mapslices) - ecolumn;
-                                                double _xd = _ex - _sx;
+                                                float _sx = Convert.ToSingle(c * (1f / col));
+                                                float _sy = Convert.ToSingle(1 - ((1f / row) * (r + 1)));
+                                                float _ex = Convert.ToSingle(((c + 1) * (1f / col)) - 0.005f);
+                                                float _ey = Convert.ToSingle((1 - ((1f / row) * (r + 1)) + (1f / row)) - 0.004f);
+                                                float mapXX = (entity.percentX * mapslices) - erow;
+                                                float mapZZ = ((1 - entity.percentZ) * mapslices) - ecolumn;
+                                                float _xd = _ex - _sx;
                                                 mapXX = (mapXX * _xd) + _sx;
-                                                double _yd = _ey - _sy;
+                                                float _yd = _ey - _sy;
                                                 mapZZ = _ey - (mapZZ * _yd);
 
                                                 gui.png("{parent}", "Ent" + DateTime.Now.Ticks, fetchImage(entity.icon), (mapXX - iconsize) + " " + (mapZZ - iconsize), (mapXX + iconsize) + " " + (mapZZ + iconsize), "1");
@@ -2284,8 +2831,8 @@ namespace Oxide.Plugins
 
                                 if (showplayers)
                                 {
-                                    // Admin View, just add everyone...
-                                    if (user.adminView)
+                                    // Admin Viewor Show All, just add everyone...
+                                    if (user.adminView || showallplayers)
                                     {
                                         foreach (BasePlayer other in BasePlayer.activePlayerList)
                                         {
@@ -2300,15 +2847,15 @@ namespace Oxide.Plugins
 
                                             if (ecolumn == (currentz + r) && erow == (currentx + c))
                                             {
-                                                double _sx = Convert.ToSingle(c * (1f / col));
-                                                double _sy = Convert.ToSingle(1 - ((1f / row) * (r + 1)));
-                                                double _ex = Convert.ToSingle(((c + 1) * (1f / col)) - 0.005f);
-                                                double _ey = Convert.ToSingle((1 - ((1f / row) * (r + 1)) + (1f / row)) - 0.004f);
-                                                double mapXX = (otherEntity.percentX * mapslices) - erow;
-                                                double mapZZ = ((1 - otherEntity.percentZ) * mapslices) - ecolumn;
-                                                double _xd = _ex - _sx;
+                                                float _sx = Convert.ToSingle(c * (1f / col));
+                                                float _sy = Convert.ToSingle(1 - ((1f / row) * (r + 1)));
+                                                float _ex = Convert.ToSingle(((c + 1) * (1f / col)) - 0.005f);
+                                                float _ey = Convert.ToSingle((1 - ((1f / row) * (r + 1)) + (1f / row)) - 0.004f);
+                                                float mapXX = (otherEntity.percentX * mapslices) - erow;
+                                                float mapZZ = ((1 - otherEntity.percentZ) * mapslices) - ecolumn;
+                                                float _xd = _ex - _sx;
                                                 mapXX = (mapXX * _xd) + _sx;
-                                                double _yd = _ey - _sy;
+                                                float _yd = _ey - _sy;
                                                 mapZZ = _ey - (mapZZ * _yd);
 
                                                 gui.png("{parent}", "Fnd" + DateTime.Now.Ticks, fetchImage(otherEntity.icon.Replace("{icon}", "other")), (mapXX - iconsize) + " " + (mapZZ - iconsize), (mapXX + iconsize) + " " + (mapZZ + iconsize), "1");
@@ -2328,15 +2875,15 @@ namespace Oxide.Plugins
 
                                             if (ecolumn == (currentz + r) && erow == (currentx + c))
                                             {
-                                                double _sx = Convert.ToSingle(c * (1f / col));
-                                                double _sy = Convert.ToSingle(1 - ((1f / row) * (r + 1)));
-                                                double _ex = Convert.ToSingle(((c + 1) * (1f / col)) - 0.005f);
-                                                double _ey = Convert.ToSingle((1 - ((1f / row) * (r + 1)) + (1f / row)) - 0.004f);
-                                                double mapXX = (friendEntity.percentX * mapslices) - erow;
-                                                double mapZZ = ((1 - friendEntity.percentZ) * mapslices) - ecolumn;
-                                                double _xd = _ex - _sx;
+                                                float _sx = Convert.ToSingle(c * (1f / col));
+                                                float _sy = Convert.ToSingle(1 - ((1f / row) * (r + 1)));
+                                                float _ex = Convert.ToSingle(((c + 1) * (1f / col)) - 0.005f);
+                                                float _ey = Convert.ToSingle((1 - ((1f / row) * (r + 1)) + (1f / row)) - 0.004f);
+                                                float mapXX = (friendEntity.percentX * mapslices) - erow;
+                                                float mapZZ = ((1 - friendEntity.percentZ) * mapslices) - ecolumn;
+                                                float _xd = _ex - _sx;
                                                 mapXX = (mapXX * _xd) + _sx;
-                                                double _yd = _ey - _sy;
+                                                float _yd = _ey - _sy;
                                                 mapZZ = _ey - (mapZZ * _yd);
 
                                                 gui.png("{parent}", "Fnd" + DateTime.Now.Ticks, fetchImage(friendEntity.icon.Replace("{icon}", pair.Value)), (mapXX - iconsize) + " " + (mapZZ - iconsize), (mapXX + iconsize) + " " + (mapZZ + iconsize), "1");
@@ -2350,15 +2897,15 @@ namespace Oxide.Plugins
 
                                     if (pcolumn == (currentz + r) && prow == (currentx + c))
                                     {
-                                        double _sx = Convert.ToSingle(c * (1f / col));
-                                        double _sy = Convert.ToSingle(1 - ((1f / row) * (r + 1)));
-                                        double _ex = Convert.ToSingle(((c + 1) * (1f / col)) - 0.005f);
-                                        double _ey = Convert.ToSingle((1 - ((1f / row) * (r + 1)) + (1f / row)) - 0.004f);
-                                        double mapXX = (mapX * mapslices) - prow;
-                                        double mapZZ = ((1 - mapZ) * mapslices) - pcolumn;
-                                        double _xd = _ex - _sx;
+                                        float _sx = Convert.ToSingle(c * (1f / col));
+                                        float _sy = Convert.ToSingle(1 - ((1f / row) * (r + 1)));
+                                        float _ex = Convert.ToSingle(((c + 1) * (1f / col)) - 0.005f);
+                                        float _ey = Convert.ToSingle((1 - ((1f / row) * (r + 1)) + (1f / row)) - 0.004f);
+                                        float mapXX = (mapX * mapslices) - prow;
+                                        float mapZZ = ((1 - mapZ) * mapslices) - pcolumn;
+                                        float _xd = _ex - _sx;
                                         mapXX = (mapXX * _xd) + _sx;
-                                        double _yd = _ey - _sy;
+                                        float _yd = _ey - _sy;
                                         mapZZ = _ey - (mapZZ * _yd);
 
                                         gui.png("{parent}", "Player" + DateTime.Now.Ticks, fetchImage("self" + playerdirection), (mapXX - iconsize) + " " + (mapZZ - iconsize), (mapXX + iconsize) + " " + (mapZZ + iconsize));
@@ -2384,8 +2931,8 @@ namespace Oxide.Plugins
                         }
                         if (showplayers)
                         {
-                            // Admin View, just add everyone...
-                            if (user.adminView)
+                            // Admin View or Show All, just add everyone...
+                            if (user.adminView || showallplayers)
                             {
                                 foreach (BasePlayer other in BasePlayer.activePlayerList)
                                 {
@@ -2441,8 +2988,14 @@ namespace Oxide.Plugins
             return sb.ToString();
         }
 
+        // Mapping
+        float GetMapPos(float pos)
+        {
+            return (pos + mapSize / 2f) / mapSize;
+        }
+
         // GUI Class
-        private class GUIv4
+        class GUIv4
         {
             string guiname { get; set; }
             CuiElementContainer container = new CuiElementContainer();
@@ -2455,7 +3008,6 @@ namespace Oxide.Plugins
                     CuiElement element = new CuiElement
                     {
                         Name = guiname,
-                        Parent = "HUD/Overlay",
                         FadeOut = 0.0f,
                         Components =
                         {
@@ -2478,7 +3030,6 @@ namespace Oxide.Plugins
                     CuiElement element = new CuiElement
                     {
                         Name = guiname,
-                        Parent = "HUD/Overlay",
                         FadeOut = 0.0f,
                         Components =
                         {
@@ -2618,18 +3169,18 @@ namespace Oxide.Plugins
         }
 
         // Player Messages
-        private void playerMsg(BasePlayer player, string msg)
+        void playerMsg(BasePlayer player, string msg)
         {
             SendReply(player, String.Format("<color=#008080ff>Lusty Map</color>: {0}", msg));
         }
 
-        private void globalMsg(string msg)
+        void globalMsg(string msg)
         {
             PrintToChat(String.Format("<color=#008080ff>Lusty Map</color>: {0}", msg));
         }
 
         // Permissions Check
-        private bool isAdmin(BasePlayer player)
+        bool isAdmin(BasePlayer player)
         {
             if (player.net.connection.authLevel >= 1)
             {
@@ -2639,10 +3190,10 @@ namespace Oxide.Plugins
         }
 
         // Config stuff
-        private void LoadDefaultConfig() { }
+        void LoadDefaultConfig() { }
 
         // Get config item
-        private object get(string item, string subitem)
+        object get(string item, string subitem)
         {
             try
             {
@@ -2659,7 +3210,7 @@ namespace Oxide.Plugins
         }
 
         // Set config item
-        private void set(string item, string subitem, object data, bool overwrite = true)
+        void set(string item, string subitem, object data, bool overwrite = true)
         {
             try
             {
@@ -2680,7 +3231,7 @@ namespace Oxide.Plugins
         }
 
         // Clear config item
-        private void clear(string item, string subitem)
+        void clear(string item, string subitem)
         {
             try
             {

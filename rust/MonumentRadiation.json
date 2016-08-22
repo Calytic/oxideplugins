@@ -2,11 +2,8 @@
     "name": "Monument Radiation",
     "description": "Create radiation zones at designated monuments",
     "author": "k1lly0u",
-    "version": "0.1.8",
+    "version": "0.2.04",
     "configuration": true,
-    "require": {
-        "ZoneManager": "*"
-    },
     "language": "cs",
     "games": [
         "rust"

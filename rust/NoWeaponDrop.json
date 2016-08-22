@@ -1,0 +1,15 @@
+{
+    "name": "No Weapon Drop",
+    "description": "Prevents dropping of active weapon on wounded or headshot\/instant-kill",
+    "author": "Fujikura",
+    "version": "0.2.3",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

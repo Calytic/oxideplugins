@@ -1,8 +1,8 @@
 {
     "name": "HandyMan",
-    "description": "AOE repair where you are allowed to build",
+    "description": "AOE repair.",
     "author": "",
-    "version": "1.0.1.2",
+    "version": "1.0.2.1",
     "configuration": true,
     "language": "cs",
     "games": [

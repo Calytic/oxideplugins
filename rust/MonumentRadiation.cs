@@ -1,201 +1,189 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-using Oxide.Core.Plugins;
-using Oxide.Core.Configuration;
-using Oxide.Core;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Linq;
+using System.Reflection;
+using Rust;
+using Oxide.Core;
 
 namespace Oxide.Plugins
 {
-    [Info("MonumentRadiation", "k1lly0u", "0.1.8", ResourceId = 1562)]
+    [Info("MonumentRadiation", "k1lly0u", "0.2.04", ResourceId = 1562)]
     class MonumentRadiation : RustPlugin
     {
-        [PluginReference]
-        Plugin ZoneManager;
-
-        private bool Changed;
         private bool RadsOn;
-        int OffTimer;
-        int OnTimer;
+        private int OffTimer;
+        private int OnTimer;
 
-        MonumentZones zoneData;
-        private DynamicConfigFile ZoneData;
+        private static readonly int playerLayer = LayerMask.GetMask("Player (Server)");
+        private static readonly Collider[] colBuffer = (Collider[])typeof(Vis).GetField("colBuffer", (BindingFlags.Static | BindingFlags.NonPublic))?.GetValue(null);
 
-        private static LayerMask GROUND_MASKS = LayerMask.GetMask("Terrain", "World", "Construction");
-           
-        #region oxide hooks
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Oxide Hooks ///////////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
+        private List<RZ> RadiationZones = new List<RZ>();
+        private ConfigData configData;
+
+        #region Oxide Hooks       
         void Loaded()
         {
-            lang.RegisterMessages(messages, this);
-
-            ZoneData = Interface.Oxide.DataFileSystem.GetFile("MR_data");
-            ZoneData.Settings.Converters = new JsonConverter[] { new StringEnumConverter(), new UnityVector3Converter(), };
-
-            LoadData();
+            lang.RegisterMessages(messages, this);            
             LoadVariables();
-        }
-        void LoadDefaultConfig()
-        {
-            Puts("Creating a new config file");
-            Config.Clear();
-            LoadVariables();
-        }
+        }        
         void OnServerInitialized()
         {
-            if (plugins.Exists("ZoneManager")) CheckForExisting();
-            else Puts(lang.GetMessage("noZoneM", this));
+            if (!ConVar.Server.radiation)
+            {
+                RadsOn = false;
+                ConVar.Server.radiation = true;
+            }
+            else RadsOn = true;
+            FindMonuments();           
         }
-
         void Unload()
         {
+            for (int i = 0; i < RadiationZones.Count; i++)            
+                UnityEngine.Object.Destroy(RadiationZones[i]);            
+            RadiationZones.Clear();
             if (!RadsOn) ConVar.Server.radiation = false;
-            EraseAll();
         }
         #endregion
       
-        #region functions
-        //////////////////////////////////////////////////////////////////////////////////////
-        // MonumentRadiation ////////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-
-        private void CheckForExisting()
+        #region Functions
+        private void FindMonuments()
         {
-            if (zoneData.MRZones != null && zoneData.MRZones.Count > 0) EraseAll();
-            findAllMonuments();
-        }
-        private void EraseAll()
-        {
-            foreach (var zone in zoneData.MRZones)
-                eraseZone(zone.Value);
-            zoneData.MRZones.Clear();
-            SaveData();
-        }
-        private int getRandomNum()
-        {
-            int randomNum = UnityEngine.Random.Range(1, 1000);
-            return randomNum;
-        }
-        private void findAllMonuments()
-        {
-            if (useHapis) { CreateHapis(); return; }
+            if (configData.Options.Using_HapisIsland) { CreateHapis(); return; }
 
             var allobjects = UnityEngine.Object.FindObjectsOfType<GameObject>();
             foreach (var gobject in allobjects)
             {
-                var pos = gobject.transform.position;
+                if (gobject.name.Contains("autospawn/monument"))
+                {
+                    var pos = gobject.transform.position;
 
-                if (radsLighthouse)                
-                    if (gobject.name.ToLower().Contains("lighthouse/lighthouse"))                    
-                        createZone("lighthouse_" + getRandomNum(), pos, sizeLighthouse, radsAmountLighthouse);                   
-                
-                if (radsPowerplant)                
-                    if (gobject.name.ToLower().Contains("powerplant_1"))                    
-                        createZone("powerplant_" + getRandomNum(), pos, sizePowerplant, radsAmountPowerplant);                    
-                
-                if (radsTunnels)                
-                    if (gobject.name.ToLower().Contains("military_tunnel_1"))                    
-                        createZone("tunnels_" + getRandomNum(), pos, sizeTunnels, radsAmountTunnels);                    
-                
-                if (radsAirfield)                
-                    if (gobject.name.ToLower().Contains("airfield_1"))                    
-                        createZone("airfield_" + getRandomNum(), pos, sizeAirfield, radsAmountAirfield);                    
-                
-                if (radsTrainyard)                
-                    if (gobject.name.ToLower().Contains("large/trainyard_1"))                    
-                        createZone("trainyard_" + getRandomNum(), pos, sizeTrainyard, radsAmountTrainyard);                    
-                
-                if (radsWaterplant)                
-                    if (gobject.name.ToLower().Contains("large/water_treatment_plant_1"))                    
-                        createZone("waterplant_" + getRandomNum(), pos, sizeWaterplant, radsAmountWaterplant);                    
-                
-                if (radsWarehouse)                
-                    if (gobject.name.ToLower().Contains("mining/warehouse"))                    
-                        createZone("warehouse_" + getRandomNum(), pos, sizeWarehouse, radsAmountWarehouse);                    
-                
-                if (radsSatellite)                
-                    if (gobject.name.ToLower().Contains("production/satellite_dish"))                    
-                        createZone("satellite_" + getRandomNum(), pos, sizeSatellite, radsAmountSatellite);                    
-                
-                if (radsDome)                
-                    if (gobject.name.ToLower().Contains("production/sphere_tank"))                    
-                        createZone("spheretank_" + getRandomNum(), pos, sizeDome, radsAmountDome);                    
-                
-                if (radsRadtown)                
-                    if (gobject.name.ToLower().Contains("small/radtown_small_3"))                    
-                        createZone("radtown_" + getRandomNum(), pos, sizeRadtown, radsAmountRadtown);
+                    if (gobject.name.Contains("lighthouse"))
+                    {
+                        if (configData.Zones.Lighthouse.Activate)
+                            CreateZone(configData.Zones.Lighthouse, pos);
+                        continue;
+                    }
+
+                    if (gobject.name.Contains("powerplant_1"))
+                    {
+                        if (configData.Zones.Powerplant.Activate)
+                            CreateZone(configData.Zones.Powerplant, pos);
+                        continue;
+                    }
+
+                    if (gobject.name.Contains("military_tunnel_1"))
+                    {
+                        if (configData.Zones.Tunnels.Activate)
+                            CreateZone(configData.Zones.Tunnels, pos);
+                        continue;
+                    }
+
+                    if (gobject.name.Contains("airfield_1"))
+                    {
+                        if (configData.Zones.Airfield.Activate)
+                            CreateZone(configData.Zones.Airfield, pos);
+                        continue;
+                    }
+
+                    if (gobject.name.Contains("trainyard_1"))
+                    {
+                        if (configData.Zones.Trainyard.Activate)
+                            CreateZone(configData.Zones.Trainyard, pos);
+                        continue;
+                    }
+
+                    if (gobject.name.Contains("water_treatment_plant_1"))
+                    {
+                        if (configData.Zones.WaterTreatment.Activate)
+                            CreateZone(configData.Zones.WaterTreatment, pos);
+                        continue;
+                    }
+
+                    if (gobject.name.Contains("warehouse"))
+                    {
+                        if (configData.Zones.Warehouse.Activate)
+                            CreateZone(configData.Zones.Warehouse, pos);
+                        continue;
+                    }
+
+                    if (gobject.name.Contains("satellite_dish"))
+                    {
+
+                        if (configData.Zones.Satellite.Activate)
+                            CreateZone(configData.Zones.Satellite, pos);
+                        continue;
+                    }
+
+                    if (gobject.name.Contains("sphere_tank"))
+                    {
+                        if (configData.Zones.Dome.Activate)
+                            CreateZone(configData.Zones.Dome, pos);
+                        continue;
+                    }
+
+                    if (gobject.name.Contains("radtown_small_3"))
+                    {
+                        if (configData.Zones.Radtown.Activate)
+                            CreateZone(configData.Zones.Radtown, pos);
+                        continue;
+                    }
+                }                
             }
             ConfirmCreation();
         }
         private void CreateHapis()
         {
-            if (radsLighthouse)
+            if (configData.Zones.Lighthouse.Activate)
             {
-                createZone("lighthouse_1", HIMon["lighthouse_1"].Position, HIMon["lighthouse_1"].Radius.ToString(), radsAmountLighthouse);
-                createZone("lighthouse_2", HIMon["lighthouse_2"].Position, HIMon["lighthouse_2"].Radius.ToString(), radsAmountLighthouse);
+                CreateZone(new MonumentSettings() { Name = "Lighthouse", Radiation = configData.Zones.Lighthouse.Radiation, Radius = HIMon["lighthouse_1"].Radius }, HIMon["lighthouse_1"].Position);
+                CreateZone(new MonumentSettings() { Name = "Lighthouse", Radiation = configData.Zones.Lighthouse.Radiation, Radius = HIMon["lighthouse_2"].Radius }, HIMon["lighthouse_2"].Position);
             }
-            if (radsWaterplant) createZone("water_1", HIMon["water"].Position, HIMon["water"].Radius.ToString(), radsAmountWaterplant);
-            if (radsTunnels) createZone("tunnels_1", HIMon["tunnels"].Position, HIMon["tunnels"].Radius.ToString(), radsAmountTunnels);
-            if (radsSatellite) createZone("satellite_1", HIMon["satellite"].Position, HIMon["satellite"].Radius.ToString(), radsAmountSatellite);
+            if (configData.Zones.WaterTreatment.Activate) CreateZone(new MonumentSettings() { Name = "WaterTreatment", Radiation = configData.Zones.WaterTreatment.Radiation, Radius = HIMon["water"].Radius }, HIMon["water"].Position);
+            if (configData.Zones.Tunnels.Activate) CreateZone(new MonumentSettings() { Name = "Tunnels", Radiation = configData.Zones.Tunnels.Radiation, Radius = HIMon["tunnels"].Radius }, HIMon["tunnels"].Position);
+            if (configData.Zones.Satellite.Activate) CreateZone(new MonumentSettings() { Name = "Satellite", Radiation = configData.Zones.Satellite.Radiation, Radius = HIMon["satellite"].Radius }, HIMon["satellite"].Position);
             ConfirmCreation();
         }
         private void ConfirmCreation()
         {
-            if (zoneData.MRZones.Count > 0)
+            if (RadiationZones.Count > 0)
             {
-                if (useRadTimer) startRadTimers();
-                Puts("Created " + zoneData.MRZones.Count + " monument radiation zones");
+                if (configData.Options.Use_Timers) StartRadTimers();
+                Puts("Created " + RadiationZones.Count + " monument radiation zones");
                 if (!ConVar.Server.radiation)
                 {
                     RadsOn = false;
                     ConVar.Server.radiation = true;
                 }
-                SaveData();
             }
         }
-        private void createZone(string zoneID, Vector3 pos, string radius, float rads)
+        private void CreateZone(MonumentSettings zone, Vector3 pos)
         {
-            List<string> build = new List<string>();
-            build.Add("radius");
-            build.Add(radius);
-            build.Add("radiation");
-            build.Add(rads.ToString());
-
-            string[] zoneArgs = build.ToArray();
-
-            if (pos == null) return;
-            if (zoneData.MRZones.ContainsKey(pos)) return;           
-
-            ZoneManager?.Call("CreateOrUpdateZone", zoneID, zoneArgs, pos);
-            zoneData.MRZones.Add(pos, zoneID);
-        }               
-        private void eraseZone(string zoneID)
+            var newZone = new GameObject().AddComponent<RZ>();
+            newZone.Activate($"{zone.Name}_{GetRandom()}", pos, zone.Radius, zone.Radiation);
+            RadiationZones.Add(newZone);
+        }                       
+        private void StartRadTimers()
         {
-            ZoneManager.Call("EraseZone", zoneID);
-            Puts("Zone " + zoneID + " removed.");
-        }
-        private void startRadTimers()
-        {
-            int ontime = timerOn;
-            int offtime = timerOff;
-            if (randomTimer)
+            int ontime = configData.Timers.Static_On;
+            int offtime = configData.Timers.Static_Off;
+            if (configData.Options.Use_RandomTimers)
             {
-                ontime = GetRandom(randOnMin, randOnMax);
-                offtime = GetRandom(randOffMin, randOffMax);
+                ontime = GetRandom(configData.Timers.Random_OnMin, configData.Timers.Random_OnMax);
+                offtime = GetRandom(configData.Timers.Random_OffMin, configData.Timers.Random_OffMax);
             }
             OnTimer = ontime * 60;
             timer.Repeat(1, OnTimer, () =>
             {
                 OnTimer--;
                 if (OnTimer == 0)
-                {
-                    ConVar.Server.radiation = false;
-                    if (broadcastTimer)                    
+                {                    
+                    foreach (var zone in RadiationZones)
+                        zone.Deactivate();
+                    if (configData.Options.Using_InfoPanel) timer.Once(5, ()=> ConVar.Server.radiation = false);
+
+                    if (configData.Options.Broadcast_Timers)                    
                         MessageAllPlayers(lang.GetMessage("RadsOffMsg", this), offtime);
                     
                     OffTimer = offtime * 60;
@@ -204,47 +192,41 @@ namespace Oxide.Plugins
                         OffTimer--;
                         if (OffTimer == 0)
                         {
-                            ConVar.Server.radiation = true;
-                            if (broadcastTimer)                            
+                            foreach (var zone in RadiationZones)
+                                zone.Reactivate();
+                            if (configData.Options.Using_InfoPanel) ConVar.Server.radiation = true;
+                            if (configData.Options.Broadcast_Timers)                            
                                 MessageAllPlayers(lang.GetMessage("RadsOnMsg", this), ontime);
                             
-                            startRadTimers();
+                            StartRadTimers();
                         }
                     });
                 }
             });
         }
-        private int GetRandom(int min, int max)
-        {
-            return UnityEngine.Random.Range(min, max);
-        }
-        private void MessageAllPlayers(string msg, int time) => ConsoleSystem.Broadcast("chat.add", new object[] { 0, string.Format(msg, time)});           
+        private int GetRandom() => UnityEngine.Random.Range(1, 1000);
+        private int GetRandom(int min, int max) => UnityEngine.Random.Range(min, max);        
+        private void MessageAllPlayers(string msg, int time) => PrintToChat(string.Format(msg, time));           
         
-        void OnEnterZone(string ZoneID, BasePlayer player)
+        void EnterRadiation(BasePlayer player)
         {
-            if (useEnterMessage)
+            if (configData.Messaging.Display_EnterMessage)
             {
-                if (ConVar.Server.radiation == false) return;
-                if (zoneData.MRZones.ContainsValue(ZoneID))                
-                    SendReply(player, lang.GetMessage("enterMessage", this, player.UserIDString));
+                if (ConVar.Server.radiation == false) return;                              
+                SendReply(player, lang.GetMessage("enterMessage", this, player.UserIDString));
             }
         }
-        void OnExitZone(string ZoneID, BasePlayer player)
+        void LeaveRadiation(BasePlayer player)
         {
-            if (useLeaveMessage)
+            if (configData.Messaging.Display_LeaveMessage)
             {
                 if (ConVar.Server.radiation == false) return;
-                if (zoneData.MRZones.ContainsValue(ZoneID))                
-                    SendReply(player, lang.GetMessage("leaveMessage", this, player.UserIDString));
+                SendReply(player, lang.GetMessage("leaveMessage", this, player.UserIDString));
             }
         }
         #endregion
 
-        #region perms/commands
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Permission/Auth Check /////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-
+        #region Commands   
         bool isAdmin(BasePlayer player)
         {
             if (player.net.connection != null)            
@@ -265,35 +247,16 @@ namespace Oxide.Plugins
                 }
             return true;
         }
-
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Chat/Console Commands /////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-
-        [ConsoleCommand("mr_clearall")]
-        private void ccmdClearAll(ConsoleSystem.Arg arg)
-        {
-            if (!isAuth(arg)) return;
-            EraseAll();
-            SendReply(arg, lang.GetMessage("clearAll", this));
-        }
-
-        [ChatCommand("mr_clearall")]
-        void chatClearAll(BasePlayer player, string command, string[] args)
-        {
-            if (!isAdmin(player)) return;
-            EraseAll();
-            SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("clearAll", this, player.UserIDString));
-        }
+                
 
         [ConsoleCommand("mr_list")]
         void ccmdRadZoneList(ConsoleSystem.Arg arg)
         {
             if (!isAuth(arg)) return;
             Puts(lang.GetMessage("monList", this));
-            if (zoneData.MRZones.Count == 0) Puts("none");
-            foreach (var zone in zoneData.MRZones)
-                Puts(zone.Key + " ------ " + zone.Value.ToString());
+            if (RadiationZones.Count == 0) Puts("none");
+            foreach (var zone in RadiationZones)
+                Puts(zone.name + " ------ " + zone.Position);
         }
 
         [ChatCommand("mr_list")]
@@ -301,9 +264,9 @@ namespace Oxide.Plugins
         {
             if (!isAdmin(player)) return;
             Puts(lang.GetMessage("title", this) + lang.GetMessage("monList", this));
-            if (zoneData.MRZones.Count == 0) Puts("none");
-            foreach (var zone in zoneData.MRZones)
-                Puts(zone.Key + "====" + zone.Value.ToString());
+            if (RadiationZones.Count == 0) Puts("none");
+            foreach (var zone in RadiationZones)
+                Puts(zone.name + "====" + zone.Position);
             SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("checkConsole", this, player.UserIDString));
         }
 
@@ -327,29 +290,103 @@ namespace Oxide.Plugins
         }
         #endregion
 
-        #region data management and classes
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Data Management and Classes ///////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////        
-        void SaveData() => ZoneData.WriteObject(zoneData);
-        
-        void LoadData()
+        #region Classes        
+        public class RZ : MonoBehaviour
         {
-            try
+            public Vector3 Position;
+            public float ZoneRadius;
+            public float RadiationAmount;
+
+            private List<BasePlayer> InZone;
+
+            private void Awake()
             {
-                zoneData = ZoneData.ReadObject<MonumentZones>();
+                gameObject.layer = (int)Layer.Reserved1;
+                gameObject.name = "RadZone";
+
+                var rigidbody = gameObject.AddComponent<Rigidbody>();
+                rigidbody.useGravity = false;
+                rigidbody.isKinematic = true;
+                InZone = new List<BasePlayer>();
             }
-            catch
+            public void Activate(string type, Vector3 pos, float radius, float amount)
             {
-                Puts("Couldn't load Monument Radiation data, creating new datafile");
-                zoneData = new MonumentZones();
+                Position = pos;
+                ZoneRadius = radius;
+                RadiationAmount = amount;
+
+                gameObject.name = type;
+                transform.position = Position;
+                transform.rotation = new Quaternion();
+                UpdateCollider();
+                gameObject.SetActive(true);
+                enabled = true;
+
+                var Rads = gameObject.GetComponent<TriggerRadiation>();
+                Rads = Rads ?? gameObject.AddComponent<TriggerRadiation>();
+                Rads.RadiationAmount = RadiationAmount;
+                Rads.radiationSize = ZoneRadius;
+                Rads.interestLayers = playerLayer;
+                Rads.enabled = true;
+
+                if (IsInvoking("UpdateTrigger")) CancelInvoke("UpdateTrigger");
+                InvokeRepeating("UpdateTrigger", 3f, 3f);
             }
-        }
-        class MonumentZones
-        {
-            public Dictionary<Vector3, string> MRZones = new Dictionary<Vector3, string>();
-            public MonumentZones() { }
-        }
+            public void Deactivate()
+            {
+                var Rads = gameObject.GetComponent<TriggerRadiation>();
+                Rads.enabled = false;
+                gameObject.SetActive(false);
+                if (IsInvoking("UpdateTrigger")) CancelInvoke("UpdateTrigger");                
+            }
+            public void Reactivate()
+            {
+                var Rads = gameObject.GetComponent<TriggerRadiation>();
+                Rads.enabled = true;
+                gameObject.SetActive(true);
+                if (IsInvoking("UpdateTrigger")) CancelInvoke("UpdateTrigger");
+                InvokeRepeating("UpdateTrigger", 3f, 3f);
+            }
+            private void OnDestroy()
+            {
+                CancelInvoke("UpdateTrigger");
+                Destroy(gameObject);
+            }
+            private void UpdateCollider()
+            {
+                var sphereCollider = gameObject.GetComponent<SphereCollider>();
+                {
+                    if (sphereCollider == null)
+                    {
+                        sphereCollider = gameObject.AddComponent<SphereCollider>();
+                        sphereCollider.isTrigger = true;
+                    }
+                    sphereCollider.radius = ZoneRadius;
+                }
+            }
+            private void UpdateTrigger()
+            {
+                var OutZone = InZone;
+                InZone = new List<BasePlayer>();
+                int entities = Physics.OverlapSphereNonAlloc(Position, ZoneRadius, colBuffer, playerLayer);
+                for (var i = 0; i < entities; i++)
+                {
+                    var player = colBuffer[i].GetComponentInParent<BasePlayer>();
+                    if (player != null)
+                    {
+                        InZone.Add(player);
+                        if (!OutZone.Contains(player))
+                            Interface.Oxide.CallHook("EnterRadiation", player);
+                    }                    
+                }
+                foreach (var player in OutZone)
+                {
+                    if (!InZone.Contains(player))
+                        Interface.Oxide.CallHook("LeaveRadiation", player);
+                }
+            }
+        }       
+       
         class HapisIslandMonuments
         {
             public Vector3 Position;
@@ -390,57 +427,56 @@ namespace Oxide.Plugins
 
         #endregion
 
-        #region config
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Configuration /////////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-
-        static bool radsLighthouse = false;
-        static bool radsAirfield = false;
-        static bool radsPowerplant = false;
-        static bool radsTrainyard = false;
-        static bool radsWaterplant = false;
-        static bool radsWarehouse = false;
-        static bool radsSatellite = false;
-        static bool radsDome = false;
-        static bool radsRadtown = true;
-        static bool radsTunnels = false;
-        static bool useEnterMessage = true;
-        static bool useLeaveMessage = false;
-        static bool useRadTimer = true;
-        static bool broadcastTimer = true;
-        static bool randomTimer = false;
-        static bool useHapis = false;
-
-        static int randOnMin = 5;
-        static int randOnMax = 30;
-        static int randOffMin = 25;
-        static int randOffMax = 60;
-        static int timerOff = 15;
-        static int timerOn = 45;
-
-        static float radsAmountLighthouse = 100;
-        static float radsAmountAirfield = 100;
-        static float radsAmountPowerplant = 100;
-        static float radsAmountTrainyard = 100;
-        static float radsAmountWaterplant = 100;
-        static float radsAmountWarehouse = 100;
-        static float radsAmountSatellite = 100;
-        static float radsAmountDome = 100;
-        static float radsAmountRadtown = 100;
-        static float radsAmountTunnels = 100;
-
-        static string sizeLighthouse = "15";
-        static string sizeAirfield = "85";
-        static string sizePowerplant = "120";
-        static string sizeTrainyard = "100";
-        static string sizeWaterplant = "120";
-        static string sizeWarehouse = "15";
-        static string sizeSatellite = "60";
-        static string sizeDome = "50";
-        static string sizeRadtown = "60";
-        static string sizeTunnels = "90";
-
+        #region Config
+        class MonumentSettings
+        {
+            public bool Activate;
+            public string Name;
+            public float Radius;
+            public float Radiation;
+        }
+        class Messaging
+        {
+            public bool Display_EnterMessage { get; set; }
+            public bool Display_LeaveMessage { get; set; }
+        }
+        class RadiationTimers
+        {
+            public int Random_OnMin { get; set; }
+            public int Random_OnMax { get; set; }
+            public int Random_OffMin { get; set; }
+            public int Random_OffMax { get; set; }
+            public int Static_Off { get; set; }
+            public int Static_On { get; set; }
+        }
+        class RadZones
+        {
+            public MonumentSettings Airfield { get; set; }
+            public MonumentSettings Dome { get; set; }
+            public MonumentSettings Lighthouse { get; set; }
+            public MonumentSettings Powerplant { get; set; }
+            public MonumentSettings Radtown { get; set; }
+            public MonumentSettings Satellite { get; set; }
+            public MonumentSettings Trainyard { get; set; }
+            public MonumentSettings Tunnels { get; set; }
+            public MonumentSettings Warehouse { get; set; }
+            public MonumentSettings WaterTreatment { get; set; }
+        }
+        class Options
+        {
+            public bool Broadcast_Timers { get; set; }
+            public bool Using_HapisIsland { get; set; }
+            public bool Using_InfoPanel { get; set; }
+            public bool Use_Timers { get; set; }
+            public bool Use_RandomTimers { get; set; }
+        }
+        class ConfigData
+        {
+            public Messaging Messaging { get; set; }
+            public RadiationTimers Timers { get; set; }
+            public Options Options { get; set; }
+            public RadZones Zones { get; set; }
+        }
         private void LoadVariables()
         {
             LoadConfigVariables();
@@ -448,84 +484,116 @@ namespace Oxide.Plugins
         }
         private void LoadConfigVariables()
         {
-            CheckCfg("Options - Using Hapis Island", ref useHapis);
-            CheckCfg("Options - Radiation Zones - Lighthouses", ref radsLighthouse);
-            CheckCfg("Options - Radiation Zones - Airfield", ref radsAirfield);
-            CheckCfg("Options - Radiation Zones - Powerplant", ref radsPowerplant);
-            CheckCfg("Options - Radiation Zones - Trainyard", ref radsTrainyard);
-            CheckCfg("Options - Radiation Zones - Water Treatment Plant", ref radsWaterplant);
-            CheckCfg("Options - Radiation Zones - Warehouses", ref radsWarehouse);
-            CheckCfg("Options - Radiation Zones - Satellite", ref radsSatellite);
-            CheckCfg("Options - Radiation Zones - Sphere Tank", ref radsDome);
-            CheckCfg("Options - Radiation Zones - Rad-towns", ref radsRadtown);
-            CheckCfg("Options - Radiation Zones - Military Tunnels", ref radsTunnels);
-            CheckCfg("Options - Message - Use enter message", ref useEnterMessage);
-            CheckCfg("Options - Message - Use leave message", ref useLeaveMessage);
-            CheckCfg("Options - Timers - Use radiation activation/deactivation timers", ref useRadTimer);
-            CheckCfg("Options - Timers - Broadcast radiation status", ref broadcastTimer);
-            CheckCfg("Options - Timers - Amount of time deactivated (mins)", ref timerOff);
-            CheckCfg("Options - Timers - Amount of time activated (mins)", ref timerOn);
-            CheckCfg("Options - Timers - Use random timers", ref randomTimer);
-            CheckCfg("Options - Timers - Random - Off minimum (mins)", ref randOffMin);
-            CheckCfg("Options - Timers - Random - Off maximum (mins)", ref randOffMax);
-            CheckCfg("Options - Timers - Random - On minimum (mins)", ref randOnMin);
-            CheckCfg("Options - Timers - Random - On maximum (mins)", ref randOnMax);
-
-            CheckCfg("Options - Zone Size - Rad-towns", ref sizeRadtown);
-            CheckCfg("Options - Zone Size - Lighthouses", ref sizeLighthouse);
-            CheckCfg("Options - Zone Size - Airfield", ref sizeAirfield);
-            CheckCfg("Options - Zone Size - Powerplant", ref sizePowerplant);
-            CheckCfg("Options - Zone Size - Trainyard", ref sizeTrainyard);
-            CheckCfg("Options - Zone Size - Water Treatment Plant", ref sizeWaterplant);
-            CheckCfg("Options - Zone Size - Warehouses", ref sizeWarehouse);
-            CheckCfg("Options - Zone Size - Satellite", ref sizeSatellite);
-            CheckCfg("Options - Zone Size - Sphere Tank", ref sizeDome);
-            CheckCfg("Options - Zone Size - Military Tunnels", ref sizeTunnels);
-            CheckCfgFloat("Options - Radiation amount - Lighthouses", ref radsAmountLighthouse);
-            CheckCfgFloat("Options - Radiation amount - Airfield", ref radsAmountAirfield);
-            CheckCfgFloat("Options - Radiation amount - Powerplant", ref radsAmountPowerplant);
-            CheckCfgFloat("Options - Radiation amount - Trainyard", ref radsAmountTrainyard);
-            CheckCfgFloat("Options - Radiation amount - Water Treatment Plant", ref radsAmountWaterplant);
-            CheckCfgFloat("Options - Radiation amount - Warehouses", ref radsAmountWarehouse);
-            CheckCfgFloat("Options - Radiation amount - Satellite", ref radsAmountSatellite);
-            CheckCfgFloat("Options - Radiation amount - Sphere Tank", ref radsAmountDome);
-            CheckCfgFloat("Options - Radiation amount - Rad-towns", ref radsAmountRadtown);
-            CheckCfgFloat("Options - Radiation amount - Military Tunnels", ref radsAmountTunnels);
-
+            configData = Config.ReadObject<ConfigData>();
         }
-        private void CheckCfg<T>(string Key, ref T var)
+        protected override void LoadDefaultConfig()
         {
-            if (Config[Key] is T)
-                var = (T)Config[Key];
-            else
-                Config[Key] = var;
-        }
-        private void CheckCfgFloat(string Key, ref float var)
-        {
-
-            if (Config[Key] != null)
-                var = Convert.ToSingle(Config[Key]);
-            else
-                Config[Key] = var;
-        }
-        object GetConfig(string menu, string datavalue, object defaultValue)
-        {
-            var data = Config[menu] as Dictionary<string, object>;
-            if (data == null)
+            Puts("Creating a new config file");
+            var config = new ConfigData
             {
-                data = new Dictionary<string, object>();
-                Config[menu] = data;
-                Changed = true;
-            }
-            object value;
-            if (!data.TryGetValue(datavalue, out value))
-            {
-                value = defaultValue;
-                data[datavalue] = value;
-                Changed = true;
-            }
-            return value;
+               Messaging = new Messaging
+               {
+                   Display_EnterMessage = true,
+                   Display_LeaveMessage = false
+               },
+               Timers = new RadiationTimers
+               {
+                   Random_OffMax = 60,
+                   Random_OffMin = 25,
+                   Random_OnMax = 30,
+                   Random_OnMin = 5,
+                   Static_Off = 15,
+                   Static_On = 45
+               },
+               Options = new Options
+               {
+                   Broadcast_Timers = true,
+                   Use_RandomTimers = false,
+                   Use_Timers = true,
+                   Using_HapisIsland = false,
+                   Using_InfoPanel = false
+               },
+               Zones = new RadZones
+               {
+                   Airfield = new MonumentSettings
+                   {
+                       Activate = false,
+                       Name = "Airfield",
+                       Radiation = 100,
+                       Radius = 85
+                   },
+                   Dome = new MonumentSettings
+                   {
+                       Activate = false,
+                       Name = "Dome",
+                       Radiation = 100,
+                       Radius = 50
+                   },
+                   Lighthouse = new MonumentSettings
+                   {
+                       Activate = false,
+                       Name = "Lighthouse",
+                       Radiation = 100,
+                       Radius = 15
+                   },
+                   Powerplant = new MonumentSettings
+                   {
+                       Activate = false,
+                       Name = "Powerplant",
+                       Radiation = 100,
+                       Radius = 120
+                   },
+                   Radtown = new MonumentSettings
+                   {
+                       Activate = true,
+                       Name = "Radtown",
+                       Radiation = 100,
+                       Radius = 85
+                   },
+                   Satellite = new MonumentSettings
+                   {
+                       Activate = false,
+                       Name = "Satellite",
+                       Radiation = 100,
+                       Radius = 60
+                   },
+                   Trainyard = new MonumentSettings
+                   {
+                       Activate = false,
+                       Name = "Trainyard",
+                       Radiation = 100,
+                       Radius = 100
+                   },
+                   Tunnels = new MonumentSettings
+                   {
+                       Activate = false,
+                       Name = "Tunnels",
+                       Radiation = 100,
+                       Radius = 90
+                   },
+                   Warehouse = new MonumentSettings
+                   {
+                       Activate = false,
+                       Name = "Warehouse",
+                       Radiation = 100,
+                       Radius = 15
+                   },
+                   WaterTreatment = new MonumentSettings
+                   {
+                       Activate = false,
+                       Name = "WaterTreatment",
+                       Radiation = 100,
+                       Radius = 120
+                   }
+               }
+        };
+            SaveConfig(config);
         }
+        void SaveConfig(ConfigData config)
+        {
+            Config.WriteObject(config, true);
+        }
+       
         #endregion
 
         #region messages

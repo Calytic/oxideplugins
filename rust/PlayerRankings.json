@@ -1,12 +1,14 @@
 {
     "name": "Player Rankings",
     "description": "Automatically gives players ranks based on playtime",
-    "author": "",
-    "version": "1.4.0",
+    "author": "Ankawi",
+    "version": "2.0.2",
     "configuration": true,
-    "require": {
-        "ConnectionDB": "*",
+    "suggest": {
         "BetterChat": "*"
+    },
+    "require": {
+        "ConnectionDB": "*"
     },
     "language": "cs",
     "games": [

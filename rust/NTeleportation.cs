@@ -19,7 +19,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("NTeleportation", "Nogrod", "1.0.10", ResourceId = 1832)]
+    [Info("NTeleportation", "Nogrod", "1.0.11", ResourceId = 1832)]
     class NTeleportation : RustPlugin
     {
         private const string NewLine = "\n";
@@ -800,7 +800,6 @@ namespace Oxide.Plugins
                         PrintMsgL(player, "CantTeleportToSelf");
                         return;
                     }
-                    SaveLocation(player);
                     TeleportToPlayer(player, target);
                     PrintMsgL(player, "AdminTP", target.displayName);
                     Puts(_("LogTeleport", null, player.displayName, target.displayName));
@@ -817,7 +816,6 @@ namespace Oxide.Plugins
                         PrintMsgL(player, "CantTeleportPlayerToSelf");
                         return;
                     }
-                    SaveLocation(origin);
                     TeleportToPlayer(origin, target);
                     PrintMsgL(player, "AdminTPPlayers", origin.displayName, target.displayName);
                     PrintMsgL(origin, "AdminTPPlayer", player.displayName, target.displayName);
@@ -836,7 +834,6 @@ namespace Oxide.Plugins
                         PrintMsgL(player, "AdminTPBoundaries", boundary);
                         return;
                     }
-                    SaveLocation(player);
                     TeleportToPosition(player, x, y, z);
                     PrintMsgL(player, "AdminTPCoordinates", player.transform.position);
                     Puts(_("LogTeleport", null, player.displayName, player.transform.position));
@@ -855,7 +852,6 @@ namespace Oxide.Plugins
                         PrintMsgL(player, "AdminTPBoundaries", boundary);
                         return;
                     }
-                    SaveLocation(target);
                     TeleportToPosition(target, x, y, z);
                     if (player == target)
                     {
@@ -898,7 +894,6 @@ namespace Oxide.Plugins
                     var destination = target.transform.position;
                     destination.x = destination.x - x;
                     destination.z = destination.z - z;
-                    SaveLocation(player);
                     Teleport(player, GetGroundBuilding(destination));
                     PrintMsgL(player, "AdminTP", target.displayName);
                     Puts(_("LogTeleport", null, player.displayName, target.displayName));
@@ -935,7 +930,6 @@ namespace Oxide.Plugins
                         PrintMsgL(player, "LocationNotFound");
                         return;
                     }
-                    SaveLocation(player);
                     Teleport(player, loc);
                     PrintMsgL(player, "AdminTPLocation", args[0]);
                     break;
@@ -1558,7 +1552,7 @@ namespace Oxide.Plugins
                     BaseEntity entity = null;
                     if (Physics.SphereCast(player.transform.position, .5f, Vector3.down, out hitInfo, 5, blockLayer))
                         entity = hitInfo.GetEntity();
-                    if (entity == null || !entity.LookupPrefabName().Contains("foundation"))
+                    if (entity != null && !entity.PrefabName.Contains("foundation"))
                     {
                         PrintMsgL(player, "AcceptOnRoof");
                         return;
@@ -1936,7 +1930,6 @@ namespace Oxide.Plugins
                         arg.ReplyWith(_("AdminTPOutOfBounds", arg.Player()) + Environment.NewLine + _("AdminTPBoundaries", arg.Player(), boundary));
                         return false;
                     }
-                    SaveLocation(targetPlayer);
                     TeleportToPosition(targetPlayer, x, y, z);
                     PrintMsgL(targetPlayer, "AdminTPConsoleTP", targetPlayer.transform.position);
                     arg.ReplyWith(_("AdminTPTargetCoordinates", arg.Player(), targetPlayer.displayName, targetPlayer.transform.position));
@@ -1977,7 +1970,6 @@ namespace Oxide.Plugins
                         arg.ReplyWith(_("CantTeleportPlayerToSelf", arg.Player()));
                         return false;
                     }
-                    SaveLocation(originPlayer);
                     TeleportToPlayer(originPlayer, targetPlayer);
                     arg.ReplyWith(_("AdminTPPlayers", arg.Player(), originPlayer.displayName, targetPlayer.displayName));
                     PrintMsgL(originPlayer, "AdminTPConsoleTPPlayer", targetPlayer.displayName);
@@ -2066,6 +2058,7 @@ namespace Oxide.Plugins
 
         public void Teleport(BasePlayer player, Vector3 position)
         {
+            SaveLocation(player);
             teleporting.Add(player.userID);
             if (player.net?.connection != null)
                 player.ClientRPCPlayer(null, player, "StartLoading", null, null, null, null, null);
@@ -2110,7 +2103,7 @@ namespace Oxide.Plugins
             {
                 var block = hits[i].GetComponentInParent<BuildingBlock>();
                 if (block == null) continue;
-                var prefab = block.LookupPrefabName();
+                var prefab = block.PrefabName;
                 if (!prefab.Contains("foundation", CompareOptions.OrdinalIgnoreCase) && !prefab.Contains("floor", CompareOptions.OrdinalIgnoreCase) && !prefab.Contains("pillar", CompareOptions.OrdinalIgnoreCase)) continue;
                 if (!(Vector3.Distance(block.transform.position, position) < distance)) continue;
                 buildingBlock = block;
@@ -2236,7 +2229,7 @@ namespace Oxide.Plugins
             for (var i = 0; i < hits.Count; i++)
             {
                 var entity = hits[i];
-                if (!entity.LookupPrefabName().Contains("foundation") || positionCoordinates.y < entity.WorldSpaceBounds().ToBounds().max.y) continue;
+                if (!entity.PrefabName.Contains("foundation") || positionCoordinates.y < entity.WorldSpaceBounds().ToBounds().max.y) continue;
                 entities.Add(entity);
             }
             Pool.FreeList(ref hits);

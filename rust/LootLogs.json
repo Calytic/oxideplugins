@@ -1,0 +1,15 @@
+{
+    "name": "LootLogs",
+    "description": "Log all items deposited and removed from storage, stash and oven containers",
+    "author": "k1lly0u",
+    "version": "0.13",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

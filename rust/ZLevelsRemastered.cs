@@ -1,5 +1,6 @@
 // Reference: Oxide.Ext.MySql
 // Reference: Oxide.Ext.SQLite
+
 using UnityEngine;
 using System.Collections.Generic;
 using System;
@@ -13,10 +14,13 @@ using Oxide.Core.Database;
 
 namespace Oxide.Plugins
 {
-    [Info("Zeiser Levels REMASTERED", "Zeiser/Visagalis", "1.6.1", ResourceId = 1453)]
+    [Info("Zeiser Levels REMASTERED", "Zeiser/Visagalis", "1.6.4", ResourceId = 1453)]
     [Description("Lets players level up as they harvest different resources and when crafting.")]
     public class ZLevelsRemastered : RustPlugin
     {
+        [PluginReference]
+        Plugin EventManager;
+
         #region SQL Things
         private readonly Ext.MySql.Libraries.MySql _mySql = new Ext.MySql.Libraries.MySql();
         private readonly Ext.SQLite.Libraries.SQLite _sqLite = new Ext.SQLite.Libraries.SQLite();
@@ -43,7 +47,7 @@ namespace Oxide.Plugins
 
         private void CheckConnection()
         {
-            Dictionary <string, string> tableStucture = new Dictionary<string, string>();
+            Dictionary<string, string> tableStucture = new Dictionary<string, string>();
             tableStucture.Add("UserID", "INTEGER\tNOT NULL");
             tableStucture.Add("Name", "TEXT\tNOT NULL");
             tableStucture.Add("WCLevel", "INTEGER");
@@ -198,7 +202,7 @@ namespace Oxide.Plugins
             {
                 foreach (string key in statsInit.Keys)
                 {
-                    if(sqlData[0][key] != DBNull.Value)
+                    if (sqlData[0][key] != DBNull.Value)
                         tempElement.Add(key, Convert.ToInt64(sqlData[0][key]));
                 }
 
@@ -239,7 +243,7 @@ namespace Oxide.Plugins
         void OnPlayerLootEnd(PlayerLoot inventory)
         {
             BasePlayer player = inventory.GetComponent<BasePlayer>();
-            if(player != null && inPlayerList(player.userID))
+            if (player != null && inPlayerList(player.userID))
             {
                 RenderUI(player);
             }
@@ -297,7 +301,8 @@ namespace Oxide.Plugins
                     string encodedValue = "";
                     sb.Append(encodedValue);
                 }
-                else {
+                else
+                {
                     sb.Append(c);
                 }
             }
@@ -374,7 +379,7 @@ namespace Oxide.Plugins
             public static string WOODCUTTING = "WC";
             public static string SKINNING = "S";
             public static string MINING = "M";
-            public static string[] ALL = new[] {WOODCUTTING, MINING, SKINNING, CRAFTING};
+            public static string[] ALL = new[] { WOODCUTTING, MINING, SKINNING, CRAFTING };
         }
         System.Collections.Generic.List<ulong> guioff = new System.Collections.Generic.List<ulong>();
 
@@ -464,7 +469,7 @@ namespace Oxide.Plugins
             {
 
                 var playerData = getConnectedPlayerDetailsData(player.userID);
-                if(playerData == null)
+                if (playerData == null)
                     Puts("PlayerData IS NULL!!!");
 
                 Puts("Stats for player: [" + player.displayName + "]");
@@ -514,7 +519,8 @@ namespace Oxide.Plugins
                     {
                         mode = 1;
                         correct = int.TryParse(arg.Args[2].Replace("+", ""), out value);
-                    } else if (arg.Args[2][0] == '-')
+                    }
+                    else if (arg.Args[2][0] == '-')
                     {
                         mode = 2;
                         correct = int.TryParse(arg.Args[2].Replace("-", ""), out value);
@@ -549,10 +555,10 @@ namespace Oxide.Plugins
                             }
                             else if (playerMode == 2)
                                 editMultiplierForPlayer(value);
-                            else if(p != null)
+                            else if (p != null)
                                 editMultiplierForPlayer(value, p.userID);
 
-                            Puts("XP rates has changed to "+ value +"% of normal XP for " + (playerMode == 1 ? "ALL ONLINE PLAYERS" : (playerMode == 2 ? "ALL PLAYERS" : p.displayName)));
+                            Puts("XP rates has changed to " + value + "% of normal XP for " + (playerMode == 1 ? "ALL ONLINE PLAYERS" : (playerMode == 2 ? "ALL PLAYERS" : p.displayName)));
                             return;
                         }
 
@@ -575,7 +581,7 @@ namespace Oxide.Plugins
             }
             else
             {
-                Puts("Player with name: "+ arg.Args[0] +" haven't been found online.");
+                Puts("Player with name: " + arg.Args[0] + " haven't been found online.");
             }
 
         }
@@ -612,7 +618,7 @@ namespace Oxide.Plugins
                         string skillLevel = currSkill + "Level";
                         sqlText += skillLevel + "=" + skillLevel + action + level + ", ";
                         sqlText += currSkill + "Points=0;" +
-                                   (levelCaps[currSkill].ToString() != "0" ? ("UPDATE RPG_User SET " + skillLevel + "=" + levelCaps[currSkill] + " WHERE " + skillLevel + ">" + levelCaps[currSkill] + ";"): "") +
+                                   (levelCaps[currSkill].ToString() != "0" ? ("UPDATE RPG_User SET " + skillLevel + "=" + levelCaps[currSkill] + " WHERE " + skillLevel + ">" + levelCaps[currSkill] + ";") : "") +
                                    "UPDATE RPG_User SET " + skillLevel + "=1 WHERE " + skillLevel + "< 1;";
                         var sql = Sql.Builder.Append(sqlText);
                         if (usingMySQL())
@@ -640,7 +646,7 @@ namespace Oxide.Plugins
                             Convert.ToInt32(levelCaps[currSkill]) != 0)
                         {
                             modifiedLevel = Convert.ToInt32(levelCaps[currSkill]);
-                                // Don't allow to ADD levels above limits.
+                            // Don't allow to ADD levels above limits.
                             Puts(
                                 "Warning! You tried to level up player above levelCaps, use SET if you want to have player level over levelCaps.");
                         }
@@ -717,8 +723,8 @@ namespace Oxide.Plugins
                 RenderUI(p);
                 Puts(messages[skill + "Skill"] + " Level for [" + p.displayName + "] has been set to: [" + modifiedLevel + "]");
                 SendReply(p, "Admin has set your " + messages[skill + "Skill"] + " level to: [" + modifiedLevel + "] ");
-            } 
-            
+            }
+
         }
 
         private void editMultiplierForPlayer(long multiplier, ulong userID = ulong.MinValue)
@@ -736,7 +742,7 @@ namespace Oxide.Plugins
             }
             else
             {
-                if(playerList.ContainsKey(userID))
+                if (playerList.ContainsKey(userID))
                     playerList[userID]["XPMultiplier"] = multiplier;
             }
             var sql = Sql.Builder.Append(sqlText, multiplier, userID);
@@ -751,7 +757,7 @@ namespace Oxide.Plugins
         private void StatsCommand(BasePlayer player, string command, string[] args)
         {
             string text = "<color=blue>ZLevels Remastered [" + Version + "] by Visagalis</color>\n" + "<color=yellow>" +
-                          (string) messages["StatsHeadline"] + "</color>\n";
+                          (string)messages["StatsHeadline"] + "</color>\n";
 
 
             foreach (string skill in Skills.ALL)
@@ -768,7 +774,7 @@ namespace Oxide.Plugins
                 DateTime lastDeath = ToDateTimeFromEpoch(details["LastDeath"]);
                 TimeSpan timeAlive = currentTime - lastDeath;
                 PrintToChat(player, "Time alive: " + ReadableTimeSpan(timeAlive));
-                if(details["XPMultiplier"].ToString() != "100")
+                if (details["XPMultiplier"].ToString() != "100")
                     PrintToChat(player, "XP rates for you are " + details["XPMultiplier"] + "%");
             }
 
@@ -819,8 +825,8 @@ namespace Oxide.Plugins
                         break;
                     case "crafting":
                         messagesText = "<color=" + colors[Skills.CRAFTING] + '>' + "Crafting" + "</color>" + (IsSkillDisabled(Skills.CRAFTING) ? "(DISABLED)" : "") + "\n";
-                        messagesText += "XP gain: <color=" + colors[Skills.SKINNING] + ">You get "+ craftingDetails["XPPerTimeSpent"] + " XP per "+ craftingDetails["TimeSpent"] + "s spent crafting.</color>\n";
-                        messagesText += "Bonus: <color=" + colors[Skills.SKINNING] + ">Crafting time is decreased by "+ craftingDetails["PercentFasterPerLevel"]  +"% per every level.</color>\n";
+                        messagesText += "XP gain: <color=" + colors[Skills.SKINNING] + ">You get " + craftingDetails["XPPerTimeSpent"] + " XP per " + craftingDetails["TimeSpent"] + "s spent crafting.</color>\n";
+                        messagesText += "Bonus: <color=" + colors[Skills.SKINNING] + ">Crafting time is decreased by " + craftingDetails["PercentFasterPerLevel"] + "% per every level.</color>\n";
                         break;
                     default:
                         messagesText = "No such stat: " + args[0];
@@ -976,14 +982,14 @@ namespace Oxide.Plugins
             {
                 Image =
                 {
-                    Color = "0.1 0.1 0.1 0.7"
+                    Color = "0.1 0.1 0.1 0.0"
                 },
                 RectTransform =
                 {
-                    AnchorMin = "0.67 0.04525",
-                    AnchorMax = "0.819 0.1625"
+                    AnchorMin = "0.69 0.0140",
+                    AnchorMax = "0.83 0.1335"
                 }
-            }, "HUD/Overlay", "StatsUI");
+            }, "Hud", "StatsUI");
 
             int fontSize = 12;
             string xpBarAnchorMin = "0.16 0.1";
@@ -1009,17 +1015,17 @@ namespace Oxide.Plugins
             if (IsSkillDisabled(skill))
                 return "";
 
-            bool skillMaxed = (int) levelCaps[skill] != 0 && getLevel(player.userID, skill) == (int) levelCaps[skill];
+            bool skillMaxed = (int)levelCaps[skill] != 0 && getLevel(player.userID, skill) == (int)levelCaps[skill];
             string bonusText = "";
             if (skill == Skills.CRAFTING)
                 bonusText =
-                    (getLevel(player.userID, skill)*(int) craftingDetails["PercentFasterPerLevel"]).ToString("0.##");
+                    (getLevel(player.userID, skill) * (int)craftingDetails["PercentFasterPerLevel"]).ToString("0.##");
             else
-                bonusText = ((getGathMult(getLevel(player.userID, skill), skill) - 1)*100).ToString("0.##");
+                bonusText = ((getGathMult(getLevel(player.userID, skill), skill) - 1) * 100).ToString("0.##");
 
-            return string.Format("<color=" + colors[skill] + '>' + (string) messages["StatsText"] + "</color>\n",
-                (string) messages[skill + "Skill"],
-                getLevel(player.userID, skill) + (Convert.ToInt32(levelCaps[skill]) > 0 ? ("/" + levelCaps[skill]) :""),
+            return string.Format("<color=" + colors[skill] + '>' + (string)messages["StatsText"] + "</color>\n",
+                (string)messages[skill + "Skill"],
+                getLevel(player.userID, skill) + (Convert.ToInt32(levelCaps[skill]) > 0 ? ("/" + levelCaps[skill]) : ""),
                 getPoints(player.userID, skill),
                 skillMaxed ? "â" : getLevelPoints(getLevel(player.userID, skill) + 1).ToString(),
                 bonusText,
@@ -1060,7 +1066,7 @@ namespace Oxide.Plugins
             {
                 _craftData = new CraftData();
             }
-            
+
             foreach (BasePlayer player in BasePlayer.activePlayerList)
             {
                 loadUser(player);
@@ -1072,16 +1078,17 @@ namespace Oxide.Plugins
             if (entity is BasePlayer)
             {
                 BasePlayer player = (BasePlayer)entity;
-                if (!inPlayerList(player.userID)) return;
+                var isPlaying = EventManager?.Call("isPlaying", player);
+                if (!inPlayerList(player.userID) || (isPlaying is bool && (bool)isPlaying)) return;
 
-                string penaltyText ="<color=#FF0000>You have lost XP for dying:";
+                string penaltyText = "<color=#FF0000>You have lost XP for dying:";
                 bool penaltyExist = false;
                 foreach (string skill in Skills.ALL)
                 {
                     if (!IsSkillDisabled(skill))
                     {
                         int penalty = GetPenalty(player, skill);
-                        if(penalty > 0)
+                        if (penalty > 0)
                         {
                             penaltyText += "\n* -" + penalty + " " + messages[skill + "Skill"] + " XP.";
                             removePoints(player.userID, skill, penalty);
@@ -1091,8 +1098,8 @@ namespace Oxide.Plugins
                 }
                 penaltyText += "</color>";
 
-                if(penaltyExist)
-                    PrintToChat(player,penaltyText);
+                if (penaltyExist)
+                    PrintToChat(player, penaltyText);
                 SetPlayerLastDeathDate(player.userID);
                 RenderUI(player);
             }
@@ -1128,10 +1135,11 @@ namespace Oxide.Plugins
                     break;
                 case "cloth":
                 case "mushroom":
-				case "corn":
-				case "pumpkin":
-				case "seed.pumpkin":
-				case "seed.corn":
+                case "corn":
+                case "pumpkin":
+                case "seed.hemp":
+                case "seed.pumpkin":
+                case "seed.corn":
                     skillName = Skills.SKINNING;
                     break;
                 case "metal.ore":
@@ -1141,7 +1149,7 @@ namespace Oxide.Plugins
                     break;
             }
 
-            if(!string.IsNullOrEmpty(skillName))
+            if (!string.IsNullOrEmpty(skillName))
                 levelHandler(player, item, skillName);
             else
                 Puts("Developer missed this item, which can be picked up: [" + item.info.shortname + "]. Let him know on Oxide forums!");
@@ -1156,7 +1164,7 @@ namespace Oxide.Plugins
 
             int pointsToGet = (int)pointsPerHit[skill];
             long xpMultiplier = Convert.ToInt64(playerList[player.userID]["XPMultiplier"]);
-            Points += Convert.ToInt64(pointsToGet * (xpMultiplier/100f));
+            Points += Convert.ToInt64(pointsToGet * (xpMultiplier / 100f));
             getPointsLevel(Points, skill);
             try
             {
@@ -1233,7 +1241,7 @@ namespace Oxide.Plugins
                 _mySqlConnection = null;
             else
             {
-                _sqLiteConnection = null; 
+                _sqLiteConnection = null;
             }
 
             foreach (var player in BasePlayer.activePlayerList)  // destroy UI when unloading.
@@ -1264,10 +1272,10 @@ namespace Oxide.Plugins
                 {Skills.SKINNING, 2.0d}
             });
             levelCaps = checkCfg<Dictionary<string, object>>("LevelCaps", new Dictionary<string, object>{
-                {Skills.WOODCUTTING, 0},
-                {Skills.MINING, 0},
-                {Skills.SKINNING, 0},
-                {Skills.CRAFTING, 20}
+                {Skills.WOODCUTTING, 200},
+                {Skills.MINING, 200},
+                {Skills.SKINNING, 200},
+                {Skills.CRAFTING, -1}
             });
             pointsPerHit = checkCfg<Dictionary<string, object>>("PointsPerHit", new Dictionary<string, object>{
                 {Skills.WOODCUTTING, 30},
@@ -1280,8 +1288,8 @@ namespace Oxide.Plugins
                 { "PercentFasterPerLevel", 5 }
             });
             percentLostOnDeath = checkCfg<Dictionary<string, object>>("PercentLostOnDeath", new Dictionary<string, object>{
-                {Skills.WOODCUTTING, 100},
-                {Skills.MINING, 100},
+                {Skills.WOODCUTTING, 50},
+                {Skills.MINING, 50},
                 {Skills.SKINNING, 50},
                 {Skills.CRAFTING, 50}
             });
@@ -1341,7 +1349,7 @@ namespace Oxide.Plugins
 
         private long getLevel(UInt64 userID, string skill)
         {
-            if(!playerList.ContainsKey(userID))
+            if (!playerList.ContainsKey(userID))
                 Puts("Trying to get [" + messages[skill + "Skill"].ToString() + "]. For player who's SteamID: [" + userID + "]. He is not on a user list yet?");
             if (!playerList[userID].ContainsKey(skill + "Level"))
                 playerList[userID].Add(skill + "Level", 1);
@@ -1462,11 +1470,13 @@ namespace Oxide.Plugins
                 Puts("Problem when setting crafting xp/level for player. Error information:" + ex.StackTrace);
             }
 
-            try {
+            try
+            {
                 string xpPercentAfter = getExperiencePercent(crafter, Skills.CRAFTING);
                 if (!xpPercentAfter.Equals(xpPercentBefore))
                     RenderUI(crafter);
-            }catch(Exception ex)
+            }
+            catch (Exception ex)
             {
                 Puts("Problem when checking if we should RenderUI: " + ex.StackTrace);
             }
@@ -1499,7 +1509,8 @@ namespace Oxide.Plugins
                 craftingTime = 0;
             if (craftingTime == 0)
             {
-                try {
+                try
+                {
                     foreach (var entry in _craftData.CraftList)
                     {
                         var itemname = task.blueprint.targetItem.shortname.ToString();

@@ -4,6 +4,7 @@
     "author": "dcode",
     "version": "1.7.2",
     "configuration": true,
+    "suggest": {},
     "language": "cs",
     "games": [
         "rust"

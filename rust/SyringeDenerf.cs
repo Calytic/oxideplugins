@@ -1,7 +1,7 @@
 
 namespace Oxide.Plugins
 {
-	[Info("SyringeDenerf", "ignignokt84", "0.1.1", ResourceId = 1809)]
+	[Info("SyringeDenerf", "ignignokt84", "0.1.2", ResourceId = 1809)]
 	class SyringeDenerf : RustPlugin
 	{
 		float healAmount = 25f; // Instant heal amount
@@ -10,7 +10,7 @@ namespace Oxide.Plugins
 		
 		object OnHealingItemUse(HeldEntity item, BasePlayer target)
 		{
-			if(item is MedicalTool && item.LookupShortPrefabName().Contains("syringe"))
+			if(item is MedicalTool && item.ShortPrefabName.Contains("syringe"))
 			{
 				target.health = target.health + healAmount;
 				target.metabolism.ApplyChange(MetabolismAttribute.Type.HealthOverTime, hotAmount, hotTime);

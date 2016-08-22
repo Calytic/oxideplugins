@@ -7,7 +7,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("CommandRateLimiter", "Calytic", "0.0.61", ResourceId = 1812)]
+    [Info("CommandRateLimiter", "Calytic", "0.0.7", ResourceId = 1812)]
     public class CommandRateLimiter : CovalencePlugin
     {
         private int KickAfter;
@@ -66,7 +66,7 @@ namespace Oxide.Plugins
             return (T)Convert.ChangeType(Config[name], typeof(T));
         }
 
-        object OnRunCommand(ConsoleSystem.Arg arg)
+        object OnServerCommand(ConsoleSystem.Arg arg)
         {
             if (arg.cmd == null) return null;
 
@@ -81,7 +81,7 @@ namespace Oxide.Plugins
 #endif
             if (player == null) return null;
 
-            if (player.ConnectedPlayer == null) return null;
+            if (player.IsConnected == false) return null;
 
             if (arg.isAdmin)
                 return null;
@@ -138,7 +138,7 @@ namespace Oxide.Plugins
                         rateCount[player.Id]++;
                         if (KickAfter > 0 && (c + 1) >= KickAfter)
                         {
-                            player.ConnectedPlayer.Kick(GetMsg("Kick Message"));
+                            player.Kick(GetMsg("Kick Message"));
                             kicked = true;
                         }
                     }
@@ -168,8 +168,7 @@ namespace Oxide.Plugins
                             }
                         });
                     }
-
-                    if (player.ConnectedPlayer != null && SendPlayerMessage && !kicked)
+                    if (player != null && SendPlayerMessage && !kicked)
                     {
                         player.Reply(GetMsg("Player Message"));
                     }

@@ -9,7 +9,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("TurretConfig", "Calytic", "0.1.7", ResourceId = 1418)]
+    [Info("TurretConfig", "Calytic", "0.1.8", ResourceId = 1418)]
     [Description("Change turret damage, accuracy, bullet speed, health, targeting, etc")]
     class TurretConfig : RustPlugin
     {
@@ -207,7 +207,7 @@ namespace Oxide.Plugins
             if (animalOverride == true && target.GetComponent<BaseNPC>() != null)
             {
                 if(animals.Count > 0) {
-                    if(animals.Contains(target.LookupShortPrefabName().Replace(".prefab","").ToLower())) {
+                    if(animals.Contains(target.ShortPrefabName.Replace(".prefab","").ToLower())) {
                         return false;
                     } else {
                         return null;

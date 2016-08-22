@@ -2,7 +2,7 @@
     "name": "Sign Artist",
     "description": "Load custom images to signs from a remote URL",
     "author": "Nogrod",
-    "version": "0.3.1",
+    "version": "0.3.2",
     "configuration": true,
     "language": "cs",
     "games": [

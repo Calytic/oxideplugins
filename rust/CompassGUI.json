@@ -2,7 +2,7 @@
     "name": "Compass GUI",
     "description": "Shows which direction is the player facing in a GUI",
     "author": "PaiN",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "configuration": false,
     "language": "cs",
     "games": [

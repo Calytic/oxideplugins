@@ -26,13 +26,15 @@ using Timer = Oxide.Plugins.Timer;
 namespace Oxide.Plugins
 {
 
-    [Info("Hunt RPG", "PedraozauM / SW / Nogrod", "1.5.5", ResourceId = 841)]
+    [Info("Hunt RPG", "PedraozauM / SW / Nogrod", "1.5.9", ResourceId = 841)]
     public class HuntPlugin : RustPlugin
     {
         [PluginReference]
         private Plugin Pets;
         [PluginReference]
         private Plugin EventManager;
+        [PluginReference]
+        Plugin PopupNotifications;
         private bool initialized;
         private bool updateConfig;
         private bool updatePlayerData;
@@ -131,6 +133,11 @@ namespace Oxide.Plugins
 
         void OnPlayerInit(BasePlayer player)
         {
+            if (player.HasPlayerFlag(BasePlayer.PlayerFlags.ReceivingSnapshot))
+            {
+                timer.Once(2, () => OnPlayerInit(player));
+                return;
+            }
             if (updatePlayerData) ChatMessage(player, HMK.DataUpdated);
             var rpgInfo = FindRpgInfo(player);
             if (rpgInfo.Preferences.ShowProfile) ChatMessage(player, Profile(rpgInfo, player));
@@ -192,12 +199,24 @@ namespace Oxide.Plugins
             return null;
         }
 
+        void OnEntityKill(BaseNetworkable networkable)
+        {
+            var oven = networkable as BaseOven;
+            if (oven != null)
+            {
+                Data.Furnaces.Remove(EntityId(oven));
+                return;
+            }
+            var quarry = networkable as MiningQuarry;
+            if (quarry != null)
+            {
+                Data.Quarries.Remove(EntityId(quarry));
+                return;
+            }
+        }
+
         void OnEntityDeath(BaseCombatEntity entity, HitInfo hitInfo)
         {
-            var oven = entity as BaseOven;
-            if (oven != null) Data.Furnaces.Remove(EntityId(oven));
-            var quarry = entity as MiningQuarry;
-            if (quarry != null) Data.Quarries.Remove(EntityId(quarry));
             var player = entity as BasePlayer;
             if (player == null) return;
             if (EventManager != null && (bool)EventManager.CallHook("isPlaying", player)) return;
@@ -321,7 +340,7 @@ namespace Oxide.Plugins
 
         void OnItemDeployed(Deployer deployer, BaseEntity baseEntity)
         {
-            OnEntityDeployedInternal(deployer.ownerPlayer, baseEntity as BaseOven, Data.Furnaces);
+            OnEntityDeployedInternal(deployer.GetOwnerPlayer(), baseEntity as BaseOven, Data.Furnaces);
         }
 
         void OnItemAddedToContainer(ItemContainer container, Item item)
@@ -336,10 +355,10 @@ namespace Oxide.Plugins
         void OnEntityBuilt(Planner planner, GameObject gameObject)
         {
             var entity = gameObject.GetComponent<BaseEntity>();
-            OnEntityDeployedInternal(planner.ownerPlayer, entity as BaseOven, Data.Furnaces);
-            OnEntityDeployedInternal(planner.ownerPlayer, entity as MiningQuarry, Data.Quarries);
+            OnEntityDeployedInternal(planner.GetOwnerPlayer(), entity as BaseOven, Data.Furnaces);
+            OnEntityDeployedInternal(planner.GetOwnerPlayer(), entity as MiningQuarry, Data.Quarries);
             var buildingBlock = entity as BuildingBlock;
-            if (buildingBlock != null) OnStructureUpgrade(buildingBlock, planner.ownerPlayer, buildingBlock.grade);
+            if (buildingBlock != null) OnStructureUpgrade(buildingBlock, planner.GetOwnerPlayer(), buildingBlock.grade);
         }
 
         void OnConsumeFuel(BaseOven oven, Item fuel, ItemModBurnable burnable)
@@ -403,15 +422,31 @@ namespace Oxide.Plugins
         {
             SaveRpg();
         }
+
+        void OnServerShutdown()
+        {
+            SaveRpg();
+        }
+
+        #region Hooks
+        bool GiveEXP(BasePlayer player, int xp)
+        {
+            if (player == null || xp <= 0) return false;
+            ExpGain(FindRpgInfo(player), xp, player);
+            return true;
+        }
+        #endregion
+
         #region Internal
         private bool OnAttackedInternal(BasePlayer player, HitInfo hitInfo)
         {
-            var basePlayer = hitInfo.Initiator as BasePlayer;
-            if (!(hitInfo.Initiator is BaseNPC || basePlayer != null && player.userID != basePlayer.userID)) return false;
+            var attacker = hitInfo.Initiator as BasePlayer;
+            if (!(hitInfo.Initiator is BaseNPC || attacker != null && player.userID != attacker.userID)) return false;
             var rpgInfo = FindRpgInfo(player);
             if (Random.Range(0f, 1f) <= rpgInfo.GetEvasion())
             {
                 ChatMessage(player, HMK.Dodged);
+                ChatMessage(attacker, HMK.TargetDodged);
                 return true;
             }
             hitInfo.damageTypes.ScaleAll(1 - rpgInfo.GetBlock());
@@ -646,9 +681,9 @@ namespace Oxide.Plugins
                 case "lvlup":
                     LevelUpChatHandler(player, args, rpgInfo);
                     return;
-                case "research":
+                /*case "research":
                     ResearchItemHandler(player, args, rpgInfo);
-                    return;
+                    return;*/
                 case "xp":
                     ChatMessage(player, XPProgression(player, rpgInfo));
                     return;
@@ -672,6 +707,18 @@ namespace Oxide.Plugins
                     return;
                 case "top":
                     ShowTop(player);
+                    return;
+                case "popup":
+                    HMK msgType;
+                    try
+                    {
+                        msgType = (HMK)Enum.Parse(typeof(HMK), args[1], true);
+                    }
+                    catch (System.Exception)
+                    {
+                        return;
+                    }
+                    PopupNotifications?.Call("CreatePopupNotification", _(msgType, player), player);
                     return;
             }
             if (Trainer.Length > 0 && !IsNPCInRange(player.transform.position) && !player.IsAdmin())
@@ -826,7 +873,7 @@ namespace Oxide.Plugins
             {
                 skillType = (HRK)Enum.Parse(typeof(HRK), args[1], true);
             }
-            catch (Exception)
+            catch (System.Exception)
             {
                 ChatMessage(player, HMK.InvalidSkillName);
                 return;
@@ -992,7 +1039,7 @@ namespace Oxide.Plugins
                 ChatMessage(callerPlayer, HMK.PlayerLevelUp, player.displayName, desiredLevel);
         }
 
-        private bool ResearchItemHandler(BasePlayer player, string[] args, RPGInfo rpgInfo)
+        /*private bool ResearchItemHandler(BasePlayer player, string[] args, RPGInfo rpgInfo)
         {
             var commandArgs = args?.Length - 1 ?? 0;
             if (commandArgs != 1)
@@ -1068,7 +1115,7 @@ namespace Oxide.Plugins
                 ChatMessage(player, HMK.ResearchReuse, TimeLeft(availableAt, time));
             }
             return true;
-        }
+        }*/
 
         private void ChangePlayerXPMessagePreference(BasePlayer player, string[] args, RPGInfo rpgInfo)
         {
@@ -1183,8 +1230,8 @@ namespace Oxide.Plugins
                         "The Hunt RPG system in development.",
                         "It is consisted of levels, stats atributes, skills and later on specializations.",
                         "Currently there are 3 attributes, each of then give you and specific enhancement.",
-                        "Strenght gives you more health, it will not be displayed in the Health Bar, but it is considered for healing and getting hurt.",
-                        "Agillity gives you dodge change",
+                        "Strength gives you more health, it will not be displayed in the Health Bar, but it is considered for healing and getting hurt.",
+                        "Agillity gives you dodge chance",
                         "Intelligence decreases your items crafting time",
                         "Right now you can level up by gathering resources.",
                         "Each level gives you 1 point in each attribute. And 3 more to distribute.",
@@ -1235,6 +1282,7 @@ namespace Oxide.Plugins
                 {HMK.XpMessage, "XP will be shown at every {0:P} change"},
                 {HMK.AvailableSkills, "Available Skills:"},
                 {HMK.Dodged, "Dodged!"},
+                {HMK.TargetDodged, "Target Dodged!"},
                 {HMK.LevelUp, "<color=yellow>Level Up! You are now level {0}</color>"},
                 {HMK.CurrentXp, "Current XP: {0:P}{1}"},
                 {HMK.NightXp, " Bonus Night Exp On"},
@@ -1294,7 +1342,10 @@ namespace Oxide.Plugins
                 {HMK.TamerUsage, "Type \"/pet\" to toggle taming. To tame get close to the animal and press your USE button(E). After tamed press USE looking at something, if its terrain he will move, if its a player or other animal it he will attack. If looking at him it will start following you. To set the pet free type \"/pet free\"."},
                 {HMK.ButtonClose, "Close"},
                 {HMK.ButtonResetSkills, "Reset Skills"},
-                {HMK.ButtonResetStats, "Reset Stats"}
+                {HMK.ButtonResetStats, "Reset Stats"},
+                {HMK.AgiDesc, "Agillity gives you dodge chance"},
+                {HMK.StrDesc, "Strength gives you more health, it will not be displayed in the Health Bar, but it is considered for healing and getting hurt."},
+                {HMK.IntDesc, "Intelligence decreases your items crafting time"}
             };
             lang.RegisterMessages(messagesConfig.ToDictionary(m => m.Key.ToString(), m => m.Value), this);
         }
@@ -1362,8 +1413,9 @@ namespace Oxide.Plugins
                 Puts(_(HMK.PetsPlugin));
                 SkillTable[HRK.Tamer].Enabled = false;
             }
+            SkillTable[HRK.Researcher].Enabled = false;
             if (DeleteProfileAfter <= 0) return;
-            var now = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds;
+            var now = Facepunch.Math.Epoch.Current;
             var delTime = now - 86400 * DeleteProfileAfter;
             var toRemove = new List<ulong>();
             foreach (var profile in Data.Profiles)
@@ -1561,9 +1613,10 @@ namespace Oxide.Plugins
 
             var stats = guiInfo.LastStats = elements.Add(CreatePanel("0.2 0.1", "0.39 0.5"), guiInfo.LastMain);
             elements.Add(CreateLabel(_(HMK.StatPoints, player, rpgInfo.StatsPoints), 1, heightS, TextAnchor.MiddleLeft, 20), stats);
-            elements.Add(CreateLabel(_(HMK.Agi, player, $"{rpgInfo.Agility} ({rpgInfo.GetStatPointsCost(HRK.Agi)})"), 3, heightS, TextAnchor.MiddleLeft, 18), stats);
-            elements.Add(CreateLabel(_(HMK.Str, player, $"{rpgInfo.Strength} ({rpgInfo.GetStatPointsCost(HRK.Str)})"), 4, heightS, TextAnchor.MiddleLeft, 18), stats);
-            elements.Add(CreateLabel(_(HMK.Int, player, $"{rpgInfo.Intelligence} ({rpgInfo.GetStatPointsCost(HRK.Int)})"), 5, heightS, TextAnchor.MiddleLeft, 18), stats);
+            //elements.Add(CreateLabel(_(HMK.Agi, player, $"{rpgInfo.Agility} ({rpgInfo.GetStatPointsCost(HRK.Agi)})"), 3, heightS, TextAnchor.MiddleLeft, 18), stats);
+            elements.Add(CreateButton($"hunt.cmd popup {HMK.AgiDesc}", 3, heightS, 18, _(HMK.Agi, player, $"{rpgInfo.Agility} ({rpgInfo.GetStatPointsCost(HRK.Agi)})")), stats);
+            elements.Add(CreateButton($"hunt.cmd popup {HMK.StrDesc}", 4, heightS, 18, _(HMK.Str, player, $"{rpgInfo.Strength} ({rpgInfo.GetStatPointsCost(HRK.Str)})")), stats);
+            elements.Add(CreateButton($"hunt.cmd popup {HMK.IntDesc}", 5, heightS, 18, _(HMK.Int, player, $"{rpgInfo.Intelligence} ({rpgInfo.GetStatPointsCost(HRK.Int)})")), stats);
 
             var skills = guiInfo.LastSkills = elements.Add(CreatePanel("0.6 0.1", "0.79 0.5"), guiInfo.LastMain);
             elements.Add(CreateLabel(_(HMK.SkillPoints, player, rpgInfo.SkillPoints), 1, heightS, TextAnchor.MiddleLeft, 20), skills);
@@ -1572,7 +1625,8 @@ namespace Oxide.Plugins
             {
                 int level;
                 rpgInfo.Skills.TryGetValue(skill.Key, out level);
-                elements.Add(CreateLabel($"{skill.Value.Name}: {level}/{skill.Value.MaxLevel} ({rpgInfo.GetSkillPointsCostNext(skill.Value)})", j++, heightS, TextAnchor.MiddleLeft, 18), skills);
+                //elements.Add(CreateLabel($"{skill.Value.Name}: {level}/{skill.Value.MaxLevel} ({rpgInfo.GetSkillPointsCostNext(skill.Value)})", j++, heightS, TextAnchor.MiddleLeft, 18), skills);
+                elements.Add(CreateButton($"hunt.cmd popup {skill.Value.Description}", j++, heightS, 18, $"{skill.Value.Name}: {level}/{skill.Value.MaxLevel} ({rpgInfo.GetSkillPointsCostNext(skill.Value)})"), skills);
             }
             CuiHelper.AddUi(player, elements);
         }
@@ -1815,7 +1869,7 @@ namespace Oxide.Plugins
         {
             var melee = item.GetHeldEntity() as BaseMelee;
             if (melee == null) return;
-            var defaultMelee = GameManager.server.FindPrefab(melee.LookupPrefabName()).GetComponent<BaseMelee>();
+            var defaultMelee = GameManager.server.FindPrefab(melee.PrefabName).GetComponent<BaseMelee>();
             UpdateGatherPropertyEntry(melee.gathering.Tree, defaultMelee.gathering.Tree, rpgInfo, HRK.Lumberjack);
             //SendReply(item.GetOwnerPlayer(), "Item: {0} G: {1:0.00} C: {2:0.00} D: {3:0.00}", item.info.shortname, defaultMelee.gathering.Tree.gatherDamage, defaultMelee.gathering.Tree.conditionLost, defaultMelee.gathering.Tree.destroyFraction);
             //SendReply(item.GetOwnerPlayer(), "Item: {0} G: {1:0.00} C: {2:0.00} D: {3:0.00}", item.info.shortname, melee.gathering.Tree.gatherDamage, melee.gathering.Tree.conditionLost, melee.gathering.Tree.destroyFraction);
@@ -1916,6 +1970,7 @@ namespace Oxide.Plugins
 
         private void ChatMessage(BasePlayer player, HMK key, params object[] args)
         {
+            if (player?.net == null) return;
             ChatMessage(player, _(key, player.UserIDString, args));
         }
         #endregion
@@ -1930,7 +1985,7 @@ namespace Oxide.Plugins
             {
                 config.SetUserId(userId);
                 config.SteamName = player.displayName;
-                config.LastSeen = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds;
+                config.LastSeen = Facepunch.Math.Epoch.Current;
                 return config;
             }
             Data.Profiles[userId] = config = new RPGInfo(player.displayName, DefaultHud, ShowProfile);
@@ -2082,7 +2137,7 @@ namespace Oxide.Plugins
 
         private static string EntityName(BaseEntity entity)
         {
-            var name = entity.LookupShortPrefabName();
+            var name = entity.ShortPrefabName;
             var pos = name.LastIndexOf(".", StringComparison.Ordinal);
             if (pos >= 0) name = name.Substring(0, pos);
             return name;
@@ -2172,7 +2227,7 @@ namespace Hunt.RPG
             skillTable.Add(HRK.Gatherer, gatherer);
             var researcher = new Skill(HRK.Researcher, HMK.ResearcherDesc, 30, 5)
             {
-                SkillPointsPerLevel = 7, Usage = HMK.ResearcherUsage
+                SkillPointsPerLevel = 7, Usage = HMK.ResearcherUsage, Enabled = false
             };
             researcher.AddRequiredStat("int", researcher.RequiredLevel*3);
             researcher.AddModifier(HRK.Cooldown, new Modifier( /*HRK.Cooldown, */new[] {10f, 2f}));
@@ -2888,6 +2943,7 @@ namespace Hunt.RPG.Keys
         DataUpdated,
         Died,
         Dodged,
+        TargetDodged,
         Empty,
         EvasionChance,
         GenerateXp,
@@ -2957,7 +3013,10 @@ namespace Hunt.RPG.Keys
         BlinkarrowDesc,
         ResearcherUsage,
         TamerUsage,
-        BlinkarrowUsage
+        BlinkarrowUsage,
+        AgiDesc,
+        StrDesc,
+        IntDesc
     }
 
     //permission keys

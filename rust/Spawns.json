@@ -1,8 +1,8 @@
 {
     "name": "Spawns Database",
     "description": "Spawns database plugin for external plugins",
-    "author": "Reneb",
-    "version": "1.1.0",
+    "author": "k1lly0u",
+    "version": "2.0.1",
     "configuration": false,
     "language": "cs",
     "games": [

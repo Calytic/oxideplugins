@@ -1,7 +1,7 @@
 PLUGIN.Title        = "Timed Events"
 PLUGIN.Description  = "Allows automatic events to take place depending on server time."
 PLUGIN.Author       = "InSaNe8472"
-PLUGIN.Version      = V(1,1,2)
+PLUGIN.Version      = V(1,1,3)
 PLUGIN.ResourceID   = 1325
 
 local ServerInitialized = false
@@ -671,6 +671,7 @@ end
 
 function PLUGIN:RunCommand(EventAction)
 	if ServerInitialized then
+		local EventAction = EventAction:gsub("'", "\"")
 		local prefix = self.Config.Settings.Prefix:gsub(" ", "")
 		local message = prefix.." "..EventAction
 		if self.Config.Settings.SayEnabled == "true" then

@@ -1,8 +1,8 @@
 {
     "name": "BuildingWrapper",
-    "description": "Wrap buildings in a zone",
+    "description": "Automatically wrap buildings in a zone",
     "author": "ignignokt84",
-    "version": "0.1.2",
+    "version": "0.1.3",
     "configuration": false,
     "require": {
         "ZoneManager": "*"

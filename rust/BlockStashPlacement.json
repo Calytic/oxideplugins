@@ -1,0 +1,15 @@
+{
+    "name": "Block Stash Placement",
+    "description": "Blocks the placement of small stashes",
+    "author": "",
+    "version": "1.0.2",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

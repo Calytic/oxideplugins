@@ -1,7 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-
+using System.IO;
 using Oxide.Core;
 
 using UnityEngine;
@@ -9,7 +9,7 @@ using UnityEngine;
 namespace Oxide.Plugins
 {
 
-    [Info("Sign Artist", "Bombardir", "0.3.1", ResourceId = 992)]
+    [Info("Sign Artist", "Bombardir", "0.3.2", ResourceId = 992)]
     class SignArtist : RustPlugin
     {
         GameObject WebObject;
@@ -36,13 +36,14 @@ namespace Oxide.Plugins
 
         class UnityWeb : MonoBehaviour
         {
-            Queue<QueueItem> QueueList = new Queue<QueueItem>();
-            byte ActiveLoads;
-            SignArtist SignArtist;
+            private Queue<QueueItem> QueueList = new Queue<QueueItem>();
+            private byte ActiveLoads;
+            private SignArtist SignArtist;
+            private MemoryStream stream = new MemoryStream();
 
             private void Awake()
             {
-                SignArtist = (SignArtist) Interface.Oxide.RootPluginManager.GetPlugin(nameof(SignArtist));
+                SignArtist = (SignArtist)Interface.Oxide.RootPluginManager.GetPlugin(nameof(SignArtist));
             }
 
             private void OnDestroy()
@@ -74,8 +75,14 @@ namespace Oxide.Plugins
                 else
                     img = tex.EncodeToJPG(SignArtist.JPGCompression);
                 //player.ChatMessage(tex.format + " - " + tex + " - " + tex.EncodeToPNG().Length + " - " + tex.GetRawTextureData().Length + " - " + tex.EncodeToJPG(SignArtist.JPGCompression).Length);
-                Destroy(tex);
+                DestroyImmediate(tex);
                 return img;
+            }
+
+            private void ClearStream()
+            {
+                stream.Position = 0;
+                stream.SetLength(0);
             }
 
             IEnumerator WaitForRequest(QueueItem info)
@@ -107,13 +114,17 @@ namespace Oxide.Plugins
                             var sign = info.sign;
                             if (sign.textureID > 0U)
                                 FileStorage.server.Remove(sign.textureID, FileStorage.Type.png, sign.net.ID);
-                            sign.textureID = FileStorage.server.Store(img, FileStorage.Type.png, sign.net.ID);
+                            ClearStream();
+                            stream.Write(img, 0, img.Length);
+                            sign.textureID = FileStorage.server.Store(stream, FileStorage.Type.png, sign.net.ID);
+                            ClearStream();
                             sign.SendNetworkUpdate();
+                            Interface.Oxide.CallHook("OnSignUpdated", sign, player);
                             player.ChatMessage(SignArtist.Loaded);
 
                             if (SignArtist.ConsoleLog)
                                 ServerConsole.PrintColoured(System.ConsoleColor.DarkYellow, string.Format(SignArtist.ConsoleLogMsg, player.userID, player.displayName, sign.textureID, info.url));
-                            Resources.UnloadUnusedAssets();
+                            //Resources.UnloadUnusedAssets();
                         }
                         else
                         {
@@ -185,6 +196,74 @@ namespace Oxide.Plugins
             }
             UWeb.Add(args[0], player, sign, raw);
             player.ChatMessage(AddedToQueue);
+            if (UrlCooldown > 0)
+                CoolDowns[player] = Time.realtimeSinceStartup + UrlCooldown;
+        }
+
+        [ConsoleCommand("silt")]
+        void ccmdSilt(ConsoleSystem.Arg arg)
+        {
+            if (arg.Player() == null) return;
+            silt(arg.Player(), string.Empty, arg.Args ?? new string[0]);
+        }
+
+        [ChatCommand("silt")]
+        void silt(BasePlayer player, string command, string[] args)
+        {
+            if (args.Length == 0)
+            {
+                player.ChatMessage(Syntax);
+                return;
+            }
+
+            if (!HasPerm(player, "signartist.url"))
+            {
+                player.ChatMessage(NoPerm);
+                return;
+            }
+
+            float cd;
+            if (CoolDowns.TryGetValue(player, out cd) && cd > Time.realtimeSinceStartup && !HasPerm(player, "signartist.cd"))
+            {
+                player.ChatMessage(string.Format(CooldownMsg, ToReadableString(cd - Time.realtimeSinceStartup)));
+                return;
+            }
+
+            RaycastHit hit;
+            Signage sign = null;
+            if (Physics.Raycast(player.eyes.HeadRay(), out hit, MaxDist))
+                sign = hit.transform.GetComponentInParent<Signage>();
+
+            if (sign == null)
+            {
+                player.ChatMessage(NoSignFound);
+                return;
+            }
+
+            if (!sign.CanUpdateSign(player) && !HasPerm(player, "signartist.owner"))
+            {
+                player.ChatMessage(NotYourSign);
+                return;
+            }
+
+            var raw = args.Length > 1 && args[1].Equals("raw", StringComparison.OrdinalIgnoreCase);
+            if (raw && !HasPerm(player, "signartist.raw"))
+            {
+                player.ChatMessage(NoPerm);
+                return;
+            }
+            string txt = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(args[0])).TrimEnd('=');
+            int textSize = 80;
+            string txtClr = "000";
+            string bg = "0FFF";
+            if (args.Length > 2) int.TryParse(args[2], out textSize);
+            if (args.Length > 3) txtClr = args[3];
+            if (args.Length > 4) bg = args[4];
+            var width = (int)Math.Round(100 * sign.bounds.size.x * .9);
+            var height = (int)Math.Round(100 * sign.bounds.size.y * .9);
+            var url = $"http://placeholdit.imgix.net/~text?fm=png32&txtsize={textSize}&txt64={txt}&w={width}&h={height}&txtclr={txtClr}&bg={bg}";
+            UWeb.Add(url, player, sign, raw);
+            SendReply(player, AddedToQueue);
             if (UrlCooldown > 0)
                 CoolDowns[player] = Time.realtimeSinceStartup + UrlCooldown;
         }

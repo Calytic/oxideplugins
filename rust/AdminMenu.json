@@ -1,0 +1,30 @@
+{
+    "name": "AdminMenu",
+    "description": "In-game GUI for common admin commands",
+    "author": "",
+    "version": "2.0.6",
+    "configuration": true,
+    "suggest": {
+        "BetterChat": "*",
+        "HeliControl": "*",
+        "FancyDrop": "*",
+        "ServerRewards": "*",
+        "Godmode": "*",
+        "Airstrike": "*",
+        "RainOfFire": "*",
+        "Spectate": "*",
+        "Jail": "*",
+        "Give": "*",
+        "Economics": "*",
+        "Vanish": "*",
+        "WeatherController": "*"
+    },
+    "language": "py",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

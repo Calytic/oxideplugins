@@ -2,7 +2,7 @@
     "name": "BattleRoyale Local RadZone",
     "description": "BattleRoyale-styled radiation system",
     "author": "",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "configuration": true,
     "require": {
         "ZoneManager": "*"

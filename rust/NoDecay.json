@@ -1,8 +1,8 @@
 {
     "name": "NoDecay",
     "description": "Scales or disables decay of items",
-    "author": "",
-    "version": "1.0.10",
+    "author": "Piarb",
+    "version": "1.0.13",
     "configuration": true,
     "language": "cs",
     "games": [

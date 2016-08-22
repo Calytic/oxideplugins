@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("AntiRaidTower", "Calytic @ cyclone.network", "0.2.0", ResourceId = 1211)]
+    [Info("AntiRaidTower", "Calytic @ RustServers.IO", "0.2.1", ResourceId = 1211)]
     [Description("High jump instant death/No wounded teleport")]
     class AntiRaidTower : RustPlugin
     {
@@ -104,7 +104,7 @@ namespace Oxide.Plugins
 
         void OnEntityBuilt(Planner planner, GameObject gameObject)
         {
-            if (planner.ownerPlayer == null) return;
+            if (planner.GetOwnerPlayer() == null) return;
             if (!BuildingBlockHeight && !DeployableBlockHeight) return;
 
             var MaxHeight = 0;
@@ -122,7 +122,7 @@ namespace Oxide.Plugins
             {
                 if (hitInfo.distance > MaxHeight)
                 {
-                    SendReply(planner.ownerPlayer, BlockHeightMessage, Math.Round(hitInfo.distance,0));
+                    SendReply(planner.GetOwnerPlayer(), BlockHeightMessage, Math.Round(hitInfo.distance,0));
                     entity.Kill(BaseNetworkable.DestroyMode.Gib);
                 }
             }

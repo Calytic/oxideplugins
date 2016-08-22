@@ -9,88 +9,154 @@ using Oxide.Core.Libraries;
 using Oxide.Core.Plugins;
 
 using System.Linq;
+using Oxide.Core.Libraries.Covalence;
+using Oxide.Game.Rust.Cui;
 
 namespace Oxide.Plugins
 {
-    [Info("RemoverTool", "Reneb", "3.0.15", ResourceId = 651)]
+    [Info("RemoverTool", "Reneb", "4.0.4", ResourceId = 651)]
     class RemoverTool : RustPlugin
     {
-	    int CheckSpam = 0;
+        [PluginReference]
+        Plugin Friends;
 
-        static FieldInfo serverinput;
-        static FieldInfo buildingPrivlidges;
-        static FieldInfo meshinstances;
-        static int constructionColl = UnityEngine.LayerMask.GetMask(new string[] { "Construction", "Deployable", "Prevent Building", "Deployed" });
-        static int blockColl = UnityEngine.LayerMask.GetMask(new string[] { "Construction" });
-        static int playerColl = UnityEngine.LayerMask.GetMask(new string[] { "Player (Server)" });
+        static RemoverTool rt = new RemoverTool();
 
-        enum RemoveType
+        #region Fields
+
+        static FieldInfo serverInput = typeof(BasePlayer).GetField("serverInput", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
+        static FieldInfo buildingPrivilege = typeof(BasePlayer).GetField("buildingPrivilege", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
+        static FieldInfo XpData = typeof(Rust.Xp.Agent).GetField("data", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
+        static int colliderRemovable = LayerMask.GetMask("Construction", "Deployed", "Default");
+        static int colliderBuilding = LayerMask.GetMask("Construction");
+        static int colliderPlayer = LayerMask.GetMask("Player (Server)");
+
+        bool RemoveOverride = false;
+
+        static string permissionNormal = "removertool.remove";
+        static string permissionOverride = "removertool.override";
+        static string permissionAdmin = "removertool.admin";
+        static string permissionAll = "removertool.all";
+        static string permissionTarget = "removertool.target";
+        
+        static int authTarget = 1;
+        static int authNormal = 0;
+        static int authAdmin = 2;
+        static int authAll = 2;
+        static int authOverride = 1;
+
+        static int removeDistanceNormal = 2;
+        static int removeDistanceAdmin = 20;
+        static int removeDistanceAll = 100;
+
+        static bool removeGibsNormal = true;
+        static bool removeGibsAdmin = true;
+        static bool removeGibsAll = false;
+
+        static int RemoveDefaultTime = 30;
+        static int RemoveMaxTime = 300;
+
+        static bool RemoveWithToolCupboards = false;
+        static bool RemoveWithEntityOwners = true;
+        static bool RemoveWithBuildingOwners = true;
+        static bool RemoveWithRustIO = true;
+        static bool RemoveWithFriends = true;
+
+        static bool RaidBlocker = true;
+        static bool RaidBlockerBlockBuildingID = true;
+        static bool RaidBlockerBlockSurroundingPlayers = true;
+        static int RaidBlockerRadius = 120;
+        static int RaidBlockerTime = 300;
+
+        static Dictionary<string, object> Price = new Dictionary<string, object>();
+        static Dictionary<string, object> Refund = new Dictionary<string, object>();
+        static Dictionary<string, object> ValidEntities = new Dictionary<string, object>();
+
+        static string GUIRemoverToolBackgroundColor = "0.1 0.1 0.1 0";
+        static string GUIRemoverToolAnchorMin = "0.1 0.65";
+        static string GUIRemoverToolAnchorMax = "0.4 0.95";
+
+        static string GUIRemoveBackgroundColor = "0.1 0.1 0.1 0.98";
+        static string GUIRemoveAnchorMin = "0 0.9";
+        static string GUIRemoveAnchorMax = "0.55 1";
+
+        static string GUIRemoveTextColor = "1 0.1 0.1 0.98";
+        static int GUIRemoveTextSize = 16;
+        static string GUIRemoveTextAnchorMin = "0.1 0";
+        static string GUIRemoveTextAnchorMax = "1 1";
+
+        static string GUITimeLeftBackgroundColor = "0.1 0.1 0.1 0.98";
+        static string GUITimeLeftAnchorMin = "0.55 0.9";
+        static string GUITimeLeftAnchorMax = "1 1";
+
+        static string GUITimeLeftTextColor = "1 1 1 0.98";
+        static int GUITimeLeftTextSize = 16;
+        static string GUITimeLeftTextAnchorMin = "0 0";
+        static string GUITimeLeftTextAnchorMax = "0.9 1";
+
+        static string GUIEntityBackgroundColor = "0.1 0.1 0.1 0.98";
+        static string GUIEntityAnchorMin = "0 0.8";
+        static string GUIEntityAnchorMax = "1 0.9";
+
+        static string GUIEntityTextColor = "1 1 1 0.98";
+        static int GUIEntityTextSize = 16;
+        static string GUIEntityTextAnchorMin = "0.05 0";
+        static string GUIEntityTextAnchorMax = "1 1";
+
+        static bool GUIAuthorizations = true;
+        static string GUIAllowedBackgroundColor = "0.1 1 0.1 0.3";
+        static string GUIRefusedBackgroundColor = "1 0.1 0.1 0.3";
+        static string GUIAuthorizationsAnchorMin = "0 0.8";
+        static string GUIAuthorizationsAnchorMax = "1 0.9";
+
+        static string GUIPriceBackgroundColor = "0.1 0.1 0.1 0.98";
+        static string GUIPriceAnchorMin = "0 0.60";
+        static string GUIPriceAnchorMax = "1 0.80";
+
+        static bool GUIPrices = true;
+        static string GUIPriceTextColor = "1 1 1 0.98";
+        static int GUIPriceTextSize = 16;
+        static string GUIPriceTextAnchorMin = "0.05 0";
+        static string GUIPriceTextAnchorMax = "0.3 1";
+
+        static string GUIPrice2TextColor = "1 1 1 0.98";
+        static int GUIPrice2TextSize = 16;
+        static string GUIPrice2TextAnchorMin = "0.35 0";
+        static string GUIPrice2TextAnchorMax = "1 1";
+
+        static string GUIRefundBackgroundColor = "0.1 0.1 0.1 0.98";
+        static string GUIRefundAnchorMin = "0 0.40";
+        static string GUIRefundAnchorMax = "1 0.60";
+
+        static bool GUIRefund = true;
+        static string GUIRefundTextColor = "1 1 1 0.98";
+        static int GUIRefundTextSize = 16;
+        static string GUIRefundTextAnchorMin = "0.05 0";
+        static string GUIRefundTextAnchorMax = "0.3 1";
+
+        static string GUIRefund2TextColor = "1 1 1 0.98";
+        static int GUIRefund2TextSize = 16;
+        static string GUIRefund2TextAnchorMin = "0.35 0";
+        static string GUIRefund2TextAnchorMax = "1 1";
+
+
+        static Dictionary<string, string> PrefabNameToDeployable = new Dictionary<string, string>();
+        static Dictionary<string, string> PrefabNameToStructure = new Dictionary<string, string>();
+        static Dictionary<string, int> ItemNameToItemID = new Dictionary<string, int>();
+        static Hash<uint, float> LastAttackedBuildings = new Hash<uint, float>();
+        static Hash<ulong, float> LastBlockedPlayers = new Hash<ulong, float>();
+
+        public enum RemoveType
         {
-            Normal,
+            All,
+            Structure,
             Admin,
-            All
+            Normal
         }
 
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        /// Oxide Hooks
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        #endregion
 
-        void Loaded()
-        {
-            serverinput = typeof(BasePlayer).GetField("serverInput", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
-            buildingPrivlidges = typeof(BasePlayer).GetField("buildingPrivlidges", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
-            meshinstances = typeof(MeshColliderBatch).GetField("instances", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
-        }
-
-        void OnServerInitialized()
-        {
-            InitializeRustIO();
-            InitializeTable();
-            if (!permission.PermissionExists(normalPermission)) permission.RegisterPermission(normalPermission, this);
-            if (!permission.PermissionExists(adminPermission)) permission.RegisterPermission(adminPermission, this);
-            if (!permission.PermissionExists(allPermission)) permission.RegisterPermission(allPermission, this);
-            if (!permission.PermissionExists(targetPermission)) permission.RegisterPermission(targetPermission, this);
-
-            mainjson = mainjson.Replace("{xmin}", xmin).Replace("{ymin}", ymin);
-            double xminint = Convert.ToSingle(xmin);
-            double yminint = Convert.ToSingle(ymin);
-            double xmaxint = System.Math.Floor((xminint + 0.20) * 100) / 100;
-            double ymaxint = System.Math.Floor((yminint + 0.25) * 100) / 100;
-
-            double yboxminint = 0.0;
-            if (!usePay)
-                yboxminint = 0.45;
-            mainjson = mainjson.Replace("{ymax}", ymaxint.ToString()).Replace("{xmax}", xmaxint.ToString()).Replace("{yboxmin}", yboxminint.ToString());
-        }
-
-        void Unload()
-        {
-            foreach (ToolRemover toolremover in Resources.FindObjectsOfTypeAll<ToolRemover>())
-            {
-                GameObject.Destroy(toolremover);
-            }
-        }
-
-        private static Dictionary<string, string> displaynameToShortname = new Dictionary<string, string>();
-        private static Dictionary<string, int> deployedToItem = new Dictionary<string, int>();
-        private void InitializeTable()
-        {
-            displaynameToShortname.Clear();
-            deployedToItem.Clear();
-            List<ItemDefinition> ItemsDefinition = ItemManager.GetItemDefinitions() as List<ItemDefinition>;
-            foreach (ItemDefinition itemdef in ItemsDefinition)
-            {
-                displaynameToShortname.Add(itemdef.displayName.english.ToString().ToLower(), itemdef.shortname.ToString());
-                if (itemdef.GetComponent<ItemModDeployable>() != null) deployedToItem.Add(itemdef.GetComponent<ItemModDeployable>().entityPrefab.resourcePath, itemdef.itemid);
-            }
-
-
-        }
-
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        /// Configs
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+        #region Config
         protected override void LoadDefaultConfig() { }
 
         private void CheckCfg<T>(string Key, ref T var)
@@ -100,162 +166,178 @@ namespace Oxide.Plugins
             else
                 Config[Key] = var;
         }
+        #endregion
 
-        static string xmin = "0.1";
-        static string xmax = "0.4";
-        static string ymin = "0.65";
-        static string ymax = "0.90";
-
-        static int RemoveTimeDefault = 30;
-        static int MaxRemoveTime = 120;
-        static int playerDistanceRemove = 3;
-        static int adminDistanceRemove = 20;
-        static int allDistanceRemove = 300;
-
-        static int adminAuthLevel = 1;
-        static int playerAuthLevel = 0;
-        static string normalPermission = "removertool.canremove";
-        static string adminPermission = "removertool.canremoveadmin";
-        static string allPermission = "removertool.canremoveall";
-        static string targetPermission = "removertool.canremovetarget";
-
-        static bool useBuildingOwners = true;
-        static bool useRustIO = true;
-        static bool useToolCupboard = true;
-
-        static bool useRaidBlocker = true;
-        static int RaidBlockerTime = 300;
-        static int RaidBlockerRadius = 80;
-
-        static bool usePay = true;
-        static bool payDeployable = true;
-        static bool payStructure = true;
-        static Dictionary<string, object> payForRemove = defaultPay();
-
-        static bool useRefund = true;
-        static bool refundDeployable = true;
-        static bool refundStructure = true;
-        static Dictionary<string, object> refundPercentage = defaultRefund();
-
-        static string MessageErrorNoAccess = "You are not allowed to use this command";
-        static string MessageMultiplePlayersFound = "Multiple players found";
-        static string MessageNoPlayersFound = "No players found";
-        static string MessageTargetRemoveEnded = "The Remover Tool for {0} has ended";
-        static string MessageErrorNothingToRemove = "Couldn't find anything to remove. Are you close enough?";
-        static string MessageErrorNotAllowedToRemove = "You have no rights to remove this";
-        static string MessageErrorNotEnoughPay = "You don't have enough to pay for this remove";
-        static string MessageErrorExternalBlock = "You are not allowed use the remover tool at the moment";
-        static string MessageOverrideDisabled = "The remover tool was disabled for the time being.";
-        static string MessageToolDeactivated = "{0}: Remover Tool Deactivated";
-        static string MessageRaidBlocked = "RaidBlocker: You need to wait for {0}s before being allowed to remove again";
-        static string MessageErrorCantUseRemoveWithItem = "You can't use the remover tool while you are holding an item";
-
-        void Init()
+        #region Oxide Hooks
+        void LoadConfigs()
         {
-            CheckCfg<bool>("Remove - RaidBlocker", ref useRaidBlocker);
-            CheckCfg<int>("Remove - RaidBlocker - Time To Block", ref RaidBlockerTime);
-            CheckCfg<int>("Remove - RaidBlocker - Radius To Block", ref RaidBlockerRadius);
+            CheckCfg<string>("Remove - Access - Oxide Permissions - Normal", ref permissionNormal);
+            CheckCfg<string>("Remove - Access - Oxide Permissions - Override", ref permissionOverride);
+            CheckCfg<string>("Remove - Access - Oxide Permissions - Admin", ref permissionAdmin);
+            CheckCfg<string>("Remove - Access - Oxide Permissions - All", ref permissionAll);
+            CheckCfg<string>("Remove - Access - Oxide Permissions - Target", ref permissionTarget);
 
-            CheckCfg<string>("Message - Not Allowed", ref MessageErrorNoAccess);
-            CheckCfg<string>("Message - Multiple Players Found", ref MessageMultiplePlayersFound);
-            CheckCfg<string>("Message - No Players Found", ref MessageNoPlayersFound);
-            CheckCfg<string>("Message - Target Remover Tool Ended", ref MessageTargetRemoveEnded);
-            CheckCfg<string>("Message - Nothing To Remove", ref MessageErrorNothingToRemove);
-            CheckCfg<string>("Message - No Rights To Remove This", ref MessageErrorNotAllowedToRemove);
-            CheckCfg<string>("Message - Not Enough To Pay", ref MessageErrorNotEnoughPay);
-            CheckCfg<string>("Message - External Plugin Blocking Remove", ref MessageErrorExternalBlock);
-            CheckCfg<string>("Message - Admin Override Disabled the Remover Tool", ref MessageOverrideDisabled);
-            CheckCfg<string>("Message - Remover Tool Ended", ref MessageToolDeactivated);
-            CheckCfg<string>("Message - Raid Blocked", ref MessageRaidBlocked);
-            CheckCfg<string>("Message - Cant Use Remove With Item", ref MessageErrorCantUseRemoveWithItem);
+            CheckCfg<int>("Remove - Access - AuthLevel - Normal", ref authNormal);
+            CheckCfg<int>("Remove - Access - AuthLevel - Override", ref authOverride);
+            CheckCfg<int>("Remove - Access - AuthLevel - Admin", ref authAdmin);
+            CheckCfg<int>("Remove - Access - AuthLevel - All", ref authAll);
+            CheckCfg<int>("Remove - Access - AuthLevel - Target", ref authTarget);
 
-            CheckCfg<string>("GUI - Position - X Min", ref xmin);
-            CheckCfg<string>("GUI - Position - Y Min", ref ymin);
+            CheckCfg<int>("Remove - Distance - Normal", ref removeDistanceNormal);
+            CheckCfg<int>("Remove - Distance - Admin", ref removeDistanceAdmin);
+            CheckCfg<int>("Remove - Distance - All/Structure", ref removeDistanceAll);
 
-            CheckCfg<int>("Remove - Default Time", ref RemoveTimeDefault);
-            CheckCfg<int>("Remove - Max Remove Time", ref MaxRemoveTime);
-            if (MaxRemoveTime > 300)
-            {
-                Debug.Log("RemoverTool: Sorry but i won't let you use the Max Remove Time for longer then 300seconds");
-                MaxRemoveTime = 300;
-            }
-            CheckCfg<int>("Remove - Distance - Player", ref playerDistanceRemove);
-            CheckCfg<int>("Remove - Distance - Admin", ref adminDistanceRemove);
-            CheckCfg<int>("Remove - Distance - All", ref allDistanceRemove);
+            CheckCfg<bool>("Remove - Gibs - Normal", ref removeGibsNormal);
+            CheckCfg<bool>("Remove - Gibs - Admin", ref removeGibsAdmin);
+            CheckCfg<bool>("Remove - Gibs - All", ref removeGibsAll);
 
-            CheckCfg<int>("Remove - Auth - AuthLevel - Normal Remove", ref playerAuthLevel);
-            CheckCfg<int>("Remove - Auth - AuthLevel - Admin Commands", ref adminAuthLevel);
-            CheckCfg<string>("Remove - Auth - Permission - Normal Remove", ref normalPermission);
-            CheckCfg<string>("Remove - Auth - Permission - Admin Remove", ref adminPermission);
-            CheckCfg<string>("Remove - Auth - Permission - All Remove", ref allPermission);
-            CheckCfg<string>("Remove - Auth - Permission - Target Remove", ref targetPermission);
+            CheckCfg<int>("Remove - Time - Default", ref RemoveDefaultTime);
+            CheckCfg<int>("Remove - Time - Max", ref RemoveMaxTime);
 
-            CheckCfg<bool>("Remove - Access - Use Building Owners", ref useBuildingOwners);
-            CheckCfg<bool>("Remove - Access - Use RustIO & BuildingOwners (Building Owners needs to be true)", ref useRustIO);
-            CheckCfg<bool>("Remove - Access - Use ToolCupboards", ref useToolCupboard);
+            CheckCfg<bool>("Remove - Normal - Use Tool Cupboards (strongly unrecommended)", ref RemoveWithToolCupboards);
+            CheckCfg<bool>("Remove - Normal - Use Entity Owners", ref RemoveWithEntityOwners);
+            CheckCfg<bool>("Remove - Normal - Use Building Owners (You will need Building Owners plugin)", ref RemoveWithBuildingOwners);
+            CheckCfg<bool>("Remove - Normal - Use Friends (RustIO)", ref RemoveWithRustIO);
+            CheckCfg<bool>("Remove - Normal - Use Friends (Friends)", ref RemoveWithFriends);
 
-            CheckCfg<bool>("Remove - Pay", ref usePay);
-            CheckCfg<bool>("Remove - Pay - Deployables", ref payDeployable);
-            CheckCfg<bool>("Remove - Pay - Structures", ref payStructure);
-            CheckCfg<Dictionary<string, object>>("Remove - Pay - Costs", ref payForRemove);
+            CheckCfg<bool>("Remove - Normal - RaidBlocker", ref RaidBlocker);
+            CheckCfg<bool>("Remove - Normal - RaidBlocker - By Buildings", ref RaidBlockerBlockBuildingID);
+            CheckCfg<bool>("Remove - Normal - RaidBlocker - By Surrounding Players", ref RaidBlockerBlockSurroundingPlayers);
+            CheckCfg<int>("Remove - Normal - RaidBlocker - By Surrounding Players - Radius", ref RaidBlockerRadius);
+            CheckCfg<int>("Remove - Normal - RaidBlocker - Time", ref RaidBlockerTime);            
 
-            CheckCfg<bool>("Remove - Refund", ref useRefund);
-            CheckCfg<bool>("Remove - Refund - Deployables", ref refundDeployable);
-            CheckCfg<bool>("Remove - Refund - Structures", ref refundStructure);
-            CheckCfg<Dictionary<string, object>>("Remove - Refund - Percentage (Structures Only)", ref refundPercentage);
+            ValidEntities = DefaultEntities();
+            Price = DefaultPay();
+            Refund = DefaultRefund();
+            CheckCfg<Dictionary<string, object>>("Remove - Normal - Allowed Entities", ref ValidEntities);
+            CheckCfg<Dictionary<string, object>>("Remove - Normal - Price", ref Price);
+            CheckCfg<Dictionary<string, object>>("Remove - Normal - Refund", ref Refund);
+
+            CheckCfg<string>("Remove - GUI - Main Box - Min Anchor (in Rust Window)", ref GUIRemoverToolAnchorMin);
+            CheckCfg<string>("Remove - GUI - Main Box - Max Anchor (in Rust Window)", ref GUIRemoverToolAnchorMax);
+            CheckCfg<string>("Remove - GUI - Main Box - Background Color", ref GUIRemoverToolBackgroundColor);
+
+            CheckCfg<string>("Remove - GUI - Remove - Box - Min Anchor (in Main Box)", ref GUIRemoveAnchorMin);
+            CheckCfg<string>("Remove - GUI - Remove - Box - Max Anchor (in Main Box)", ref GUIRemoveAnchorMax);
+            CheckCfg<string>("Remove - GUI - Remove - Box - Background Color", ref GUIRemoveBackgroundColor);
+
+            CheckCfg<string>("Remove - GUI - Remove - Text - Min Anchor (in Remove Box)", ref GUIRemoveTextAnchorMin);
+            CheckCfg<string>("Remove - GUI - Remove - Text - Max Anchor (in Remove Box)", ref GUIRemoveTextAnchorMax);
+            CheckCfg<string>("Remove - GUI - Remove - Text - Text Color", ref GUIRemoveTextColor);
+            CheckCfg<int>("Remove - GUI - Remove - Text - Text Size", ref GUIRemoveTextSize);
+
+            CheckCfg<string>("Remove - GUI - Timeleft - Box - Min Anchor (in Main Box)", ref GUITimeLeftAnchorMin);
+            CheckCfg<string>("Remove - GUI - Timeleft - Box - Max Anchor (in Main Box)", ref GUITimeLeftAnchorMax);
+            CheckCfg<string>("Remove - GUI - Timeleft - Box - Background Color", ref GUITimeLeftBackgroundColor);
+
+            CheckCfg<string>("Remove - GUI - Timeleft - Text - Min Anchor (in Timeleft Box)", ref GUITimeLeftTextAnchorMin);
+            CheckCfg<string>("Remove - GUI - Timeleft - Text - Max Anchor (in Timeleft Box)", ref GUITimeLeftTextAnchorMax);
+            CheckCfg<string>("Remove - GUI - Timeleft - Text - Text Color", ref GUITimeLeftTextColor);
+            CheckCfg<int>("Remove - GUI - Timeleft - Text - Text Size", ref GUITimeLeftTextSize);
+
+            CheckCfg<string>("Remove - GUI - Entity - Box - Min Anchor (in Main Box)", ref GUIEntityAnchorMin);
+            CheckCfg<string>("Remove - GUI - Entity - Box - Max Anchor (in Main Box)", ref GUIEntityAnchorMax);
+            CheckCfg<string>("Remove - GUI - Entity - Box - Background Color", ref GUIEntityBackgroundColor);
+
+            CheckCfg<string>("Remove - GUI - Entity - Text - Min Anchor (in Entity Box)", ref GUIEntityTextAnchorMin);
+            CheckCfg<string>("Remove - GUI - Entity - Text - Max Anchor (in Entity Box)", ref GUIEntityTextAnchorMax);
+            CheckCfg<string>("Remove - GUI - Entity - Text - Text Color", ref GUIEntityTextColor);
+            CheckCfg<int>("Remove - GUI - Entity - Text - Text Size", ref GUIEntityTextSize);
+
+            CheckCfg<bool>("Remove - GUI - Authorization Check Hightlighting Box", ref GUIAuthorizations);
+            CheckCfg<string>("Remove - GUI - Authorization Check Hightlighting Box - Min Anchor (in Main Box)", ref GUIAuthorizationsAnchorMin);
+            CheckCfg<string>("Remove - GUI - Authorization Check Hightlighting Box - Max Anchor (in Main Box)", ref GUIAuthorizationsAnchorMax);
+            CheckCfg<string>("Remove - GUI - Authorization Check Hightlighting Box - Allowed Background", ref GUIAllowedBackgroundColor);
+            CheckCfg<string>("Remove - GUI - Authorization Check Hightlighting Box - Refused Background", ref GUIRefusedBackgroundColor);
+
+            CheckCfg<bool>("Remove - GUI - Price", ref GUIPrices);
+            CheckCfg<string>("Remove - GUI - Price - Box - Min Anchor (in Main Box)", ref GUIPriceAnchorMin);
+            CheckCfg<string>("Remove - GUI - Price - Box - Max Anchor (in Main Box)", ref GUIPriceAnchorMax);
+            CheckCfg<string>("Remove - GUI - Price - Box - Background Color", ref GUIPriceBackgroundColor);
+
+            CheckCfg<string>("Remove - GUI - Price - Text - Min Anchor (in Price Box)", ref GUIPriceTextAnchorMin);
+            CheckCfg<string>("Remove - GUI - Price - Text - Max Anchor (in Price Box)", ref GUIPriceTextAnchorMax);
+            CheckCfg<string>("Remove - GUI - Price - Text - Text Color", ref GUIPriceTextColor);
+            CheckCfg<int>("Remove - GUI - Price - Text - Text Size", ref GUIPriceTextSize);
+
+            CheckCfg<string>("Remove - GUI - Price - Text2 - Min Anchor (in Price Box)", ref GUIPrice2TextAnchorMin);
+            CheckCfg<string>("Remove - GUI - Price - Text2 - Max Anchor (in Price Box)", ref GUIPrice2TextAnchorMax);
+            CheckCfg<string>("Remove - GUI - Price - Text2 - Text Color", ref GUIPrice2TextColor);
+            CheckCfg<int>("Remove - GUI - Price - Text2 - Text Size", ref GUIPrice2TextSize);
+
+            CheckCfg<bool>("Remove - GUI - Refund", ref GUIRefund);
+            CheckCfg<string>("Remove - GUI - Refund - Box - Min Anchor (in Main Box)", ref GUIRefundAnchorMin);
+            CheckCfg<string>("Remove - GUI - Refund - Box - Max Anchor (in Main Box)", ref GUIRefundAnchorMax);
+            CheckCfg<string>("Remove - GUI - Refund - Box - Background Color", ref GUIRefundBackgroundColor);
+
+            CheckCfg<string>("Remove - GUI - Refund - Text - Min Anchor (in Refund Box)", ref GUIRefundTextAnchorMin);
+            CheckCfg<string>("Remove - GUI - Refund - Text - Max Anchor (in Refund Box)", ref GUIRefundTextAnchorMax);
+            CheckCfg<string>("Remove - GUI - Refund - Text - Text Color", ref GUIRefundTextColor);
+            CheckCfg<int>("Remove - GUI - Refund - Text - Text Size", ref GUIRefundTextSize);
+
+            CheckCfg<string>("Remove - GUI - Refund - Text2 - Min Anchor (in Refund Box)", ref GUIRefund2TextAnchorMin);
+            CheckCfg<string>("Remove - GUI - Refund - Text2 - Max Anchor (in Refund Box)", ref GUIRefund2TextAnchorMax);
+            CheckCfg<string>("Remove - GUI - Refund - Text2 - Text Color", ref GUIRefund2TextColor);
+            CheckCfg<int>("Remove - GUI - Refund - Text2 - Text Size", ref GUIRefund2TextSize);
 
             SaveConfig();
         }
 
-        static Dictionary<string, object> defaultPay()
+        void OnServerInitialized()
         {
-            var dp = new Dictionary<string, object>();
+            InitializeRustIO();
+            InitializeItems();
+            InitializeConstruction();
 
-            var dp0 = new Dictionary<string, object>();
-            dp0.Add("wood", "1");
-            dp.Add("0", dp0);
+            LoadConfigs();
+            
+            permission.RegisterPermission(permissionNormal, this);
+            permission.RegisterPermission(permissionAdmin, this);
+            permission.RegisterPermission(permissionTarget, this);
+            permission.RegisterPermission(permissionAll, this);
 
-            var dp1 = new Dictionary<string, object>();
-            dp1.Add("wood", "100");
-            dp.Add("1", dp1);
-
-            var dp2 = new Dictionary<string, object>();
-            dp2.Add("wood", "100");
-            dp2.Add("stones", "150");
-            dp.Add("2", dp2);
-
-            var dp3 = new Dictionary<string, object>();
-            dp3.Add("wood", "100");
-            dp3.Add("stones", "50");
-            dp3.Add("metal fragments", "75");
-            dp.Add("3", dp3);
-
-            var dp4 = new Dictionary<string, object>();
-            dp4.Add("wood", "250");
-            dp4.Add("stones", "350");
-            dp4.Add("metal fragments", "75");
-            dp4.Add("high quality metal", "25");
-            dp.Add("4", dp4);
-
-            var dpdepoyable = new Dictionary<string, object>();
-            dpdepoyable.Add("wood", "50");
-            dp.Add("deployable", dpdepoyable);
-
-            return dp;
+            rt = this;
         }
 
-        static Dictionary<string, object> defaultRefund()
+        void Loaded()
         {
-            var dr = new Dictionary<string, object>();
-
-            dr.Add("0", "100.0");
-            dr.Add("1", "80.0");
-            dr.Add("2", "60.0");
-            dr.Add("3", "40.0");
-            dr.Add("4", "20.0");
-
-            return dr;
+            lang.RegisterMessages(new Dictionary<string, string>
+            {
+                { "You don't have access to this command.", "You don't have access to this command."},
+                {"{0} {1} now has remover tool activated for {2} seconds ({3})","{0} {1} now has remover tool activated for {2} seconds ({3})" },
+                {"Couldn't use the RemoverTool: You don't have enough resources.","Couldn't use the RemoverTool: You don't have enough resources."},
+                {"RemoverTool from your target has been deactivated.","RemoverTool from your target has been deactivated."},
+                {"Couldn't use the RemoverTool: Admin has restricted this entity from being removed.","Couldn't use the RemoverTool: Admin has restricted this entity from being removed." },
+                {"Couldn't use the RemoverTool: An external plugin blocked the usage","Couldn't use the RemoverTool: An external plugin blocked the usage" },
+                {"Couldn't use the RemoverTool: No valid entity targeted","Couldn't use the RemoverTool: No valid entity targeted" },
+                {"Couldn't use the RemoverTool: Paying system crashed! Contact an administrator with the time and date to help him understand what happened.","Couldn't use the RemoverTool: Paying system crashed! Contact an administrator with the time and date to help him understand what happened." },
+                {"Couldn't use the RemoverTool: No valid entity targeted, or entity is too far.","Couldn't use the RemoverTool: No valid entity targeted, or entity is too far." },
+                {"Refund:","Refund:" },
+                {"Nothing","Nothing" },
+                { "Price:","Price:"},
+                {"Free","Free" },
+                {"Timeleft: {0}secs","Timeleft: {0}secs" },
+                {"Remover Tool {0}","Remover Tool {0}" },
+                {"RemoverTool is currently disabled.\n","RemoverTool is currently disabled.\n" },
+                {"You are not allowed to use this command option.\n","You are not allowed to use this command option.\n" },
+                {"You are not allowed to use this command.\n","You are not allowed to use this command.\n" },
+                {"Couldn't use the RemoverTool: The Remover Tool is blocked for another {0} seconds.","Couldn't use the RemoverTool: The Remover Tool is blocked for another {0} seconds." },
+                {"Couldn't find player. Multiple players match: {0}.\n","Couldn't find player. Multiple players match: {0}.\n" },
+                {"Couldn't find player. No players match this name: {0}.\n","Couldn't find player. No players match this name: {0}.\n" },
+                {"Couldn't use the RemoverTool: You don't have any rights to remove this.","Couldn't use the RemoverTool: You don't have any rights to remove this." },
+                {"<size=18>Remover Tool</size> by <color=#ce422b>Reneb</color>\n<color=\"#ffd479\">/remove optional:TimerInSeconds</color> - Activate/Deactivate the Remover Tool, You will need to have no highlighted items in your belt bar.","<size=18>Remover Tool</size> by <color=#ce422b>Reneb</color>\n<color=\"#ffd479\">/remove optional:TimerInSeconds</color> - Activate/Deactivate the Remover Tool, You will need to have no highlighted items in your belt bar." }
+            }, this);
         }
+
+        void Unload()
+        {
+            foreach (ToolRemover toolremover in Resources.FindObjectsOfTypeAll<ToolRemover>())
+            {
+                toolremover.Destroy();
+            }
+        }
+
+        #endregion
 
 
         /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -273,7 +355,7 @@ namespace Oxide.Plugins
         }
         private void InitializeRustIO()
         {
-            if (!useRustIO)
+            if (!RemoveWithRustIO)
             {
                 RustIO = null;
                 return;
@@ -291,484 +373,820 @@ namespace Oxide.Plugins
             return (bool)hasFriend.Invoke(RustIO, new object[] { playerId, friendId });
         }
 
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        /// Random Functions
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        #region Initializing
 
-        bool hasAccess(BasePlayer player, string permissionName, int minimumAuth)
+        void InitializeItems()
         {
-            if (player.net.connection.authLevel >= minimumAuth) return true;
-            if (permission.UserHasPermission(player.userID.ToString(), permissionName)) return true;
-            SendReply(player, MessageErrorNoAccess);
-            return false;
+            foreach (var item in ItemManager.GetItemDefinitions())
+            {
+                if (!ItemNameToItemID.ContainsKey(item.displayName.english.ToLower())) ItemNameToItemID.Add(item.displayName.english.ToLower(), item.itemid);
+
+                var itemdeployable = item?.GetComponent<ItemModDeployable>();
+                if (itemdeployable == null) continue;
+
+                if (!PrefabNameToDeployable.ContainsKey(itemdeployable.entityPrefab.resourcePath)) PrefabNameToDeployable.Add(itemdeployable.entityPrefab.resourcePath, item.displayName.english);
+            }
+        }
+        void InitializeConstruction()
+        {
+            foreach(var construction in PrefabAttribute.server.GetAll<Construction>())
+            {
+                if(construction.deployable  == null && construction.info.name.english != string.Empty)
+                    if(!PrefabNameToStructure.ContainsKey(construction.fullName)) PrefabNameToStructure.Add(construction.fullName, construction.info.name.english);
+            }
         }
 
-        object FindOnlinePlayer(string arg, out BasePlayer playerFound)
+        Dictionary<string, object> DefaultPay()
         {
-            playerFound = null;
-
-            ulong steamid = 0L;
-            ulong.TryParse(arg, out steamid);
-            string lowerarg = arg.ToLower();
-
-            foreach (BasePlayer player in BasePlayer.activePlayerList)
+            var d = new Dictionary<string, object>
             {
-                if (steamid != 0L)
-                    if (player.userID == steamid)
+                {"Twigs", new Dictionary<string,object>
                     {
-                        playerFound = player;
-                        return true;
+                        { "wood", 1 }
                     }
-                string lowername = player.displayName.ToLower();
-                if (lowername.Contains(lowerarg))
+                },
+                {"Wood", new Dictionary<string,object>
+                    {
+                        { "wood", 10 }
+                    }
+                },
+                {"Stone", new Dictionary<string,object>
+                    {
+                        { "stones", 50 },
+                        { "wood", 10 }
+                    }
+                },
+                {"Metal", new Dictionary<string,object>
+                    {
+                        { "metal fragments", 75 }
+                    }
+                },
+                {"TopTier", new Dictionary<string,object>
+                    {
+                         { "high quality metal", 5 }
+                    }
+                },
+            };
+            foreach (var itemname in PrefabNameToDeployable.Values)
+            {
+                d.Add(itemname, new Dictionary<string, object> {
+                    { "wood", 75 },
+                    {"metal fragments", 10 }
+                });
+            }
+
+            return d;
+        }
+
+        Dictionary<string,object> DefaultEntities()
+        {
+            var d = new Dictionary<string, object>
+            {
+                {"Twigs", true},
+                {"Wood", true},
+                {"Stone", true},
+                {"Metal", true},
+                {"TopTier", true}
+            };
+            foreach (var itemname in PrefabNameToStructure.Values)
+            {
+                d.Add(itemname, true);
+            }
+            foreach (var itemname in PrefabNameToDeployable.Values)
+            {
+                d.Add(itemname,true);
+            }
+            return d;
+        }
+
+        Dictionary<string, object> DefaultRefund()
+        {
+            var d = new Dictionary<string, object>
+            {
+                {"Twigs", new Dictionary<string,object>
+                    {
+                        { "wood", 1 }
+                    }
+                },
+                {"Wood", new Dictionary<string,object>
+                    {
+                        { "wood", 10 }
+                    }
+                },
+                {"Stone", 50},
+                {"Metal", new Dictionary<string,object>
+                    {
+                        { "metal fragments", 50 }
+                    }
+                },
+                {"TopTier", new Dictionary<string,object>
+                    {
+                        { "high quality metal", 2 }
+                    }
+                },
+            };
+            foreach (var itemname in PrefabNameToDeployable.Values)
+            {
+                d.Add(itemname, new Dictionary<string, object> {
+                    { itemname.ToLower(), 1 }
+                });
+            }
+
+            return d;
+        }
+
+        #endregion
+
+        #region Methods
+        static string GetMsg(string key, BasePlayer source = null) { return rt.lang.GetMessage(key, rt, source == null ? null : source.UserIDString); }
+
+        bool hasPermission(BasePlayer player, string perm, int authlevel)
+        {
+            if (player == null) return true;
+            if (player.net.connection.authLevel >= authlevel) return true;
+            return permission.UserHasPermission(player.userID.ToString(), perm);
+        }
+
+        string ListPlayersToString(List<IPlayer> players)
+        {
+            var returnstring = string.Empty;
+            foreach (var player in players)
+            {
+                returnstring += string.Format("{0} {1}\n", player.Id, player.Name);
+            }
+            return returnstring; 
+        }
+
+        bool GetParameters(BasePlayer player, string[] args, out RemoveType RemoveType, out BasePlayer Target, out int Time, out string Reason)
+        {
+            Reason = string.Empty;
+            Target = player;
+            RemoveType = RemoveType.Normal;
+            Time = RemoveDefaultTime;
+
+            if (args != null)
+            {
+                foreach (var arg in args)
                 {
-                    if (playerFound == null)
-                        playerFound = player;
-                    else
-                        return MessageMultiplePlayersFound;
+                    switch (arg.ToLower())
+                    {
+                        case "normal":
+                            RemoveType = RemoveType.Normal;
+                            break;
+                        case "admin":
+                            RemoveType = RemoveType.Admin;
+                            break;
+                        case "all":
+                            RemoveType = RemoveType.All;
+                            break;
+                        case "structure":
+                            RemoveType = RemoveType.Structure;
+                            break;
+                        default:
+                            ulong userid = 0L;
+                            int temptime = 0;
+                            if (arg.Length == 17 && ulong.TryParse(arg, out userid)) { Target = BasePlayer.Find(arg); }
+                            else if (int.TryParse(arg, out temptime)) { Time = temptime; }
+                            else
+                            {
+                                var players = covalence.Players.FindConnectedPlayers(arg).ToList();
+                                if (players.Count == 0) { Reason += string.Format(GetMsg("Couldn't find player. No players match this name: {0}.\n", player), arg); }
+                                else if (players.Count > 1) { Reason += string.Format(GetMsg("Couldn't find player. Multiple players match: {0}.\n", player), ListPlayersToString(players)); }
+                                else
+                                {
+                                    Target = ((GameObject)players[0]?.Character?.Object)?.GetComponentInParent<BasePlayer>();
+                                }
+                            }
+                            break;
+                    }
                 }
             }
-            if (playerFound == null) return MessageNoPlayersFound;
-            return true;
+            if (Target != player && !hasPermission(player, permissionTarget, authTarget)) Reason += string.Format(GetMsg("You are not allowed to use this command option.\n", player));
+            if (RemoveType == RemoveType.Normal && !hasPermission(player, permissionNormal, authNormal)) Reason += string.Format(GetMsg("You are not allowed to use this command.\n", player));
+            if ((RemoveType == RemoveType.All || RemoveType == RemoveType.Structure) && !hasPermission(player, permissionAll, authAll)) Reason += string.Format(GetMsg("You are not allowed to use this command option.\n", player));
+            if (RemoveType == RemoveType.Admin && !hasPermission(player, permissionAdmin, authAdmin)) Reason += string.Format(GetMsg("You are not allowed to use this command option.\n", player));
+            if (RemoveOverride && !hasPermission(player, permissionOverride, authOverride)) Reason += string.Format(GetMsg("RemoverTool is currently disabled.\n", player));
+            if (Time > RemoveMaxTime) Time = RemoveMaxTime;
+
+            return (Reason == string.Empty);
         }
 
-        static void PrintToChat(BasePlayer player, string message)
+        static void DoRemove(BaseEntity Entity, bool gibs = true)
         {
-            player.SendConsoleCommand("chat.add", new object[] { 0, message, 1f });
+            Interface.Oxide.CallHook("OnRemovedEntity", Entity);
+            Entity.Kill(gibs ? BaseNetworkable.DestroyMode.Gib : BaseNetworkable.DestroyMode.None);
         }
 
-        static BaseEntity FindRemoveObject(Ray ray, float distance)
+        #endregion
+
+        #region UI
+        public class UI
         {
-            RaycastHit hit;
-            if (!UnityEngine.Physics.Raycast(ray, out hit, distance, constructionColl))
-                return null;
-            return hit.GetEntity();
+            static public CuiElementContainer CreateElementContainer(string parent, string panelName, string color, string aMin, string aMax, bool useCursor)
+            {
+                var NewElement = new CuiElementContainer()
+                {
+                    {
+                        new CuiPanel
+                        {
+                            Image = {Color = color},
+                            RectTransform = {AnchorMin = aMin, AnchorMax = aMax},
+                            CursorEnabled = useCursor
+                        },
+                        new CuiElement().Parent = parent,
+                        panelName
+                    }
+                };
+                return NewElement;
+            }
+            static public void CreatePanel(ref CuiElementContainer container, string panel, string color, string aMin, string aMax, bool cursor = false)
+            { 
+                container.Add(new CuiPanel
+                {
+                    Image = { Color = color },
+                    RectTransform = { AnchorMin = aMin, AnchorMax = aMax },
+                    CursorEnabled = cursor
+                },
+                panel);
+            }
+            static public void CreateLabel(ref CuiElementContainer container, string panel, string color, string text, int size, string aMin, string aMax, TextAnchor align = TextAnchor.MiddleCenter)
+            {
+                container.Add(new CuiLabel
+                {
+                    Text = { Color = color, FontSize = size, Align = align, Text = text },
+                    RectTransform = { AnchorMin = aMin, AnchorMax = aMax }
+                },
+                panel);
+
+            }
+            static public void CreateButton(ref CuiElementContainer container, string panel, string color, string text, int size, string aMin, string aMax, string command, TextAnchor align = TextAnchor.MiddleCenter)
+            {
+                container.Add(new CuiButton
+                {
+                    Button = { Color = color, Command = command, FadeIn = 1.0f },
+                    RectTransform = { AnchorMin = aMin, AnchorMax = aMax },
+                    Text = { Text = text, FontSize = size, Align = align }
+                },
+                panel);
+            }
+        }
+        public static string GetName(string prefabname)
+        {
+            if (PrefabNameToStructure.ContainsKey(prefabname)) return PrefabNameToStructure[prefabname];
+            else if (PrefabNameToDeployable.ContainsKey(prefabname)) return PrefabNameToDeployable[prefabname];
+            return string.Empty;
+        } 
+
+        public static void CreateGUI(BasePlayer player, RemoveType removeType)
+        {
+            var panelName = "RemoverTool";
+            CuiHelper.DestroyUi(player, panelName);
+
+            var Class_Element = UI.CreateElementContainer("Overlay", panelName, GUIRemoverToolBackgroundColor, GUIRemoverToolAnchorMin, GUIRemoverToolAnchorMax, false);
+            CuiHelper.AddUi(player, Class_Element);
+
+            var panelName2 = "Remove";
+            CuiHelper.DestroyUi(player, panelName2);
+            var Class_Element2 = UI.CreateElementContainer(panelName, panelName2, GUIRemoveBackgroundColor, GUIRemoveAnchorMin, GUIRemoveAnchorMax, false);
+            UI.CreateLabel(ref Class_Element2, panelName2, GUIRemoveTextColor, string.Format(GetMsg("Remover Tool {0}", player), removeType == RemoveType.Normal ? string.Empty : string.Format("({0})", removeType.ToString())), GUIRemoveTextSize, GUIRemoveTextAnchorMin, GUIRemoveTextAnchorMax, TextAnchor.MiddleLeft);
+
+            CuiHelper.AddUi(player, Class_Element2);
+        }
+        public static void GUITimeLeftUpdate(BasePlayer player, int timeleft)
+        {
+            var panelName = "RemoverToolTimeLeft";
+            CuiHelper.DestroyUi(player, panelName);
+
+            var Class_Element = UI.CreateElementContainer("RemoverTool", panelName, GUITimeLeftBackgroundColor, GUITimeLeftAnchorMin, GUITimeLeftAnchorMax, false);
+            UI.CreateLabel(ref Class_Element, panelName, GUITimeLeftTextColor, string.Format(GetMsg("Timeleft: {0}secs", player), timeleft.ToString()), GUITimeLeftTextSize, GUITimeLeftTextAnchorMin, GUITimeLeftTextAnchorMax, TextAnchor.MiddleLeft);
+
+            CuiHelper.AddUi(player, Class_Element);
+        }
+        public static void GUIEntityUpdate(BasePlayer player, BaseEntity TargetEntity)
+        {
+            var panelName = "RemoverToolEntity";
+            CuiHelper.DestroyUi(player, panelName);
+            if (TargetEntity == null) return;
+            var Name = GetName(TargetEntity.PrefabName);
+            var Class_Element = UI.CreateElementContainer("RemoverTool", panelName, GUIEntityBackgroundColor, GUIEntityAnchorMin, GUIEntityAnchorMax, false);
+            UI.CreateLabel(ref Class_Element, panelName, GUIEntityTextColor, Name, GUIEntityTextSize, GUIEntityTextAnchorMin, GUIEntityTextAnchorMax, TextAnchor.MiddleLeft);
+
+            CuiHelper.AddUi(player, Class_Element);
         }
 
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        /// class Tool Remover
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        public static void GUIPricesUpdate(BasePlayer player, bool usePrice, BaseEntity TargetEntity)
+        {
+            var panelName = "RemoverToolPrice";
+            CuiHelper.DestroyUi(player, panelName);
+            if (TargetEntity == null) return;
+            Dictionary<string, object> price = new Dictionary<string, object>();
+            if(usePrice)
+            {
+                price = GetPrice(TargetEntity);
+            }
+            string cost = string.Empty;
+            if (price.Count == 0) cost = GetMsg("Free", player);
+            else
+            {
+                foreach(KeyValuePair<string,object> p in price)
+                {
+                    cost += string.Format("{2}{0} x{1}", p.Key, p.Value.ToString(), cost != string.Empty ? "\n" : string.Empty );
+                }
+            }
+            var Class_Element = UI.CreateElementContainer("RemoverTool", panelName, GUIPriceBackgroundColor, GUIPriceAnchorMin, GUIPriceAnchorMax, false);
+            UI.CreateLabel(ref Class_Element, panelName, GUIPriceTextColor, GetMsg("Price:", player), GUIPriceTextSize, GUIPriceTextAnchorMin, GUIPriceTextAnchorMax, TextAnchor.MiddleLeft);
+            UI.CreateLabel(ref Class_Element, panelName, GUIPrice2TextColor, cost, GUIPrice2TextSize, GUIPrice2TextAnchorMin, GUIPrice2TextAnchorMax, TextAnchor.MiddleLeft);
+            CuiHelper.AddUi(player, Class_Element);
+        }
+        public static void GUIRefundUpdate(BasePlayer player, bool useRefund, BaseEntity TargetEntity)
+        {
+            var panelName = "RemoverToolRefund";
+            CuiHelper.DestroyUi(player, panelName);
+            if (TargetEntity == null) return;
+            Dictionary<string, object> refund = new Dictionary<string, object>();
+            if (useRefund)
+            {
+                refund = GetRefund(TargetEntity);
+            }
+            string r = string.Empty;
+            if (refund.Count == 0) r = GetMsg("Nothing", player);
+            else
+            {
+                foreach (KeyValuePair<string, object> p in refund)
+                {
+                    r += string.Format("{2}{0} x{1}", p.Key, p.Value.ToString(), r != string.Empty ? "\n" : string.Empty);
+                }
+            }
+            var Class_Element = UI.CreateElementContainer("RemoverTool", panelName, GUIRefundBackgroundColor, GUIRefundAnchorMin, GUIRefundAnchorMax, false);
+            UI.CreateLabel(ref Class_Element, panelName, GUIRefundTextColor, GetMsg("Refund:", player), GUIRefundTextSize, GUIRefundTextAnchorMin, GUIRefundTextAnchorMax, TextAnchor.MiddleLeft);
+            UI.CreateLabel(ref Class_Element, panelName, GUIRefund2TextColor, r, GUIRefund2TextSize, GUIRefund2TextAnchorMin, GUIRefund2TextAnchorMax, TextAnchor.MiddleLeft);
+            CuiHelper.AddUi(player, Class_Element);
+        }
+
+        public static void GUIAuthorizationUpdate(BasePlayer player, RemoveType removeType, BaseEntity TargetEntity, bool shouldPay)
+        {
+            var panelName = "RemoverToolAuth";
+            CuiHelper.DestroyUi(player, panelName);
+            if (TargetEntity == null) return;
+             
+            string Reason = string.Empty;
+            string GUIColor = CanRemoveEntity(player, removeType, TargetEntity, shouldPay, out Reason) ? GUIAllowedBackgroundColor : GUIRefusedBackgroundColor;
+            var Class_Element = UI.CreateElementContainer("RemoverTool", panelName, GUIColor, GUIAuthorizationsAnchorMin, GUIAuthorizationsAnchorMax, false);
+
+            CuiHelper.AddUi(player, Class_Element);
+        }
+        public static void DestroyGUI(BasePlayer player)
+        {
+            CuiHelper.DestroyUi(player, "RemoverTool");
+        }
+        #endregion
+
+        #region ToolRemover Class
 
         class ToolRemover : MonoBehaviour
         {
-            public BasePlayer player;
-            public int endTime;
-            public int timeLeft;
-            public RemoveType removeType;
-            public BasePlayer playerActivator;
-            public float distance;
-            public float lastUpdate;
+            public BasePlayer player { get; set; }
+            public BasePlayer source { get; set; }
+            public int timeLeft { get; set; }
+            public float distance { get; set; }
+            public RemoveType removetype { get; set; }
 
-            public InputState inputState;
+            public bool Pay { get; set; }
+            public bool Refund { get; set; }
+
+            public BaseEntity TargetEntity { get; set; }
+            RaycastHit RayHit;
+
+            InputState state;
+
+            float lastUpdate { get; set; }
+            float lastRemove { get; set; }
 
             void Awake()
             {
                 player = GetComponent<BasePlayer>();
                 lastUpdate = UnityEngine.Time.realtimeSinceStartup;
+                lastRemove = UnityEngine.Time.realtimeSinceStartup;
             }
 
-            public void RefreshDestroy()
+            public void Start()
             {
-                timeLeft = endTime;
-                CancelInvoke("DoDestroy");
-                CancelInvoke("RefreshRemoveGui");
-                Invoke("DoDestroy", endTime);
-                InvokeRepeating("RefreshRemoveGui", 1, 1);
-                DestroyGUI(player);
-                NewGUI(this);
+                state = (InputState)serverInput.GetValue(player);
+                CreateGUI(player, removetype);
+                CancelInvoke("RemoveUpdate");
+                InvokeRepeating("RemoveUpdate", 0f, 1f);
             }
 
-            void DoDestroy()
-            {
-                GameObject.Destroy(this);
-            }
-
-            void RefreshRemoveGui()
+            void RemoveUpdate()
             {
                 timeLeft--;
-                RefreshGUI(this);
+                if(timeLeft <= 0) { Destroy(); return; }
+                GUITimeLeftUpdate(player, timeLeft);
+                GUIEntityUpdate(player, TargetEntity);
+                if (removetype == RemoveType.Normal && GUIAuthorizations) GUIAuthorizationUpdate(player, removetype, TargetEntity, Pay);
+                if (removetype == RemoveType.Normal && GUIPrices) GUIPricesUpdate(player, Pay, TargetEntity);
+                if (removetype == RemoveType.Normal && GUIRefund) GUIRefundUpdate(player, Refund, TargetEntity);
             }
 
             void FixedUpdate()
             {
-                if (!player.IsConnected() || player.IsDead()) { GameObject.Destroy(this); return; }
-                inputState = serverinput.GetValue(player) as InputState;
-                if (inputState.WasJustPressed(BUTTON.FIRE_PRIMARY))
+                if (player.IsSleeping() || !player.IsConnected()) { Destroy(); return; }
+
+                float currentTime = UnityEngine.Time.realtimeSinceStartup;
+                if (currentTime - lastUpdate >= 0.5f)
                 {
-                    float currentTime = UnityEngine.Time.realtimeSinceStartup;
-                    if (lastUpdate + 0.5f < currentTime)
+                    bool flag1 = Physics.Raycast(player.eyes.HeadRay(), out RayHit, distance, colliderRemovable);
+                    TargetEntity = flag1 ? RayHit.GetEntity() : null;
+                    lastUpdate = currentTime;
+                }
+
+                if (state.IsDown(BUTTON.FIRE_PRIMARY))
+                {
+                    if(currentTime - lastRemove >= 0.5f)
                     {
-                        lastUpdate = currentTime;
-                        if (player.GetActiveItem() != null)
-                        {
-                            PrintToChat(player, MessageErrorCantUseRemoveWithItem);
-                            return;
-                        }
-                        Ray ray = new Ray(player.eyes.position, Quaternion.Euler(inputState.current.aimAngles) * Vector3.forward);
-                        TryRemove(player, ray, removeType, distance);
+                        var returnmsg = TryRemove(player, removetype, distance, Pay, Refund);
+                        if (returnmsg != string.Empty) player.ChatMessage(returnmsg);
+                        lastRemove = currentTime;
                     }
                 }
             }
 
-            void OnDestroy()
-            {
+            public void Destroy() {
+                CancelInvoke("RemoveUpdate");
                 DestroyGUI(player);
-                if (playerActivator != player)
-                {
-                    if (playerActivator.IsConnected())
-                        PrintToChat(playerActivator, string.Format(MessageTargetRemoveEnded, player.displayName));
-                }
+                GameObject.Destroy(this);
             }
         }
-        void EndRemoverTool(BasePlayer player)
-        {
-            ToolRemover toolremover = player.GetComponent<ToolRemover>();
-            if (toolremover == null) return;
-            GameObject.Destroy(toolremover);
-        }
-        static void DestroyGUI(BasePlayer player)
-        {
-            if (player.net == null) return;
-            Oxide.Game.Rust.Cui.CuiHelper.DestroyUi(player, "RemoveMsg");
-        }
-        static void NewGUI(ToolRemover toolremover)
-        {
-            BasePlayer player = toolremover.player;
-            CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "AddUI", new Facepunch.ObjectList(mainjson, null, null, null, null));
-            CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "AddUI", new Facepunch.ObjectList(timeleftjsonheader, null, null, null, null));
-            CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "AddUI", new Facepunch.ObjectList(titlejson.Replace("{removeType}", toolremover.removeType == RemoveType.Normal ? string.Empty : toolremover.removeType == RemoveType.Admin ? "(Admin)" : "(All)"), null, null, null, null));
-            CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "AddUI", new Facepunch.ObjectList(entityjsonheader, null, null, null, null));
-            if (usePay)
-                CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "AddUI", new Facepunch.ObjectList(costjsonheader, null, null, null, null));
-        }
-        static void RefreshGUI(ToolRemover toolPlayer)
-        {
-            Oxide.Game.Rust.Cui.CuiHelper.DestroyUi(toolPlayer.player, "RemoveTimeleftMsg");
-            Oxide.Game.Rust.Cui.CuiHelper.DestroyUi(toolPlayer.player, "RemoveEntityMsg");
-            Oxide.Game.Rust.Cui.CuiHelper.DestroyUi(toolPlayer.player, "RemoveCostMsg");
-            string cost = string.Empty;
-            string entity = string.Empty;
+        #endregion
 
-            toolPlayer.inputState = serverinput.GetValue(toolPlayer.player) as InputState;
-            Ray ray = new Ray(toolPlayer.player.eyes.position, Quaternion.Euler(toolPlayer.inputState.current.aimAngles) * Vector3.forward);
-
-            BaseEntity removeObject = FindRemoveObject(ray, toolPlayer.distance);
-            if (removeObject != null)
+        #region Pay
+        static bool Pay(BasePlayer player, BaseEntity TargetEntity)
+        {
+            var cost = GetPrice(TargetEntity);
+            try
             {
-                entity = removeObject.ToString();
-                entity = entity.Substring(entity.LastIndexOf("/") + 1).Replace(".prefab", "").Replace("_deployed", "").Replace(".deployed", "");
-                entity = entity.Substring(0, entity.IndexOf("["));
-                if (usePay && toolPlayer.removeType == RemoveType.Normal)
+                List<Item> collect = new List<Item>();
+                foreach (KeyValuePair<string, object> p in cost)
                 {
-                    Dictionary<string, object> costList = GetCost(removeObject);
-                    foreach (KeyValuePair<string, object> pair in costList)
+                    var priceName = p.Key.ToLower();
+                    var amount = (int)p.Value;
+                    if (ItemNameToItemID.ContainsKey(priceName))
                     {
-                        cost += string.Format("{0} x{1}\n", pair.Key, pair.Value.ToString());
+                        var itemid = ItemNameToItemID[priceName];
+                        player.inventory.Take(collect, itemid, amount);
+                        player.Command("note.inv", itemid, -amount);
+                    }
+                    else if (priceName == "xp")
+                    {
+                        var data = XpData.GetValue(player.xp) as Rust.Xp.Agent.Data;
+                        data.EarnedXp = player.xp.EarnedXp - amount;
+                    }
+                    else if (priceName == "withdraw")
+                    {
+                        var w = Interface.Oxide.CallHook("Withdraw", player.userID, (double)amount);
+                        if (w == null || !(bool)w) return false;
+                    }
+                }
+                foreach (Item item in collect)
+                {
+                    item.Remove(0f);
+                }
+            }
+            catch(Exception e) { Interface.Oxide.LogWarning(string.Format("{0} {1} couldn't pay to remove entity: {2}", player.UserIDString, player.displayName, e.Message )); return false; }
+
+            return true;
+        }
+        static Dictionary<string, object> GetPrice(BaseEntity TargetEntity)
+        {
+            var cost = new Dictionary<string, object>();
+            var buildingblock = TargetEntity.GetComponent<BuildingBlock>();
+            if (buildingblock != null)
+            {
+                var grade = buildingblock.grade.ToString();
+                if (Price.ContainsKey(grade)) cost = Price[grade] as Dictionary<string, object>;
+            }
+            else
+            {
+                var prefabname = TargetEntity.PrefabName;
+                if (PrefabNameToDeployable.ContainsKey(prefabname))
+                {
+                    var deployablename = PrefabNameToDeployable[prefabname];
+                    if (Price.ContainsKey(deployablename))
+                    {
+                        cost = Price[deployablename] as Dictionary<string, object>;
                     }
                 }
             }
-            string ejson = entityjsonmsg.Replace("{entity}", entity);
-            string cjson = costjsonmsg.Replace("{cost}", cost);
-            string tjson = timeleftjsonmsg.Replace("{timeleft}", toolPlayer.timeLeft.ToString());
-            CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = toolPlayer.player.net.connection }, null, "AddUI", new Facepunch.ObjectList(ejson, null, null, null, null));
-            if (usePay)
-                CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = toolPlayer.player.net.connection }, null, "AddUI", new Facepunch.ObjectList(cjson, null, null, null, null));
-
-            CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = toolPlayer.player.net.connection }, null, "AddUI", new Facepunch.ObjectList(tjson, null, null, null, null));
+            return cost;
         }
 
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        /// GUI 
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        public static string mainjson = @"[  
-		{ 
-			""name"": ""RemoveMsg"",
-			""parent"": ""HUD/Overlay"",
-			""components"":
-			[
-				{
-					 ""type"":""UnityEngine.UI.Image"",
-					 ""color"":""0 0 0 0"",
-				},
-				{
-					""type"":""RectTransform"",
-					""anchormin"": ""{xmin} {ymin}"",
-					""anchormax"": ""{xmax} {ymax}""
-				}
-			]
-		},
-        { 
-			""parent"": ""RemoveMsg"",
-			""components"":
-			[
-				{
-					 ""type"":""UnityEngine.UI.Image"",
-					 ""color"":""0.1 0.1 0.1 0.4"",
-				},
-				{
-					""type"":""RectTransform"",
-					""anchormin"": ""0 {yboxmin}"",
-					""anchormax"": ""1 1""
-				}
-			]
-		}
-        ]
-		";
-        public static string titlejson = @"[  
-		{
-			""parent"": ""RemoveMsg"",
-			""components"":
-			[
-				{
-					""type"":""UnityEngine.UI.Text"",
-					""text"":""<color=red>Remover Tool {removeType}</color>"", 
-					""fontSize"":15,
-					""align"": ""MiddleCenter"",
-				},
-				{
-					""type"":""RectTransform"",
-					""anchormin"": ""0.0 0.83"",
-					""anchormax"": ""1.0 0.98""
-				}
-			]
-		}
-        ]
-		";
-        public static string timeleftjsonheader = @"[  
+        static bool CanPay(BasePlayer player, BaseEntity TargetEntity)
         {
-			""parent"": ""RemoveMsg"",
-			""components"":
-			[
-				{
-					""type"":""UnityEngine.UI.Text"",
-					""text"":""Time left"",
-					""fontSize"":15,
-					""align"": ""MiddleLeft"",
-				},
-				{
-					""type"":""RectTransform"",
-					""anchormin"": ""0.05 0.65"",
-					""anchormax"": ""0.3 0.80""
-				}
-			]
-		}
-        ]
-		";
-        public static string timeleftjsonmsg = @"[  
-		{
-            ""name"": ""RemoveTimeleftMsg"",
-			""parent"": ""RemoveMsg"",
-			""components"":
-			[
-				{
-					""type"":""UnityEngine.UI.Text"",
-					""text"":""{timeleft}s"",
-					""fontSize"":15,
-					""align"": ""MiddleLeft"",
-				},
-				{
-					""type"":""RectTransform"",
-					""anchormin"": ""0.4 0.65"",
-					""anchormax"": ""1.0 0.80""
-				}
-			]
-		}
-        ]
-		";
-        public static string entityjsonheader = @"[  
-		{
-			""parent"": ""RemoveMsg"",
-			""components"":
-			[
-				{
-					""type"":""UnityEngine.UI.Text"",
-					""text"":""Entity"",
-					""fontSize"":15,
-					""align"": ""MiddleLeft"",
-				},
-				{
-					""type"":""RectTransform"",
-					""anchormin"": ""0.05 0.50"",
-					""anchormax"": ""0.3 0.65""
-				}
-			]
-		}
-        ]
-		";
-        public static string entityjsonmsg = @"[  
-        {
-            ""name"": ""RemoveEntityMsg"",
-			""parent"": ""RemoveMsg"",
-			""components"":
-			[
-				{
-					""type"":""UnityEngine.UI.Text"",
-					""text"":""{entity}"",
-					""fontSize"":15,
-					""align"": ""MiddleLeft"",
-				},
-				{
-					""type"":""RectTransform"",
-					""anchormin"": ""0.4 0.50"",
-					""anchormax"": ""1.0 0.65""
-				}
-			]
-		}
-        ]
-		";
-        public static string costjsonheader = @"[  
-		{
-			""parent"": ""RemoveMsg"",
-			""components"":
-			[
-				{
-					""type"":""UnityEngine.UI.Text"",
-					""text"":""Cost"",
-					""fontSize"":15,
-					""align"": ""MiddleLeft"",
-				},
-				{
-					""type"":""RectTransform"",
-					""anchormin"": ""0.05 0.0"",
-					""anchormax"": ""0.3 0.50""
-				}
-			]
-		}
-        ]
-		";
-        public static string costjsonmsg = @"[ 
-        {
-            ""name"": ""RemoveCostMsg"",
-			""parent"": ""RemoveMsg"",
-			""components"":
-			[
-				{
-					""type"":""UnityEngine.UI.Text"",
-					""text"":""{cost}"",
-					""fontSize"":15,
-					""align"": ""MiddleLeft"",
-				},
-				{
-					""type"":""RectTransform"",
-					""anchormin"": ""0.4 0.0"",
-					""anchormax"": ""1.0 0.5""
-				}
-			]
-		}
-		]
-		";
+            var prefabname = TargetEntity.PrefabName;
 
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        /// Remove functions
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        static void TryRemove(BasePlayer player, Ray ray, RemoveType removeType, float distance)
-        {
-            BaseEntity removeObject = FindRemoveObject(ray, distance);
-            if (removeObject == null)
-            {
-                PrintToChat(player, MessageErrorNothingToRemove);
-                return;
-            }
-            var success = CanRemoveEntity(player, removeObject, removeType);
-            if (success is string)
-            {
-                PrintToChat(player, (string)success);
-                return;
-            }
-            if (usePay && !CanPay(player, removeObject, removeType))
-            {
-                PrintToChat(player, MessageErrorNotEnoughPay);
-                return;
-            }
-            if (removeType == RemoveType.All)
-            {
-                Interface.Call("RemoveAllFrom", removeObject.transform.position);
-                return;
-            }
-            if (usePay)
-                Pay(player, removeObject, removeType);
-            if (useRefund)
-                Refund(player, removeObject, removeType);
-            DoRemove(removeObject);
+            var cost = GetPrice(TargetEntity);
+            if (cost.Count == 0) return true;
 
-        }
-
-        List<Vector3> removeFrom = new List<Vector3>();
-        int currentRemove = 0;
-        void RemoveAllFrom(Vector3 pos)
-        {
-            removeFrom.Add(pos);
-            DelayRemoveAll();
-        }
-
-        List<BaseEntity> wasRemoved = new List<BaseEntity>();
-        void DelayRemoveAll()
-        {
-            if (currentRemove >= removeFrom.Count)
+            foreach (KeyValuePair<string, object> p in cost)
             {
-                currentRemove = 0;
-                removeFrom.Clear();
-                wasRemoved.Clear();
-                return;
-            }
-            List<BaseEntity> list = Pool.GetList<BaseEntity>();
-            Vis.Entities<BaseEntity>(removeFrom[currentRemove], 3f, list, constructionColl);
-            for(int i = 0; i < list.Count; i++)
-            {
-                BaseEntity ent = list[i];
-                if (wasRemoved.Contains(ent)) continue;
-                if (!removeFrom.Contains(ent.transform.position))
-                    removeFrom.Add(ent.transform.position);
-                wasRemoved.Add(ent);
-                DoRemove(ent);
-            }
-            currentRemove++;
-            timer.Once(0.01f, () => DelayRemoveAll());
-        }
-
-        static void DoRemove(BaseEntity removeObject)
-        {
-            if (removeObject == null) return;
-            removeObject.KillMessage();
-        }
-
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        /// Refund
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        static void Refund(BasePlayer player, BaseEntity entity, RemoveType removeType)
-        {
-            if (removeType == RemoveType.All) return;
-            if (refundDeployable && entity.GetComponentInParent<Deployable>() != null)
-            {
-                Deployable worlditem = entity.GetComponentInParent<Deployable>();
-                if (deployedToItem.ContainsKey(worlditem.gameObject.name))
-                    player.inventory.GiveItem(ItemManager.CreateByItemID(deployedToItem[worlditem.gameObject.name], 1, false));
-            }
-            else if (refundStructure && entity is BuildingBlock)
-            {
-                BuildingBlock buildingblock = entity as BuildingBlock;
-                if (buildingblock.blockDefinition == null) return;
-
-                int buildingblockGrade = (int)buildingblock.grade;
-                if (buildingblock.blockDefinition.grades[buildingblockGrade] != null && refundPercentage.ContainsKey(buildingblockGrade.ToString()))
+                var priceName = p.Key.ToLower();
+                var amount = (int)p.Value;
+                if (ItemNameToItemID.ContainsKey(priceName))
                 {
-                    decimal refundRate = decimal.Parse((string)refundPercentage[buildingblockGrade.ToString()]) / 100.0m;
-                    List<ItemAmount> currentCost = buildingblock.blockDefinition.grades[buildingblockGrade].costToBuild as List<ItemAmount>;
-                    foreach (ItemAmount ia in currentCost)
-                    {
-			player.inventory.GiveItem(ItemManager.CreateByItemID(ia.itemid, Convert.ToInt32((decimal)ia.amount * refundRate), false));
+                    int c = player.inventory.GetAmount(ItemNameToItemID[priceName]);
+                    if (c < amount) return false;
+                }
+                else if (priceName == "xp")
+                {
+                    float c = player.xp.UnspentXp;
+                    if (c < amount) return false;
+                }
+                else if(priceName == "withdraw")
+                {
+                    var b = Interface.Oxide.CallHook("GetPlayerMoney", player.userID);
+                    if (b == null) return false;
+                    var balance = (double)b;
+                    if (balance <= amount) return false;
+                }
+            }
+            return true;
+        }
+        #endregion
 
+        #region Refund
+        static void GiveRefund(BasePlayer player, BaseEntity TargetEntity)
+        {
+            var refund = GetRefund(TargetEntity);
+            foreach (KeyValuePair<string, object> p in refund)
+            {
+                var itemname = p.Key.ToLower();
+                if (ItemNameToItemID.ContainsKey(itemname))
+                {
+                    var itemid = ItemNameToItemID[itemname];
+                    var itemamount = (int)p.Value;
+                    var item = ItemManager.CreateByItemID(itemid, itemamount);
+                    player.inventory.GiveItem(item, null);
+                    player.Command("note.inv", itemid, itemamount);
+                }
+                else { Interface.Oxide.LogWarning(string.Format("{0} {1} didn't receive refund because {2} doesn't seem to be a valid item name", player.UserIDString, player.displayName, itemname)); }
+            }
+        }
+
+        static Dictionary<string, object> GetRefund(BaseEntity TargetEntity)
+        {
+            var refund = new Dictionary<string, object>();
+            var buildingblock = TargetEntity.GetComponent<BuildingBlock>();
+            if (buildingblock != null)
+            {
+                var grade = buildingblock.grade.ToString();
+                if (Refund.ContainsKey(grade))
+                {
+                    if(Refund[grade] is Dictionary<string,object>)
+                        refund = Refund[grade] as Dictionary<string, object>;
+                    else if(Refund[grade] is int)
+                    {
+                        var p = (int)Refund[grade] / 100f;
+                        var @enum = buildingblock.grade;
+                        var c = buildingblock.blockDefinition.grades[(int)@enum];
+                        foreach(var ia in c.costToBuild)
+                        {
+                            var a = ia.amount * p;
+                            if (Mathf.Floor(a) < 1) continue;
+                            refund.Add(ia.itemDef.displayName.english.ToLower(), (int)a);
+                        }
                     }
                 }
             }
+            else
+            {
+                var Name = GetName(TargetEntity.PrefabName);
+                if (Refund.ContainsKey(Name)) refund = Refund[Name] as Dictionary<string, object>;
+            }
+            return refund;
         }
 
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        /// Check Access
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        #endregion
+
+        #region RaidBlocker
+        void OnEntityDeath(BaseCombatEntity entity, HitInfo info)
+        {
+            if (!RaidBlocker) return;
+            if (info == null) return;
+            BuildingBlock block = entity?.GetComponent<BuildingBlock>();
+            if (block == null) return;
+
+            var attacker = info.InitiatorPlayer;
+            if(attacker != null)
+            {
+                if (HasAccess(attacker, entity.GetComponent<BaseEntity>())) return;
+            }
+
+            BlockRemove(entity);
+        }
+
+        void BlockRemove(BaseCombatEntity entity)
+        {
+            if(RaidBlockerBlockBuildingID)
+            {
+                var buildingid = entity.GetComponent<BuildingBlock>()?.buildingID;
+                if (buildingid == null) return;
+                LastAttackedBuildings[(uint)buildingid] = UnityEngine.Time.realtimeSinceStartup;
+            }
+
+            if(RaidBlockerBlockSurroundingPlayers)
+            {
+                foreach(var collider in UnityEngine.Physics.OverlapSphere(entity.transform.position, (float)RaidBlockerRadius, colliderPlayer))
+                {
+                    var player = collider.GetComponent<BasePlayer>();
+                    LastBlockedPlayers[player.userID] = UnityEngine.Time.realtimeSinceStartup;
+                }
+            }
+        }
+        static bool IsBlocked(BasePlayer player, BaseEntity TargetEntity, out float timeLeft)
+        {
+            timeLeft = 0f;
+            if(RaidBlockerBlockBuildingID)
+            {
+                var buildingid = TargetEntity.GetComponent<BuildingBlock>()?.buildingID;
+                if(buildingid != null)
+                {
+                    timeLeft = (float)RaidBlockerTime - (UnityEngine.Time.realtimeSinceStartup - LastAttackedBuildings[(uint)buildingid]);
+                    if (timeLeft > 0f)
+                    {
+                        return true;
+                    }
+                }
+            }
+            if(RaidBlockerBlockSurroundingPlayers)
+            {
+                timeLeft = (float)RaidBlockerTime - (UnityEngine.Time.realtimeSinceStartup - LastBlockedPlayers[player.userID]);
+                if (timeLeft > 0f)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+        #endregion
+
+        #region TryRemove
+        static string TryRemove(BasePlayer player, RemoveType removeType, float distance, bool shouldPay, bool shouldRefund)
+        {
+            RaycastHit RayHit;
+            bool flag1 = Physics.Raycast(player.eyes.HeadRay(), out RayHit, distance, colliderRemovable);
+            var TargetEntity = flag1 ? RayHit.GetEntity() : null;
+
+            if (TargetEntity == null) return GetMsg("Couldn't use the RemoverTool: No valid entity targeted, or entity is too far.", player);
+
+            string Reason = string.Empty;
+            if (!CanRemoveEntity(player, removeType, TargetEntity, shouldPay, out Reason))
+            {
+                return Reason;
+            }
+
+            if (removeType == RemoveType.All) { RemoveAll(TargetEntity); return string.Empty; }
+            if (removeType == RemoveType.Structure) { RemoveStructure(TargetEntity); return string.Empty; }
+
+            if (shouldPay)
+            {
+                bool flag2 = Pay(player, TargetEntity);
+                if (!flag2)
+                {
+                    return GetMsg("Couldn't use the RemoverTool: Paying system crashed! Contact an administrator with the time and date to help him understand what happened.", player);
+                }
+            }
+
+            if (shouldRefund)
+            {
+                GiveRefund(player, TargetEntity);
+            }
+
+            DoRemove(TargetEntity, removeType == RemoveType.Normal ? removeGibsNormal : removeGibsAdmin);
+
+            return string.Empty;
+        }
+
+        #endregion
+
+        #region Remove Conditions
+        static bool CanRemoveEntity(BasePlayer player, RemoveType removeType, BaseEntity TargetEntity, bool shouldPay, out string Reason)
+        {
+            Reason = string.Empty;
+            float timeLeft = 0f;
+
+            if (!IsRemovableEntity(TargetEntity))
+            {
+                Reason = GetMsg("Couldn't use the RemoverTool: No valid entity targeted", player);
+                return false;
+            }
+
+            if (removeType != RemoveType.Normal) return true;
+
+            var externalPlugins = Interface.CallHook("canRemove", player);
+            if (externalPlugins != null)
+            {
+                Reason = externalPlugins is string ? (string)externalPlugins : GetMsg("Couldn't use the RemoverTool: An external plugin blocked the usage", player);
+                return false;
+            }
+
+            if (!IsValidEntity(TargetEntity))
+            {
+                Reason = GetMsg("Couldn't use the RemoverTool: Admin has restricted this entity from being removed.", player);
+                return false;
+            }
+            if(IsBlocked(player, TargetEntity, out timeLeft))
+            {
+                Reason = string.Format(GetMsg("Couldn't use the RemoverTool: The Remover Tool is blocked for another {0} seconds.", player), timeLeft.ToString());
+                return false;
+            }
+
+            if (shouldPay && removeType == RemoveType.Normal && !CanPay(player, TargetEntity))
+            {
+                Reason = GetMsg("Couldn't use the RemoverTool: You don't have enough resources.", player);
+                return false;
+            }
+
+            if (HasAccess(player, TargetEntity)) return true;
+
+            Reason = GetMsg("Couldn't use the RemoverTool: You don't have any rights to remove this.", player);
+
+            return false;
+        }
+        bool AreFriends(string steamid, string friend)
+        {
+            if (RemoveWithRustIO && RustIOIsInstalled())
+            {
+                if (HasFriend(steamid, friend)) return true;
+            }
+            if (RemoveWithFriends && Friends != null)
+            {
+                var r = Friends.CallHook("HasFriend", steamid, friend);
+                if (r != null && (bool)r) return true;
+            }
+            return false;
+        }
+        static bool HasAccess(BasePlayer player, BaseEntity TargetEntity)
+        {
+            if (RemoveWithEntityOwners)
+            {
+                if (TargetEntity.OwnerID == player.userID) return true;
+                if (rt.AreFriends(TargetEntity.OwnerID.ToString(), player.userID.ToString())) return true;
+            }
+            if (RemoveWithBuildingOwners)
+            {
+                BuildingBlock BuildingRef = TargetEntity.GetComponent<BuildingBlock>();
+                if (BuildingRef == null)
+                {
+                    RaycastHit supportHit;
+                    if (Physics.Raycast(TargetEntity.transform.position + new Vector3(0f, 0.1f, 0f), new Vector3(0f, -1f, 0f), out supportHit, 3f, colliderBuilding))
+                    {
+                        BaseEntity supportEnt = supportHit.GetEntity();
+                        if (supportEnt != null)
+                        {
+                            BuildingRef = supportEnt.GetComponent<BuildingBlock>();
+                        }
+                    }
+                }
+                if (BuildingRef != null)
+                {
+                    var returnhook = Interface.GetMod().CallHook("FindBlockData", new object[] { BuildingRef });
+                    if (returnhook is string)
+                    {
+                        string ownerid = (string)returnhook;
+                        if (player.userID.ToString() == ownerid) return true;
+                        if (rt.AreFriends(ownerid, player.userID.ToString())) return true;
+                    }
+                }
+            }
+            if (RemoveWithToolCupboards && hasTotalAccess(player))
+            {
+                return true;
+            }
+            return false;
+        }
+
+        static bool IsRemovableEntity(BaseEntity entity)
+        {
+            var Name = GetName(entity.PrefabName);
+            return (!(Name == string.Empty));
+        }
+        static bool IsValidEntity(BaseEntity entity)
+        {
+            var Name = GetName(entity.PrefabName);
+
+            if (ValidEntities.ContainsKey(Name) && !(bool)ValidEntities[Name]) return false;
+
+            var buildingblock = entity.GetComponent<BuildingBlock>();
+            if(buildingblock != null)
+            {
+                if (ValidEntities.ContainsKey(buildingblock.grade.ToString()) && !(bool)ValidEntities[buildingblock.grade.ToString()]) return false;
+            }
+
+            return true;
+        }
         static bool hasTotalAccess(BasePlayer player)
         {
-            List<BuildingPrivlidge> playerpriv = buildingPrivlidges.GetValue(player) as List<BuildingPrivlidge>;
+            List<BuildingPrivlidge> playerpriv = buildingPrivilege.GetValue(player) as List<BuildingPrivlidge>;
             if (playerpriv.Count == 0)
             {
                 return false;
@@ -776,13 +1194,13 @@ namespace Oxide.Plugins
             foreach (BuildingPrivlidge priv in playerpriv.ToArray())
             {
                 List<ProtoBuf.PlayerNameID> authorized = priv.authorizedPlayers;
-                bool foundplayer = false;
+                bool flag1 = false;
                 foreach (ProtoBuf.PlayerNameID pni in authorized.ToArray())
                 {
                     if (pni.userid == player.userID)
-                        foundplayer = true;
+                        flag1 = true;
                 }
-                if (!foundplayer)
+                if (!flag1)
                 {
                     return false;
                 }
@@ -790,212 +1208,127 @@ namespace Oxide.Plugins
             return true;
         }
 
-        static object CanRemoveEntity(BasePlayer player, BaseEntity entity, RemoveType removeType)
+        #endregion
+
+        #region Remove All
+        static void RemoveAll(BaseEntity sourceEntity)
         {
-            if (entity.isDestroyed) return "Entity is already destroyed";
-            if (removeType == RemoveType.Admin || removeType == RemoveType.All) return true;
-            var externalPlugins = Interface.CallHook("canRemove", player);
-            if (externalPlugins != null)
-                return externalPlugins is string ? (string)externalPlugins : MessageErrorExternalBlock;
-            if (raidBlockedPlayers[player] != null)
+            var current = 0;
+            var checkFrom = new List<Vector3> { sourceEntity.transform.position };
+            var removeList = new List<BaseEntity>();
+
+            while (true)
             {
-                if (raidBlockedPlayers[player] > UnityEngine.Time.realtimeSinceStartup)
-                    return string.Format(MessageRaidBlocked, Mathf.Ceil(raidBlockedPlayers[player] - UnityEngine.Time.realtimeSinceStartup).ToString());
-                raidBlockedPlayers.Remove(player);
-            }
-            if ( useBuildingOwners)
-            {
-                if (entity is BuildingBlock)
+                if (current >= checkFrom.Count) break;
+
+                List<BaseEntity> list = Pool.GetList<BaseEntity>();
+                Vis.Entities<BaseEntity>(checkFrom[current], 3f, list, colliderRemovable);
+
+                for (int i = 0; i < list.Count; i++)
                 {
-                    var returnhook = Interface.GetMod().CallHook("FindBlockData", new object[] { entity as BuildingBlock });
-                    if (returnhook is string)
-                    {
-                        string ownerid = (string)returnhook;
-                        if (player.userID.ToString() == ownerid) return true;
-                        if (useRustIO && RustIOIsInstalled())
-                            if (HasFriend(ownerid, player.userID.ToString()))
-                                return true;
-                    }
+                    var entity = list[i];
+
+                    if (removeList.Contains(entity)) continue;
+                    removeList.Add(entity);
+
+                    if (!checkFrom.Contains(entity.transform.position)) checkFrom.Add(entity.transform.position);
+
                 }
-                else if(entity is Deployable)
-                {
-                    RaycastHit supportHit;
-                    if(Physics.Raycast(entity.transform.position, new Vector3(0f,-1f,0f), out supportHit, 3f, blockColl))
-                    {
-                        BaseEntity supportEnt = supportHit.GetEntity();
-                        if(supportEnt != null)
-                        {
-                            BuildingBlock supportBlock = supportEnt.GetComponent<BuildingBlock>();
-                            if (supportBlock != null)
-                            {
-                                var returnhook = Interface.GetMod().CallHook("FindBlockData", new object[] { supportBlock });
-                                if (returnhook is string)
-                                {
-                                    string ownerid = (string)returnhook;
-                                    if (player.userID.ToString() == ownerid) return true;
-                                    if (useRustIO && RustIOIsInstalled())
-                                        if (HasFriend(ownerid, player.userID.ToString()))
-                                            return true;
-                                }
-                            }
-                        }
-                    }
-                }
-
+                current++;
             }
-            if (useToolCupboard) 
-                if (hasTotalAccess(player))
-                    return true;
 
-            return MessageErrorNotAllowedToRemove;
+            DelayRemove(removeList, 0);
         }
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        /// Pay functions
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        static void Pay(BasePlayer player, BaseEntity entity, RemoveType removeType)
-        {
-            if (removeType == RemoveType.Admin || removeType == RemoveType.All) return;
-            Dictionary<string, object> cost = GetCost(entity);
-            List<Item> collect = new List<Item>();
-            foreach (KeyValuePair<string, object> pair in cost)
-            {
-                string itemname = pair.Key.ToLower();
-                if (displaynameToShortname.ContainsKey(itemname))
-                    itemname = displaynameToShortname[itemname];
-                ItemDefinition itemdef = ItemManager.FindItemDefinition(itemname);
-                if (itemdef == null) continue;
-                player.inventory.Take(collect, itemdef.itemid, Convert.ToInt32(pair.Value));
-                player.Command(string.Format("note.inv {0} -{1}", itemdef.itemid.ToString(), pair.Value.ToString()), new object[0]);
-            }
-            foreach (Item item in collect)
-            {
-                item.Remove(0f);
-            }
-        }
-        static bool CanPay(BasePlayer player, BaseEntity entity, RemoveType removeType)
-        {
-            if (removeType == RemoveType.Admin || removeType == RemoveType.All) return true;
-            Dictionary<string, object> cost = GetCost(entity);
 
-            foreach (KeyValuePair<string, object> pair in cost)
-            {
-                string itemname = pair.Key.ToLower();
-                if (displaynameToShortname.ContainsKey(itemname))
-                    itemname = displaynameToShortname[itemname];
-                ItemDefinition itemdef = ItemManager.FindItemDefinition(itemname);
-                if (itemdef == null) continue;
-                int amount = player.inventory.GetAmount(itemdef.itemid);
-                if (amount < Convert.ToInt32(pair.Value))
-                    return false;
-            }
+        static bool RemoveStructure(BaseEntity sourceEntity)
+        {
+            var buildingBlock = sourceEntity.GetComponent<BuildingBlock>();
+            if (buildingBlock == null) return false;
+            var buildingId = buildingBlock.buildingID;
+
+            var removeList = UnityEngine.GameObject.FindObjectsOfType<BuildingBlock>().Where(x => x.buildingID == buildingId).ToList();
+
+            DelayRemove(removeList, 0);
             return true;
         }
-        static Dictionary<string, object> GetCost(BaseEntity entity)
+
+        static void DelayRemove(List<BuildingBlock> entities, int current)
         {
-            Dictionary<string, object> cost = new Dictionary<string, object>();
-            if (entity.GetComponent<BuildingBlock>() != null)
+            for (int i = 0; i < entities.Count; i++)
             {
-                BuildingBlock block = entity.GetComponent<BuildingBlock>();
-                string grade = ((int)block.grade).ToString();
-                if (!payForRemove.ContainsKey(grade)) return cost;
-                cost = payForRemove[grade] as Dictionary<string, object>;
-            }
-            else if (entity.GetComponent<Deployable>() != null)
-            {
-                if (!payForRemove.ContainsKey("deployable")) return cost;
-                cost = payForRemove["deployable"] as Dictionary<string, object>;
-            }
-            return cost;
-        }
-
-
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        /// Raid Blocker
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-        void OnEntityDeath(BaseCombatEntity entity, HitInfo info)
-        {
-            if (!useRaidBlocker) return;
-            if (info == null) return;
-            BuildingBlock block = entity.GetComponent<BuildingBlock>();
-            if (block == null) return;
-            if (info.damageTypes.GetMajorityDamageType() == Rust.DamageType.Explosion)
-                BlockRemoveFromPlayersAroundPos(entity.transform.position);
-        }
-
-        static Hash<BasePlayer, float> raidBlockedPlayers = new Hash<BasePlayer, float>();
-        void BlockRemoveFromPlayersAroundPos(Vector3 pos)
-        {
-            foreach (Collider col in Physics.OverlapSphere(pos, (float)RaidBlockerRadius, playerColl))
-            {
-                raidBlockedPlayers[col.GetComponentInParent<BasePlayer>()] = UnityEngine.Time.realtimeSinceStartup + (float)RaidBlockerTime;
+                DoRemove(entities[i], false);
             }
         }
+        static void DelayRemove(List<BaseEntity> entities, int current)
+        {
+            for(int i = 0; i < entities.Count; i++)
+            {
+                DoRemove(entities[i], false);
+            }
+        }
+        #endregion
 
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        /// Console Commands
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        #region Toggle Remove
+        string ToggleRemove(BasePlayer player, string[] args)
+        {
+            RemoveType RemoveType = RemoveType.Normal;
+            BasePlayer Target = player;
+            int Time = RemoveDefaultTime;
+            string Reason = string.Empty;
 
-        bool overrideDisabled = false;
+            if (args == null || args.Length == 0)
+            {
+                var SourceRemover = player.GetComponent<ToolRemover>();
+                if (SourceRemover != null) { SourceRemover.Destroy(); return string.Empty; }
+            }
 
+            bool flag1 = GetParameters(player, args, out RemoveType, out Target, out Time, out Reason);
+            if(!flag1)
+            {
+                return Reason;
+            }
 
+            if(player != Target && (args != null && args.Length == 1))
+            {
+                var TargetRemover = Target.GetComponent<ToolRemover>();
+                if (TargetRemover != null) { TargetRemover.Destroy(); return GetMsg("RemoverTool from your target has been deactivated.", player); }
+            }
+
+            var RemoverTool = Target.GetComponent<ToolRemover>();
+            if (RemoverTool == null) RemoverTool = Target.gameObject.AddComponent<ToolRemover>();
+
+            RemoverTool.source = player;
+            RemoverTool.timeLeft = Time;
+            RemoverTool.removetype = RemoveType;
+            RemoverTool.Pay = (RemoveType == RemoveType.Normal);
+            RemoverTool.Refund = (RemoveType == RemoveType.Normal);
+            RemoverTool.distance = RemoveType == RemoveType.Normal ? (float)removeDistanceNormal : RemoveType == RemoveType.Admin ? (float)removeDistanceAdmin : (RemoveType == RemoveType.All || RemoveType == RemoveType.Structure) ? (float)removeDistanceAll : (float)removeDistanceNormal;
+            RemoverTool.Start();
+             
+            return string.Format(GetMsg("{0} {1} now has remover tool activated for {2} seconds ({3})", player), Target.UserIDString, Target.displayName, Time.ToString(), RemoveType.ToString());
+        }
+        #endregion
+
+        #region Commands
+        [ChatCommand("remove")]
+        void cmdChatRemove(BasePlayer player, string command, string[] args)
+        {
+            var success = ToggleRemove(player, args);
+            SendReply(player, success);
+        }
+
+        [ConsoleCommand("remove.toggle")]
+        void ccmdRemoveToggle(ConsoleSystem.Arg arg)
+        {
+            var success = ToggleRemove(arg.Player(), arg.Args);
+            arg.ReplyWith(success);
+        }
+        
         [ConsoleCommand("remove")]
-        void cmdConsoleAcCheck(ConsoleSystem.Arg arg)
+        void ccmdRemove(ConsoleSystem.Arg arg)
         {
-            if(arg != null && arg.connection != null && arg.connection.player != null)
-            {
-            BasePlayer player = (BasePlayer)arg.connection.player;
-
-	CheckSpam++;
-
-	PrintWarning(string.Format("[REMOVE]: {0} activated remove count:{1}", player.displayName, CheckSpam));
-
-	if (CheckSpam == 5)
-	{
-	string reason = "ÐÐµ ÑÑÐ¾Ð¸Ñ ÑÐ°Ðº ÑÐ°ÑÑÐ¾ Ð½Ð°Ð¶Ð¸Ð¼Ð°ÑÑ ÑÑÐ¾, Ð° ÑÐ¾ Ð±Ð°Ð½Ð¾Ð¼ Ð¿Ð°ÑÐ½ÐµÑ. Ð§ÑÐµÑÑ Ð·Ð°Ð¿Ð°Ñ?!";
-        Network.Net.sv.Kick(player.net.connection, reason);
-	}
-
-		timer.Once(5f, () => {Puts("111111"); CheckSpam = 0;});
-
-
-
-            int removeTime = RemoveTimeDefault;
-            BasePlayer target = player;
-            RemoveType removetype = RemoveType.Normal;
-            int distanceRemove = playerDistanceRemove;
-
-
-            if (removeTime > MaxRemoveTime) removeTime = MaxRemoveTime;
-
-            if (overrideDisabled && removetype == RemoveType.Normal)
-            {
-                SendReply(player, MessageOverrideDisabled);
-                return;
-            }
-
-            ToolRemover toolremover = target.GetComponent<ToolRemover>();
-            if (toolremover != null)
-            {
-                EndRemoverTool(target);
-                SendReply(player, string.Format(MessageToolDeactivated, target.displayName));
-                return;
-            }
-
-            if (toolremover == null)
-                toolremover = target.gameObject.AddComponent<ToolRemover>();
-
-            toolremover.endTime = removeTime;
-            toolremover.removeType = removetype;
-            toolremover.playerActivator = player;
-            toolremover.distance = (int)distanceRemove;
-            toolremover.RefreshDestroy();
-
-            }
-
+            
         }
-
-
 
         [ConsoleCommand("remove.allow")]
         void ccmdRemoveAllow(ConsoleSystem.Arg arg)
@@ -1007,9 +1340,9 @@ namespace Oxide.Plugins
             }
             if (arg.connection != null)
             {
-                if (!hasAccess(arg.connection.player as BasePlayer, adminPermission, adminAuthLevel)) return;
+                if (!hasPermission(arg.Player(), permissionOverride, authOverride)) return;
                 {
-                    SendReply(arg, MessageErrorNoAccess);
+                    arg.ReplyWith(GetMsg("You don't have access to this command.", arg.Player()));
                     return;
                 }
             }
@@ -1017,16 +1350,16 @@ namespace Oxide.Plugins
             {
                 case "true":
                 case "1":
-                    overrideDisabled = false;
+                    RemoveOverride = false;
                     SendReply(arg, "Remove is now allowed depending on your settings.");
                     break;
                 case "false":
                 case "0":
-                    overrideDisabled = true;
+                    RemoveOverride = true;
                     SendReply(arg, "Remove is now restricted for all players (exept admins)");
                     foreach (ToolRemover toolremover in Resources.FindObjectsOfTypeAll<ToolRemover>())
                     {
-                        if (toolremover.removeType == RemoveType.Normal)
+                        if (toolremover.removetype == RemoveType.Normal && toolremover.source == toolremover.player)
                         {
                             SendReply(toolremover.player, "The Remover Tool has been disabled by the admin");
                             timer.Once(0.01f, () => GameObject.Destroy(toolremover));
@@ -1038,125 +1371,12 @@ namespace Oxide.Plugins
                     break;
             }
         }
+        #endregion
 
-        [ConsoleCommand("remove.give")]
-        void ccmdRemoveGive(ConsoleSystem.Arg arg)
-        {
-            if (arg.Args == null || arg.Args.Length == 0)
-            {
-                SendReply(arg, "remove.give PLAYER/STEAMID optional:Time");
-                return;
-            }
-            if (arg.connection != null)
-            {
-                if (!hasAccess(arg.connection.player as BasePlayer, targetPermission, adminAuthLevel)) return;
-            }
-            BasePlayer targetPlayer;
-            var success = FindOnlinePlayer(arg.Args[0], out targetPlayer);
-            if (success is string)
-            {
-                SendReply(arg, (string)success);
-                return;
-            }
-            int removeTime = RemoveTimeDefault;
-            if (arg.Args.Length > 1)
-                int.TryParse(arg.Args[1], out removeTime);
-            if (removeTime > MaxRemoveTime)
-                removeTime = MaxRemoveTime;
-            ToolRemover toolremover = targetPlayer.GetComponent<ToolRemover>();
-            if (toolremover == null)
-                toolremover = targetPlayer.gameObject.AddComponent<ToolRemover>();
-            toolremover.endTime = removeTime;
-            toolremover.removeType = RemoveType.Normal;
-            toolremover.playerActivator = targetPlayer;
-            toolremover.distance = playerDistanceRemove;
-            toolremover.RefreshDestroy();
-
-            SendReply(arg, string.Format("Remover tool was given for {1}s to {0}", targetPlayer.displayName, removeTime.ToString()));
-        }
-
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        /// Chat Command
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-        [ChatCommand("remove")]
-        void cmdChatRemove(BasePlayer player, string command, string[] args)
-        {
-            int removeTime = RemoveTimeDefault;
-            BasePlayer target = player;
-            RemoveType removetype = RemoveType.Normal;
-            int distanceRemove = playerDistanceRemove;
-
-            if (args.Length != 0)
-            {
-                switch (args[0])
-                {
-                    case "admin":
-                        if (!hasAccess(player, adminPermission, adminAuthLevel)) return;
-                        removetype = RemoveType.Admin;
-                        distanceRemove = adminDistanceRemove;
-                        if (args.Length > 1) int.TryParse(args[1], out removeTime);
-                        break;
-                    case "all":
-                        if (!hasAccess(player, allPermission, adminAuthLevel)) return;
-                        removetype = RemoveType.All;
-                        distanceRemove = allDistanceRemove;
-                        if (args.Length > 1) int.TryParse(args[1], out removeTime);
-                        break;
-                    case "target":
-                        if (!hasAccess(player, targetPermission, adminAuthLevel)) return;
-                        if (args.Length == 1)
-                        {
-                            SendReply(player, "/remove target PLAYERNAME/STEAMID optional:Time");
-                            return;
-                        }
-                        BasePlayer tempTarget = null;
-                        var success = FindOnlinePlayer(args[1], out tempTarget);
-                        if (success is string)
-                        {
-                            SendReply(player, (string)success);
-                            return;
-                        }
-                        target = tempTarget;
-                        if (args.Length > 2) int.TryParse(args[2], out removeTime);
-
-                        break;
-                    default:
-                        if (!hasAccess(player, normalPermission, playerAuthLevel)) return;
-                        int.TryParse(args[0], out removeTime);
-                        break;
-                }
-            }
-
-            if (removeTime > MaxRemoveTime) removeTime = MaxRemoveTime;
-
-            if (overrideDisabled && removetype == RemoveType.Normal)
-            {
-                SendReply(player, MessageOverrideDisabled);
-                return;
-            }
-
-            ToolRemover toolremover = target.GetComponent<ToolRemover>();
-            if (toolremover != null && args.Length == 0)
-            {
-                EndRemoverTool(target);
-                SendReply(player, string.Format(MessageToolDeactivated, target.displayName));
-                return;
-            }
-
-            if (toolremover == null)
-                toolremover = target.gameObject.AddComponent<ToolRemover>();
-
-            toolremover.endTime = removeTime;
-            toolremover.removeType = removetype;
-            toolremover.playerActivator = player;
-            toolremover.distance = (int)distanceRemove;
-            toolremover.RefreshDestroy();
-        }
         [HookMethod("SendHelpText")]
         private void SendHelpText(BasePlayer player)
         {
-            SendReply(player, "<size=18>Remover Tool</size> by <color=#ce422b>Reneb</color>\n<color=\"#ffd479\">/remove optional:TimerInSeconds</color> - Activate/Deactivate the Remover Tool, You will need to have no highlighted items in your belt bar.");
+            SendReply(player, GetMsg("<size=18>Remover Tool</size> by <color=#ce422b>Reneb</color>\n<color=\"#ffd479\">/remove optional:TimerInSeconds</color> - Activate/Deactivate the Remover Tool, You will need to have no highlighted items in your belt bar.", player));
         }
     }
 }

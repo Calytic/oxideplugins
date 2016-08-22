@@ -5,7 +5,7 @@ using Oxide.Game.Rust.Cui;
 
 namespace Oxide.Plugins
 {
-    [Info("RepairTool", "k1lly0u", "0.1.0", ResourceId = 0)]
+    [Info("RepairTool", "k1lly0u", "0.1.1", ResourceId = 1883)]
     class RepairTool : RustPlugin
     {
         #region Fields
@@ -45,7 +45,7 @@ namespace Oxide.Plugins
                         Image = {Color = "0.2 0.2 0.2 0.7"},
                         RectTransform = {AnchorMin = "0.005 0.89", AnchorMax = "0.2 0.99"},
                     },
-                    new CuiElement().Parent,
+                    new CuiElement().Parent = "Overlay",
                     panelName
                 }
             };
@@ -90,11 +90,14 @@ namespace Oxide.Plugins
         }
         private object RepairEntity(BaseEntity entity)
         {
+            var r = entity.GetComponent<ResourceDispenser>();
             var e = entity.GetComponent<BaseCombatEntity>();
             if (e != null)
             {
                 if (e.health != e.MaxHealth())
                 {
+                    if (r != null)
+                        r.fractionRemaining = 1f;
                     e.health = e.MaxHealth();
                     e.SendNetworkUpdate();
                     return true;
@@ -115,8 +118,7 @@ namespace Oxide.Plugins
             }
             else
             {
-                Ray ray = new Ray(player.eyes.position, Quaternion.Euler(input.current.aimAngles) * Vector3.forward);
-                var ent = FindBuildingBlock(ray, 1000f);
+                var ent = FindBuildingBlock(new Ray(player.eyes.position, Quaternion.Euler(input.current.aimAngles) * Vector3.forward), 50);
                 if (ent == null) return null;
                 return ent;
             }           
@@ -282,7 +284,7 @@ namespace Oxide.Plugins
                 else if (success is bool)
                     if ((bool)success)
                     {
-                        string name = entity.LookupShortPrefabName().Replace(".prefab", "").Replace("_deployed", "").Replace(".deployed", "").Replace("_", " ");
+                        string name = entity.ShortPrefabName.Replace(".prefab", "").Replace("_deployed", "").Replace(".deployed", "").Replace("_", " ").Replace(".", " ");
                         ra.MSG(player, ra.GetMSG("Repaired") + name);
                     }
             }
@@ -293,7 +295,7 @@ namespace Oxide.Plugins
                 {
                     string name = "---";
                     var entity = ra.FindEntity(player);
-                    if (entity != null) name = entity.LookupShortPrefabName().Replace(".prefab", "").Replace("_deployed", "").Replace(".deployed", "");
+                    if (entity != null) name = entity.ShortPrefabName.Replace(".prefab", "").Replace("_deployed", "").Replace(".deployed", "").Replace("_", " ").Replace(".", " ");
                     ra.CreateUI(player, TimeRemaining, name);
                 }
                 else DestroyComponent();

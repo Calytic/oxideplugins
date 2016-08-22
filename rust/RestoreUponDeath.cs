@@ -5,7 +5,7 @@ using System;
 
 namespace Oxide.Plugins
 {
-    [Info("RestoreUponDeath", "k1lly0u", "0.1.31", ResourceId = 1859)]
+    [Info("RestoreUponDeath", "k1lly0u", "0.1.32", ResourceId = 1859)]
     class RestoreUponDeath : RustPlugin
     {
         #region Fields
@@ -206,7 +206,6 @@ namespace Oxide.Plugins
             iItem.amount = item.amount;
             iItem.mods = new List<SavedItem>();
             iItem.container = container;
-            iItem.bp = item.IsBlueprint();
             iItem.skinid = item.skin;
             iItem.itemid = item.info.itemid;
             iItem.weapon = false;
@@ -275,14 +274,14 @@ namespace Oxide.Plugins
         private Item BuildItem(SavedItem sItem)
         {
             if (sItem.amount < 1) sItem.amount = 1;
-            Item item = ItemManager.CreateByItemID(sItem.itemid, sItem.amount, sItem.bp, sItem.skinid);
+            Item item = ItemManager.CreateByItemID(sItem.itemid, sItem.amount, sItem.skinid);
             if (item.hasCondition)
                 item.condition = sItem.condition;
             return item;
         }
         private Item BuildWeapon(SavedItem sItem)
         {
-            Item item = ItemManager.CreateByItemID(sItem.itemid, 1, sItem.bp, sItem.skinid);
+            Item item = ItemManager.CreateByItemID(sItem.itemid, 1, sItem.skinid);
             if (item.hasCondition)
                 item.condition = sItem.condition;
             var weapon = item.GetHeldEntity() as BaseProjectile;
@@ -309,7 +308,6 @@ namespace Oxide.Plugins
         {
             public string shortname;
             public int itemid;
-            public bool bp;
             public string container;
             public float condition;
             public int amount;

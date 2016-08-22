@@ -2,7 +2,7 @@
     "name": "Spyon",
     "description": "Logs console and chat command usage for both ingame users and RCON",
     "author": "sqroot",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "configuration": true,
     "language": "py",
     "games": [

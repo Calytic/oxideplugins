@@ -2,7 +2,7 @@
     "name": "Better Say Command",
     "description": "Customize the Say console command output as you want",
     "author": "LaserHydra",
-    "version": "2.0.02",
+    "version": "2.0.2",
     "configuration": true,
     "language": "cs",
     "games": [

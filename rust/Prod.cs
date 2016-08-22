@@ -5,13 +5,14 @@ using System.Reflection;
 using UnityEngine;
 using Oxide.Core;
 using Oxide.Core.Plugins;
+using Oxide.Game.Rust.Libraries.Covalence;
 
 
 namespace Oxide.Plugins
 {
-    [Info("Prod", "Reneb", "2.2.0", ResourceId = 683)]
+    [Info("Prod", "Reneb", "2.2.4", ResourceId = 683)]
     class Prod : RustPlugin
-    {
+    { 
 
         private int prodAuth;
         private string helpProd;
@@ -36,10 +37,13 @@ namespace Oxide.Plugins
         private bool Changed;
 
         [PluginReference]
+        Plugin BuildingOwners;
+
+        [PluginReference]
         Plugin DeadPlayersList;
 
         [PluginReference]
-        Plugin BuildingOwners;
+        Plugin PlayerDatabase;
 
         void Loaded()
         {
@@ -120,69 +124,77 @@ namespace Oxide.Plugins
             var input = serverinput.GetValue(player) as InputState;
             var currentRot = Quaternion.Euler(input.current.aimAngles) * Vector3.forward;
             var target = DoRay(player.transform.position + eyesAdjust, currentRot);
-            if (target is bool)
+            if (target == null)
             {
                 SendReply(player, noTargetfound);
                 return;
             }
-            /*
-            if (((Collider)target).GetComponent<MeshColliderBatch>() != null)
+
+            if (isPluginDev && !dumpAll)
             {
-                MeshColliderBatch meshbatch = ((Collider)target).GetComponent<MeshColliderBatch>();
-                Debug.Log(meshbatch.Count.ToString());
-                Debug.Log(meshbatch.BatchedCount.ToString());
-                ListDictionary<Component, ColliderCombineInstance> meshinstance = meshinstances.GetValue(meshbatch) as ListDictionary<Component, ColliderCombineInstance>;
-                foreach(ColliderCombineInstance pair in meshinstance.Values)
-                {
-                    Debug.Log(pair.collider.ToString());
-                    Dump(pair.collider);
-                }
-            }*/
-            if (target is BuildingBlock)
-            {
-                GetBuildingblockOwner(player, (BuildingBlock)target);
+                Dump(target);
             }
-            else if (target is BuildingPrivlidge)
+
+            if(target.OwnerID != 0L)
             {
-                GetToolCupboardUsers(player, (BuildingPrivlidge)target);
+                SendReply(player, string.Format("Entity Owner (Builder): {0} {1}", FindPlayerName(target.OwnerID), target.OwnerID.ToString()));
             }
-            else if (target is SleepingBag)
+
+            var block = target.GetComponentInParent<BuildingBlock>();
+            if (block)
             {
-                GetDeployedItemOwner(player, (SleepingBag)target);
+                GetBuildingblockOwner(player, block);
+                return;
             }
-            else if (target is StorageContainer)
+
+            var priv = target.GetComponentInParent<BuildingPrivlidge>();
+            if (priv)
             {
-                GetStorageBoxCode(player, (StorageContainer)target);
+                GetToolCupboardUsers(player, priv);
+                return;
             }
-            if(isPluginDev && !dumpAll)
+            
+            var bag = target.GetComponentInParent<SleepingBag>();
+            if (bag)
             {
-                Dump(target as Collider);
+                GetDeployedItemOwner(player, bag);
+                return;
             }
-        } 
-        private void GetStorageBoxCode(BasePlayer player, StorageContainer box)
+
+            var deployable = target.GetComponentInParent<Deployable>();
+            if (deployable)
+            {
+                GetDeployableCode(player, target);
+                return;
+            }
+            
+        }
+        private void GetDeployableCode(BasePlayer player, BaseEntity block)
         {
-            if (box.HasSlot(BaseEntity.Slot.Lock))
+            if (block.HasSlot(BaseEntity.Slot.Lock))
             {
-                BaseLock thelock = box.GetSlot(BaseEntity.Slot.Lock) as BaseLock;
-                if (thelock as CodeLock)
+                BaseEntity slotent = block.GetSlot(BaseEntity.Slot.Lock);
+                if (slotent != null)
                 {
-                    List<ulong> whitelisted = codelockwhitelist.GetValue(thelock as CodeLock) as List<ulong>;
-                    string codevalue = codenum.GetValue(thelock as CodeLock) as string;
-                    SendReply(player, string.Format(boxCode,codevalue));
-                    SendReply(player, codeLockList);
-                    if (whitelisted.Count == 0)
+                    CodeLock codelock = slotent.GetComponent<CodeLock>();
+                    if (codelock != null)
                     {
-                        SendReply(player, noCodeAccess);
-                        return;
+                        List<ulong> whitelisted = codelockwhitelist.GetValue(codelock) as List<ulong>;
+                        string codevalue = codenum.GetValue(codelock) as string;
+                        SendReply(player, string.Format(boxCode, codevalue));
+                        SendReply(player, codeLockList);
+                        if (whitelisted.Count == 0)
+                        {
+                            SendReply(player, noCodeAccess);
+                            return;
+                        }
+                        foreach (ulong userid in whitelisted)
+                        {
+                            SendBasePlayerFind(player, userid);
+                        }
                     }
-                    foreach (ulong userid in whitelisted)
-                    {
-                        SendBasePlayerFind(player, userid);
-                    }
-                    return;
                 }
             }
-            SendReply(player, boxNeedsCode);
         }
         private void GetDeployedItemOwner(BasePlayer player, SleepingBag ditem)
         {
@@ -214,9 +226,17 @@ namespace Oxide.Plugins
             if (player)
                 return player.displayName + " (Sleeping)";
 
+            var iplayer = covalence.Players.GetPlayer(userId.ToString());
+            if (iplayer != null)
+                return iplayer.Name + " (Dead)";
+
             string name = DeadPlayersList?.Call("GetPlayerName", userId) as string;
             if (name != null)
                 return name + " (Dead)";
+
+            var name2 = PlayerDatabase?.Call("GetPlayerData", userId.ToString(), "default");
+            if(name2 is Dictionary<string, object>)
+                return ((name2 as Dictionary <string, object>)["name"] as string) + " (Dead)";
 
             return "Unknown player";
         }
@@ -247,7 +267,7 @@ namespace Oxide.Plugins
                             }
                             foreach (ulong userid in whitelisted)
                             {
-                                SendBasePlayerFind(player, userid);
+                                SendReply(player, string.Format("{0} {1}", FindPlayerName(userid), userid.ToString()));
                             }
                         }
                     }
@@ -261,6 +281,7 @@ namespace Oxide.Plugins
                 return;
             }
             ulong ownerid = (UInt64)findownerblock;
+            SendReply(player, string.Format("Building Owner: {0} {1}", FindPlayerName(ownerid), ownerid.ToString()));
             SendBasePlayerFind(player, ownerid);
         }
         private void GetToolCupboardUsers(BasePlayer player, BuildingPrivlidge cupboard)
@@ -276,7 +297,7 @@ namespace Oxide.Plugins
                 SendReply(player, string.Format("{0} - {1}", pnid.username.ToString(), pnid.userid.ToString()));
             }
         }
-        private void Dump(Collider col)
+        private void Dump(BaseEntity col)
         {
             Debug.Log("==================================================");
             Debug.Log(col.ToString() + " " + LayerMask.LayerToName(col.gameObject.layer).ToString());
@@ -296,15 +317,15 @@ namespace Oxide.Plugins
                 Debug.Log(com.ToString());
             }
         }
-        private object DoRay(Vector3 Pos, Vector3 Aim)
+        private BaseEntity DoRay(Vector3 Pos, Vector3 Aim)
         {
             var hits = UnityEngine.Physics.RaycastAll(Pos, Aim);
             float distance = 100000f;
-            object target = false;
+            BaseEntity target = null;
             foreach (var hit in hits)
             {
-                if (hit.collider != null)
-                    Dump(hit.collider);
+                if (hit.collider != null && isPluginDev && dumpAll)
+                    Dump(hit.GetEntity());
                 if (hit.distance < distance)
                 {
                     distance = hit.distance;

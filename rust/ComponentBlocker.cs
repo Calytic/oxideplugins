@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("ComponentBlocker", "Calytic", "0.0.8", ResourceId = 1382)]
+    [Info("ComponentBlocker", "Calytic", "0.1.0", ResourceId = 1382)]
     class ComponentBlocker : RustPlugin
     {
         List<string> blockList = new List<string>();
@@ -293,6 +293,22 @@ namespace Oxide.Plugins
                             cval.Add(Convert.ToString(v.Key), Convert.ToInt32(v.Value));
                         val = cval;
                     }
+                    else if (t == typeof(List<object>) || t == typeof(List<string>))
+                    {
+                        var cval = new Dictionary<string, List<string>>();
+                        foreach(var v in val as Dictionary<string, object>) {
+                            if (v.Value is List<object>)
+                            {
+                                var clist = new List<string>();
+                                foreach (object str in (List<object>)v.Value)
+                                {
+                                    clist.Add(str.ToString());
+                                }
+                                cval.Add(v.Key.ToString(), clist);
+                            }
+                        }
+                        val = cval;
+                    }
                 }
                 return (T)Convert.ChangeType(val, typeof(T));
             }
@@ -305,7 +321,7 @@ namespace Oxide.Plugins
         void OnPlayerInit(BasePlayer player)
         {
             if (!enabled) return;
-            this.CheckBlueprints(player);
+            //this.CheckBlueprints(player);
         }
 
         object OnItemCraft(ItemCraftTask task)
@@ -334,7 +350,7 @@ namespace Oxide.Plugins
                 {
                     ItemAmount current = enumerator.Current;
 
-                    Item i = ItemManager.CreateByItemID(current.itemid, Convert.ToInt32(current.amount) * amount, false, 0);
+                    Item i = ItemManager.CreateByItemID(current.itemid, Convert.ToInt32(current.amount) * amount);
                     if (!i.MoveToContainer(player.inventory.containerMain))
                     {
                         i.Drop(player.eyes.position, player.eyes.BodyForward() * 2f);
@@ -375,7 +391,7 @@ namespace Oxide.Plugins
             if (CheckNetworkable(entity))
             {
                 if(sendMessages)
-                    SendReply(deployer.ownerPlayer, messages["You may not deploy this (restricted)"]);
+                    SendReply(deployer.GetOwnerPlayer(), messages["You may not deploy this (restricted)"]);
             }
         }
 
@@ -389,30 +405,30 @@ namespace Oxide.Plugins
             }
         }
 
-        void OnBlueprintReveal(Item item, Item revealed, BasePlayer player)
-        {
+        //void OnBlueprintReveal(Item item, Item revealed, BasePlayer player)
+        //{
             
-            if (!enabled) return;
-            ItemMod[] mods = item.info.itemMods;
-            if (CheckItem(revealed))
-            {
-                // REFUND BLUEPRINT FRAGMENT/PAGE/BOOK/LIBRARY
-                timer.Once(0.1f, delegate()
-                {
-                    if (item.info.itemid == 1351589500)
-                    {
-                        player.inventory.GiveItem(ItemManager.CreateByItemID(item.info.itemid, 20, false));
-                    }
-                    else
-                    {
-                        player.inventory.GiveItem(ItemManager.CreateByItemID(item.info.itemid, 1, false));
-                    }
-                });
+        //    if (!enabled) return;
+        //    ItemMod[] mods = item.info.itemMods;
+        //    //if (CheckItem(revealed))
+        //    //{
+        //        // REFUND BLUEPRINT FRAGMENT/PAGE/BOOK/LIBRARY
+        //        timer.Once(0.1f, delegate()
+        //        {
+        //            if (item.info.itemid == 1351589500)
+        //            {
+        //                player.inventory.GiveItem(ItemManager.Create(item.info.itemid, 20));
+        //            }
+        //            else
+        //            {
+        //                player.inventory.GiveItem(ItemManager.Create(item.info.itemid, 1));
+        //            }
+        //        });
                 
-                if(sendMessages)
-                    SendReply(player, messages["You may not research this (restricted), blueprints refunded!"]);
-            }
-        }
+        //        if(sendMessages)
+        //            SendReply(player, messages["You may not research this (restricted), blueprints refunded!"]);
+        //    //}
+        //}
 
         void OnPlantGather(PlantEntity plant, Item item, BasePlayer player)
         {
@@ -430,51 +446,51 @@ namespace Oxide.Plugins
             CheckItem(item);
         }
 
-        private void CheckBlueprints(BasePlayer player)
-        {
-            if (player.net == null)
-            {
-                return;
-            }
+        //private void CheckBlueprints(BasePlayer player)
+        //{
+        //    if (player.net == null)
+        //    {
+        //        return;
+        //    }
 
-            if (player.net.connection == null)
-            {
-                return;
-            }
+        //    if (player.net.connection == null)
+        //    {
+        //        return;
+        //    }
 
-            if (SingletonComponent<ServerMgr>.Instance == null)
-            {
-                return;
-            }
+        //    if (SingletonComponent<ServerMgr>.Instance == null)
+        //    {
+        //        return;
+        //    }
 
-            if (SingletonComponent<ServerMgr>.Instance.persistance == null)
-            {
-                return;
-            }
+        //    if (SingletonComponent<ServerMgr>.Instance.persistance == null)
+        //    {
+        //        return;
+        //    }
 
-            bool removed = false;
-            ProtoBuf.PersistantPlayer persistentPlayer = SingletonComponent<ServerMgr>.Instance.persistance.GetPlayerInfo(player.userID);
+        //    bool removed = false;
+        //    ProtoBuf.PersistantPlayer persistentPlayer = SingletonComponent<ServerMgr>.Instance.persistance.GetPlayerInfo(player.userID);
 
-            if (persistentPlayer is ProtoBuf.PersistantPlayer)
-            {
-                foreach (string blocked in this.blockList)
-                {
-                    ItemDefinition item = ItemManager.FindItemDefinition(blocked);
-                    if (item is ItemDefinition && persistentPlayer.blueprints is ProtoBuf.BlueprintList && persistentPlayer.blueprints.complete is List<int> && persistentPlayer.blueprints.complete.Contains(item.itemid))
-                    {
-                        persistentPlayer.blueprints.complete.Remove(item.itemid);
-                        removed = true;
-                    }
-                }
+        //    if (persistentPlayer is ProtoBuf.PersistantPlayer)
+        //    {
+        //        foreach (string blocked in this.blockList)
+        //        {
+        //            ItemDefinition item = ItemManager.FindItemDefinition(blocked);
+        //            if (item is ItemDefinition && persistentPlayer.blueprints is ProtoBuf.BlueprintList && persistentPlayer.blueprints.complete is List<int> && persistentPlayer.blueprints.complete.Contains(item.itemid))
+        //            {
+        //                persistentPlayer.blueprints.complete.Remove(item.itemid);
+        //                removed = true;
+        //            }
+        //        }
 
-                if (removed)
-                {
-                    PlayerBlueprints.InitializePersistance(persistentPlayer);
-                    SingletonComponent<ServerMgr>.Instance.persistance.SetPlayerInfo(player.userID, persistentPlayer);
-                    player.SendFullSnapshot();
-                }
-            }
-        }
+        //        if (removed)
+        //        {
+        //            PlayerBlueprints.InitializePersistance(persistentPlayer);
+        //            SingletonComponent<ServerMgr>.Instance.persistance.SetPlayerInfo(player.userID, persistentPlayer);
+        //            player.SendFullSnapshot();
+        //        }
+        //    }
+        //}
 
         private bool CheckItem(Item item)
         {
@@ -519,7 +535,7 @@ namespace Oxide.Plugins
 
         private bool CheckNetworkable(BaseNetworkable networkable)
         {
-            if (isBlocked(networkable.name, networkable.LookupPrefabName(), networkable.LookupShortPrefabName()))
+            if (isBlocked(networkable.name, networkable.PrefabName, networkable.ShortPrefabName))
             {
                 networkable.Kill();
                 return true;

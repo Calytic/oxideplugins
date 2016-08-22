@@ -2,7 +2,7 @@
     "name": "Purifier Config",
     "description": "Allows configuration of Water Purifiers",
     "author": "Shady757",
-    "version": "1.0.1",
+    "version": "1.0.3",
     "configuration": true,
     "language": "cs",
     "games": [

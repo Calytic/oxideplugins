@@ -10,7 +10,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("GatherConfig", "Nogrod", "1.0.0")]
+    [Info("GatherConfig", "Nogrod", "1.0.1")]
     class GatherConfig : RustPlugin
     {
         private const int VersionConfig = 1;
@@ -112,14 +112,14 @@ namespace Oxide.Plugins
                 var entity = dispenser.GetComponent<BaseEntity>();
                 if (entity == null) continue;
                 PrefabData prefabData;
-                if (!_config.Prefabs.TryGetValue(entity.LookupPrefabName(), out prefabData)) continue;
+                if (!_config.Prefabs.TryGetValue(entity.PrefabName, out prefabData)) continue;
                 dispenser.containedItems.Clear();
                 foreach (var itemAmount in prefabData.Items)
                 {
                     var def = GetItem(itemAmount.Shortname);
                     if (def == null)
                     {
-                        Puts("Item does not exist: {0} for: {1}", itemAmount.Shortname, entity.LookupPrefabName());
+                        Puts("Item does not exist: {0} for: {1}", itemAmount.Shortname, entity.PrefabName);
                         continue;
                     }
                     dispenser.containedItems.Add(new ItemAmount(def, itemAmount.Amount));
@@ -137,7 +137,7 @@ namespace Oxide.Plugins
         }
 
         [ConsoleCommand("gather.reload")]
-        private void cmdConsoleReload(string commandString)
+        private void cmdConsoleReload(ConsoleSystem.Arg arg)
         {
             if (!LoadConfig())
                 return;

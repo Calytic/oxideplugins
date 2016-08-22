@@ -10,7 +10,7 @@ using Oxide.Game.Rust.Cui;
 
 namespace Oxide.Plugins 
 { 
-	[Info("Rules GUI", "PaiN", "1.4.5", ResourceId = 1247)]
+	[Info("Rules GUI", "PaiN", "1.4.8", ResourceId = 1247)]
 	[Description("This plugin displays the rules on connect.")] 
 	class RulesGUI : RustPlugin
 	{ 
@@ -23,16 +23,9 @@ namespace Oxide.Plugins
 		
 		void Loaded()  
 		{
-			if(!permission.PermissionExists("canuserulesto")) permission.RegisterPermission("canuserulesto", this);
+			permission.RegisterPermission("rulesgui.usecmd", this);
 			data = Interface.GetMod().DataFileSystem.ReadObject<Data>("RulesGUIdata");
 			LoadVariables();
-			/*foreach (BasePlayer current in BasePlayer.activePlayerList)
-			{ 
-				string msg = "";
-				foreach(var rule in Config["Messages", "RULES_MESSAGE"] as List<object>)
-				msg = msg + rule.ToString() + "\n \n";
-				UseUI(current, msg.ToString());
-			}*/
 		}
 		
 		object GetConfig(string menu, string datavalue, object defaultValue)
@@ -121,7 +114,7 @@ namespace Oxide.Plugins
 					AnchorMax = "1 1"
 				},
 				CursorEnabled = true
-			}, "HUD/Overlay", "RulesGUI"); 
+			}, "Overlay", "RulesGUI"); 
 			if(backroundimage == true)
 			{
 				elements.Add(new CuiElement
@@ -212,7 +205,7 @@ namespace Oxide.Plugins
 		[ChatCommand("rulesto")]
 		void cmdRulesTo(BasePlayer player, string cmd, string[] args)
 		{
-			if(!permission.UserHasPermission(player.userID.ToString(), "canuserulesto"))
+			if(!permission.UserHasPermission(player.userID.ToString(), "rulesgui.usecmd"))
 			{
 				SendReply(player, "You do not have permission to use this command!");
 				return;

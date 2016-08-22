@@ -1,387 +1,648 @@
+// Reference: RustBuild
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-
+using System.Linq;
+using System.Reflection;
 
 namespace Oxide.Plugins
 {
-    [Info("RadtownAnimals", "k1lly0u", "0.1.2", ResourceId = 1561)]
+    [Info("RadtownAnimals", "k1lly0u", "0.2.11", ResourceId = 1561)]
     class RadtownAnimals : RustPlugin
     {
-        private bool Changed;
-        private List<GameObject> monuments = new List<GameObject>();
-        private Dictionary<BaseEntity, GameObject> animals = new Dictionary<BaseEntity, GameObject>();
+        #region Fields
+        private Dictionary<BaseEntity, Vector3> animalList = new Dictionary<BaseEntity, Vector3>();
+        private List<Timer> refreshTimers = new List<Timer>();
+        #endregion
 
-        private static LayerMask GROUND_MASKS = LayerMask.GetMask("Terrain", "World", "Construction");
-
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Oxide Hooks ///////////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
+        #region Oxide Hooks
         void Loaded()
-        {                       
-            lang.RegisterMessages(messages, this);
-            LoadVariables();
-        }
-        void LoadDefaultConfig()
         {
-            Puts("Creating a new config file");
-            Config.Clear();
-            LoadVariables();
+            lang.RegisterMessages(messages, this);
         }
         void OnServerInitialized()
         {
-            findAllMonuments();
+            LoadVariables();
+            InitializeAnimalSpawns();
         }
         void OnEntityDeath(BaseCombatEntity entity, HitInfo info)
         {
-            if (animals.ContainsKey(entity))
+            try
             {
-                var monument = animals[entity];
-                var type = getEntityName(entity);     
-                animals.Remove(entity);
-                timer.Once(animalRespawn * 60, () => spawnAnimal(monument, type));
+                if (entity.GetComponent<BaseNPC>() != null)
+                {
+                    if (animalList.ContainsKey(entity as BaseEntity))
+                    {
+                        UnityEngine.Object.Destroy(entity.GetComponent<RAController>());
+                        InitiateRefresh(entity as BaseEntity);
+                    }
+                }
             }
+            catch { }
         }
         void Unload()
         {
-            killAllAnimals();
-            animals.Clear();
-            monuments.Clear();
-        }
+            foreach (var time in refreshTimers)
+                time.Destroy();
 
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Configuration /////////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-
-        static bool spawnLighthouse = false;
-        static bool spawnAirfield = false;
-        static bool spawnPowerplant = false;
-        static bool spawnTrainyard = false;
-        static bool spawnWaterplant = false;
-        static bool spawnWarehouse = false;
-        static bool spawnSatellite = false;
-        static bool spawnDome = false;
-        static bool spawnRadtown = true;
-
-        static bool spawnBears = true;
-        static bool spawnBoars = false;
-        static bool spawnChickens = false;
-        static bool spawnHorses = false;
-        static bool spawnStags = false;
-        static bool spawnWolfs = true;
-
-        static int animalCount = 10;
-        static int maximumAWOL = 100;
-        static int maximumAnimals = 50;
-        
-        static float animalSpread = 20f;
-        static float animalRespawn = 10f;
-        static float distanceCheck = 5f;
-
-        private void LoadVariables()
-        {
-            LoadConfigVariables();
-            SaveConfig();
-        }
-        private void LoadConfigVariables()
-        {
-            CheckCfg("Options - Spawns - Lighthouses", ref spawnLighthouse);
-            CheckCfg("Options - Spawns - Airfield", ref spawnAirfield);
-            CheckCfg("Options - Spawns - Powerplant", ref spawnPowerplant);
-            CheckCfg("Options - Spawns - Trainyard", ref spawnTrainyard);
-            CheckCfg("Options - Spawns - Water Treatment Plant", ref spawnWaterplant);
-            CheckCfg("Options - Spawns - Warehouses", ref spawnWarehouse);
-            CheckCfg("Options - Spawns - Satellite", ref spawnSatellite);
-            CheckCfg("Options - Spawns - Sphere Tank", ref spawnDome);
-            CheckCfg("Options - Spawns - Rad-towns", ref spawnRadtown);
-
-            CheckCfg("Options - Animals - Spawn Bears", ref spawnBears);
-            CheckCfg("Options - Animals - Spawn Boars", ref spawnBoars);
-            CheckCfg("Options - Animals - Spawn Chickens", ref spawnChickens);
-            CheckCfg("Options - Animals - Spawn Horses", ref spawnHorses);
-            CheckCfg("Options - Animals - Spawn Stags", ref spawnStags);
-            CheckCfg("Options - Animals - Spawn Wolfs", ref spawnWolfs);
-            CheckCfg("Options - Animals - Maximum Amount (total)", ref maximumAnimals);
-            CheckCfg("Options - Animals - Maximum Amount (per monument)", ref animalCount);
-            CheckCfg("Options - Animals - Maximum distance from monument", ref maximumAWOL);
-            CheckCfgFloat("Options - Spawnpoints - Spread", ref animalSpread);
-
-            CheckCfgFloat("Options - Timers - Respawn (minutes)", ref animalRespawn);
-            CheckCfgFloat("Options - Timers - Distance check timer (minutes)", ref distanceCheck);
-        }
-        private void CheckCfg<T>(string Key, ref T var)
-        {
-            if (Config[Key] is T)
-                var = (T)Config[Key];
-            else
-                Config[Key] = var;
-        }
-        private void CheckCfgFloat(string Key, ref float var)
-        {
-
-            if (Config[Key] != null)
-                var = Convert.ToSingle(Config[Key]);
-            else
-                Config[Key] = var;
-        }
-        object GetConfig(string menu, string datavalue, object defaultValue)
-        {
-            var data = Config[menu] as Dictionary<string, object>;
-            if (data == null)
+            foreach (var animal in animalList)
             {
-                data = new Dictionary<string, object>();
-                Config[menu] = data;
-                Changed = true;
+                if (animal.Key != null)
+                {
+                    UnityEngine.Object.Destroy(animal.Key.GetComponent<RAController>());
+                    animal.Key.KillMessage();
+                }
             }
-            object value;
-            if (!data.TryGetValue(datavalue, out value))
-            {
-                value = defaultValue;
-                data[datavalue] = value;
-                Changed = true;
-            }
-            return value;
+            var objects = UnityEngine.Object.FindObjectsOfType<RAController>();
+            if (objects != null)
+                foreach (var gameObj in objects)
+                    UnityEngine.Object.Destroy(gameObj);
+            animalList.Clear();
         }
+        #endregion
 
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Messages //////////////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-
-        Dictionary<string, string> messages = new Dictionary<string, string>()
-        {
-            {"nullList", "Error getting a list of monuments" },
-            {"title", "<color=orange>RadtownAnimals</color> : " },
-            {"noPerms", "You have insufficient permission" },
-            {"killedAll", "Killed all animals" }
-        };
-       
-        //////////////////////////////////////////////////////////////////////////////////////
-        // RadtownAnimals /////////////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-
-        private void findAllMonuments()
+        #region Initial Spawning
+        private void InitializeAnimalSpawns()
         {
             var allobjects = UnityEngine.Object.FindObjectsOfType<GameObject>();
             foreach (var gobject in allobjects)
             {
-                if (spawnLighthouse)
+                if (gobject.name.Contains("autospawn/monument"))
                 {
-                    if (gobject.name.ToLower().Contains("lighthouse/lighthouse"))
+                    var position = gobject.transform.position;
+                    if (gobject.name.ToLower().Contains("lighthouse"))
                     {
-                        monuments.Add(gobject);
+                        if (configData.Lighthouses.Enabled)
+                        {
+                            SpawnAnimals(position, GetSpawnList(configData.Lighthouses.AnimalCounts));
+                            continue;
+                        }
+                    }
+                    if (gobject.name.Contains("powerplant_1"))
+                    {
+                        if (configData.Powerplant.Enabled)
+                        {
+                            SpawnAnimals(position, GetSpawnList(configData.Powerplant.AnimalCounts));
+                            continue;
+                        }
+                    }
+
+                    if (gobject.name.Contains("military_tunnel_1"))
+                    {
+                        if (configData.MilitaryTunnels.Enabled)
+                        {
+                            SpawnAnimals(position, GetSpawnList(configData.MilitaryTunnels.AnimalCounts));
+                            continue;
+                        }
+                    }
+
+                    if (gobject.name.Contains("airfield_1"))
+                    {
+                        if (configData.Airfield.Enabled)
+                        {
+                            SpawnAnimals(position, GetSpawnList(configData.Airfield.AnimalCounts));
+                            continue;
+                        }
+                    }
+
+                    if (gobject.name.Contains("trainyard_1"))
+                    {
+                        if (configData.Trainyard.Enabled)
+                        {
+                            SpawnAnimals(position, GetSpawnList(configData.Trainyard.AnimalCounts));
+                            continue;
+                        }
+                    }
+
+                    if (gobject.name.Contains("water_treatment_plant_1"))
+                    {
+                        if (configData.WaterTreatmentPlant.Enabled)
+                        {
+                            SpawnAnimals(position, GetSpawnList(configData.WaterTreatmentPlant.AnimalCounts));
+                            continue;
+                        }
+                    }
+
+                    if (gobject.name.Contains("warehouse"))
+                    {
+                        if (configData.Warehouses.Enabled)
+                        {
+                            SpawnAnimals(position, GetSpawnList(configData.Warehouses.AnimalCounts));
+                            continue;
+                        }
+                    }
+
+                    if (gobject.name.Contains("satellite_dish"))
+                    {
+                        if (configData.Satellite.Enabled)
+                        {
+                            SpawnAnimals(position, GetSpawnList(configData.Satellite.AnimalCounts));
+                            continue;
+                        }
+                    }
+
+                    if (gobject.name.Contains("sphere_tank"))
+                    {
+                        if (configData.SphereTank.Enabled)
+                        {
+                            SpawnAnimals(position, GetSpawnList(configData.SphereTank.AnimalCounts));
+                            continue;
+                        }
+                    }
+
+                    if (gobject.name.Contains("radtown_small_3"))
+                    {
+                        if (configData.Radtowns.Enabled)
+                        {
+                            SpawnAnimals(position, GetSpawnList(configData.Radtowns.AnimalCounts));
+                            continue;
+                        }
                     }
                 }
-                if (spawnPowerplant)
-                {
-                    if (gobject.name.ToLower().Contains("powerplant_1"))
-                    {
-                        monuments.Add(gobject);
-                    }
-                }
-                if (spawnAirfield)
-                {
-                    if (gobject.name.ToLower().Contains("airfield_1"))
-                    {
-                        monuments.Add(gobject);
-                    }
-                }
-                if (spawnTrainyard)
-                {
-                    if (gobject.name.ToLower().Contains("large/trainyard_1"))
-                    {
-                        monuments.Add(gobject);
-                    }
-                }
-                if (spawnWaterplant)
-                {
-                    if (gobject.name.ToLower().Contains("large/water_treatment_plant_1"))
-                    {
-                        monuments.Add(gobject);
-                    }
-                }
-                if (spawnWarehouse)
-                {
-                    if (gobject.name.ToLower().Contains("mining/warehouse"))
-                    {
-                        monuments.Add(gobject);
-                    }
-                }
-                if (spawnSatellite)
-                {
-                    if (gobject.name.ToLower().Contains("production/satellite_dish"))
-                    {
-                        monuments.Add(gobject);
-                    }
-                }
-                if (spawnDome)
-                {
-                    if (gobject.name.ToLower().Contains("production/sphere_tank"))
-                    {
-                        monuments.Add(gobject);
-                    }
-                }
-                if (spawnRadtown)
-                {
-                    if (gobject.name.ToLower().Contains("small/radtown_small_3"))
-                    {
-                        monuments.Add(gobject);
-                    }
-                }            
-            }
-            if (monuments == null)
+            }            
+        }
+        private Dictionary<string, int> GetSpawnList(AnimalCounts counts)
+        {
+            var spawnList = new Dictionary<string, int>
             {
-                Puts(lang.GetMessage("nullList", this));
+                {"bear", counts.Bears},
+                {"boar", counts.Boars },
+                {"chicken", counts.Chickens },
+                {"horse", counts.Horses },
+                {"stag", counts.Stags },
+                {"wolf", counts.Wolfs }
+            };
+            return spawnList;
+        }
+        private void SpawnAnimals(Vector3 position, Dictionary<string,int> spawnList)
+        {
+            if (animalList.Count >= configData.a_Options.TotalMaximumAmount)
+            {
+                PrintError(lang.GetMessage("spawnLimit", this));
                 return;
             }
-            startSpawn();                         
-        }
-        private void startSpawn()
-        {
-            foreach (var location in monuments)
+            foreach (var type in spawnList)
             {
-                timer.Once(0.1f, () => getAnimals(location));
+                
+                for (int i = 0; i < type.Value; i++)
+                {
+                    var entity = SpawnAnimalEntity(type.Key, position);
+                    animalList.Add(entity, position);
+                }
             }
         }
-        private Vector3 getPos(Vector3 pos)
+        #endregion
+
+        #region Spawn Control
+        private void InitiateRefresh(BaseEntity animal)
         {
-            Vector3 randomPos = Quaternion.Euler(UnityEngine.Random.Range((float)(-animalSpread * 0.2), animalSpread * 0.2f), UnityEngine.Random.Range((float)(-animalSpread * 0.2), animalSpread * 0.2f), UnityEngine.Random.Range((float)(-animalSpread * 0.2), animalSpread * 0.2f)) * pos;
-            Vector3 correctPos = getGroundPosition(randomPos);
-            return correctPos;            
-        }
-        private void getAnimals(GameObject monument)
-        {
-            List<string> setAnimals = new List<string>();
-
-            if (spawnBears) setAnimals.Add("bear");
-            if (spawnBoars) setAnimals.Add("boar");
-            if (spawnChickens) setAnimals.Add("chicken");
-            if (spawnHorses) setAnimals.Add("horse");
-            if (spawnStags) setAnimals.Add("stag");
-            if (spawnWolfs) setAnimals.Add("wolf");
-
-            var aCount = setAnimals.Count;
-            int eachAnimal = animalCount / aCount;
-
-            foreach (var animal in setAnimals)
-            {                
-                var type = animal;
-                timer.Repeat(0.1f, eachAnimal, () => spawnAnimal(monument, type));                
-            }
-        }
-        private void spawnAnimal(GameObject monument, string animalType)
-        {
-            if (animals.Count >= maximumAnimals) return;
-
-            var newPos = getPos(monument.transform.position);
-            var animal = GameManager.server.CreateEntity("assets/bundled/prefabs/autospawn/animals/" + animalType + ".prefab", newPos, new Quaternion(), true);
-            BaseEntity entity = animal?.GetComponent<BaseEntity>();
-            if (entity != null)
+            var position = animal.transform.position;
+            var type = animal.ShortPrefabName.Replace(".prefab", "");
+            refreshTimers.Add(timer.Once(configData.a_Options.RespawnTimer * 60, () =>
             {
-                entity?.Spawn(true);
-                animals.Add(entity, monument);
-                checkDistance(entity, monument);
-            }
-        }       
-        static Vector3 getGroundPosition(Vector3 sourcePos) // credit Wulf & Nogrod
+                InitializeNewSpawn(type, position);
+            }));
+            animalList.Remove(animal);
+        }
+        private void InitializeNewSpawn(string type, Vector3 position)
+        {
+            var newAnimal = SpawnAnimalEntity(type, position);
+            animalList.Add(newAnimal, position);
+        }
+        private BaseEntity SpawnAnimalEntity(string type, Vector3 pos)
+        {
+            var newPos = AdjustPosition(pos);
+            BaseEntity entity = GameManager.server.CreateEntity($"assets/bundled/prefabs/autospawn/animals/{type}.prefab", newPos, new Quaternion(), true);
+            entity.Spawn();
+            var npc = entity.gameObject.AddComponent<RAController>();
+            npc.SetHome(pos);
+            return entity;
+        }
+        private Vector3 AdjustPosition(Vector3 pos)
+        {
+            Vector3 randomPos = Quaternion.Euler(UnityEngine.Random.Range((float)(-configData.a_Options.SpawnSpread * 0.2), configData.a_Options.SpawnSpread * 0.2f), UnityEngine.Random.Range((float)(-configData.a_Options.SpawnSpread * 0.2), configData.a_Options.SpawnSpread * 0.2f), UnityEngine.Random.Range((float)(-configData.a_Options.SpawnSpread * 0.2), configData.a_Options.SpawnSpread * 0.2f)) * pos;
+            Vector3 correctPos = GetGroundPosition(randomPos);
+            return correctPos;
+        }
+        #endregion
+
+        #region Helper Methods
+        static Vector3 GetGroundPosition(Vector3 sourcePos) // credit Wulf & Nogrod
         {
             RaycastHit hitInfo;
 
-            if (Physics.Raycast(sourcePos, Vector3.down, out hitInfo, GROUND_MASKS))
-            {
-                sourcePos.y = hitInfo.point.y;
-            }
+            if (Physics.Raycast(sourcePos, Vector3.down, out hitInfo, LayerMask.GetMask("Terrain", "World", "Construction")))            
+                sourcePos.y = hitInfo.point.y;            
             sourcePos.y = Mathf.Max(sourcePos.y, TerrainMeta.HeightMap.GetHeight(sourcePos));
             return sourcePos;
         }
-        private void checkDistance(BaseEntity animal, GameObject monument)
+        #endregion
+
+        #region NPCController
+        class RAController : MonoBehaviour
         {
-            if (animal != null)
+            private readonly MethodInfo SetDeltaTimeMethod = typeof(NPCAI).GetProperty("deltaTime", (BindingFlags.Public | BindingFlags.Instance)).GetSetMethod(true);
+
+            internal static double targetAttackRange = 70;
+
+            internal Vector3 Home;
+            internal Vector3 NextPos;
+            internal BaseCombatEntity Target;
+
+            internal bool isAttacking;
+
+            public BaseNPC NPC;
+            public NPCAI AI;
+            public NPCMetabolism Metabolism;
+
+            void Awake()
             {
-                var currentPos = animal.transform.position;
-                var monPos = monument.transform.position;
-                if (Vector3.Distance(currentPos, monPos) > (maximumAWOL))
+                AI = GetComponent<NPCAI>();
+                NPC = GetComponent<BaseNPC>();
+                Metabolism = GetComponent<NPCMetabolism>();
+                isAttacking = false;
+                Target = null;
+                NPC.state = BaseNPC.State.Normal;
+                NPC.enableSaving = false;
+                BaseEntity.saveList.Remove(NPC);
+            }
+            void FixedUpdate()
+            {
+                if (AI.deltaTime < ConVar.Server.TickDelta()) return;
+                if (NPC.IsStunned()) return;
+                NPC.Tick();
+                if (NPC.attack.IsActive())
                 {
-                    killRespawn(animal, monument);
+                    NPC.attack.gameObject.SetActive(false);
+                    Move(NextPos);
                     return;
                 }
-                timer.Once(distanceCheck * 60, () => checkDistance(animal, monument));
-            }
-        }      
-        private void killRespawn(BaseEntity animal, GameObject monument)
-        {                   
-            var name = getEntityName(animal);
-            animal.KillMessage();
-            animals.Remove(animal);
-            spawnAnimal(monument, name);
-        }
-        private string getEntityName(BaseEntity entity)
-        {
-            string name = "";
-            if (entity.name.Contains("bear")) name = "bear";
-            if (entity.name.Contains("boar")) name = "boar";
-            if (entity.name.Contains("chicken")) name = "chicken";
-            if (entity.name.Contains("horse")) name = "horse";
-            if (entity.name.Contains("stag")) name = "stag";
-            if (entity.name.Contains("wolf")) name = "wolf";
-            return name;
-        }
-        private void killAllAnimals()
-        {
-            foreach (var animal in animals.Keys)
-            {
-                animal.KillMessage();
-            }
-            animals.Clear();           
-        }
-
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Permission/Auth Check /////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-               
-        bool isAdmin(BasePlayer player)
-        {
-            if (player.net.connection != null)
-            {
-                if (player.net.connection.authLevel <= 1)
+                if (Vector3.Distance(transform.position, Home) > 140)
                 {
-                    SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("noPerms", this, player.UserIDString));
-                    return false;
+                    Move(Home);
+                    return;
                 }
-            }
-            return true;
-        }
-        bool isAuth(ConsoleSystem.Arg arg)
-        {
-            if (arg.connection != null)
-            {
-                if (arg.connection.authLevel < 1)
+                if (isAttacking && Target != null)
                 {
-                    SendReply(arg, lang.GetMessage("noPerms", this));
-                    return false;
+                    var distance = Vector3.Distance(transform.position, Target.transform.position);
+                    if (distance >= 70)
+                    {
+                        isAttacking = false;
+                        Target = null;
+                        return;
+                    }
+                    else if (distance < targetAttackRange)
+                    {
+                        var normalized = (Target.transform.position - transform.position).XZ3D().normalized;
+                        if (NPC.diet.Eat(Target))
+                        {
+                            NPC.Heal(NPC.MaxHealth() / 10);
+                            Metabolism.calories.Add(Metabolism.calories.max / 10);
+                            Metabolism.hydration.Add(Metabolism.hydration.max / 10);
+                        }
+                        else if (NPC.attack.Hit(Target, 1, false))
+                            transform.rotation = Quaternion.LookRotation(normalized);
+                        NPC.steering.Face(normalized);
+                    }
+                    else Move(Target.transform.position);
                 }
+                else if (Vector3.Distance(transform.position, NextPos) < 20)
+                {
+                    CalculateNextPos();
+
+                    if (Metabolism.calories.value < 20f)
+                        NPC.diet.Forage();
+                    else if (Metabolism.sleep.value < 20f)
+                        Sleep();
+                }
+                else Move(NextPos);
             }
-            return true;
+            public void SetHome(Vector3 pos)
+            {
+                Home = pos;
+                NextPos = pos;
+            }
+            void CalculateNextPos()
+            {
+                RaycastHit hitInfo;
+
+                NextPos = Home;
+                NextPos.x += UnityEngine.Random.Range(-100, 100);
+
+                if (Physics.Raycast(NextPos, Vector3.down, out hitInfo, LayerMask.GetMask("Terrain", "World", "Construction")))
+                    NextPos.y = hitInfo.point.y;
+                NextPos.y = Mathf.Max(NextPos.y, TerrainMeta.HeightMap.GetHeight(NextPos));
+
+                NextPos.z += UnityEngine.Random.Range(-100, 100);
+            }
+            void Move(Vector3 pos)
+            {
+                NPC.state = BaseNPC.State.Normal;
+                AI.sense.Think();
+                NPC.steering.Move((pos - transform.position).XZ3D().normalized, pos, (int)NPCSpeed.Trot);
+            }
+            void Sleep()
+            {
+                NPC.state = BaseNPC.State.Sleeping;
+                NPC.sleep.Recover(20f);
+                Metabolism.stamina.Run(20f);
+                NPC.StartCooldown(20f, true);
+            }
+            internal void OnAttacked(HitInfo info)
+            {
+                if (info.Initiator)
+                    Attack(info.Initiator.GetComponent<BaseCombatEntity>());
+            }
+            internal void Attack(BaseCombatEntity ent)
+            {
+                Target = ent;
+                isAttacking = true;
+                targetAttackRange = Math.Pow(NPC._collider.bounds.XZ3D().extents.Max() + NPC.attack.range + ent._collider.bounds.XZ3D().extents.Max(), 2);
+            }
         }
+        #endregion
 
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Chat/Console Commands /////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-
+        #region Commands
         [ChatCommand("ra_killall")]
         private void chatKillAnimals(BasePlayer player, string command, string[] args)
         {
-            if (!isAdmin(player)) return;
-            killAllAnimals();
+            if (player.IsAdmin()) return;
+            foreach(var animal in animalList)
+            {
+                UnityEngine.Object.Destroy(animal.Key.GetComponent<RAController>());
+                animal.Key.KillMessage();
+            }
+            animalList.Clear();
             SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("killedAll", this, player.UserIDString));
         }
 
         [ConsoleCommand("ra_killall")]
         private void ccmdKillAnimals(ConsoleSystem.Arg arg)
         {
-            if (!isAuth(arg)) return;
-            killAllAnimals();
-            SendReply(arg, lang.GetMessage("killedAll", this));
+            if (arg.connection == null)
+            {
+                foreach (var animal in animalList)
+                {
+                    UnityEngine.Object.Destroy(animal.Key.GetComponent<RAController>());
+                    animal.Key.KillMessage();
+                }
+                animalList.Clear();
+                SendReply(arg, lang.GetMessage("killedAll", this));
+            }
+        }
+        #endregion
+
+        #region Config 
+        #region Options       
+        class AnimalCounts
+        {
+            public int Bears;
+            public int Boars;
+            public int Chickens;
+            public int Horses;
+            public int Stags;
+            public int Wolfs;
+        }
+        class LightHouses
+        {
+            public AnimalCounts AnimalCounts { get; set; }  
+            public bool Enabled { get; set; }          
+        }
+        class Airfield
+        {
+            public AnimalCounts AnimalCounts { get; set; }
+            public bool Enabled { get; set; }
         }
 
+        class Powerplant
+        {
+            public AnimalCounts AnimalCounts { get; set; }
+            public bool Enabled { get; set; }
+        }
+
+        class Trainyard
+        {
+            public AnimalCounts AnimalCounts { get; set; }
+            public bool Enabled { get; set; }
+        }
+
+        class WaterTreatmentPlant
+        {
+            public AnimalCounts AnimalCounts { get; set; }
+            public bool Enabled { get; set; }
+        }
+
+        class Warehouses
+        {
+            public AnimalCounts AnimalCounts { get; set; }
+            public bool Enabled { get; set; }
+        }
+
+        class Satellite
+        {
+            public AnimalCounts AnimalCounts { get; set; }
+            public bool Enabled { get; set; }
+        }
+
+        class SphereTank
+        {
+            public AnimalCounts AnimalCounts { get; set; }
+            public bool Enabled { get; set; }
+        }
+
+        class Radtowns
+        {
+            public AnimalCounts AnimalCounts { get; set; }
+            public bool Enabled { get; set; }
+        }
+        class MilitaryTunnels
+        {
+            public AnimalCounts AnimalCounts { get; set; }
+            public bool Enabled { get; set; }
+        }
+        class Options
+        {
+            public int RespawnTimer;
+            public float SpawnSpread;
+            public int TotalMaximumAmount;           
+        }
+        #endregion
+
+        private ConfigData configData;
+        class ConfigData
+        {
+            public LightHouses Lighthouses { get; set; }
+            public Airfield Airfield { get; set; }
+            public Powerplant Powerplant { get; set; }
+            public Trainyard Trainyard { get; set; }
+            public WaterTreatmentPlant WaterTreatmentPlant { get; set; }
+            public Warehouses Warehouses { get; set; }
+            public Satellite Satellite { get; set; }
+            public SphereTank SphereTank { get; set; }
+            public Radtowns Radtowns { get; set; }
+            public MilitaryTunnels MilitaryTunnels { get; set; }
+            public Options a_Options { get; set; }
+        }
+        private void LoadVariables()
+        {
+            LoadConfigVariables();
+            SaveConfig();
+        }
+        protected override void LoadDefaultConfig()
+        {
+            var config = new ConfigData
+            {
+                Airfield = new Airfield
+                {
+                    AnimalCounts = new AnimalCounts
+                    {
+                        Bears = 0,
+                        Boars = 0,
+                        Chickens = 0,
+                        Horses = 0,
+                        Stags = 0,
+                        Wolfs = 0,
+                    },
+                    Enabled = false
+                },
+                Lighthouses = new LightHouses
+                {
+                    AnimalCounts = new AnimalCounts
+                    {
+                        Bears = 0,
+                        Boars = 0,
+                        Chickens = 0,
+                        Horses = 0,
+                        Stags = 0,
+                        Wolfs = 0,
+                    },
+                    Enabled = false
+                },
+                MilitaryTunnels = new MilitaryTunnels
+                {
+                    AnimalCounts = new AnimalCounts
+                    {
+                        Bears = 0,
+                        Boars = 0,
+                        Chickens = 0,
+                        Horses = 0,
+                        Stags = 0,
+                        Wolfs = 0,
+                    },
+                    Enabled = false
+                },
+                Powerplant = new Powerplant
+                {
+                    AnimalCounts = new AnimalCounts
+                    {
+                        Bears = 0,
+                        Boars = 0,
+                        Chickens = 0,
+                        Horses = 0,
+                        Stags = 0,
+                        Wolfs = 0,
+                    },
+                    Enabled = false
+                },
+                Radtowns = new Radtowns
+                {
+                    AnimalCounts = new AnimalCounts
+                    {
+                        Bears = 0,
+                        Boars = 0,
+                        Chickens = 0,
+                        Horses = 0,
+                        Stags = 0,
+                        Wolfs = 0,
+                    },
+                    Enabled = false
+                },
+                Satellite = new Satellite
+                {
+                    AnimalCounts = new AnimalCounts
+                    {
+                        Bears = 0,
+                        Boars = 0,
+                        Chickens = 0,
+                        Horses = 0,
+                        Stags = 0,
+                        Wolfs = 0,
+                    },
+                    Enabled = false
+                },
+                SphereTank = new SphereTank
+                {
+                    AnimalCounts = new AnimalCounts
+                    {
+                        Bears = 0,
+                        Boars = 0,
+                        Chickens = 0,
+                        Horses = 0,
+                        Stags = 0,
+                        Wolfs = 0,
+                    },
+                    Enabled = false
+                },
+                Trainyard = new Trainyard
+                {
+                    AnimalCounts = new AnimalCounts
+                    {
+                        Bears = 0,
+                        Boars = 0,
+                        Chickens = 0,
+                        Horses = 0,
+                        Stags = 0,
+                        Wolfs = 0,
+                    },
+                    Enabled = false
+                },
+                Warehouses = new Warehouses
+                {
+                    AnimalCounts = new AnimalCounts
+                    {
+                        Bears = 0,
+                        Boars = 0,
+                        Chickens = 0,
+                        Horses = 0,
+                        Stags = 0,
+                        Wolfs = 0,
+                    },
+                    Enabled = false
+                },
+                WaterTreatmentPlant = new WaterTreatmentPlant
+                {
+                    AnimalCounts = new AnimalCounts
+                    {
+                        Bears = 0,
+                        Boars = 0,
+                        Chickens = 0,
+                        Horses = 0,
+                        Stags = 0,
+                        Wolfs = 0,
+                    },
+                    Enabled = false
+                },
+                a_Options = new Options
+                {
+                    TotalMaximumAmount = 40,
+                    RespawnTimer = 15,
+                    SpawnSpread = 100
+                }
+            };
+            SaveConfig(config);
+        }
+        private void LoadConfigVariables() => configData = Config.ReadObject<ConfigData>();
+        void SaveConfig(ConfigData config) => Config.WriteObject(config, true);
+        #endregion      
+
+        #region Messaging
+        Dictionary<string, string> messages = new Dictionary<string, string>()
+        {
+            {"nullList", "<color=#939393>Error getting a list of monuments</color>" },
+            {"title", "<color=orange>Radtown Animals:</color> " },
+            {"killedAll", "<color=#939393>Killed all animals</color>" },
+            {"spawnLimit", "<color=#939393>The animal spawn limit has been hit.</color>" }
+        };
+        #endregion
     }
 }

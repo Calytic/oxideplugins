@@ -1,8 +1,8 @@
 {
-    "name": "Usable To Belt",
-    "description": "Any usable item will be moved to your belt if there is space.",
-    "author": "AnExiledGod",
-    "version": "1.1.0",
+    "name": "UsableToBelt",
+    "description": "Any usable item will be moved to your belt if there is space",
+    "author": "Wulf",
+    "version": "1.2.1",
     "configuration": false,
     "language": "cs",
     "games": [

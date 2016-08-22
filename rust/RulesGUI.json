@@ -2,7 +2,7 @@
     "name": "Rules GUI",
     "description": "This plugin displays the rules on connect.",
     "author": "PaiN",
-    "version": "1.4.5",
+    "version": "1.4.8",
     "configuration": true,
     "language": "cs",
     "games": [

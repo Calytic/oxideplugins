@@ -4,8 +4,9 @@
     "author": "deer_SWAG",
     "version": "0.0.35",
     "configuration": false,
-    "require": {
-        "ZoneManager": "*"
+    "suggest": {
+        "ZoneManager": "*",
+        "RectZones": "*"
     },
     "language": "cs",
     "games": [

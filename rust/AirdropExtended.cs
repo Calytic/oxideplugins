@@ -11,12 +11,12 @@ using AirdropExtended.Diagnostics;
 using AirdropExtended.Permissions;
 using AirdropExtended.Rust.Extensions;
 using AirdropExtended.WeightedSearch;
+using JetBrains.Annotations;
 using Newtonsoft.Json;
 using Oxide.Core;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using AirdropExtended.PluginSettings;
 using Oxide.Core.Configuration;
 using Oxide.Core.Libraries;
 using Oxide.Core.Plugins;
@@ -32,18 +32,17 @@ using Timer = Oxide.Core.Libraries.Timer;
 
 namespace Oxide.Plugins
 {
-	[Info(Constants.PluginName, "baton", "1.0.7", ResourceId = 1210)]
+	[Info(Constants.PluginName, "baton", "1.0.9", ResourceId = 1210)]
 	[Description("Customizable airdrop")]
 	public class AirdropExtended : RustPlugin
 	{
 		private readonly SettingsContext _settingsContext;
 		private readonly AirdropController _airdropController;
-		private PluginSettingsRepository _pluginSettingsRepository;
 		private Dictionary<string, AirdropExtendedCommand> _commands;
 
 		public AirdropExtended()
 		{
-			_settingsContext = new SettingsContext();
+			_settingsContext = new SettingsContext(() => Config);
 			_airdropController = new AirdropController(_settingsContext);
 		}
 
@@ -51,15 +50,19 @@ namespace Oxide.Plugins
 		{
 			LoadConfig();
 			Bootstrap();
-			Save();
+		}
+
+		protected override void LoadDefaultConfig()
+		{
+			var settings = AirdropSettingsFactory.CreateDefault();
+			Config.WriteObject(settings);
 		}
 
 		private void Bootstrap()
 		{
-			_pluginSettingsRepository = new PluginSettingsRepository(Config, SaveConfig);
 			LoadAireSettings();
 
-			var commands = CommandFactory.Create(_settingsContext, _pluginSettingsRepository, _airdropController);
+			var commands = CommandFactory.Create(_settingsContext, _airdropController);
 			PermissionService.RegisterPermissions(this, commands);
 
 			_commands = commands.ToDictionary(c => c.Name, c => c);
@@ -77,18 +80,21 @@ namespace Oxide.Plugins
 
 		private void LoadAireSettings()
 		{
-			_settingsContext.SettingsName = _pluginSettingsRepository.LoadSettingsName();
-			Diagnostics.MessageToServer("Loaded settings:{0}", _settingsContext.SettingsName);
-			_settingsContext.Settings = AidropSettingsRepository.LoadFrom(_settingsContext.SettingsName);
+			Diagnostics.MessageToServer("Loaded settings");
+			var previousSetting = Config.Get<string>("settingsName");
+			if (!string.IsNullOrEmpty(previousSetting))
+			{
+				_settingsContext.Settings = AidropSettingsRepository.LoadFrom(previousSetting);
+				Diagnostics.MessageToServer("Saved current config settings: {0} to normal config in config/AirdropExtended.json", previousSetting);
+				Diagnostics.MessageToServer("Copied old settings file to data/{0}.json", previousSetting);
+				AidropSettingsRepository.Save(_settingsContext.ConfigFile(), _settingsContext.Settings);
+				AidropSettingsRepository.SaveTo(previousSetting, _settingsContext.Settings);
+			}
+			else
+			{
+				_settingsContext.Settings = AidropSettingsRepository.Load(Config);
+			}
 			_airdropController.ApplySettings();
-		}
-
-		private void Save()
-		{
-			_pluginSettingsRepository.SaveSettingsName(_settingsContext.SettingsName);
-			AidropSettingsRepository.SaveTo(_settingsContext.SettingsName, _settingsContext.Settings);
-
-			SaveConfig();
 		}
 
 		private void Unload()
@@ -312,8 +318,14 @@ namespace AirdropExtended
 
 	public sealed class SettingsContext
 	{
-		public string SettingsName { get; set; }
+		public SettingsContext([NotNull] Func<DynamicConfigFile> configFile)
+		{
+			if (configFile == null) throw new ArgumentNullException("configFile");
+			ConfigFile = configFile;
+		}
+
 		public AirdropSettings Settings { get; set; }
+		public Func<DynamicConfigFile> ConfigFile { get; set; }
 	}
 }
 
@@ -825,7 +837,7 @@ namespace AirdropExtended.Commands
 
 		public virtual void ExecuteFromChat(BasePlayer player, string command, string[] args)
 		{
-			if (player != null && !PermissionService.HasPermission(player, PermissionName) && !player.IsAdmin())
+			if (player == null || !PermissionService.HasPermission(player, PermissionName) || !player.IsAdmin())
 			{
 				Diagnostics.Diagnostics.MessageToPlayer(player, "You are not admin. You are required to have permission \"{0}\" to run command: {1}", PermissionName, Name);
 				return;
@@ -874,20 +886,16 @@ namespace AirdropExtended.Commands
 	{
 		private readonly SettingsContext _context;
 		private readonly AirdropController _controller;
-		private readonly PluginSettingsRepository _repository;
 
 		public LoadSettingsCommand(
 			SettingsContext context,
-			PluginSettingsRepository repository,
 			AirdropController controller)
 			: base("aire.load", "airdropextended.canLoad")
 		{
 			if (context == null) throw new ArgumentNullException("context");
-			if (repository == null) throw new ArgumentNullException("repository");
 			if (controller == null) throw new ArgumentNullException("controller");
 
 			_context = context;
-			_repository = repository;
 			_controller = controller;
 		}
 
@@ -908,9 +916,13 @@ namespace AirdropExtended.Commands
 
 			Diagnostics.Diagnostics.MessageToServerAndPlayer(player, "Loading settings: {0}", settingsName);
 
-			_context.SettingsName = settingsName;
-			_context.Settings = AidropSettingsRepository.LoadFrom(settingsName);
-			_repository.SaveSettingsName(_context.SettingsName);
+			var settings = AidropSettingsRepository.LoadFrom(settingsName);
+			if (settings == null)
+			{
+				Diagnostics.Diagnostics.MessageToServerAndPlayer(player, "Failed to load settings, no such file: ", settingsName);
+				return;
+			}
+
 			_controller.ApplySettings();
 		}
 
@@ -923,20 +935,16 @@ namespace AirdropExtended.Commands
 	public class ReloadSettingsCommand : AirdropExtendedCommand
 	{
 		private readonly SettingsContext _context;
-		private readonly PluginSettingsRepository _repository;
 		private readonly AirdropController _controller;
 
 		public ReloadSettingsCommand(
 			SettingsContext context,
-			PluginSettingsRepository repository,
 			AirdropController controller)
 			: base("aire.reload", "airdropextended.canReload")
 		{
 			if (context == null) throw new ArgumentNullException("context");
-			if (repository == null) throw new ArgumentNullException("repository");
 			if (controller == null) throw new ArgumentNullException("controller");
 			_context = context;
-			_repository = repository;
 			_controller = controller;
 		}
 
@@ -944,8 +952,7 @@ namespace AirdropExtended.Commands
 		{
 			Diagnostics.Diagnostics.MessageToServerAndPlayer(player, "Reloading plugin");
 
-			_context.SettingsName = _repository.LoadSettingsName();
-			_context.Settings = AidropSettingsRepository.LoadFrom(_context.SettingsName);
+			_context.Settings = AidropSettingsRepository.Load(_context.ConfigFile());
 			_controller.ApplySettings();
 		}
 
@@ -958,32 +965,27 @@ namespace AirdropExtended.Commands
 	public class SaveSettingsCommand : AirdropExtendedCommand
 	{
 		private readonly SettingsContext _context;
-		private readonly PluginSettingsRepository _pluginSettingsRepository;
 
-		public SaveSettingsCommand(SettingsContext context, PluginSettingsRepository pluginSettingsRepository)
+		public SaveSettingsCommand(SettingsContext context)
 			: base("aire.save", "airdropextended.canSave")
 		{
 			if (context == null) throw new ArgumentNullException("context");
-			if (pluginSettingsRepository == null) throw new ArgumentNullException("pluginSettingsRepository");
 			_context = context;
-			_pluginSettingsRepository = pluginSettingsRepository;
 		}
 
 		protected override void ExecuteInternal(ConsoleSystem.Arg arg, BasePlayer player)
 		{
-			var settingsName = arg.HasArgs()
-				? arg.GetString(0)
-				: _pluginSettingsRepository.LoadSettingsName();
+			var settingsName = arg.GetString(0, string.Empty);
 
 			if (string.IsNullOrEmpty(settingsName))
 			{
-				PrintUsage(player);
+				AidropSettingsRepository.Save(_context.ConfigFile(), _context.Settings);
+				Diagnostics.Diagnostics.MessageToServerAndPlayer(player, "Saved settings to default config");
 				return;
 			}
 
 			Diagnostics.Diagnostics.MessageToServerAndPlayer(player, "Saving settings to: {0}", settingsName);
 
-			_pluginSettingsRepository.SaveSettingsName(settingsName);
 			AidropSettingsRepository.SaveTo(settingsName, _context.Settings);
 		}
 
@@ -1474,9 +1476,9 @@ namespace AirdropExtended.Commands
 
 			var usageStrings = new[]
 			{
-				GetDefaultUsageString("item_name [category] [chance] [min] [max] [is_blueprint]"),
+				GetDefaultUsageString("item_name [category] [chance] [min] [max]"),
 				string.Format("Example: {0} Weapon rocket_launcher 15 1 1 false.", Name),
-				"default chance=0, min=0, max=0, is_blueprint=false."
+				"default chance=0, min=0, max=0."
 			};
 
 			_usageString = string.Join(Environment.NewLine, usageStrings);
@@ -1495,7 +1497,6 @@ namespace AirdropExtended.Commands
 			float chance;
 			int minAmount;
 			int maxAmount;
-			bool isBlueprint;
 
 			try
 			{
@@ -1504,7 +1505,6 @@ namespace AirdropExtended.Commands
 				chance = arg.GetFloat(2);
 				minAmount = arg.GetInt(3);
 				maxAmount = arg.GetInt(4);
-				isBlueprint = arg.GetBool(5);
 			}
 			catch (Exception)
 			{
@@ -1512,19 +1512,18 @@ namespace AirdropExtended.Commands
 				return;
 			}
 
-			var item = _context.Settings.FindItem(categoryName, itemName, isBlueprint);
+			var item = _context.Settings.FindItem(categoryName, itemName);
 
 			item.ChanceInPercent = chance;
 			item.MinAmount = minAmount;
 			item.MaxAmount = maxAmount;
 
 			Diagnostics.Diagnostics.MessageToServerAndPlayer(player,
-			"Set settings to item:{0}, chance:{1}, min_amount:{2}, max_amount:{3}, is blueprint:{4}",
+			"Set settings to item:{0}, chance:{1}, min_amount:{2}, max_amount:{3}",
 			itemName,
 			chance,
 			minAmount,
-			maxAmount,
-			isBlueprint);
+			maxAmount);
 
 			_controller.ApplySettings();
 		}
@@ -2000,9 +1999,8 @@ namespace AirdropExtended.Commands
 				var itemName = item.info.displayName.english;
 				Diagnostics.Diagnostics.MessageToServerAndPlayer(
 					player,
-					"Item: |{0,20}|, bp: {1}, count: {2}",
+					"Item: |{0,20}|, count: {1}",
 					itemName.Substring(0, Math.Min(itemName.Length, 18)),
-					item.HasFlag(Item.Flag.Blueprint),
 					item.amount);
 			}
 			Diagnostics.Diagnostics.MessageToServerAndPlayer(player, "================================================");
@@ -2018,18 +2016,16 @@ namespace AirdropExtended.Commands
 	{
 		public static List<AirdropExtendedCommand> Create(
 			SettingsContext context,
-			PluginSettingsRepository settingsRepository,
 			AirdropController controller)
 		{
 			if (context == null) throw new ArgumentNullException("context");
-			if (settingsRepository == null) throw new ArgumentNullException("settingsRepository");
 			if (controller == null) throw new ArgumentNullException("controller");
 
 			return new List<AirdropExtendedCommand>
 				{
-					new LoadSettingsCommand(context, settingsRepository, controller),
-					new ReloadSettingsCommand(context, settingsRepository, controller),
-					new SaveSettingsCommand(context, settingsRepository),
+					new LoadSettingsCommand(context, controller),
+					new ReloadSettingsCommand(context, controller),
+					new SaveSettingsCommand(context),
 					new GenerateDefaultSettingsAndSaveCommand(),
 					new SetDropMinFrequencyCommand(context, controller),
 					new SetDropMaxFrequencyCommand(context, controller),
@@ -2061,49 +2057,49 @@ namespace AirdropExtended.Commands
 	}
 }
 
-namespace AirdropExtended.PluginSettings
-{
-	public sealed class PluginSettingsRepository
-	{
-		private readonly DynamicConfigFile _config;
-		private readonly Action _saveConfigDelegate;
+//namespace AirdropExtended.PluginSettings
+//{
+//	public sealed class PluginSettingsRepository
+//	{
+//		private readonly DynamicConfigFile _config;
+//		private readonly Action _saveConfigDelegate;
 
-		public PluginSettingsRepository(DynamicConfigFile config, Action saveConfigDelegate)
-		{
-			if (config == null) throw new ArgumentNullException("config");
-			if (saveConfigDelegate == null) throw new ArgumentNullException("saveConfigDelegate");
-			_config = config;
-			_saveConfigDelegate = saveConfigDelegate;
-		}
+//		public PluginSettingsRepository(DynamicConfigFile config, Action saveConfigDelegate)
+//		{
+//			if (config == null) throw new ArgumentNullException("config");
+//			if (saveConfigDelegate == null) throw new ArgumentNullException("saveConfigDelegate");
+//			_config = config;
+//			_saveConfigDelegate = saveConfigDelegate;
+//		}
 
-		private const string DefaultSettingsName = "defaultSettings";
+//		private const string DefaultSettingsName = "defaultSettings";
 
-		public string LoadSettingsName(string defaultName = DefaultSettingsName)
-		{
-			string settingsName;
-			try
-			{
-				settingsName = (string)_config["settingsName"];
-			}
-			catch (Exception)
-			{
-				settingsName = string.Empty;
-			}
+//		public string LoadSettingsName(string defaultName = DefaultSettingsName)
+//		{
+//			string settingsName;
+//			try
+//			{
+//				settingsName = (string)_config["settingsName"];
+//			}
+//			catch (Exception)
+//			{
+//				settingsName = string.Empty;
+//			}
 
-			settingsName = string.IsNullOrEmpty(settingsName) ? defaultName : settingsName;
-			return settingsName;
-		}
+//			settingsName = string.IsNullOrEmpty(settingsName) ? defaultName : settingsName;
+//			return settingsName;
+//		}
 
-		public void SaveSettingsName(string settingsName)
-		{
-			if (string.IsNullOrEmpty(settingsName))
-				settingsName = DefaultSettingsName;
+//		public void SaveSettingsName(string settingsName)
+//		{
+//			if (string.IsNullOrEmpty(settingsName))
+//				settingsName = DefaultSettingsName;
 
-			_config["settingsName"] = settingsName;
-			_saveConfigDelegate();
-		}
-	}
-}
+//			_config["settingsName"] = settingsName;
+//			_saveConfigDelegate();
+//		}
+//	}
+//}
 
 namespace AirdropExtended.WeightedSearch
 {
@@ -2453,7 +2449,6 @@ namespace AirdropExtended.Airdrop.Services
 		{
 			var settings = _context.Settings ?? AirdropSettingsFactory.CreateDefault();
 			AirdropSettingsValidator.Validate(settings);
-			AidropSettingsRepository.SaveTo(_context.SettingsName, settings);
 
 			Diagnostics.Diagnostics.Color = settings.Localization.Color;
 			Diagnostics.Diagnostics.Prefix = settings.Localization.Prefix;
@@ -2786,8 +2781,6 @@ namespace AirdropExtended.Airdrop.Settings
 			if (i1 == null)
 				return null;
 
-			if (item.IsBlueprint)
-				i1.SetFlag(Item.Flag.Blueprint, true);
 			return i1;
 		}
 
@@ -2813,15 +2806,14 @@ namespace AirdropExtended.Airdrop.Settings
 			return list;
 		}
 
-		public AirdropItem FindItem(string categoryName, string itemName, bool isBlueprint)
+		public AirdropItem FindItem(string categoryName, string itemName)
 		{
 			if (categoryName == null) throw new ArgumentNullException("categoryName");
 			if (itemName == null) throw new ArgumentNullException("itemName");
 
 			return ItemGroups.Select(@group =>
 				@group.ItemSettings.FirstOrDefault(f =>
-					f.Name.Equals(itemName, StringComparison.OrdinalIgnoreCase) &&
-					f.IsBlueprint == isBlueprint))
+					f.Name.Equals(itemName, StringComparison.OrdinalIgnoreCase)))
 						.FirstOrDefault(item => item != null);
 		}
 	}
@@ -2933,8 +2925,6 @@ namespace AirdropExtended.Airdrop.Settings
 			get { return _maxAmount; }
 			set { _maxAmount = value < 0 ? 0 : value; }
 		}
-
-		public bool IsBlueprint { get; set; }
 
 		public bool CanDrop()
 		{
@@ -3330,12 +3320,39 @@ namespace AirdropExtended.Airdrop.Settings
 
 	public static class AidropSettingsRepository
 	{
+		public static AirdropSettings Load([NotNull] DynamicConfigFile config)
+		{
+			if (config == null) throw new ArgumentNullException("config");
+
+			AirdropSettings settings;
+			try
+			{
+				settings = config.ReadObject<AirdropSettings>();
+
+				var oxideGeneratedDefaultSettingsFile = settings == null || settings.CommonSettings == null || settings.ItemGroups == null;
+				if (oxideGeneratedDefaultSettingsFile)
+				{
+					Diagnostics.Diagnostics.MessageToServer("Generating default config");
+					settings = AirdropSettingsFactory.CreateDefault();
+					Save(config, settings);
+				}
+			}
+			catch (Exception ex)
+			{
+				Diagnostics.Diagnostics.MessageToServer("exception during read:{0}", ex);
+				Diagnostics.Diagnostics.MessageToServer("error. Creating default settings.");
+				settings = AirdropSettingsFactory.CreateDefault();
+			}
+
+			return settings;
+		}
+
 		public static AirdropSettings LoadFrom(string settingsName)
 		{
 			AirdropSettings settings;
 			try
 			{
-				var fileName = "airdropExtended_" + settingsName;
+				var fileName = settingsName;
 				settings = Interface.GetMod().DataFileSystem.ReadObject<AirdropSettings>(fileName);
 
 				var oxideGeneratedDefaultSettingsFile = string.IsNullOrEmpty(settingsName) || settings == null || settings.CommonSettings == null || settings.ItemGroups == null;
@@ -3356,13 +3373,27 @@ namespace AirdropExtended.Airdrop.Settings
 			return settings;
 		}
 
+		public static void Save(DynamicConfigFile config, AirdropSettings settings)
+		{
+			if (config == null) throw new ArgumentNullException("config");
+
+			try
+			{
+				config.WriteObject(settings);
+			}
+			catch (Exception ex)
+			{
+				Diagnostics.Diagnostics.MessageToServer("error during save :{0}", ex);
+			}
+		}
+
 		public static void SaveTo(string settingsName, AirdropSettings airdropSettings)
 		{
 			if (airdropSettings == null) throw new ArgumentNullException("airdropSettings");
 			if (string.IsNullOrEmpty(settingsName)) throw new ArgumentException("Should not be blank", "settingsName");
 
-			var fileName = "airdropExtended_" + settingsName;
-			Diagnostics.Diagnostics.MessageToServer("Saving settings to:{0}", settingsName);
+			var fileName = settingsName;
+			Diagnostics.Diagnostics.MessageToServer("Saving settings");
 			Interface.GetMod().DataFileSystem.WriteObject(fileName, airdropSettings);
 		}
 	}
@@ -3417,7 +3448,6 @@ namespace AirdropExtended.Airdrop.Settings.Generate
 				{"Traps", GenerateMappingForTraps},
 				{"Weapon", def => new[] {1, 1}},
 				{"Resources", GenerateMappingForResource},
-				{"Blueprint", def => new[] {1, 1}}
 			};
 
 		private static int[] GenerateMappingForTraps(ItemDefinition itemDefinition)
@@ -3536,8 +3566,7 @@ namespace AirdropExtended.Airdrop.Settings.Generate
 				{"Traps", 1},
 				{"Misc", 1},
 				{"Weapon", 6},
-				{"Resources", 2},
-				{"Blueprint", 1}
+				{"Resources", 2}
 			};
 
 		public const string TemplatePath = "";
@@ -3591,41 +3620,12 @@ namespace AirdropExtended.Airdrop.Settings.Generate
 				})
 				.ToList();
 
-			var blueprintItemGroup = GenerateBlueprintItemGroup();
-			itemGroups.Add(blueprintItemGroup);
 			return itemGroups;
 		}
 
 		private static float CalculateChanceByRarity(Rarity rarity)
 		{
 			return 100 - ((int)rarity + 1) * 16f;
-		}
-
-		private static AirdropItemGroup GenerateBlueprintItemGroup()
-		{
-			var excludedBlueprints = DefaultExcludedItems.Concat(new[] { "ammo.rocket.smoke", "lantern_a", "lantern_b", "spear.stone" });
-			var notDefaultBlueprints = ItemManager.bpList
-				.Where(bp =>
-					!bp.defaultBlueprint &&
-					bp.userCraftable &&
-					bp.isResearchable &&
-					!excludedBlueprints.Contains(bp.targetItem.shortname))
-				.ToList();
-			var bpItems = notDefaultBlueprints.Select(b => b.targetItem).ToList();
-
-			return new AirdropItemGroup
-			{
-				ItemSettings = bpItems.Select(itemDef => new AirdropItem
-				{
-					Name = itemDef.shortname,
-					MinAmount = 1,
-					MaxAmount = 1,
-					ChanceInPercent = CalculateChanceByRarity(itemDef.rarity),
-					IsBlueprint = true
-				}).ToList(),
-				MaximumAmountInLoot = 2,
-				Name = "Blueprint"
-			};
 		}
 	}
 }

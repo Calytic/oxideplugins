@@ -1,0 +1,15 @@
+{
+    "name": "Cupboard Restrictions",
+    "description": "Restricts cupboards being built on grass",
+    "author": "DylanSMR",
+    "version": "1.0.4",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

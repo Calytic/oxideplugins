@@ -2,12 +2,17 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using Oxide.Game.Rust.Cui;
+using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("FireArrows", "Colon Blow", "1.2.0")]
+    [Info("FireArrows", "Colon Blow", "1.2.3")]
     class FireArrows : RustPlugin
     {
+
+        [PluginReference]
+        Plugin ZoneManager;
+
 	bool Changed;
 	
 	Dictionary<ulong, FireArrowData> FireArrowOn = new Dictionary<ulong, FireArrowData>();
@@ -59,6 +64,8 @@ namespace Oxide.Plugins
 ////////Configuration Stuff////////////////////////////////////////////////////////////////////////////
 
 	static bool ShowArrowTypeIcon = true;
+	static bool BlockinRestrictedZone = false;
+	static bool UseProt = true;
 	static float DamageFireArrow = 50f;
 	static float DamageFireBall = 200f;
 	static float DamageFireBomb = 500f;
@@ -67,6 +74,7 @@ namespace Oxide.Plugins
 	static float DurationFireBallArrow = 10f;
 	static float DurationFireBombArrow = 10f;
 
+	static string RestrictedZoneID = "24072018";
 	static int cloth = 5;
 	static int fuel = 5;
 	static int oil = 5;
@@ -76,6 +84,7 @@ namespace Oxide.Plugins
 	private string IconFireBall = "http://i.imgur.com/USdpXGT.png";
 	private string IconFireBomb = "http://i.imgur.com/0DpAHMn.png";
 
+	bool isRestricted;
         private void LoadVariables()
         {
             	LoadConfigVariables();
@@ -85,6 +94,8 @@ namespace Oxide.Plugins
         private void LoadConfigVariables()
         {
         	CheckCfg("Icon - Show Arrow Type", ref ShowArrowTypeIcon);
+		CheckCfg("Restriction - Block usage in Restricted Zone", ref BlockinRestrictedZone);
+		CheckCfg("Damage Protection - Use Entity Protection Values", ref UseProt);
         	CheckCfgFloat("Damage - Fire Arrow", ref DamageFireArrow);
         	CheckCfgFloat("Damage - Fire Ball Arrow", ref DamageFireBall);
         	CheckCfgFloat("Damage - Fire Bomb Arrow", ref DamageFireBomb);
@@ -92,6 +103,7 @@ namespace Oxide.Plugins
 		CheckCfgFloat("Duration - Fire Arrow", ref DurationFireArrow);
 		CheckCfgFloat("Duration - Fire Ball Arrow", ref DurationFireBallArrow);
 		CheckCfgFloat("Duration - Fire Bomb Arrow", ref DurationFireBombArrow);
+		CheckCfg("Zone - Restricted Zone ID", ref RestrictedZoneID);
 		CheckCfg("Required - All Arrows - Cloth Amount", ref cloth);
 		CheckCfg("Required - All Arrows- Low Grade Fuel Amount", ref fuel);
 		CheckCfg("Required - FireBall & FireBomb Arrows - Crude Oil", ref oil);
@@ -146,6 +158,7 @@ namespace Oxide.Plugins
 			{"firebombarrowtxt", "Your Arrows are set for FireBomb."},
                 	{"doesnothavemattxt", "You don't have required materials..."},
                	 	{"defaultarrowtxt", "Your Arrows are set for Normal."},
+			{"restricted", "You are not allowed FireArrows in this Zone"},
 			{"deniedarrowtxt", "No Access to This Arrow Tier."}
             	};
 
@@ -155,13 +168,15 @@ namespace Oxide.Plugins
 	{
            	if (usingCorrectWeapon(player))
 		{
-			ArrowFX(player, hitInfo);
-			return;
+
+				ArrowFX(player, hitInfo);
+				return;
 		}
 	}
 
 	void ArrowFX(BasePlayer player, HitInfo hitInfo)
 	{
+
 		if (FireArrowOn.ContainsKey(player.userID))
 			{
 			FireArrowFX(player, hitInfo);
@@ -188,14 +203,16 @@ namespace Oxide.Plugins
 
 		Effect.server.Run("assets/bundled/prefabs/fx/impacts/additive/fire.prefab", hitInfo.HitPositionWorld);
 		BaseEntity FireArrow = GameManager.server.CreateEntity("assets/bundled/prefabs/fireball.prefab", hitInfo.HitPositionWorld);
-		FireArrow?.Spawn(true);
+		FireArrow?.Spawn();
 		timer.Once(DurationFireArrow, () => FireArrow.Kill());
 		return;
 	}
 
 	void FireBallFX(BasePlayer player, HitInfo hitInfo)
 	{
+		if (!notZoneRestricted(player)) { tellRestricted(player); return; }
 		if (!hasResources(player)) { tellDoesNotHaveMaterials(player); return; }
+
 		applyBlastDamage(player, DamageFireBall, Rust.DamageType.Heat, hitInfo);
 		timer.Once(1, () => applyBlastDamage(player, DamageFireBall, Rust.DamageType.Heat, hitInfo));
 		timer.Once(2, () => applyBlastDamage(player, DamageFireBall, Rust.DamageType.Heat, hitInfo));
@@ -203,19 +220,21 @@ namespace Oxide.Plugins
 
 		Effect.server.Run("assets/bundled/prefabs/fx/survey_explosion.prefab", hitInfo.HitPositionWorld);
 		BaseEntity FireBallArrow = GameManager.server.CreateEntity("assets/bundled/prefabs/napalm.prefab", hitInfo.HitPositionWorld);
-		FireBallArrow?.Spawn(true);
+		FireBallArrow?.Spawn();
 		timer.Once(DurationFireBallArrow, () => FireBallArrow.Kill());
 		return;
 	}
 
 	void FireBombFX(BasePlayer player, HitInfo hitInfo)
 	{
+		if (!notZoneRestricted(player)) { tellRestricted(player); return; }
 		if (!hasResources(player)) { tellDoesNotHaveMaterials(player); return; }
+
 		applyBlastDamage(player, DamageFireBomb, Rust.DamageType.Explosion, hitInfo);
 
 		Effect.server.Run("assets/bundled/prefabs/fx/weapons/landmine/landmine_explosion.prefab", hitInfo.HitPositionWorld);
 		BaseEntity FireBombArrow = GameManager.server.CreateEntity("assets/bundled/prefabs/oilfireballsmall.prefab", hitInfo.HitPositionWorld);
-		FireBombArrow?.Spawn(true);
+		FireBombArrow?.Spawn();
 		timer.Once(DurationFireBombArrow, () => FireBombArrow.Kill());
 		return;
 	}
@@ -235,7 +254,7 @@ namespace Oxide.Plugins
                 {
 		if (!(p is BuildingPrivlidge))
 			{
-			p.Hurt(damageamount, damagetype, player, true);
+			p.Hurt(damageamount, damagetype, player, UseProt);
 			}
                 }
 	}
@@ -435,10 +454,11 @@ namespace Oxide.Plugins
         	elements.Add(new CuiElement
                 	{
                     	Name = GuiInfoFA[player.userID],
+			Parent = "Overlay",
                     	Components =
                     		{
                         	new CuiRawImageComponent { Color = "1 1 1 1", Url = IconFireArrow, Sprite = "assets/content/textures/generic/fulltransparent.tga" },
-                        	new CuiRectTransformComponent { AnchorMin = "0.100 0.04",  AnchorMax = "0.15 0.12"}
+                        	new CuiRectTransformComponent { AnchorMin = "0.165 0.025",  AnchorMax = "0.210 0.095"}
                     		}
                 	});
          	}
@@ -447,10 +467,11 @@ namespace Oxide.Plugins
         	elements.Add(new CuiElement
                 	{
                     	Name = GuiInfoFA[player.userID],
+			Parent = "Overlay",
                     	Components =
                     		{
                         	new CuiRawImageComponent { Color = "1 1 1 1", Url = IconFireBall, Sprite = "assets/content/textures/generic/fulltransparent.tga" },
-                        	new CuiRectTransformComponent { AnchorMin = "0.100 0.04",  AnchorMax = "0.15 0.12"}
+                        	new CuiRectTransformComponent { AnchorMin = "0.165 0.025",  AnchorMax = "0.210 0.095"}
                     		}
                 	});
          	}
@@ -459,10 +480,11 @@ namespace Oxide.Plugins
         	elements.Add(new CuiElement
                 	{
                     	Name = GuiInfoFA[player.userID],
+			Parent = "Overlay",
                     	Components =
                     		{
                         	new CuiRawImageComponent { Color = "1 1 1 1", Url = IconFireBomb, Sprite = "assets/content/textures/generic/fulltransparent.tga" },
-                        	new CuiRectTransformComponent { AnchorMin = "0.100 0.04",  AnchorMax = "0.15 0.12"}
+                        	new CuiRectTransformComponent { AnchorMin = "0.165 0.025",  AnchorMax = "0.210 0.095"}
                     		}
                 	});
          	}
@@ -472,17 +494,34 @@ namespace Oxide.Plugins
         }
 
 ////////Helpers////////////////////////////////////////////////////////////////////////////////
+
+	bool notZoneRestricted(BasePlayer player)
+	{
+		isRestricted = false;
+		var ZoneManager = plugins.Find("ZoneManager");
+		bool Zone1Check = Convert.ToBoolean(ZoneManager?.Call("isPlayerInZone", RestrictedZoneID, player));
+		if (Zone1Check)
+		{
+		isRestricted = true;
+		}
+		if (isRestricted) return false;
+		return true;
+	}
 	
 	void tellNotGrantedArrow(BasePlayer player)
 	{
-	SendReply(player, lang.GetMessage("deniedarrowtxt", this));
+		SendReply(player, lang.GetMessage("deniedarrowtxt", this));
 	}
 
 	void tellDoesNotHaveMaterials(BasePlayer player)
 	{
-	SendReply(player, lang.GetMessage("doesnothavemattxt", this));
+		SendReply(player, lang.GetMessage("doesnothavemattxt", this));
 	}
         
+	void tellRestricted(BasePlayer player)
+	{
+		SendReply(player, lang.GetMessage("restricted", this));
+	}
 
 	bool IsAllowed(BasePlayer player, string perm)
         {

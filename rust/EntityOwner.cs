@@ -15,7 +15,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Entity Owner", "Calytic", "3.0.4", ResourceId = 1255)]
+    [Info("Entity Owner", "Calytic", "3.0.51", ResourceId = 1255)]
     [Description("Modify entity ownership and cupboard/turret authorization")]
     class EntityOwner : RustPlugin
     {
@@ -246,7 +246,7 @@ namespace Oxide.Plugins
                         owner = "N/A";
                     }
 
-                    SendReply(player, string.Format(messages["Owner: {0}"], owner) + "\n<color=lightgrey>" + targetEntity.LookupShortPrefabName() + "</color>");
+                    SendReply(player, string.Format(messages["Owner: {0}"], owner) + "\n<color=lightgrey>" + targetEntity.ShortPrefabName + "</color>");
                 }
             }
             else
@@ -621,7 +621,7 @@ namespace Oxide.Plugins
                 SendReply(arg, "Invalid Syntax. authclean PlayerName");
             }
 
-            SetValue(target, "buildingPrivlidges", new List<BuildingPrivlidge>());
+            SetValue(target, "buildingPrivilege", new List<BuildingPrivlidge>());
             target.SetPlayerFlag(BasePlayer.PlayerFlags.InBuildingPrivilege, false);
             target.SetPlayerFlag(BasePlayer.PlayerFlags.HasBuildingPrivilege, false);
         }
@@ -649,7 +649,7 @@ namespace Oxide.Plugins
                 target = player;
             }
 
-            SetValue(target, "buildingPrivlidges", new List<BuildingPrivlidge>());
+            SetValue(target, "buildingPrivilege", new List<BuildingPrivlidge>());
             target.SetPlayerFlag(BasePlayer.PlayerFlags.InBuildingPrivilege, false);
             target.SetPlayerFlag(BasePlayer.PlayerFlags.HasBuildingPrivilege, false);
         }
@@ -804,7 +804,7 @@ namespace Oxide.Plugins
 
                     var hits = FindEntities<T>(checkFrom[current - 1], DistanceThreshold);
 
-                    foreach (var entityComponent in hits)
+                    foreach (var entityComponent in hits.ToList())
                     {
                         if (!entityList.Add(entityComponent)) continue;
                         c++;
@@ -1677,7 +1677,7 @@ namespace Oxide.Plugins
                 }
                 else {
                     return $"{player.displayName} [<color=lime>Online</color>]";
-            }
+                }
             }
 
             var p = covalence.Players.GetPlayer(playerID.ToString());

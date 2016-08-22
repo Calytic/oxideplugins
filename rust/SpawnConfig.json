@@ -2,7 +2,7 @@
     "name": "SpawnConfig",
     "description": "Change SpawnHandler behaviour of SpawnPopulations",
     "author": "Nogrod",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "configuration": true,
     "language": "cs",
     "games": [

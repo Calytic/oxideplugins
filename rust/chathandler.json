@@ -7,7 +7,7 @@
     "suggest": {
         "Ignore": "*",
         "chatmute": "*",
-        "helptext": "*"
+        "HelpText": "*"
     },
     "language": "lua",
     "games": [

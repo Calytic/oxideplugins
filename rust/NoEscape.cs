@@ -10,8 +10,8 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("NoEscape", "Calytic", "0.3.1", ResourceId = 1394)]
-    [Description("Prevent tp/remove/bgrade while raid/combat is occuring")]
+    [Info("NoEscape", "Calytic", "0.3.4", ResourceId = 1394)]
+    [Description("Prevent commands while raid/combat is occuring")]
     class NoEscape : RustPlugin
     {
         #region Setup & Configuration
@@ -54,6 +54,9 @@ namespace Oxide.Plugins
         private bool raiderFriendShare;
         private bool raiderClanShare;
         private List<string> damageTypes;
+
+        public bool cupboardEnter = true;
+        public bool cupboardLeave = false;
 
         // MISC SETTINGS
         private bool unblockOnDeath;
@@ -107,6 +110,7 @@ namespace Oxide.Plugins
                 Rust.DamageType.Stab.ToString(),
                 Rust.DamageType.Slash.ToString(),
                 Rust.DamageType.Explosion.ToString(),
+                Rust.DamageType.Heat.ToString(),
             };
         }
 
@@ -140,6 +144,9 @@ namespace Oxide.Plugins
             Config["unblockOnRespawn"] = true;
             Config["damageTypes"] = GetDefaultDamageTypes();
             Config["cacheMinutes"] = 1f;
+
+            Config["cupboardEnter"] = true;
+            Config["cupboardLeave"] = false;
 
             Config["raidBlockNotify"] = true;
             Config["combatBlockNotify"] = false;
@@ -208,6 +215,9 @@ namespace Oxide.Plugins
             Config["unblockOnWakeup"] = GetConfig("unblockOnWakeup", false);
             Config["unblockOnRespawn"] = GetConfig("unblockOnRespawn", true);
 
+            Config["cupboardEnter"] = GetConfig("cupboardEnter", true);
+            Config["cupboardLeave"] = GetConfig("cupboardLeave", false);
+
             Config["cacheMinutes"] = GetConfig("cacheMinutes", 1f);
             // END NEW CONFIGURATION OPTIONS
 
@@ -252,6 +262,9 @@ namespace Oxide.Plugins
             unblockOnRespawn = GetConfig("unblockOnRespawn", true);
             cacheTimer = GetConfig("cacheMinutes", 1f);
 
+            cupboardEnter = GetConfig("cupboardEnter", true);
+            cupboardLeave = GetConfig("cupboardLeave", false);
+
             raidBlockNotify = GetConfig("raidBlockNotify", true);
             combatBlockNotify = GetConfig("combatBlockNotify", false);
 
@@ -289,7 +302,7 @@ namespace Oxide.Plugins
                 return;
 
             if (damageTypes.Contains(hitInfo.damageTypes.GetMajorityDamageType().ToString())) 
-                StructureAttack(entity, hitInfo.Initiator, hitInfo.WeaponPrefab.LookupShortPrefabName(), hitInfo.HitPositionWorld);
+                StructureAttack(entity, hitInfo.Initiator, hitInfo.WeaponPrefab.ShortPrefabName, hitInfo.HitPositionWorld);
         }
 
         void OnPlayerAttack(BasePlayer attacker, HitInfo hitInfo)
@@ -312,7 +325,7 @@ namespace Oxide.Plugins
                     return;
 
                 if (damageTypes.Contains(hitInfo.damageTypes.GetMajorityDamageType().ToString()))
-                    StructureAttack(entity, hitInfo.Initiator, hitInfo.WeaponPrefab.LookupShortPrefabName(), hitInfo.HitPositionWorld);
+                    StructureAttack(entity, hitInfo.Initiator, hitInfo.WeaponPrefab.ShortPrefabName, hitInfo.HitPositionWorld);
 
                 return;
             }
@@ -403,7 +416,7 @@ namespace Oxide.Plugins
             if (nearbyTargets.Count > 0)
                 foreach (BasePlayer nearbyTarget in nearbyTargets)
                     if (ShouldBlockEscape(nearbyTarget.UserIDString, source, sourceMembers))
-                        StartRaidBlocking(nearbyTarget.UserIDString);
+                        StartRaidBlocking(nearbyTarget.UserIDString, position);
         }
 
         void OwnerBlock(string source, string target, UnityEngine.Vector3 position, List<string> sourceMembers = null)
@@ -427,7 +440,7 @@ namespace Oxide.Plugins
                             )
                         )
                     {
-                        StartRaidBlocking(nearbyTarget.UserIDString);
+                        StartRaidBlocking(nearbyTarget.UserIDString, position);
                     }
         }
 
@@ -452,7 +465,7 @@ namespace Oxide.Plugins
                             )
                         )
                     {
-                        StartRaidBlocking(nearbyTarget.UserIDString);
+                        StartRaidBlocking(nearbyTarget.UserIDString, position);
                     }
         }
 
@@ -507,14 +520,41 @@ namespace Oxide.Plugins
             return true;
         }
 
-        void StartRaidBlocking(string target)
+        private readonly int cupboardMask = UnityEngine.LayerMask.GetMask("Deployed");
+        private List<BuildingPrivlidge> raidedCupboards = new List<BuildingPrivlidge>();
+
+        class RaidedCupboard : UnityEngine.MonoBehaviour
         {
-            if (raidBlocked.ContainsKey(target))
+            public NoEscape Plugin;
+
+            void OnTriggerEnter(UnityEngine.Collider col)
             {
-                if (!raidBlocked[target].Destroyed)
-                    raidBlocked[target].Destroy();
-                raidBlocked.Remove(target);
+                if (Plugin.cupboardEnter)
+                {
+                    var player = col.GetComponentInParent<BasePlayer>();
+                    if (player != null)
+                    {
+                        Plugin.StartRaidBlocking(player.UserIDString, gameObject.transform.position, false);
+                    }
+                }
             }
+
+            void OnTriggerExit(UnityEngine.Collider col)
+            {
+                if (Plugin.cupboardLeave)
+                {
+                    var player = col.GetComponentInParent<BasePlayer>();
+                    if (player != null)
+                    {
+                        Plugin.StopRaidBlocking(player.UserIDString);
+                    }
+                }
+            }
+        }
+
+        void StartRaidBlocking(string target, UnityEngine.Vector3 position, bool checkCupboards = true)
+        {
+            StopRaidBlocking(target);
 
             if (!lastRaidBlock.ContainsKey(target))
                 lastRaidBlock.Add(target, DateTime.Now);
@@ -533,6 +573,42 @@ namespace Oxide.Plugins
                         SendReply(targetPlayer, GetMsg("Raid Block Complete"));
                 }
             }));
+
+            if (checkCupboards)
+            {
+                List<BuildingPrivlidge> buildingPrivliges = new List<BuildingPrivlidge>();
+                Vis.Entities<BuildingPrivlidge>(position, raidDistance, buildingPrivliges, blockLayer);
+
+                foreach (BuildingPrivlidge privlidge in buildingPrivliges)
+                {
+                    RaidedCupboard alreadyRaided;
+                    if ((alreadyRaided = privlidge.gameObject.GetComponent<RaidedCupboard>()) != null)
+                    {
+                        UnityEngine.GameObject.Destroy(alreadyRaided);
+                    }
+
+                    if (!raidedCupboards.Contains(privlidge))
+                    {
+                        raidedCupboards.Add(privlidge);
+                    }
+
+                    RaidedCupboard raidedCupcoard = privlidge.gameObject.AddComponent<RaidedCupboard>();
+                    raidedCupcoard.Plugin = this;
+
+                    timer.Once(raidDuration, delegate()
+                    {
+                        if ((alreadyRaided = privlidge.gameObject.GetComponent<RaidedCupboard>()) != null)
+                        {
+                            UnityEngine.GameObject.Destroy(alreadyRaided);
+                        }
+
+                        if (raidedCupboards.Contains(privlidge))
+                        {
+                            raidedCupboards.Remove(privlidge);
+                        }
+                    });
+                }
+            }
         }
 
         void SendRaidBlockMessage(string target)
@@ -541,9 +617,10 @@ namespace Oxide.Plugins
                 return;
 
             var send = false;
-            if (lastRaidBlockNotification.ContainsKey(target))
+            System.DateTime lastNotified;
+            if (lastRaidBlockNotification.TryGetValue(target, out lastNotified))
             {
-                TimeSpan diff = DateTime.Now - lastRaidBlockNotification[target];
+                TimeSpan diff = DateTime.Now - lastNotified;
                 if (diff.TotalSeconds >= raidDuration)
                 {
                     send = true;
@@ -566,12 +643,7 @@ namespace Oxide.Plugins
 
         void StartCombatBlocking(string target)
         {
-            if (combatBlocked.ContainsKey(target))
-            {
-                if (!combatBlocked[target].Destroyed)
-                    combatBlocked[target].Destroy();
-                combatBlocked.Remove(target);
-            }
+            StopCombatBlocking(target);
 
             if (!lastCombatBlock.ContainsKey(target))
                 lastCombatBlock.Add(target, DateTime.Now);
@@ -598,9 +670,10 @@ namespace Oxide.Plugins
                 return;
 
             var send = false;
-            if (lastCombatBlockNotification.ContainsKey(target))
+            DateTime lastNofified;
+            if (lastCombatBlockNotification.TryGetValue(target, out lastNofified))
             {
-                TimeSpan diff = DateTime.Now - lastCombatBlockNotification[target];
+                TimeSpan diff = DateTime.Now - lastNofified;
                 if (diff.TotalSeconds >= combatDuration)
                 {
                     send = true;
@@ -631,22 +704,24 @@ namespace Oxide.Plugins
 
         void StopRaidBlocking(string target)
         {
-            if (!raidBlocked.ContainsKey(target))
+            Timer raidTimer;
+            if (!raidBlocked.TryGetValue(target, out raidTimer))
                 return;
 
-            if (!raidBlocked[target].Destroyed)
-                raidBlocked[target].Destroy();
+            if (!raidTimer.Destroyed)
+                raidTimer.Destroy();
 
             raidBlocked.Remove(target);
         }
 
         void StopCombatBlocking(string target)
         {
-            if (!combatBlocked.ContainsKey(target))
+            Timer combatTimer;
+            if (!combatBlocked.TryGetValue(target, out combatTimer))
                 return;
 
-            if (!combatBlocked[target].Destroyed)
-                combatBlocked[target].Destroy();
+            if (!combatTimer.Destroyed)
+                combatTimer.Destroy();
 
             combatBlocked.Remove(target);
         }
@@ -676,9 +751,10 @@ namespace Oxide.Plugins
         public List<string> getFriendList(string player)
         {
             object friends_obj = null;
-            if (lastFriendCheck.ContainsKey(player))
+            DateTime lastFriendCheckPlayer;
+            if (lastFriendCheck.TryGetValue(player, out lastFriendCheckPlayer))
             {
-                if ((DateTime.Now - lastFriendCheck[player]).TotalMinutes <= cacheTimer)
+                if ((DateTime.Now - lastFriendCheckPlayer).TotalMinutes <= cacheTimer)
                     return friendCache[player];
                 else
                 {
@@ -719,10 +795,12 @@ namespace Oxide.Plugins
         public List<string> getClanMembers(string player)
         {
             string tag = null;
-            if (lastClanCheck.ContainsKey(player) && clanCache.ContainsKey(player))
+            DateTime lastClanCheckPlayer;
+            string lastClanCached;
+            if (lastClanCheck.TryGetValue(player, out lastClanCheckPlayer) && clanCache.TryGetValue(player, out lastClanCached))
             {
-                if ((DateTime.Now - lastClanCheck[player]).TotalMinutes <= cacheTimer)
-                    tag = clanCache[player];
+                if ((DateTime.Now - lastClanCheckPlayer).TotalMinutes <= cacheTimer)
+                    tag = lastClanCached;
                 else
                 {
                     tag = Clans.Call<string>("GetClanOf", player);
@@ -746,8 +824,9 @@ namespace Oxide.Plugins
             if (tag == null)
                 return null;
 
-            if (memberCache.ContainsKey(tag))
-                return memberCache[tag];
+            List<string> lastMemberCache;
+            if (memberCache.TryGetValue(tag, out lastMemberCache))
+                return lastMemberCache;
 
             var clan = GetClan(tag);
 
@@ -795,13 +874,27 @@ namespace Oxide.Plugins
         void OnClanCreate(string tag)
         {
             var clan = GetClan(tag);
-            CacheClan(clan);
+            if (clan != null)
+            {
+                CacheClan(clan);
+            }
+            else
+            {
+                PrintWarning("Unable to find clan after creation: " + tag);
+            }
         }
 
         void OnClanUpdate(string tag)
         {
             var clan = GetClan(tag);
-            CacheClan(clan);
+            if (clan != null)
+            {
+                CacheClan(clan);
+            }
+            else
+            {
+                PrintWarning("Unable to find clan after update: " + tag);
+            }
         }
 
         void OnClanDestroy(string tag)
@@ -971,7 +1064,7 @@ namespace Oxide.Plugins
         {
             if (entity is BuildingBlock) return true;
 
-            var prefabName = entity.LookupShortPrefabName();
+            var prefabName = entity.ShortPrefabName;
 
             foreach (string p in prefabs)
                 if (prefabName.IndexOf(p) != -1)
@@ -988,6 +1081,7 @@ namespace Oxide.Plugins
                 case Rust.DamageType.Stab:
                 case Rust.DamageType.Explosion:
                 case Rust.DamageType.ElectricShock:
+                case Rust.DamageType.Heat:
                     return true;
             }
             return false;

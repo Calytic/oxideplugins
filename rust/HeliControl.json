@@ -2,7 +2,7 @@
     "name": "HeliControl",
     "description": "Manage helicopter health, player damage, configure turrets\/rockets, and more!",
     "author": "Shady757",
-    "version": "1.0.20",
+    "version": "1.0.39",
     "configuration": true,
     "language": "cs",
     "games": [

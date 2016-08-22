@@ -9,10 +9,9 @@ using Oxide.Game.Rust.Cui;
 
 namespace Oxide.Plugins
 {
-    [Info("Killstreaks", "k1lly0u", "0.1.5", ResourceId = 1752)]
+    [Info("Killstreaks", "k1lly0u", "0.1.55", ResourceId = 1752)]
     class KillStreaks : RustPlugin
     {
-
         [PluginReference]
         Plugin Airstrike;
         [PluginReference]
@@ -143,34 +142,28 @@ namespace Oxide.Plugins
                 isSignal = true;
                 timer.Once(3, () =>
                 {
-                    Vector3 pos = entity.GetEstimatedWorldPosition();
+                    Vector3 pos = entity.transform.position;
+                    if (pos == null) Puts("null");
                     if (activeGrenades[ID] == StreakType.AirstrikeGrenade) CallAirstrike(pos);
                     else if (activeGrenades[ID] == StreakType.SquadStrikeGrenade) CallAirstrike(pos, false);
                     else if (activeGrenades[ID] == StreakType.ArtilleryGrenade) { LaunchArtillery(pos); timer.Once(10, () => entity.Kill()); }
                     else if (activeGrenades[ID] == StreakType.HelicopterGrenade)
                     {
-
                         var count = cachedData[player.userID];
                         Vector3 strikePos = entity.GetEstimatedWorldPosition();
                         CallHeli(strikePos, count, true);
                     }
                     else if (activeGrenades[ID] == StreakType.TurretDrop) { timer.Once(3, () => DropTurret(pos, player)); timer.Once(6, () => entity.Kill()); }
                         activeGrenades.Remove(ID);
-                    timer.Once(3, () => isSignal = false);
+                    timer.Once(2.8f, () =>
+                    {
+                        Effect.server.Run("assets/bundled/prefabs/fx/smoke_signal.prefab", pos);
+                        if (entity != null)
+                            entity.Kill(BaseNetworkable.DestroyMode.None);
+                    });
                 });
             }
-        }
-        void OnEntitySpawned(BaseEntity entity)
-        {
-            if (entity == null) return;
-            if (isSignal)
-                if (entity is CargoPlane)
-                {
-                    var plane = entity.GetComponent<CargoPlane>();
-                    if (plane == null) return;
-                    plane.KillMessage();
-                }        
-        }
+        }        
         void Unload()
         {  
             SaveData();
@@ -193,8 +186,10 @@ namespace Oxide.Plugins
         private void ProcessKill(BasePlayer player, BasePlayer victim)
         {
             if (ignoreBuildPriv)
-                if (player.CanBuild())
+            {
+                if (HasPriv(player))
                     return;
+            }
             if (useClans)
                 if (victim != null)
                     if (IsClanmate(player.userID, victim.userID))
@@ -306,13 +301,13 @@ namespace Oxide.Plugins
             var definition = ItemManager.FindItemDefinition("supply.signal");
             if (definition != null)
             {
-                Item item = ItemManager.CreateByItemID((int)definition.itemid, 1, false);
+                Item item = ItemManager.CreateByItemID((int)definition.itemid, 1);
                 return item;
             }
             return null;
         }
         #endregion
-
+       
         #region punishments/prizes
         private void Deal(BasePlayer player)
         {
@@ -414,8 +409,8 @@ namespace Oxide.Plugins
         {
             if (Airstrike)
             {                
-                if (type) Airstrike?.Call("callStrike", new object[] { target, 140 });
-                else Airstrike?.Call("massStrike", new object[] { target, 140 });
+                if (type) Airstrike?.Call("callStrike", target, 140 );
+                else Airstrike?.Call("massStrike", target, 140 );
             }
             else Puts(lang.GetMessage("noAirstrike", this));
         }
@@ -456,7 +451,7 @@ namespace Oxide.Plugins
             Vector3 newDirection = (targetPos - launchPos);
 
             entity.SendMessage("InitializeVelocity", (newDirection));
-            entity.Spawn(true);
+            entity.Spawn();
 
             return null;
         }
@@ -492,7 +487,7 @@ namespace Oxide.Plugins
             weakspots[1].maxHealth = TailRotorHealth;
             weakspots[1].health = TailRotorHealth;
             entity.GetComponent<BaseHelicopter>().maxCratesToSpawn = 2;
-            entity.Spawn(true);
+            entity.Spawn();
             activeHelis.Add((BaseHelicopter)entity);
             ConVar.PatrolHelicopter.bulletAccuracy = HeliAccuracy;
             entity.GetComponent<PatrolHelicopterAI>().State_Move_Enter(pos + new Vector3(0.0f, 10f, 0.0f));
@@ -638,11 +633,12 @@ namespace Oxide.Plugins
         {
             AutoTurret turret = CreateTurret(pos);
             AssignTurretAuth(player, turret);
+            player.SendNetworkUpdateImmediate();
         }       
         private AutoTurret CreateTurret(Vector3 targetPos)
         {
             BaseEntity turret = GameManager.server.CreateEntity("assets/prefabs/npc/autoturret/autoturret_deployed.prefab", targetPos, new Quaternion(), true);
-            turret.Spawn(true); return (AutoTurret)turret;
+            turret.Spawn(); return (AutoTurret)turret;
         }
         private void AssignTurretAuth(BasePlayer player, AutoTurret turret)
         {
@@ -655,6 +651,7 @@ namespace Oxide.Plugins
             }
             turret.inventory.AddItem(ItemManager.FindItemDefinition(turretAmmoTypeName), turretAmmoCount);
             turret.InitiateStartup();
+            turret.SendNetworkUpdateImmediate();
         }
         #endregion
 
@@ -910,12 +907,7 @@ namespace Oxide.Plugins
                     return false;
             return true;
         }
-
-        [ChatCommand("akill")]
-        void cmdaddkill(BasePlayer player, string command, string[] args)
-        {
-            ProcessKill(player, null);
-        }
+        
         #endregion
 
         #region gui
@@ -951,7 +943,7 @@ namespace Oxide.Plugins
                 CuiElement textElement = new CuiElement
                 {
                     Name = uiNum,
-                    Parent = "HUD/Overlay",
+                    Parent = "Overlay",
                     FadeOut = 0.3f,
                     Components =
                     {

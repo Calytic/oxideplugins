@@ -8,7 +8,7 @@ using Oxide.Core.Plugins;
 using System.Text.RegularExpressions;
 namespace Oxide.Plugins
 {
-    [Info("RadShrinkZone", "vaalberith", "1.0.3", ResourceId = 1828)]
+    [Info("RadShrinkZone", "vaalberith", "1.0.4", ResourceId = 1828)]
 	class RadShrinkZone : RustPlugin
     {
 		
@@ -21,8 +21,8 @@ namespace Oxide.Plugins
 		float radpower = 50;
 		float step = 1;
 		float period = 20;
-		float drawtime = 5;
-		string drawmode = "safe";
+		//float drawtime = 5;
+		//string drawmode = "both";
 		
 		string permissionrad="RadShrinkZone.can";
 		bool breaking = true;
@@ -49,7 +49,7 @@ namespace Oxide.Plugins
                 {"EventStopped", "Event stopped!"},
                 {"NoPerm", "No permission!"},
 				{"Help", "Type /rad for usage help"},
-				{"Helplong", "<color=red>Config:</color>\n/rad drawmod none|safe|rad|both\n/rad drawtime (seconds)\n/rad saferad (m)\n /rad saferadmin (m)\n/rad eventrad (m)\n/rad radpower (%)\n/rad step (num)\n/rad period (seconds)\n/rad x y z\n/rad me (uses your position as target)\n<color=red>Manager:</color>\n/rad start\n/rad stop (stops decrease)\n/rad clear (close event and remove zones)"},
+				{"Helplong", "<color=red>Config:</color>\n/rad saferad (m)\n /rad saferadmin (m)\n/rad eventrad (m)\n/rad radpower (%)\n/rad step (num)\n/rad period (seconds)\n/rad x y z\n/rad me (uses your position as target)\n<color=red>Manager:</color>\n/rad start\n/rad stop (stops decrease)\n/rad clear (close event and remove zones)"},
 				{"Erased", "Erased all event rad zones"}
             };
             lang.RegisterMessages(messagesEn, this);
@@ -62,7 +62,7 @@ namespace Oxide.Plugins
 				{"EventStopped", "ÐÐ²ÐµÐ½Ñ Ð·Ð°ÐºÐ¾Ð½ÑÐ¸Ð»ÑÑ!"},
 				{"NoPerm", "ÐÐµÑ Ð¿ÑÐ°Ð²!"},
 				{"Help", "ÐÐ°Ð¿Ð¸ÑÐ¸ /rad Ð´Ð»Ñ Ð¿Ð¾Ð´ÑÐºÐ°Ð·ÐºÐ¸"},
-				{"Helplong", "<color=red>Config:</color>\n/rad drawmod none|safe|rad|both\n/rad drawtime (seconds)\n/rad saferad (m)\n /rad saferadmin (m)\n/rad eventrad (m)\n/rad radpower (%)\n/rad step (num)\n/rad period (seconds)\n/rad x y z\n/rad me (uses your position as target)\n<color=red>Manager:</color>\n/rad start\n/rad stop (stops decrease)\n/rad clear (close event and remove zones)"},
+				{"Helplong", "<color=red>Config:</color>\n/rad saferad (m)\n /rad saferadmin (m)\n/rad eventrad (m)\n/rad radpower (%)\n/rad step (num)\n/rad period (seconds)\n/rad x y z\n/rad me (uses your position as target)\n<color=red>Manager:</color>\n/rad start\n/rad stop (stops decrease)\n/rad clear (close event and remove zones)"},
 				{"Erased", "ÐÑÐµ Ð¸Ð²ÐµÐ½Ñ-Ð·Ð¾Ð½Ñ Ð¾ÑÐ¸ÑÐµÐ½Ñ"}
 			};
             lang.RegisterMessages(messagesRu, this, "ru");
@@ -116,10 +116,10 @@ namespace Oxide.Plugins
 				step=Convert.ToSingle(value[0]);
 			if (radzonedata.TryGetValue("DecreasePeriod", out value))
 				period=Convert.ToSingle(value[0]);
-			if (radzonedata.TryGetValue("DrawTime", out value))
+			/*if (radzonedata.TryGetValue("DrawTime", out value))
 				drawtime=Convert.ToSingle(value[0]);
 			if (radzonedata.TryGetValue("DrawMode", out value))
-				drawmode=value[0];
+				drawmode=value[0];*/
 		}
 		
 		void safecfg()
@@ -131,14 +131,15 @@ namespace Oxide.Plugins
 			radzonedata["RadiationPower"] = new List<string>(){radpower.ToString()};
 			radzonedata["DecreaseStep"] = new List<string>(){step.ToString()};
 			radzonedata["DecreasePeriod"] = new List<string>(){period.ToString()};
-			radzonedata["DrawTime"] = new List<string>(){drawtime.ToString()};
-			radzonedata["DrawMode"] = new List<string>(){drawmode};
+			/*radzonedata["DrawTime"] = new List<string>(){drawtime.ToString()};
+			radzonedata["DrawMode"] = new List<string>(){drawmode};*/
 			
 			dataFile.WriteObject(radzonedata);
 		}
 		
 		void Unload() 
 		{
+			DestroyAllSpheres();
 			DelPos();
 		}
 		
@@ -147,7 +148,7 @@ namespace Oxide.Plugins
 			permission.RegisterPermission(permissionrad, this);
 		}
 		
-		void OnEnterZone(string ZoneID, BasePlayer player)
+		/*void OnEnterZone(string ZoneID, BasePlayer player)
 		{
 			if (breaking) return;
 			if (!ZoneID.Contains("radshrink_pos_")) return;
@@ -162,10 +163,29 @@ namespace Oxide.Plugins
 				}
 			}
 			if (drawmode=="safe"|| drawmode=="both") player.SendConsoleCommand("ddraw.sphere", drawtime, Color.green, target, saferadius);
-		}
+		}*/
 		
 		
 		//MAIN FUNCTIONS
+		private List<BaseEntity> Spheres = new List<BaseEntity>();
+		private const string SphereEnt = "assets/prefabs/visualization/sphere.prefab";
+		
+		private void CreateSphere(Vector3 position, float radius)
+        {
+            BaseEntity sphere = GameManager.server.CreateEntity(SphereEnt, position, new Quaternion(), true);
+            SphereEntity ent = sphere.GetComponent<SphereEntity>();
+            ent.currentRadius = radius * 2;
+            ent.lerpSpeed = 0f;
+            sphere?.Spawn(true);
+            Spheres.Add(sphere);
+        }
+        
+        private void DestroyAllSpheres()
+        {
+            foreach (var sphere in Spheres)
+                if (sphere != null)
+                    sphere.KillMessage();
+        }
 		
 		private void createZone(string zoneID, Vector3 pos, float radius, float rads)
         {
@@ -221,6 +241,7 @@ namespace Oxide.Plugins
 		 
 		private void started()
 		{
+			ConVar.Server.radiation = true;
 			breaking = false;
 			execcfg();
 			PrintToChat(GetMessage("EventStart"),target.x,target.z);
@@ -233,11 +254,14 @@ namespace Oxide.Plugins
 			breaking=true;
 			PrintToChat(GetMessage("EventStopped"));
 			Puts(GetMessage("EventStopped"));
+			ConVar.Server.radiation = true;
 		}
 		
 		private void StartZoneShrink()
         {
+			DestroyAllSpheres();
 			if (breaking) return;
+			CreateSphere(target, saferadius);
             timer.In(period, () => Shrink());
         }
 		
@@ -276,7 +300,7 @@ namespace Oxide.Plugins
 					SendReply(player, GetMessage("NoPerm", player.UserIDString));
 					return;
 				}
-			}
+			} 
 			
 			if (args.Length == 1)
 			{
@@ -306,7 +330,7 @@ namespace Oxide.Plugins
 			
 			if (args.Length == 2)
 			{
-				if (args[0]=="drawmod")
+				/*if (args[0]=="drawmod")
 				{
 					if (args[1] == "safe" || args[1] == "rad" || args[1] == "both" || args[1] == "none")
 					{
@@ -319,7 +343,7 @@ namespace Oxide.Plugins
 					drawtime=Convert.ToSingle(args[1]);
 				}
 				
-				else if (args[0]=="saferad")
+				else*/ if (args[0]=="saferad")
 				{				
 					saferadius = Convert.ToSingle(args[1]);
 				}

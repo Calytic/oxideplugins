@@ -2,7 +2,7 @@
     "name": "BypassQueue",
     "description": "Allows a player to jump connection queue based on permission.",
     "author": "Nogrod",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "configuration": false,
     "language": "cs",
     "games": [

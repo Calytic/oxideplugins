@@ -2,7 +2,7 @@
     "name": "Explosion Tracker",
     "description": "This plugin tracks every explosion that happens in the server.",
     "author": "PaiN",
-    "version": "0.5.0",
+    "version": "0.7",
     "configuration": false,
     "language": "cs",
     "games": [

@@ -6,7 +6,7 @@ using Oxide.Game.Rust.Cui;
 
 namespace Oxide.Plugins
 {
-     	[Info("FreezeArrows", "Colon Blow", "1.0.4", ResourceId = 1601)]
+     	[Info("FreezeArrows", "Colon Blow", "1.0.7", ResourceId = 1601)]
      	class FreezeArrows : RustPlugin
 	{
 
@@ -25,13 +25,28 @@ namespace Oxide.Plugins
        		class ShotArrowData
         	{
              		public BasePlayer player;
+			public int arrows;
+			public bool arrowenabled;
         	}
 
 		void Loaded()
-        	{           
+        	{
+			foreach (var player in BasePlayer.activePlayerList) 
+			{
+				if (!loadArrow.ContainsKey(player.userID))
+				{
+					loadArrow.Add(player.userID, new ShotArrowData
+					{
+					player = player,
+					arrows = StartingArrowCount,
+					arrowenabled = false
+					});
+				}
+			}     
 			LoadVariables();            
         		lang.RegisterMessages(messages, this);
 			permission.RegisterPermission("freezearrows.allowed", this);
+			permission.RegisterPermission("freezearrows.unlimited", this);
 		}
 
         	void LoadDefaultConfig()
@@ -46,9 +61,10 @@ namespace Oxide.Plugins
 ////////Configuration Stuff////////////////////////////////////////////////////////////////////////////
 
 		static int FreezeTime = 10;
-		static int ReFreezeCooldown = 10;
+		static int ReFreezeCooldown = 120;
 		static int FreezeRadius = 5;
 		static float FreezeOverlayTime = 10f;
+		static int StartingArrowCount = 1;
 		static bool useFreezeOverlay = true;
 		static bool showHitExplosionFX = true;
 		static bool freezePlayers = true;
@@ -67,6 +83,7 @@ namespace Oxide.Plugins
 			CheckCfg("Radius - The distance from impact players are effeted", ref FreezeRadius);
 			CheckCfgFloat("Overlay - How long frozen overlay is shown when player is frozen", ref FreezeOverlayTime);
 			CheckCfg("Overlay - Show freeze overlay when player is frozen", ref useFreezeOverlay);
+			CheckCfg("Arrows - Number of arrows on startup per player", ref StartingArrowCount);
 			CheckCfg("Effects - Show hit explosion effect", ref showHitExplosionFX);
 			CheckCfg("Targets - Arrows will freeze players", ref freezePlayers);
 			CheckCfg("Targets - Arrows will freeze NPCs", ref freezeNPCs);
@@ -115,24 +132,31 @@ namespace Oxide.Plugins
 			{"onnextshottxt", "Your next shot will be a Freeze Arrow" },
 			{"offnextshottxt", "Your next shot will a Normal Arrow" },
             		{"yourfrozetxt", "You are frozen in place...." },
+            		{"nofreezearrows", "You have no freeze arrows left" },
+            		{"unlimitedfreezearrows", "You have unlimited freeze arrows.. have fun :)" },
+            		{"notoggle", "You have not toggled Freeze Arrows yet" },
 			{"unfrozetxt", "You are now unfrozen...." }
         	};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-		void OnPlayerAttack(BasePlayer player, HitInfo hitInfo, Vector3 newPos)
+		void OnPlayerAttack(BasePlayer player, HitInfo hitInfo, Vector3 newPos, int arrows, bool arrowenabled)
 		{
-			if (!HasPermission(player, "freezearrows.allowed")) return;
 			if (!loadArrow.ContainsKey(player.userID)) return;
+			if (!loadArrow[player.userID].arrowenabled) return;
+			if (!HasPermission(player, "freezearrows.allowed")) return;
 			if (usingCorrectWeapon(player))
 			{
+				var CurrentArrows = loadArrow[player.userID].arrows;
 				findTarget(player, hitInfo, newPos);
-				loadArrow.Remove(player.userID);
+				loadArrow[player.userID].arrowenabled = !loadArrow[player.userID].arrowenabled;
 				if (showHitExplosionFX)
-				{
-				Effect.server.Run("assets/bundled/prefabs/fx/explosions/explosion_03.prefab", hitInfo.HitPositionWorld);
-				}
-				return;
+					{
+					Effect.server.Run("assets/bundled/prefabs/fx/explosions/explosion_03.prefab", hitInfo.HitPositionWorld);
+					}
+				if (HasPermission(player, "freezearrows.unlimited")) return;
+				CurrentArrows = CurrentArrows - 1;
+				loadArrow[player.userID].arrows = CurrentArrows;
 			}
 		return;
 		}
@@ -144,6 +168,30 @@ namespace Oxide.Plugins
 			if (activeItem != null && activeItem.info.shortname == "bow.hunting") return true;
 			return false;
 		}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        void OnEntityDeath(BaseCombatEntity entity, HitInfo hitInfo, int arrows)
+        {
+		if (hitInfo == null) return;
+
+            	if (!(hitInfo.Initiator is BasePlayer)) return;
+		if (entity is BaseNPC || entity is BasePlayer)
+		{
+			var player = (BasePlayer)hitInfo.Initiator;
+			if (HasPermission(player, "freezearrows.unlimited")) return;
+			if (!usingCorrectWeapon(player)) return;
+			if (usingCorrectWeapon(player))
+			{
+	    			loadArrow[player.userID].arrows = loadArrow[player.userID].arrows + 1;
+           	 		PrintToChat(player, "You have added a freeze arrow to your quiver");
+	    			PrintToChat(player, "Arrows Available: " + (loadArrow[player.userID].arrows));
+				return;
+			}
+		return;
+		}
+	return;
+        }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
@@ -211,6 +259,7 @@ namespace Oxide.Plugins
             elements.Add(new CuiElement
                 {
                     Name = GuiInfo[player.userID],
+		    Parent = "Overlay",
                     Components =
                     {
                         new CuiRawImageComponent { Sprite = "assets/content/ui/overlay_freezing.png" },
@@ -224,18 +273,72 @@ namespace Oxide.Plugins
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	[ChatCommand("freezearrow")]
-        void cmdChatfreezearrow(BasePlayer player, string command, string[] args)
+        void cmdChatfreezearrow(BasePlayer player, string command, string[] args, int arrows, bool arrowenabled)
 	{	
-	if (!HasPermission(player, "freezearrows.allowed")) return;
-	if (loadArrow.ContainsKey(player.userID)) { loadArrow.Remove(player.userID); SendReply(player, lang.GetMessage("offnextshottxt", this)); return; }
+		if (!HasPermission(player, "freezearrows.allowed")) return;
+		if (!loadArrow.ContainsKey(player.userID))
+			{
+				loadArrow.Add(player.userID, new ShotArrowData
+				{
+				player = player,
+				arrows = StartingArrowCount,
+				arrowenabled = true
+				});
+				SendReply(player, lang.GetMessage("onnextshottxt", this));
+				if (HasPermission(player, "freezearrows.unlimited")) return;
 
-		SendReply(player, lang.GetMessage("onnextshottxt", this));
-		loadArrow.Add(player.userID, new ShotArrowData
-		{
-		player = player
-		});
+				SendReply(player, "Arrows Left: " + (loadArrow[player.userID].arrows));
+			return;
+			}
+		if (HasPermission(player, "freezearrows.unlimited"))
+			{
+			loadArrow[player.userID].arrowenabled = true;
+			SendReply(player, lang.GetMessage("onnextshottxt", this));
+			return;
+			}
+		if (loadArrow[player.userID].arrows <= 0)
+			{
+			SendReply(player, lang.GetMessage("nofreezearrows", this)); 
+			return;	
+			}
+		if (loadArrow[player.userID].arrows >= 1)
+			{
+			loadArrow[player.userID].arrowenabled = true;
+			SendReply(player, lang.GetMessage("onnextshottxt", this));
+			if (HasPermission(player, "freezearrows.unlimited")) return;
+
+			SendReply(player, "Arrows Left: " + (loadArrow[player.userID].arrows));
+			return;
+			}
+		return;
 	}
 
+	[ChatCommand("freezecount")]
+        void cmdChatfreezecount(BasePlayer player, string command, string[] args, int arrows)
+	{	
+		if (!HasPermission(player, "freezearrows.allowed")) return;
+		if (HasPermission(player, "freezearrows.unlimited"))
+			{
+			SendReply(player, lang.GetMessage("unlimitedfreezearrows", this));  
+			return;
+			}
+		if (!loadArrow.ContainsKey(player.userID))
+			{
+			SendReply(player, lang.GetMessage("notoggle", this)); 
+			return;
+			}
+		if (loadArrow[player.userID].arrows <= 0)
+			{
+			SendReply(player, lang.GetMessage("nofreezearrows", this)); 
+			return;	
+			}
+		if (loadArrow[player.userID].arrows >= 1)
+			{
+			SendReply(player, "Arrows Left: " + (loadArrow[player.userID].arrows));
+			return;
+			}
+		return;
+	}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -253,6 +356,21 @@ namespace Oxide.Plugins
                 string guiInfo;
                 if (GuiInfo.TryGetValue(player.userID, out guiInfo)) CuiHelper.DestroyUi(player, guiInfo);
 	}
+			
+	void OnPlayerSleepEnded(BasePlayer player)
+	{
+		if (!loadArrow.ContainsKey(player.userID))
+			{
+				loadArrow.Add(player.userID, new ShotArrowData
+				{
+				player = player,
+				arrows = StartingArrowCount,
+				arrowenabled = false
+				});
+			}
+		DestroyCui(player);
+		isFrozen.Remove(player.userID);
+	}
 
 	void OnPlayerRespawned(BasePlayer player)
 	{
@@ -265,7 +383,6 @@ namespace Oxide.Plugins
                 DestroyCui(player);
 		isFrozen.Remove(player.userID);
 	}
-
     }
 	
 }

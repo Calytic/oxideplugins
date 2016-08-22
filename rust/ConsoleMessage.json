@@ -1,0 +1,15 @@
+{
+    "name": "ConsoleMessages",
+    "description": "Send messages to individual players with console commands",
+    "author": "Skrallex",
+    "version": "1.0.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

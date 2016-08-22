@@ -2,7 +2,7 @@ using Network;
 
 namespace Oxide.Plugins
 {
-    [Info("BypassQueue", "Nogrod", "1.0.0")]
+    [Info("BypassQueue", "Nogrod", "1.0.1", ResourceId = 1855)]
     class BypassQueue : RustPlugin
     {
         private const string Perm = "bypassqueue.allow";
@@ -12,7 +12,7 @@ namespace Oxide.Plugins
             permission.RegisterPermission(Perm, this);
         }
 
-        object OnBypassQueue(Connection connection)
+        object CanBypassQueue(Connection connection)
         {
             if (permission.UserHasPermission(connection.userid.ToString(), Perm))
                 return true;

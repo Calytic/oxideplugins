@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Pets", "Bombardir", "0.5.3", ResourceId = 851)]
+    [Info("Pets", "Bombardir", "0.5.5", ResourceId = 851)]
     class Pets : RustPlugin
     {
         static Pets PluginInstance;
@@ -338,7 +338,7 @@ namespace Oxide.Plugins
             {
                 Base.state = BaseNPC.State.Normal;
                 RustAI.sense.Think();
-                Base.steering.Move((point - transform.position).XZ3D().normalized, point, NPCSpeed.Gallop);
+                Base.steering.Move((point - transform.position).XZ3D().normalized, point, (int) BLRust.ContextType.Gallop);
             }
 
             internal void Attack(BaseCombatEntity ent, Act act = Act.Attack)
@@ -492,13 +492,18 @@ namespace Oxide.Plugins
 
         void OnPlayerInit(BasePlayer player)
         {
+            if (player.HasPlayerFlag(BasePlayer.PlayerFlags.ReceivingSnapshot))
+            {
+                timer.Once(2, () => OnPlayerInit(player));
+                return;
+            }
             PetInfo info;
             if (!SaveNpcList.TryGetValue(player.userID, out info) || !info.NeedToSpawn) return;
             Puts("Loading pet...");
             var pet = GameManager.server.CreateEntity(StringPool.Get(info.prefabID), new Vector3(info.x, info.y, info.z));
             if (pet == null) return;
             var comp = player.gameObject.AddComponent<NpcControl>();
-            pet.Spawn(true);
+            pet.Spawn();
             comp.npc = pet.gameObject.AddComponent<NpcAI>();
             comp.npc.owner = comp;
             comp.npc.inventory.Load(ProtoBuf.ItemContainer.Deserialize(info.inventory));
@@ -582,7 +587,7 @@ namespace Oxide.Plugins
 
         #region Some other plugin methods
 
-        bool HasPermission(BasePlayer player, string perm) => permission.UserHasPermission(player.userID.ToString(), perm);
+        bool HasPermission(BasePlayer player, string perm) => permission.UserHasPermission(player.UserIDString, perm);
 
         static void DestroyAll<T>()
         {

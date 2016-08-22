@@ -2,7 +2,7 @@
     "name": "Sign Manager",
     "description": "Track sign changes and allows administrator access to all signs",
     "author": "insane8472",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "configuration": true,
     "language": "lua",
     "games": [

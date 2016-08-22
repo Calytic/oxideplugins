@@ -2,8 +2,11 @@
     "name": "Kits",
     "description": "Kits",
     "author": "Reneb",
-    "version": "3.1.7",
+    "version": "3.1.10",
     "configuration": true,
+    "suggest": {
+        "CopyPaste": "*"
+    },
     "language": "cs",
     "games": [
         "rust"

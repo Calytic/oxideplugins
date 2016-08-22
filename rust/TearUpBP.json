@@ -1,7 +1,7 @@
 {
     "name": "Tear It Up!",
     "description": "This allows a player to tear up a blueprint and get fragments back.",
-    "author": "",
+    "author": "DaBludger",
     "version": "1.91",
     "configuration": true,
     "language": "cs",

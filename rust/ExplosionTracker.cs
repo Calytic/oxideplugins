@@ -9,7 +9,7 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("Explosion Tracker", "PaiN", 0.5, ResourceId = 1282)]
+    [Info("Explosion Tracker", "PaiN", 0.7, ResourceId = 1282)]
     [Description("This plugin tracks every explosion that happens in the server.")]
     class ExplosionTracker : RustPlugin
     {
@@ -62,33 +62,32 @@ namespace Oxide.Plugins
             Config.Clear();
             LoadVariables();
         } 
-			void OnWeaponThrown(BasePlayer player, BaseEntity entity)
-			{
-				//Delaying the code to get the position where the entity has landed.
-				timer.Once(1, () => {
-				if(logtorcon == true) 
-				{  
-					Puts("**"+player.displayName+"**" +"(" + player.userID.ToString() + ")" + " threw " + entity.name.ToString() + 
-					" at position " +
-					"( X: " + Convert.ToInt32(entity.GetEstimatedWorldPosition().x).ToString() + 
-					" Y: " + Convert.ToInt32(entity.GetEstimatedWorldPosition().y).ToString() + 
-					" Z: " + Convert.ToInt32(entity.GetEstimatedWorldPosition().z).ToString() + " )");
-				}  
-				if(logtofile == true)  
-				{
-					ConVar.Server.Log("Oxide/Logs/ExplosionTrackerLog.txt", "**"+player.displayName+"**" +"(" + player.userID.ToString() + ")" + " threw " + entity.name.ToString() + 
-					" at position " +
-					"( X: " + Convert.ToInt32(entity.GetEstimatedWorldPosition().x).ToString() + 
-					" Y: " + Convert.ToInt32(entity.GetEstimatedWorldPosition().y).ToString() + 
-					" Z: " + Convert.ToInt32(entity.GetEstimatedWorldPosition().z).ToString() + " )");
-				}
-				}); 
-			}
+		
+		void OnExplosiveThrown(BasePlayer player, BaseEntity entity)
+        {
+            NextTick(() => {
+                if (logtorcon == true)
+                {
+                    Puts("**" + player.displayName + "**" + "(" + player.userID.ToString() + ")" + " threw " + entity.name.ToString() +
+                    " at position " +
+                    "( X: " + Convert.ToInt32(entity.GetEstimatedWorldPosition().x).ToString() +
+                    " Y: " + Convert.ToInt32(entity.GetEstimatedWorldPosition().y).ToString() +
+                    " Z: " + Convert.ToInt32(entity.GetEstimatedWorldPosition().z).ToString() + " )");
+                }
+                if (logtofile == true)
+                {
+                    ConVar.Server.Log("Oxide/Logs/ExplosionTrackerLog.txt", "**" + player.displayName + "**" + "(" + player.userID.ToString() + ")" + " threw " + entity.name.ToString() +
+                    " at position " +
+                    "( X: " + Convert.ToInt32(entity.GetEstimatedWorldPosition().x).ToString() +
+                    " Y: " + Convert.ToInt32(entity.GetEstimatedWorldPosition().y).ToString() +
+                    " Z: " + Convert.ToInt32(entity.GetEstimatedWorldPosition().z).ToString() + " )");
+                }
+            });
+        }
 			
 			void OnRocketLaunched(BasePlayer player, BaseEntity entity)
 			{
-				//Delaying the code to get the position where the entity has landed.
-				timer.Once(0.5f, () => {
+				NextTick(() => {
 				if(logtorcon == true)
 				{
 					Puts("**"+player.displayName+"**" +"(" + player.userID.ToString() + ")" + " launched a rocket at " +

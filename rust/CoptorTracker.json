@@ -1,8 +1,8 @@
 {
     "name": "Coptor Tracker",
     "description": "Spawns helicopters based on a timer, sets a lifetime, and announcements",
-    "author": "Smoosher",
-    "version": "1.6.4",
+    "author": "k1lly0u",
+    "version": "1.6.5",
     "configuration": true,
     "language": "cs",
     "games": [

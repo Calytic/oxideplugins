@@ -8,10 +8,11 @@ using Newtonsoft.Json;
 using UnityEngine;
 using Network;
 using Rust;
+using System.IO;
 
 namespace Oxide.Plugins
 {
-    [Info("Kill Feed", "Tuntenfisch", "1.14.7", ResourceId = 1433)]
+    [Info("Kill Feed", "Tuntenfisch", "1.14.18", ResourceId = 1433)]
     [Description("Displays a basic Kill Feed on screen!")]
     public class KillFeed : RustPlugin
     {
@@ -349,24 +350,33 @@ namespace Oxide.Plugins
         /// <summary>
         /// Console command that keeps track of inventories being opened or closed and destroyes or adds the UI accordingly.
         /// </summary>
-        /// <remarks>
-        /// This console command will be bound to a player's key in such a way that it triggers every time the 'inventory.toggle' command is triggered.
-        /// </remarks>
         /// <param name="arg"> Used for getting the userid of the player who entered the command.</param>
         [ConsoleCommand("killfeed.action")]
         void ConsoleCommand(ConsoleSystem.Arg arg)
         {
+            if (arg == null || arg.connection == null) return;
+            if (!arg.HasArgs(2)) return;
+
             Player p;
             if (_players.TryGetValue(arg.connection.userid, out p))
             {
                 if (p.isLooting && arg.Args.Contains("add"))
                 {
+                    if (!p.lastAction.Equals(arg.Args[0]) && arg.Args.Contains("destroy"))
+                    {
+                        p.lastAction = arg.Args[0];
+                        return;
+                    }
+                    p.lastAction = arg.Args[0];
+
                     p.isLooting = false;
 
                     AddUI(ConvertToSingleContainer(entries), p);
                 }
                 else if (!p.isLooting && arg.Args.Contains("destroy"))
                 {
+                    p.lastAction = arg.Args[0];
+
                     DestroyUI(ConvertToSingleContainer(entries), p);
 
                     p.isLooting = true;
@@ -428,13 +438,19 @@ namespace Oxide.Plugins
                     new Key
                     {
                         key = "tab",
-                        action = "inventory.toggle;killfeed.action add destroy",
+                        action = "inventory.toggle;killfeed.action 0 add destroy",
                         defaultAction = "inventory.toggle",
                     },
                     new Key
                     {
+                        key = "q",
+                        action = "inventory.togglecrafting;killfeed.action 1 add destroy",
+                        defaultAction = "inventory.togglecrafting",
+                    },
+                    new Key
+                    {
                         key = "escape",
-                        action = "killfeed.action add",
+                        action = "killfeed.action 2 add",
                         defaultAction = ""
                     }
                 };
@@ -453,8 +469,9 @@ namespace Oxide.Plugins
                     { "bone.club", "1/19/Bone_Club_icon.png" },
                     { "bow.hunting", "2/25/Hunting_Bow_icon.png" },
                     { "crossbow", "2/23/Crossbow_icon.png" },
+                    { "explosive.satchel", "http://i.imgur.com/z4P1a22.png" },
                     { "explosive.timed", "6/6c/Timed_Explosive_Charge_icon.png" },
-                    { "flamethrower", "http://i.imgur.com/9lS3Gft.png" },
+                    { "flamethrower", "5/55/Flame_Thrower_icon.png" },
                     { "gates.external.high.stone", "8/85/High_External_Stone_Gate_icon.png" },
                     { "gates.external.high.wood", "5/53/High_External_Wooden_Gate_icon.png" },
                     { "grenade.beancan", "b/be/Beancan_Grenade_icon.png" },
@@ -482,6 +499,7 @@ namespace Oxide.Plugins
                     { "salvaged.sword", "7/77/Salvaged_Sword_icon.png" },
                     { "shotgun.pump", "6/60/Pump_Shotgun_icon.png" },
                     { "shotgun.waterpipe", "1/1b/Waterpipe_Shotgun_icon.png" },
+                    { "shotgun.double", "http://i.imgur.com/tfyKbCy.png" },
                     { "smg.2", "9/95/Custom_SMG_icon.png" },
                     { "smg.thompson", "4/4e/Thompson_icon.png" },
                     { "spear.stone", "0/0a/Stone_Spear_icon.png" },
@@ -750,7 +768,7 @@ namespace Oxide.Plugins
             finally
             {
                 ((IDisposable)enumerator).Dispose();
-            }          
+            }
 
             // iterate over the found paths and determine whether they are part of the default configuration
             foreach (string[] path in paths)
@@ -1018,7 +1036,7 @@ namespace Oxide.Plugins
             if (_debugging != 1 && _debugging != 2) return;
 
             StringBuilder builder = new StringBuilder("{1}");
-            for (int i = 1; i < args.Length; i++)
+            for (int i = 0; i < args.Length; i++)
             {
                 builder.Append(" ");
                 builder.Append("{" + i + "}");
@@ -1093,9 +1111,9 @@ namespace Oxide.Plugins
 
                 if (string.IsNullOrEmpty(www.error))
                 {
-                    string fileID = FileStorage.server.Store(www.bytes, FileStorage.Type.png, uint.MaxValue).ToString();
-
-                    fileIDs[shortname] = fileID;
+                    MemoryStream stream = new MemoryStream();
+                    stream.Write(www.bytes, 0, www.bytes.Length);
+                    fileIDs[shortname] = FileStorage.server.Store(stream, FileStorage.Type.png, uint.MaxValue).ToString();
                 }
                 else
                 {
@@ -1178,6 +1196,7 @@ namespace Oxide.Plugins
             public bool isVisible { get; set; }
 
             public string username { get; private set; }
+            public string lastAction { get; set; }
 
             public Connection connection { get; private set; }
 
@@ -1185,6 +1204,7 @@ namespace Oxide.Plugins
             {
                 this.username = username;
                 this.connection = connection;
+                this.lastAction = "";
             }
         }
 
@@ -1224,7 +1244,7 @@ namespace Oxide.Plugins
 
             foreach (Key key in keys)
             {
-                ConsoleSystem.SendClientCommand(player.net.connection, "bind" + " " + key.key + " " + key.action);
+                ConsoleNetwork.SendClientCommand(player.net.connection, "bind" + " " + key.key + " " + key.action);
             }
 
             string username = FormatUsername(player.displayName);
@@ -1242,7 +1262,7 @@ namespace Oxide.Plugins
 
             foreach (Key key in keys)
             {
-                ConsoleSystem.SendClientCommand(player.net.connection, "bind" + " " + key.key + " " + key.defaultAction);
+                ConsoleNetwork.SendClientCommand(player.net.connection, "bind" + " " + key.key + " " + key.defaultAction);
             }
 
             _players.Remove(player.userID);
@@ -1297,11 +1317,12 @@ namespace Oxide.Plugins
                 weaponInfo = GetWeapon(info);
 
                 hitBone = GetHitBone(info);
+
                 distance = GetDistance(entity, info);
 
                 // determines the colors of the initiator and the hitEntity
                 if (initiatorInfo.userID != 0)                                                                  // initiator is a player
-                {   
+                {
                     initiatorColor = _initiatorColor;
                 }
                 else                                                                                            // initiator is a npc
@@ -1365,7 +1386,7 @@ namespace Oxide.Plugins
                 }
                 else                                                                                            // initiator is npc
                 {
-                    string npcName = info.Initiator?.LookupShortPrefabName()?.Replace(".prefab", "") ?? "";
+                    string npcName = info.Initiator?.ShortPrefabName ?? "";
                     if (!_npcNames.TryGetValue(npcName, out name))
                     {
                         name = npcName;
@@ -1402,7 +1423,7 @@ namespace Oxide.Plugins
                 }
                 else                                                                                            // hitEntity is npc
                 {
-                    string npcName = entity.LookupShortPrefabName().Replace(".prefab", "") ?? "";
+                    string npcName = entity.ShortPrefabName ?? "";
                     if (npcName.Equals("patrolhelicopter"))
                     {
                         selfInflicted = true;
@@ -1451,84 +1472,85 @@ namespace Oxide.Plugins
                 {
                     if (info.WeaponPrefab != null)
                     {
-                        if (info.WeaponPrefab.LookupShortPrefabName().Equals("axe_salvaged.entity.prefab")) weapon = "axe.salvaged";
-                        else if (info.WeaponPrefab.LookupShortPrefabName().Equals("bone_club.entity.prefab")) weapon = "bone.club";
-                        else if (info.WeaponPrefab.LookupShortPrefabName().Equals("explosive.timed.deployed.prefab")) weapon = "explosive.timed";
-                        else if (info.WeaponPrefab.LookupShortPrefabName().Equals("flamethrower.entity.prefab")) weapon = "flamethrower";
-                        else if (info.WeaponPrefab.LookupShortPrefabName().Equals("grenade.beancan.deployed.prefab")) weapon = "grenade.beancan";
-                        else if (info.WeaponPrefab.LookupShortPrefabName().Equals("grenade.f1.deployed.prefab")) weapon = "grenade.f1";
-                        else if (info.WeaponPrefab.LookupShortPrefabName().Equals("hammer_salvaged.entity.prefab")) weapon = "hammer.salvaged";
-                        else if (info.WeaponPrefab.LookupShortPrefabName().Equals("hatchet.entity.prefab")) weapon = "hatchet";
-                        else if (info.WeaponPrefab.LookupShortPrefabName().Equals("hatchet_pickaxe.entity.prefab")) weapon = "stone.pickaxe";
-                        else if (info.WeaponPrefab.LookupShortPrefabName().Equals("icepick_salvaged.entity.prefab")) weapon = "icepick.salvaged";
-                        else if (info.WeaponPrefab.LookupShortPrefabName().Equals("knife_bone.entity.prefab")) weapon = "knife.bone";
-                        else if (info.WeaponPrefab.LookupShortPrefabName().Equals("landmine.prefab"))
+                        if (info.WeaponPrefab.ShortPrefabName.Equals("axe_salvaged.entity")) weapon = "axe.salvaged";
+                        else if (info.WeaponPrefab.ShortPrefabName.Equals("bone_club.entity")) weapon = "bone.club";
+                        else if (info.WeaponPrefab.ShortPrefabName.Equals("explosive.satchel.deployed")) weapon = "explosive.satchel";
+                        else if (info.WeaponPrefab.ShortPrefabName.Equals("explosive.timed.deployed")) weapon = "explosive.timed";
+                        else if (info.WeaponPrefab.ShortPrefabName.Equals("flamethrower.entity")) weapon = "flamethrower";
+                        else if (info.WeaponPrefab.ShortPrefabName.Equals("grenade.beancan.deployed")) weapon = "grenade.beancan";
+                        else if (info.WeaponPrefab.ShortPrefabName.Equals("grenade.f1.deployed")) weapon = "grenade.f1";
+                        else if (info.WeaponPrefab.ShortPrefabName.Equals("hammer_salvaged.entity")) weapon = "hammer.salvaged";
+                        else if (info.WeaponPrefab.ShortPrefabName.Equals("hatchet.entity")) weapon = "hatchet";
+                        else if (info.WeaponPrefab.ShortPrefabName.Equals("hatchet_pickaxe.entity")) weapon = "stone.pickaxe";
+                        else if (info.WeaponPrefab.ShortPrefabName.Equals("icepick_salvaged.entity")) weapon = "icepick.salvaged";
+                        else if (info.WeaponPrefab.ShortPrefabName.Equals("knife_bone.entity")) weapon = "knife.bone";
+                        else if (info.WeaponPrefab.ShortPrefabName.Equals("landmine"))
                         {
                             weapon = "landmine";
                             selfInflicted = true;
                         }
-                        else if (info.WeaponPrefab.LookupShortPrefabName().Equals("longsword.entity.prefab")) weapon = "longsword";
-                        else if (info.WeaponPrefab.LookupShortPrefabName().Equals("mace.entity.prefab")) weapon = "mace";
-                        else if (info.WeaponPrefab.LookupShortPrefabName().Equals("machete.weapon.prefab")) weapon = "machete";
-                        else if (info.WeaponPrefab.LookupShortPrefabName().Equals("pickaxe.entity.prefab")) weapon = "pickaxe";
-                        else if (info.WeaponPrefab.LookupShortPrefabName().Equals("rock.entity.prefab")) weapon = "rock";
-                        else if (info.WeaponPrefab.LookupShortPrefabName().Contains("rocket")) weapon = "rocket.launcher";
-                        else if (info.WeaponPrefab.LookupShortPrefabName().Equals("salvaged_cleaver.entity.prefab")) weapon = "salvaged.cleaver";
-                        else if (info.WeaponPrefab.LookupShortPrefabName().Equals("salvaged_sword.entity.prefab")) weapon = "salvaged.sword";
-                        else if (info.WeaponPrefab.LookupShortPrefabName().Equals("spear_stone.entity.prefab")) weapon = "spear.stone";
-                        else if (info.WeaponPrefab.LookupShortPrefabName().Equals("spear_wooden.entity.prefab")) weapon = "spear.wooden";
-                        else if (info.WeaponPrefab.LookupShortPrefabName().Equals("stonehatchet.entity.prefab")) weapon = "stonehatchet";
-                        else if (info.WeaponPrefab.LookupShortPrefabName().Equals("survey_charge.deployed.prefab")) weapon = "surveycharge";
+                        else if (info.WeaponPrefab.ShortPrefabName.Equals("longsword.entity")) weapon = "longsword";
+                        else if (info.WeaponPrefab.ShortPrefabName.Equals("mace.entity")) weapon = "mace";
+                        else if (info.WeaponPrefab.ShortPrefabName.Equals("machete.weapon")) weapon = "machete";
+                        else if (info.WeaponPrefab.ShortPrefabName.Equals("pickaxe.entity")) weapon = "pickaxe";
+                        else if (info.WeaponPrefab.ShortPrefabName.Equals("rock.entity")) weapon = "rock";
+                        else if (info.WeaponPrefab.ShortPrefabName.Contains("rocket")) weapon = "rocket.launcher";
+                        else if (info.WeaponPrefab.ShortPrefabName.Equals("salvaged_cleaver.entity")) weapon = "salvaged.cleaver";
+                        else if (info.WeaponPrefab.ShortPrefabName.Equals("salvaged_sword.entity")) weapon = "salvaged.sword";
+                        else if (info.WeaponPrefab.ShortPrefabName.Equals("spear_stone.entity")) weapon = "spear.stone";
+                        else if (info.WeaponPrefab.ShortPrefabName.Equals("spear_wooden.entity")) weapon = "spear.wooden";
+                        else if (info.WeaponPrefab.ShortPrefabName.Equals("stonehatchet.entity")) weapon = "stonehatchet";
+                        else if (info.WeaponPrefab.ShortPrefabName.Equals("survey_charge.deployed")) weapon = "surveycharge";
                     }
                     else if (info.Initiator != null)
                     {
-                        if (info.Initiator.LookupShortPrefabName().Equals("autoturret_deployed.prefab"))
+                        if (info.Initiator.ShortPrefabName.Equals("autoturret_deployed"))
                         {
                             weapon = "autoturret";
                             selfInflicted = true;
                         }
-                        else if (info.Initiator.LookupShortPrefabName().Equals("beartrap.prefab"))
+                        else if (info.Initiator.ShortPrefabName.Equals("beartrap"))
                         {
                             weapon = "trap.bear";
                             selfInflicted = true;
                         }
-                        else if (info.Initiator.LookupShortPrefabName().Equals("barricade.metal.prefab"))
+                        else if (info.Initiator.ShortPrefabName.Equals("barricade.metal"))
                         {
                             weapon = "barricade.metal";
                             selfInflicted = true;
                         }
-                        else if (info.Initiator.LookupShortPrefabName().Equals("barricade.wood.prefab"))
+                        else if (info.Initiator.ShortPrefabName.Equals("barricade.wood"))
                         {
                             weapon = "barricade.wood";
                             selfInflicted = true;
                         }
-                        else if (info.Initiator.LookupShortPrefabName().Equals("barricade.woodwire.prefab"))
+                        else if (info.Initiator.ShortPrefabName.Equals("barricade.woodwire"))
                         {
                             weapon = "barricade.woodwire";
                             selfInflicted = true;
                         }
-                        else if (info.Initiator.LookupShortPrefabName().Equals("gates.external.high.stone.prefab"))
+                        else if (info.Initiator.ShortPrefabName.Equals("gates.external.high.stone"))
                         {
                             weapon = "gates.external.high.stone";
                             selfInflicted = true;
                         }
-                        else if (info.Initiator.LookupShortPrefabName().Equals("gates.external.high.wood.prefab"))
+                        else if (info.Initiator.ShortPrefabName.Equals("gates.external.high.wood"))
                         {
                             weapon = "gates.external.high.wood";
                             selfInflicted = true;
                         }
-                        else if (info.Initiator.LookupShortPrefabName().Equals("lock.code.prefab")) weapon = "lock.code";
-                        else if (info.Initiator.LookupShortPrefabName().Equals("spikes.floor.prefab"))
+                        else if (info.Initiator.ShortPrefabName.Equals("lock.code")) weapon = "lock.code";
+                        else if (info.Initiator.ShortPrefabName.Equals("spikes.floor"))
                         {
                             weapon = "spikes.floor";
                             selfInflicted = true;
                         }
-                        else if (info.Initiator.LookupShortPrefabName().Equals("wall.external.high.stone.prefab"))
+                        else if (info.Initiator.ShortPrefabName.Equals("wall.external.high.stone"))
                         {
                             weapon = "wall.external.high.stone";
                             selfInflicted = true;
                         }
-                        else if (info.Initiator.LookupShortPrefabName().Equals("wall.external.high.wood.prefab"))
+                        else if (info.Initiator.ShortPrefabName.Equals("wall.external.high.wood"))
                         {
                             weapon = "wall.external.high";
                             selfInflicted = true;
@@ -1674,7 +1696,7 @@ namespace Oxide.Plugins
             /// <returns> The name of the bone.</returns>
             string GetHitBone(HitInfo info)
             {
-                if (info.HitEntity == null) return "";
+                if (info.HitEntity == null || info.HitEntity.ToPlayer() == null) return "";
 
                 string hitBone;
 
@@ -1730,7 +1752,7 @@ namespace Oxide.Plugins
             CuiElement feedEntryElement = new CuiElement
             {
                 Name = "{0} feedEntry",
-                Parent = "HUD/Overlay",
+                Parent = "Hud.Under",
                 FadeOut = fadeOut,
                 Components =
                     {
@@ -1853,7 +1875,7 @@ namespace Oxide.Plugins
                 {
                     element.Name = element.Name.Replace("{" + (i - 1) + "}", "{" + i + "}");
 
-                    if (element.Parent.Equals("HUD/Overlay"))
+                    if (element.Parent.Equals("Hud.Under"))
                     {
                         CuiRectTransformComponent transform = (CuiRectTransformComponent)element.Components.Find(x => x.Type.Equals("RectTransform"));
                         transform.AnchorMin = (anchormin.x + horizontalSpacing * i) + " " + (anchormin.y + verticalSpacing * i);

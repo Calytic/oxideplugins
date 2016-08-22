@@ -1,0 +1,15 @@
+{
+    "name": "KDR GUI",
+    "description": "GUI that shows kills, deaths, player name, and K\/D Ratio.",
+    "author": "Ankawi",
+    "version": "1.0.3",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

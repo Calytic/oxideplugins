@@ -1,11 +1,11 @@
 PLUGIN.Title        = "Radar Manager"
 PLUGIN.Description  = "Shows clan members, mutual friends, attackers and hit mark locations to other players."
 PLUGIN.Author       = "InSaNe8472"
-PLUGIN.Version      = V(1,0,8)
+PLUGIN.Version      = V(1,0,9)
 PLUGIN.ResourceID   = 1392
 
 local ClanPlugin = "Clans"
-local FriendPlugin = "0friendsAPI"
+local FriendPlugin = "Friends"
 local AdminData = {}
 local PlayerData = {}
 local PlayerAData = {}
@@ -878,7 +878,7 @@ function PLUGIN:RefreshFriendRadar()
 								if not permission.UserHasPermission(_playerSteamID, "radarmanager.hide") then
 									local Range = UnityEngine.Vector3.Distance(_players.Current.transform.position, localPlayer.transform.position)
 									if Range <= tonumber(Radius) then
-										if friendsAPI:Call("areFriends", playerSteamID, _playerSteamID) then
+										if friendsAPI:Call("AreFriendsS", playerSteamID, _playerSteamID) then
 											local loc = _players.Current.transform.position.x..","..(_players.Current.transform.position.y + tonumber(self.Config.Friend.TagOffset))..",".._players.Current.transform.position.z
 											local tagloc = "x"..tostring(_players.Current.transform.position.x):match"([^.]*).(.*)".." y"..tostring(_players.Current.transform.position.y):match"([^.]*).(.*)".." z"..tostring(_players.Current.transform.position.z):match"([^.]*).(.*)"
 											local tag = FormatMessage(UseTag, { player = _players.Current.displayName, location = tagloc, range = tostring(Range):match"([^.]*).(.*)" })
@@ -942,7 +942,7 @@ function PLUGIN:DrawAttackRadar(player)
 										if localClan and clans:Call("GetClanOf", playerSteamID) == localClan then Access = false end
 									end
 									if Access and friendsAPI and self.Config.Attack.ShowFriend == "false" then
-										if friendsAPI:Call("areFriends", playerSteamID, _playerSteamID) then Access = false end
+										if friendsAPI:Call("AreFriendsS", playerSteamID, _playerSteamID) then Access = false end
 									end
 									if Access and self.Config.Settings.UsePermissions == "true" then
 										if not permission.UserHasPermission(playerSteamID, "radarmanager.admin") and not permission.UserHasPermission(playerSteamID, "radarmanager.all") and
@@ -995,7 +995,7 @@ function PLUGIN:OnPlayerAttack(attacker, info)
 											if localClan and clans:Call("GetClanOf", playerSteamID) == localClan then Access = false end
 										end
 										if Access and friendsAPI and self.Config.Hit.ShowFriend == "false" then
-											if friendsAPI:Call("areFriends", playerSteamID, _playerSteamID) then Access = false end
+											if friendsAPI:Call("AreFriendsS", playerSteamID, _playerSteamID) then Access = false end
 										end
 										if Access and self.Config.Settings.UsePermissions == "true" then
 											if not permission.UserHasPermission(playerSteamID, "radarmanager.admin") and not permission.UserHasPermission(playerSteamID, "radarmanager.all") and

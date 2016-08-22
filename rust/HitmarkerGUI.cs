@@ -5,7 +5,7 @@ using Oxide.Core;
 
 namespace Oxide.Plugins
 {
-    [Info("Hitmarker GUI", "PaiN", "1.3.1", ResourceId = 1241)]
+    [Info("Hitmarker GUI", "PaiN", "1.3.2", ResourceId = 1241)]
     [Description("This plugin informs the attacker/player if he hit someone..")]
     class HitmarkerGUI : RustPlugin
     {
@@ -78,7 +78,7 @@ namespace Oxide.Plugins
         string image = @"[
                        {
                             ""name"": ""HitMarkerImage"",
-                            ""parent"": ""HUD/Overlay"",
+                            ""parent"": ""Overlay"",
                             ""components"":
                             [
                                {
@@ -100,7 +100,7 @@ namespace Oxide.Plugins
         string text = @"[
                        {
                             ""name"": ""HitMarker"",
-                            ""parent"": ""HUD/Overlay"",
+                            ""parent"": ""Overlay"",
                             ""components"":
                             [
                                 {

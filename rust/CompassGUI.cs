@@ -10,7 +10,7 @@ using Oxide.Core;
 
 namespace Oxide.Plugins
 {
-    [Info("Compass GUI", "PaiN", 1.1, ResourceId = 1231)]
+    [Info("Compass GUI", "PaiN", 1.2, ResourceId = 1231)]
     [Description("This plugin shows which direction is the player facing in a GUI.")]
     public class CompassGUI : RustPlugin
     {     
@@ -85,7 +85,7 @@ namespace Oxide.Plugins
         string json = @"[
                        {
                             ""name"": ""EyesPosition"",
-                            ""parent"": ""HUD/Overlay"",
+                            ""parent"": ""Overlay"",
                             ""components"":
                             [
                                 {

@@ -21,7 +21,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic", "0.3.2", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic", "0.3.7", ResourceId = 856)]
     public class HumanNPC : RustPlugin
     {
         //////////////////////////////////////////////////////
@@ -176,7 +176,7 @@ namespace Oxide.Plugins
             public Vector3 LastPos = new Vector3(0f, 0f, 0f);
             private Vector3 nextPos = new Vector3(0f, 0f, 0f);
             private float waypointDone = 0f;
-            private float secondsTaken = 0f;
+            public float secondsTaken = 0f;
             private float secondsToTake = 0f;
 
             public List<WaypointInfo> cachedWaypoints;
@@ -188,15 +188,14 @@ namespace Oxide.Plugins
             public int noPath = 0;
             public bool shouldMove = true;
 
-            private float lastReload = 0f;
             private float startedReload = 0f;
             private bool reloading = false;
 
-            private bool returning = false;
+            public bool returning = false;
 
             public BaseCombatEntity attackEntity = null;
             public BaseEntity followEntity = null;
-            public Vector3 targetPosition = default(Vector3);
+            public Vector3 targetPosition = Vector3.zero;
 
             public List<Vector3> pathFinding;
 
@@ -207,7 +206,6 @@ namespace Oxide.Plugins
             {
                 npc = GetComponent<HumanPlayer>();
                 UpdateWaypoints();
-                lastReload = Time.realtimeSinceStartup;
 
                 model = GetModel();
                 model.onground = true;
@@ -270,7 +268,7 @@ namespace Oxide.Plugins
             public void TryToMove()
             {
                 if (npc.player.IsDead() || npc.player.IsWounded()) return;
-                if (targetPosition != default(Vector3)) ProcessFollow(targetPosition);
+                if (targetPosition != Vector3.zero) ProcessFollow(targetPosition);
                 else if (attackEntity is BaseCombatEntity) ProcessAttack(attackEntity);
                 else if (followEntity is BaseEntity) ProcessFollow(followEntity.transform.position);
                 else if (secondsTaken == 0f) GetNextPath();
@@ -386,6 +384,7 @@ namespace Oxide.Plugins
 
             void ProcessAttack(BaseCombatEntity entity)
             {
+				//Interface.Oxide.LogInfo("ProcessAttack: {0} - {1}", npc.player.displayName, entity.name);
                 if (entity != null && entity.IsAlive())
                 {
                     var c_attackDistance = Vector3.Distance(entity.transform.position, npc.player.transform.position);
@@ -396,13 +395,17 @@ namespace Oxide.Plugins
                     //Interface.Oxide.LogInfo("Entity: {0} {1} {2}", entity.GetType().FullName, entity.IsAlive(), validAttack);
                     if (validAttack)
                     {
-                        if (c_attackDistance < npc.info.damageDistance && CanSee(npc.player, entity))
+                        var range = c_attackDistance < npc.info.damageDistance;
+                        var see = CanSee(npc.player, entity);
+                        if (range && see)
                         {
                             AttemptAttack(entity);
                             return;
                         }
-
-                        Move(npc.player.transform.position);
+                        if (GetSpeed() <= 0)
+                            npc.EndAttackingEntity();
+                        else
+                            Move(npc.player.transform.position);
                     }
                     else
                         npc.EndAttackingEntity();
@@ -425,7 +428,7 @@ namespace Oxide.Plugins
                     {
                         npc.EndFollowingEntity(noPath < 5);
                     }
-                    else if(targetPosition != default(Vector3))
+                    else if(targetPosition != Vector3.zero)
                     {
                         npc.EndGo(noPath < 5);
                     }
@@ -434,7 +437,7 @@ namespace Oxide.Plugins
 
             public void PathFinding()
             {
-                Vector3 target = default(Vector3);
+                Vector3 target = Vector3.zero;
 
                 if (attackEntity != null)
                 {
@@ -445,17 +448,12 @@ namespace Oxide.Plugins
                 {
                     target = followEntity.transform.position;
                 }
-                else if (targetPosition != default(Vector3))
+                else if (targetPosition != Vector3.zero)
                 {
-                    if (targetPosition == npc.player.transform.position)
-                    {
-                        returning = false;
-                        targetPosition = default(Vector3);
-                    }
                     target = targetPosition;
                 }
 
-                if (target != default(Vector3))
+                if (target != Vector3.zero)
                 {
                     PathFinding(new Vector3(target.x, GetMoveY(target), target.z));
                 }
@@ -475,6 +473,12 @@ namespace Oxide.Plugins
                         noPath++;
                     else noPath = 0;
                     if (noPath < 5) Invoke("PathFinding", 2);
+                    else if (returning)
+                    {
+                        returning = false;
+                        SetMovementPoint(npc.player.transform.position, LastPos, 7f);
+                        secondsTaken = 0.01f;
+                    }
                 }
                 else
                 {
@@ -490,16 +494,20 @@ namespace Oxide.Plugins
             public void GetBackToLastPos()
             {
                 if (npc.player.transform.position == LastPos) return;
-                targetPosition = LastPos;
-                pathFinding = null;
-                Invoke("PathFinding", 0);
-                //SetMovementPoint(npc.player.transform.position, LastPos, 7f);
-                //secondsTaken = 0.01f;
+                if (LastPos == Vector3.zero) LastPos = npc.info.spawnInfo.position;
+                if (Vector3.Distance(npc.player.transform.position, LastPos) < 5)
+                {
+                    SetMovementPoint(npc.player.transform.position, LastPos, 7f);
+                    secondsTaken = 0.01f;
+                    return;
+                }
+                returning = true;
+                npc.StartGo(LastPos);
             }
 
             public void Enable()
             {
-                if (GetSpeed() <= 0) return;
+                //if (GetSpeed() <= 0) return;
                 enabled = true;
             }
             public void Disable() { enabled = false; }
@@ -529,124 +537,142 @@ namespace Oxide.Plugins
                 return position.y - .5f;
             }
 
-            public void CreateProjectileEffect(BaseCombatEntity target, Item attackitem, float dmg, bool miss = false) {
-                var baseProjectile = attackitem.GetHeldEntity() as BaseProjectile;
-                if (baseProjectile == null) return;
-
-                if (!npc.info.needsAmmo || npc.player.inventory.Take(null, baseProjectile.primaryMagazine.ammoType.itemid, 1) > 0) {
-                    var component = baseProjectile.primaryMagazine.ammoType.GetComponent<ItemModProjectile>();
-                    if (component == null) return;
-                    npc.ForceSignalAttack();
-                    npc.LookTowards(target.transform.position);
-
-                    var source = npc.player.transform.position + npc.player.GetOffset() + (Quaternion.LookRotation(target.transform.position - npc.player.transform.position) * baseProjectile.ikHold_max.position);
-                    var dir = (target.transform.position + npc.player.GetOffset() - source).normalized;
-                    var vector32 = ((dir * (component.projectileVelocity + UnityEngine.Random.Range(-component.projectileVelocityRandom, component.projectileVelocityRandom))));
-
-                    RaycastHit raycastHit;
-                    if (!Physics.SphereCast(source - dir, 1f, vector32.normalized, out raycastHit, npc.info.attackDistance + 5f, targetLayer))
-                    {
-                        return;
-                    }
-
-                    if(miss) {
-                        float aimConeMin = 0.8f;
-                        float aimConeMax = 0.8f;
-                        var aimOffset = Quaternion.Euler(UnityEngine.Random.Range((float)(-aimConeMin * 0.5), aimConeMax * 0.5f), UnityEngine.Random.Range((float)(-aimConeMax * 0.5), aimConeMax * 0.5f), UnityEngine.Random.Range((float)(-aimConeMax * 0.5), aimConeMax * 0.5f)) * npc.player.eyes.HeadForward();
-                        vector32 = aimOffset + vector32;
-                    }
-
-                    Effect.server.Run(baseProjectile.attackFX.resourcePath, baseProjectile, StringPool.Get(baseProjectile.handBone), Vector3.zero, Vector3.forward, null, false);
-                    var effect = new Effect();
-                    effect.Init(Effect.Type.Projectile, source, vector32.normalized);
-                    effect.scale = vector32.magnitude;
-                    effect.pooledString = component.projectileObject.resourcePath;
-                    effect.number = UnityEngine.Random.Range(0, 2147483647);
-                    EffectNetwork.Send(effect);
-
-                    Vector3 dest = default(Vector3);
-
-                    if(miss) {
-                        dmg = 0;
-                        dest = raycastHit.point;
-                    } else {
-                        dest = target.transform.position;
-                    }
-                    var hitInfo = new HitInfo(npc.player, DamageType.Bullet, dmg, dest)
-                    {
-                        DidHit = !miss,
-                        HitEntity = target,
-                        PointStart = source,
-                        PointEnd = raycastHit.point,
-                        HitPositionWorld = dest,
-                        HitNormalWorld = -dir,
-                        WeaponPrefab = GameManager.server.FindPrefab(StringPool.Get(baseProjectile.prefabID)).GetComponent<AttackEntity>(),
-                        Weapon = (AttackEntity)firstWeapon,
-                        HitMaterial = StringPool.Get("Flesh")
-                    };
-                    target.OnAttacked(hitInfo);
-                    Effect.server.ImpactEffect(hitInfo);
+            public void CreateProjectileEffect(BaseCombatEntity target, BaseProjectile baseProjectile, float dmg, bool miss = false)
+            {
+                if (baseProjectile.primaryMagazine.contents <= 0)
+                {
+                    //Interface.Oxide.LogInfo("Attack failed(empty): {0} - {1}", npc.player.displayName, attackEntity.name);
+                    return;
                 }
+                var component = baseProjectile.primaryMagazine.ammoType.GetComponent<ItemModProjectile>();
+                if (component == null)
+                {
+                    //Interface.Oxide.LogInfo("Attack failed(Component): {0} - {1}", npc.player.displayName, attackEntity.name);
+                    return;
+                }
+                npc.LookTowards(target.transform.position);
+
+                var source = npc.player.transform.position + npc.player.GetOffset() + Quaternion.LookRotation(target.transform.position - npc.player.transform.position)*baseProjectile.ikHold_max.position;
+                var dir = (target.transform.position + npc.player.GetOffset() - source).normalized;
+                var vector32 = dir*(component.projectileVelocity * baseProjectile.projectileVelocityScale);
+
+                RaycastHit raycastHit;
+                if (!Physics.SphereCast(source, .1f, vector32, out raycastHit, npc.info.attackDistance + 5f) || raycastHit.collider.GetComponent<BaseCombatEntity>() == null)
+                {
+                    //Interface.Oxide.LogInfo("Attack failed: {0} - {1}", npc.player.displayName, attackEntity.name);
+                    return;
+                }
+                baseProjectile.primaryMagazine.contents--;
+                npc.ForceSignalAttack();
+
+                if (miss)
+                {
+                    var aimCone = baseProjectile.GetAimCone();
+                    vector32 += Quaternion.Euler(UnityEngine.Random.Range((float) (-aimCone*0.5), aimCone*0.5f), UnityEngine.Random.Range((float) (-aimCone*0.5), aimCone*0.5f), UnityEngine.Random.Range((float) (-aimCone*0.5), aimCone*0.5f))*npc.player.eyes.HeadForward();
+                }
+
+                Effect.server.Run(baseProjectile.attackFX.resourcePath, baseProjectile, StringPool.Get(baseProjectile.handBone), Vector3.zero, Vector3.forward, null, false);
+                var effect = new Effect();
+                effect.Init(Effect.Type.Projectile, source, vector32.normalized);
+                effect.scale = vector32.magnitude;
+                effect.pooledString = component.projectileObject.resourcePath;
+                effect.number = UnityEngine.Random.Range(0, 2147483647);
+                EffectNetwork.Send(effect);
+
+                Vector3 dest;
+                if (miss)
+                {
+                    dmg = 0;
+                    dest = raycastHit.point;
+                }
+                else
+                {
+                    dest = target.transform.position;
+                }
+                var hitInfo = new HitInfo(npc.player, target, DamageType.Bullet, dmg, dest)
+                {
+                    DidHit = !miss,
+                    HitEntity = target,
+                    PointStart = source,
+                    PointEnd = raycastHit.point,
+                    HitPositionWorld = dest,
+                    HitNormalWorld = -dir,
+                    WeaponPrefab = GameManager.server.FindPrefab(StringPool.Get(baseProjectile.prefabID)).GetComponent<AttackEntity>(),
+                    Weapon = (AttackEntity) firstWeapon,
+                    HitMaterial = StringPool.Get("Flesh")
+                };
+                target.OnAttacked(hitInfo);
+                Effect.server.ImpactEffect(hitInfo);
             }
 
             public void AttemptAttack(BaseCombatEntity entity) {
-                if (npc.info.needsAmmo && !reloading && Time.realtimeSinceStartup > lastReload + npc.info.fireDuration)
+                var weapon = firstWeapon as BaseProjectile;
+                if (weapon != null)
                 {
-                    reloading = true;
-                    entity.SignalBroadcast(BaseEntity.Signal.Reload, string.Empty, null);
-                    startedReload = Time.realtimeSinceStartup;
-                    //PlayReload(npc);
-                    return;
+                    if (!reloading && weapon.primaryMagazine.contents <= 0)
+                    {
+                        reloading = true;
+                        entity.SignalBroadcast(BaseEntity.Signal.Reload, string.Empty, null);
+                        startedReload = Time.realtimeSinceStartup;
+                        return;
+                    }
+                    if (reloading && Time.realtimeSinceStartup > startedReload + (npc.info.reloadDuration > 0 ? npc.info.reloadDuration : weapon.reloadTime))
+                    {
+                        reloading = false;
+                        if (npc.info.needsAmmo)
+                        {
+                            weapon.primaryMagazine.Reload(npc.player);
+                            npc.player.inventory.ServerUpdate(0f);
+                        }
+                        else
+                            weapon.primaryMagazine.contents = weapon.primaryMagazine.capacity;
+                    }
+                    if (reloading) return;
                 }
-                if (reloading && Time.realtimeSinceStartup > startedReload + npc.info.reloadDuration)
-                {
-                    reloading = false;
-                    lastReload = Time.realtimeSinceStartup;
-                    return;
-                }
-                if (!reloading && Time.realtimeSinceStartup > lastHit + npc.info.damageInterval)
-                {
-                    lastHit = Time.realtimeSinceStartup;
-                    DoAttack(entity, !HitChance());
-                }
+                if (!(Time.realtimeSinceStartup > lastHit + npc.info.damageInterval)) return;
+                lastHit = Time.realtimeSinceStartup;
+                DoAttack(entity, !HitChance());
             }
 
 
             public void DoAttack(BaseCombatEntity target, bool miss = false)
             {
                 if (npc == null) return;
-                if(firstWeapon == null || (firstWeapon != null && (firstWeapon.isDestroyed || !npc.HasAmmo(firstWeapon.GetItem())))) {
+                var weapon = firstWeapon as BaseProjectile;
+                if (firstWeapon == null || (firstWeapon != null && (firstWeapon.isDestroyed || weapon != null && weapon.primaryMagazine.contents == 0))) {
                     firstWeapon = npc.EquipFirstWeapon();
+                    weapon = firstWeapon as BaseProjectile;
                     npc.SetActive(0);
                 }
 
-                if (firstWeapon != null)
+                var attackitem = firstWeapon?.GetItem();
+                if (attackitem == null)
                 {
-                    Item attackitem = firstWeapon.GetItem();
-                    if (attackitem == null) return;
-                    if (attackitem.uid != npc.player.svActiveItemID)
-                        npc.SetActive(attackitem.uid);
+                    npc.EndAttackingEntity();
+                    return;
+                }
+                if (attackitem.uid != npc.player.svActiveItemID)
+                    npc.SetActive(attackitem.uid);
 
-                    float dmg = npc.info.damageAmount * UnityEngine.Random.Range(0.8f, 1.2f);
-                    if (target is BaseNPC)
-                        dmg *= 1.5f;
-                    else if (target is AutoTurret)
-                        dmg *= 3f;
+                float dmg = npc.info.damageAmount * UnityEngine.Random.Range(0.8f, 1.2f);
+                if (target is BaseNPC)
+                    dmg *= 1.5f;
+                else if (target is AutoTurret)
+                    dmg *= 3f;
 
-                    if(weaponProjectile.ContainsKey(attackitem.info.shortname)) {
-                        npc.ForceSignalGesture();
-                        CreateProjectileEffect(target, attackitem, dmg, miss);
-                    }
-                    else
+                if(weapon != null) {
+                    npc.ForceSignalGesture();
+                    CreateProjectileEffect(target, weapon, dmg, miss);
+                }
+                else
+                {
+                    var hitInfo = new HitInfo(npc.player, target, DamageType.Stab, dmg, target.transform.position)
                     {
-                        var hitInfo = new HitInfo(npc.player, DamageType.Stab, dmg, target.transform.position)
-                        {
-                            PointStart = npc.player.transform.position,
-                            PointEnd = target.transform.position
-                        };
-                        target.SendMessage("OnAttacked", hitInfo, SendMessageOptions.DontRequireReceiver);
-                        npc.ForceSignalAttack();
-                    }
+                        PointStart = npc.player.transform.position,
+                        PointEnd = target.transform.position
+                    };
+                    target.SendMessage("OnAttacked", hitInfo, SendMessageOptions.DontRequireReceiver);
+                    npc.ForceSignalAttack();
                 }
             }
         }
@@ -687,6 +713,8 @@ namespace Oxide.Plugins
                 player.syncPosition = true;
                 if (!update)
                 {
+                    player.xp = ServerMgr.Xp.GetAgent(info.userid);
+                    player.stats = new PlayerStatistics(player);
                     player.userID = info.userid;
                     player.UserIDString = player.userID.ToString();
                     player.MovePosition(info.spawnInfo.position);
@@ -761,7 +789,13 @@ namespace Oxide.Plugins
                 {
                     Interface.Oxide.CallHook("OnNPCStopGo", player, locomotion.targetPosition);
                 }
-                locomotion.targetPosition = default(Vector3);
+                if (locomotion.returning)
+                {
+                    locomotion.returning = false;
+                    locomotion.SetMovementPoint(player.transform.position, locomotion.LastPos, 7f);
+                    locomotion.secondsTaken = 0.01f;
+                }
+                locomotion.targetPosition = Vector3.zero;
             }
             public void PlayTune()
             {
@@ -814,7 +848,7 @@ namespace Oxide.Plugins
 
             public void StartFollowingEntity(BaseEntity entity)
             {
-                if (locomotion.targetPosition != default(Vector3))
+                if (locomotion.targetPosition != Vector3.zero)
                 {
                     EndGo(false);
                 }
@@ -877,9 +911,19 @@ namespace Oxide.Plugins
                 return null;
             }
 
+            public HeldEntity GetFirstMisc()
+            {
+                foreach (Item item in player.inventory.containerBelt.itemList)
+                {
+                    if (item.CanBeHeld() && item.info.category != ItemCategory.Tool && item.info.category != ItemCategory.Weapon)
+                        return item.GetHeldEntity() as HeldEntity;
+                }
+                return null;
+            }
+
             public List<Item> GetAmmo(Item item)
             {
-                List<Item> ammos = new List<Item>();
+                var ammos = new List<Item>();
                 AmmoTypes ammoType;
                 if (!ammoTypes.TryGetValue(item.info.shortname, out ammoType))
                     return ammos;
@@ -890,13 +934,9 @@ namespace Oxide.Plugins
             public bool HasAmmo(Item item)
             {
                 if (!info.needsAmmo) return true;
-                AmmoTypes ammoType;
-                if (!ammoTypes.TryGetValue(item.info.shortname, out ammoType))
-                    return true;
-
-                List<Item> ammos = new List<Item>();
-                player.inventory.FindAmmo(ammos, ammoType);
-                return ammos.Count > 0;
+                var weapon = item.GetHeldEntity() as BaseProjectile;
+                if (weapon == null) return true;
+                return weapon.primaryMagazine.contents > 0 || weapon.primaryMagazine.CanReload(player);
             }
 
             public void UnequipAll()
@@ -922,13 +962,24 @@ namespace Oxide.Plugins
 
             public HeldEntity EquipFirstTool()
             {
-                HeldEntity weapon = GetFirstTool();
-                if (weapon != null)
+                HeldEntity tool = GetFirstTool();
+                if (tool != null)
                 {
                     UnequipAll();
-                    weapon.SetHeld(true);
+                    tool.SetHeld(true);
                 }
-                return weapon;
+                return tool;
+            }
+
+            public HeldEntity EquipFirstMisc()
+            {
+                HeldEntity misc = GetFirstMisc();
+                if (misc != null)
+                {
+                    UnequipAll();
+                    misc.SetHeld(true);
+                }
+                return misc;
             }
 
             public void SetActive(uint id)
@@ -999,7 +1050,6 @@ namespace Oxide.Plugins
             public bool enable;
             public bool lootable;
             public float hitchance;
-            public float fireDuration;
             public float reloadDuration;
             public bool needsAmmo;
             public bool defend;
@@ -1027,8 +1077,6 @@ namespace Oxide.Plugins
                 attackDistance = 100;
                 maxDistance = 200;
                 hitchance = 0.75f;
-                fireDuration = 4f;
-                reloadDuration = 3f;
                 speed = 3;
                 stopandtalk = true;
                 stopandtalkSeconds = 3;
@@ -1070,8 +1118,7 @@ namespace Oxide.Plugins
                     message_kill = message_kill?.ToList(),
                     needsAmmo = needsAmmo,
                     hitchance = hitchance,
-                    fireDuration = fireDuration,
-                    reloadDuration = fireDuration,
+                    reloadDuration = reloadDuration,
                     protections = protections?.ToDictionary(p => p.Key, p => p.Value)
                 };
             }
@@ -1454,7 +1501,7 @@ namespace Oxide.Plugins
             var newPlayer = GameManager.server.CreateEntity("assets/prefabs/player/player.prefab", info.spawnInfo.position, info.spawnInfo.rotation).ToPlayer();
             var humanPlayer = newPlayer.gameObject.AddComponent<HumanPlayer>();
             humanPlayer.SetInfo(info);
-            newPlayer.Spawn(true);
+            newPlayer.Spawn();
 
             humanPlayer.UpdateHealth(info);
             cache[userid] = humanPlayer;
@@ -1470,8 +1517,9 @@ namespace Oxide.Plugins
             if (!string.IsNullOrEmpty(humanPlayer.info.spawnkit))
             {
                 //player.inventory.Strip();
-                Kits.Call("GiveKit", humanPlayer.player, humanPlayer.info.spawnkit);
-                humanPlayer.EquipFirstWeapon();
+                Kits?.Call("GiveKit", humanPlayer.player, humanPlayer.info.spawnkit);
+                if (humanPlayer.EquipFirstWeapon() == null && humanPlayer.EquipFirstTool() == null)
+                    humanPlayer.EquipFirstMisc();
             }
             /*player.SV_ClothingChanged();
             if (humanPlayer.info.protections != null)
@@ -1943,9 +1991,6 @@ namespace Oxide.Plugins
                     case "hitchance":
                         message = $"This NPC hit chance is: {npcEditor.targetNPC.info.hitchance}";
                         break;
-                    case "fireduration":
-                        message = $"This NPC fire duration is: {npcEditor.targetNPC.info.fireDuration}";
-                        break;
                     case "reloadduration":
                         message = $"This NPC reload duration is: {npcEditor.targetNPC.info.reloadDuration}";
                         break;
@@ -2060,9 +2105,6 @@ namespace Oxide.Plugins
                     break;
                 case "hitchance":
                     npcEditor.targetNPC.info.hitchance = Convert.ToSingle(args[1]);
-                    break;
-                case "fireduration":
-                    npcEditor.targetNPC.info.fireDuration = Convert.ToSingle(args[1]);
                     break;
                 case "reloadduration":
                     npcEditor.targetNPC.info.reloadDuration = Convert.ToSingle(args[1]);

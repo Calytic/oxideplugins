@@ -6,7 +6,7 @@ using Oxide.Core;
 
 namespace Oxide.Plugins
 {
-    [Info("Random Warps", "LaserHydra", "1.1.1", ResourceId = 1397)]
+    [Info("Random Warps", "LaserHydra", "1.1.2", ResourceId = 1397)]
     [Description("Teleports you to a random location of a multi-location warp")]
     class RandomWarps : RustPlugin
     {
@@ -98,6 +98,12 @@ namespace Oxide.Plugins
                     SendChatMessage(player, "/rwarp " + warp);
                 }
 
+                return;
+            }
+
+            if ((bool) (Oxide.Core.Interface.CallHook("IsPrisoner", player) ?? false))
+            {
+                SendChatMessage(player, "You may not teleport while in jail!");
                 return;
             }
 

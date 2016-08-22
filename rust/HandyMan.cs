@@ -45,12 +45,16 @@ Changes :   Changes made based on feedback from Wulf.
 Version :   1.0.1.2
 Date    :   2016-03-18
 Changes :   Implemented the lang API
+*****************************************************************************************************************************************************
+Version :   1.0.2.1
+Date    :   2016-07-28
+Changes :   Implemented AOE repair for deployables
 *****************************************************************************************************************************************************/
 
 namespace Oxide.Plugins
 {
 
-    [Info("HandyMan", "MrMan", "1.0.1.2")]
+    [Info("HandyMan", "MrMan", "1.0.2.1")]
     [Description("Provides AOE repair functionality to the player. Repair is only possible where you can build. HandyMan can be turned on or off.")]
     public class HandyMan : RustPlugin
     {
@@ -63,7 +67,6 @@ namespace Oxide.Plugins
         Dictionary<ulong, bool> playerPrefs_IsActive = new Dictionary<ulong, bool>(); //Stores player preference values - on or off.
 
         private ConfigData configData; //Structure containing the configuration data once read
-        private readonly Dictionary<string, HashSet<uint>> categories = new Dictionary<string, HashSet<uint>>(); //Structure containing the configured categories of structures configured to be affected by HandyMan
 
         private PluginTimers RepairMessageTimer; //Timer to control HandyMan chats
         private bool _allowHandyManFixMessage = true; //indicator allowing for handyman fix messages
@@ -97,43 +100,6 @@ namespace Oxide.Plugins
                 HandyManChatInterval = 30,
                 RepairRange = 50,
                 //Specifies the structure category dictionary
-                Categories = new Dictionary<string, HashSet<string>>
-                {
-                    {
-                        "foundation", new HashSet<string>
-                        {
-                            "assets/prefabs/building core/foundation.triangle/foundation.triangle.prefab",
-                            "assets/prefabs/building core/foundation.steps/foundation.steps.prefab",
-                            "assets/prefabs/building core/foundation/foundation.prefab"
-                        }
-                    },
-                    {
-                        "wall", new HashSet<string>
-                        {
-                            "assets/prefabs/building core/wall.frame/wall.frame.prefab",
-                            "assets/prefabs/building core/wall.window/wall.window.prefab",
-                            "assets/prefabs/building core/wall.doorway/wall.doorway.prefab",
-                            "assets/prefabs/building core/wall/wall.prefab"
-                        }
-                    },
-                    {
-                        "floor", new HashSet<string>
-                        {
-                            "assets/prefabs/building core/floor.frame/floor.frame.prefab",
-                            "assets/prefabs/building core/floor.triangle/floor.triangle.prefab",
-                            "assets/prefabs/building core/floor/floor.prefab"
-                        }
-                    },
-                    {
-                        "other", new HashSet<string>
-                        {
-                            "assets/prefabs/building core/roof/roof.prefab",
-                            "assets/prefabs/building core/stairs.l/block.stair.lshape.prefab",
-                            "assets/prefabs/building core/pillar/pillar.prefab",
-                            "assets/prefabs/building core/stairs.u/block.stair.ushape.prefab"
-                        }
-                    }
-                }
             };
             //Creates a config file - Note sync is turned on so changes in the file should be taken into account, overriding what is coded here
             Config.WriteObject(config, true);
@@ -148,24 +114,6 @@ namespace Oxide.Plugins
         internal void LoadAffectedStructures()
         {
             configData = Config.ReadObject<ConfigData>();
-            foreach (var category in configData.Categories)
-            {
-                var data = new HashSet<uint>();
-                //cycle through the categories configured
-                foreach (var prefab in category.Value)
-                {
-                    //get the ID of the item based on the description configured
-                    var prefabId = StringPool.Get(prefab);
-                    //Checks to see if the prefab identity could be found based on the configured description of the structure - if not, skip to the next one
-                    if (prefabId <= 0) continue;
-                    //yes - prefab was found so add it to our data 
-                    data.Add(prefabId);
-                }
-                //Add the items we found from the list above to our categories construct - essentially we've just eliminated any structures that we could not found and converted the 
-                //text description to the prefabID
-                categories.Add(category.Key, data);
-            }
-
         }
 
         #region Oxide Hooks
@@ -207,6 +155,7 @@ namespace Oxide.Plugins
             }, this);
         }
 
+
         /// <summary>
         /// TODO: Investigate entity driven repair.
         /// Currently only building structures are driving repair. I want to allow things like high external walls to also 
@@ -217,28 +166,31 @@ namespace Oxide.Plugins
         /// <param name="info"></param>
         void OnHammerHit(BasePlayer player, HitInfo info)
         {
-            //SendChatMessage(player, _ChatmessagePrefix, info.HitEntity.LookupPrefabName());
+            //gets the correct entity type from the hammer target
+            var e = info.HitEntity.GetComponent<BaseCombatEntity>();
+
+            //checks to see that we have an entity - we should always have one
+            if (e != null)
+            {
+                //yes - continue repair
+                //checks if player preference for handyman exists on this player
+                if (!playerPrefs_IsActive.ContainsKey(player.userID))
+                {
+                    //no - create a default entry for this player based on the default HandyMan configuration state
+                    playerPrefs_IsActive[player.userID] = configData.DefaultHandyManOn;
+                    dataFile.WriteObject(playerPrefs_IsActive);
+                }
+
+                //Check if repair should fire - This is to prevent a recursive / infinate loop when all structures in range fire this method.
+                //This also checks if the player has turned HandyMan on
+                if (_allowAOERepair && playerPrefs_IsActive[player.userID])
+                {
+                    //calls our custom method for this
+                    Repair(e, player);
+                }
+            }
         }
 
-        //Called when any structure is repaired
-        private void OnStructureRepair(BuildingBlock block, BasePlayer player)
-        {
-            //Checks to see if the player preference data list contains this player
-            if (!playerPrefs_IsActive.ContainsKey(player.userID))
-            {
-                //no - create a default entry for this player based on the default HandyMan configuration state
-                playerPrefs_IsActive[player.userID] = configData.DefaultHandyManOn;
-                dataFile.WriteObject(playerPrefs_IsActive);
-            }
-
-            //Check if repair should fire - This is to prevent a recursive / infinate loop when all structures in range fire this method.
-            //This also checks if the player has turned HandyMan on
-            if (_allowAOERepair && playerPrefs_IsActive[player.userID])
-            {
-                //calls our custom method for this
-                Repair(block, player);
-            }
-        }
         #endregion
 
         #region HelpText Hooks
@@ -255,14 +207,14 @@ namespace Oxide.Plugins
         #endregion
 
 
-        #region Structure Methods
+        #region Repair Methods
 
         /// <summary>
         /// Executes the actual repair logic.
         /// </summary>
         /// <param name="block"></param>
         /// <param name="player"></param>
-        void Repair(BuildingBlock block, BasePlayer player)
+        void Repair(BaseCombatEntity block, BasePlayer player)
         {
             //Set message timer to prevent user spam
             ConfigureMessageTimer();
@@ -293,18 +245,18 @@ namespace Oxide.Plugins
         /// </summary>
         /// <param name="block"></param>
         /// <param name="player"></param>
-        private void RepairAOE(BuildingBlock block, BasePlayer player)
+        private void RepairAOE(BaseCombatEntity block, BasePlayer player)
         {
             //This needs to be set to false in order to prevent the subsequent repairs from triggering the AOE repair.
             //If you don't do this - you create an infinate repair loop.
             _allowAOERepair = false;
 
             //Sets up our RepairBlock collection
-            var blocks_torepair = new HashSet<BuildingBlock>();
+            var blocks_torepair = new HashSet<BaseCombatEntity>();
             //gets the position of the block we just hit
             var position = new OBB(block.transform, block.bounds).ToBounds().center;
             //sets up the collectionf or the blocks that will be affected
-            var blocks = Pool.GetList<BuildingBlock>();
+            var blocks = Pool.GetList<BaseCombatEntity>();
 
             //gets a list of entities within a specified range of the current target
             Vis.Entities(position, configData.RepairRange, blocks, 270532864);
@@ -323,6 +275,7 @@ namespace Oxide.Plugins
                     {
                         //yes - repair
                         item.DoRepair(player);
+                        item.SendNetworkUpdate();
                         hasRepaired = true;
                     }
                 }

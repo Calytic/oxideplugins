@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("RockBlock", "Nogrod", "1.0.1")]
+    [Info("RockBlock", "Nogrod", "1.0.4")]
     class RockBlock : RustPlugin
     {
         private readonly int worldLayer = LayerMask.GetMask("World", "Default");
@@ -32,25 +32,27 @@ namespace Oxide.Plugins
 
         void OnEntityBuilt(Planner planner, GameObject gameObject)
         {
-            if (planner.ownerPlayer == null || planner.ownerPlayer.IsAdmin()) return;
+            var player = planner.GetOwnerPlayer();
+            if (player == null || player.IsAdmin()) return;
             var entity = gameObject.GetComponent<BaseEntity>();
             RaycastHit hitInfo;
             if (configData.MaxHeight > 0 && Physics.Raycast(new Ray(entity.transform.position, Vector3.down), out hitInfo, float.PositiveInfinity, Rust.Layers.Terrain))
             {
                 if (hitInfo.distance > configData.MaxHeight)
                 {
-                    SendReply(planner.ownerPlayer, "Distance to ground too high: {0}", hitInfo.distance);
+                    SendReply(player, "Distance to ground too high: {0}", hitInfo.distance);
                     entity.Kill(DestroyMode);
                     return;
                 }
             }
-            CheckEntity(entity, planner.ownerPlayer);
+            CheckEntity(entity, player);
         }
 
         void OnItemDeployed(Deployer deployer, BaseEntity entity)
         {
-            if (deployer.ownerPlayer == null || deployer.ownerPlayer.IsAdmin()) return;
-            CheckEntity(entity, deployer.ownerPlayer);
+            var player = deployer.GetOwnerPlayer();
+            if (player == null || player.IsAdmin()) return;
+            CheckEntity(entity, player);
         }
 
         private void CheckEntity(BaseEntity entity, BasePlayer player)
@@ -60,19 +62,21 @@ namespace Oxide.Plugins
             foreach (var hit in targets)
             {
                 var collider = hit.collider.GetComponent<MeshCollider>();
-                if (collider == null || !collider.sharedMesh.name.StartsWith("rock_") || !IsInside(hit.collider, entity) || configData.AllowCave && IsInCave(entity)) continue;
-                Puts($"{player.displayName} is suspected of building {entity.LookupPrefabName()} inside a rock at {entity.transform.position}!");
+                //if (collider != null) SendReply(player, $"Rock: {collider.sharedMesh.name}");
+                if (collider == null || !collider.sharedMesh.name.StartsWith("rock_") || !IsInside(hit.collider, entity) && (configData.AllowCave || !IsInCave(entity, player))) continue;
+                Puts($"{player.displayName} is suspected of building {entity.PrefabName} inside a rock at {entity.transform.position}!");
                 entity.Kill(DestroyMode);
                 break;
             }
         }
 
-        private bool IsInCave(BaseEntity entity)
+        private bool IsInCave(BaseEntity entity, BasePlayer player)
         {
             var targets = Physics.RaycastAll(new Ray(entity.transform.position, Vector3.up), 250, worldLayer);
             foreach (var hit in targets)
             {
                 var collider = hit.collider.GetComponent<MeshCollider>();
+                //if (collider != null) SendReply(player, $"Cave: {collider.sharedMesh.name}");
                 if (collider == null || !collider.sharedMesh.name.StartsWith("rock_")) continue;
                 return true;
             }

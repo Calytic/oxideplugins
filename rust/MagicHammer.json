@@ -1,7 +1,7 @@
 {
     "name": "Magic Hammer",
     "description": "Hit stuff with the hammer and do things",
-    "author": "Norn",
+    "author": "k1lly0u",
     "version": "0.4",
     "configuration": true,
     "suggest": {

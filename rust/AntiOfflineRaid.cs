@@ -17,7 +17,8 @@ using Newtonsoft.Json.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("AntiOfflineRaid", "Calytic", "0.1.5", ResourceId = 1464)]
+    [Info("AntiOfflineRaid", "Calytic", "0.2.3", ResourceId = 1464)]
+    [Description("Prevents/reduces offline raiding")]
     public class AntiOfflineRaid : RustPlugin
     {
         [PluginReference]
@@ -37,6 +38,7 @@ namespace Oxide.Plugins
         private string protectionMessage;
 
         private bool clanShare;
+        private bool clanFirstOffline;
         private int minMembers;
 
         Timer lastOnlineTimer;
@@ -75,12 +77,12 @@ namespace Oxide.Plugins
             {
                 get
                 {
-                    return DateTime.FromBinary(this.lastOnlineLong);
+                    return DateTime.FromBinary(lastOnlineLong);
                 }
 
                 set
                 {
-                    this.lastOnlineLong = value.ToBinary();
+                    lastOnlineLong = value.ToBinary();
                 }
             }
 
@@ -102,7 +104,7 @@ namespace Oxide.Plugins
             {
                 get
                 {
-                    return BasePlayer.FindByID(this.userid);
+                    return BasePlayer.FindByID(userid);
                 }
             }
 
@@ -126,14 +128,14 @@ namespace Oxide.Plugins
             {
                 get
                 {
-                    TimeSpan ts = DateTime.Now - this.lastOnline;
+                    TimeSpan ts = DateTime.Now - lastOnline;
                     return ts.TotalDays;
                 }
             }
 
             public bool HasDays(int days)
             {
-                if (this.Days >= days)
+                if (Days >= days)
                 {
                     return true;
                 }
@@ -145,14 +147,14 @@ namespace Oxide.Plugins
             {
                 get
                 {
-                    TimeSpan ts = DateTime.Now - this.lastOnline;
+                    TimeSpan ts = DateTime.Now - lastOnline;
                     return ts.TotalMinutes;
                 }
             }
 
             public bool HasMinutes(int minutes)
             {
-                if (this.Minutes >= minutes)
+                if (Minutes >= minutes)
                 {
                     return true;
                 }
@@ -164,7 +166,7 @@ namespace Oxide.Plugins
             {
                 get
                 {
-                    TimeSpan ts = DateTime.Now - this.lastOnline;
+                    TimeSpan ts = DateTime.Now - lastOnline;
                     return ts.TotalHours;
                 }
             }
@@ -173,9 +175,9 @@ namespace Oxide.Plugins
             {
                 DateTime start = DateTime.Now;
 
-                TimeSpan ts = start - this.lastOnline;
+                TimeSpan ts = start - lastOnline;
 
-                if (this.Hours >= hours)
+                if (Hours >= hours)
                 {
                     return true;
                 }
@@ -202,7 +204,7 @@ namespace Oxide.Plugins
                     equal = false;
                 }
 
-                this.lastPosition = new Vector3(position.x, position.y, position.z);
+                lastPosition = new Vector3(position.x, position.y, position.z);
 
                 return equal;
             }
@@ -213,7 +215,7 @@ namespace Oxide.Plugins
             permission.RegisterPermission("antiofflineraid.protect", this);
             permission.RegisterPermission("antiofflineraid.check", this);
 
-            this.LoadData();
+            LoadData();
 
             damageScale = GetConfig<Dictionary<string, object>>("damageScale", GetDefaultReduction());
             prefabs = GetConfig<List<object>>("prefabs", GetDefaultPrefabs());
@@ -222,6 +224,7 @@ namespace Oxide.Plugins
             interimDamage = GetConfig<float>("interimDamage", 0f);
 
             clanShare = GetConfig<bool>("clanShare", false);
+            clanFirstOffline = GetConfig<bool>("clanFirstOffline", false);
             minMembers = GetConfig<int>("minMembers", 1);
             showMessage = GetConfig<bool>("showMessage", true);
             playSound = GetConfig<bool>("playSound", false);
@@ -232,7 +235,7 @@ namespace Oxide.Plugins
             {
                 if (!plugins.Exists("Clans"))
                 {
-                    this.clanShare = false;
+                    clanShare = false;
                     PrintWarning("Clans not found! clanShare disabled. Cannot use clanShare without this plugin. http://oxidemod.org/plugins/rust-io-clans.842/");
                 }
             }
@@ -267,22 +270,21 @@ namespace Oxide.Plugins
             Config["interimDamage"] = 0f;
             Config["minMembers"] = 1;
             Config["clanShare"] = false;
+            Config["clanFirstOffline"] = false;
             Config["showMessage"] = true;
             Config["playSound"] = false;
             Config["prefabs"] = GetDefaultPrefabs();
             Config["sound"] = "assets/prefabs/weapon mods/silencers/effects/silencer_attach.fx.prefab";
             Config["protectionMessage"] = "This building is protected: {amount}%";
-            Config["VERSION"] = this.Version.ToString();
+            Config["VERSION"] = Version.ToString();
         }
 
         protected void ReloadConfig()
         {
-            Config["VERSION"] = this.Version.ToString();
+            Config["VERSION"] = Version.ToString();
 
             // NEW CONFIGURATION OPTIONS HERE
-            Config["playSound"] = false;
-            Config["sound"] = "assets/prefabs/weapon mods/silencers/effects/silencer_attach.fx.prefab";
-            Config["prefabs"] = GetDefaultPrefabs();
+            Config["clanFirstOffline"] = false;
             // END NEW CONFIGURATION OPTIONS
 
             PrintWarning("Upgrading configuration file");
@@ -291,29 +293,29 @@ namespace Oxide.Plugins
 
         void OnServerSave()
         {
-            this.SaveData();
+            SaveData();
         }
 
         void OnServerShutdown()
         {
-            this.SaveData();
+            SaveData();
         }
 
         //void Unload()
         //{
-        //    this.SaveData();
+        //    SaveData();
         //}
 
         void LoadData()
         {
-            this.lastOnline = Interface.Oxide.DataFileSystem.ReadObject<Dictionary<ulong, LastOnline>>("antiofflineraid");
+            lastOnline = Interface.Oxide.DataFileSystem.ReadObject<Dictionary<ulong, LastOnline>>("antiofflineraid");
 
             if (Config["VERSION"] == null)
             {
                 // FOR COMPATIBILITY WITH INITIAL VERSIONS WITHOUT VERSIONED CONFIG
                 ReloadConfig();
             }
-            else if (GetConfig<string>("VERSION", "") != this.Version.ToString())
+            else if (GetConfig<string>("VERSION", "") != Version.ToString())
             {
                 // ADDS NEW, IF ANY, CONFIGURATION OPTIONS
                 ReloadConfig();
@@ -322,7 +324,7 @@ namespace Oxide.Plugins
 
         void SaveData()
         {
-            Interface.Oxide.DataFileSystem.WriteObject<Dictionary<ulong, LastOnline>>("antiofflineraid", this.lastOnline);
+            Interface.Oxide.DataFileSystem.WriteObject<Dictionary<ulong, LastOnline>>("antiofflineraid", lastOnline);
         }
 
         void OnPlayerDisconnected(BasePlayer player)
@@ -341,9 +343,10 @@ namespace Oxide.Plugins
             if (input.current == null) return;
             if (input.previous == null) return;
 
-            if (lastOnline.ContainsKey(player.userID) && lastOnline[player.userID] != null && input.current.buttons != 0 && !input.previous.Equals(input.current))
+            LastOnline lastOnlinePlayer = null;
+            if (lastOnline.TryGetValue(player.userID, out lastOnlinePlayer) && lastOnlinePlayer is LastOnline && input.current.buttons != 0 && !input.previous.Equals(input.current))
             {
-                lastOnline[player.userID].afkMinutes = 0;
+                lastOnlinePlayer.afkMinutes = 0;
             }
         }
 
@@ -356,59 +359,51 @@ namespace Oxide.Plugins
 
 
                 bool hasMoved = true;
-                if (lastOnline.ContainsKey(player.userID))
+                LastOnline lastOnlinePlayer;
+                if (lastOnline.TryGetValue(player.userID, out lastOnlinePlayer))
                 {
-                    if (!lastOnline[player.userID].HasMoved(player.transform.position))
+                    if (!lastOnlinePlayer.HasMoved(player.transform.position))
                     {
                         hasMoved = false;
-                        lastOnline[player.userID].afkMinutes += tickRate;
+                        lastOnlinePlayer.afkMinutes += tickRate;
                     }
 
-                    if (lastOnline[player.userID].IsAFK())
+                    if (lastOnlinePlayer.IsAFK())
                     {
                         continue;
                     }
                 } 
 
-                this.UpdateLastOnline(player, hasMoved);
+                UpdateLastOnline(player, hasMoved);
             }
         }
 
         private void UpdateLastOnline(BasePlayer player, bool hasMoved = true)
         {
-            if (!lastOnline.ContainsKey(player.userID))
+            LastOnline lastOnlinePlayer;
+            if (!lastOnline.TryGetValue(player.userID, out lastOnlinePlayer))
             {
                 lastOnline.Add(player.userID, new LastOnline(player, DateTime.Now));
             }
             else
             {
-                lastOnline[player.userID].lastOnline = DateTime.Now;
-                if (hasMoved)
-                {
-                    lastOnline[player.userID].afkMinutes = 0;
-                }
+                lastOnlinePlayer.lastOnline = DateTime.Now;
+                if (hasMoved) lastOnlinePlayer.afkMinutes = 0;
             }
         }
 
         private void OnEntityTakeDamage(BaseCombatEntity entity, HitInfo hitInfo)
         {
-            if (hitInfo == null)
-            {
-                return;
-            }
+            if (hitInfo == null) return;
 
-            if (hitInfo.WeaponPrefab != null && hitInfo.Initiator != null && IsBlocked(entity))
-            {
-                this.OnStructureAttack(entity, hitInfo.Initiator, hitInfo);
-            }
+            if (IsBlocked(entity)) OnStructureAttack(entity, hitInfo);
         }
 
-        void OnStructureAttack(BaseEntity entity, BaseEntity attackerEntity, HitInfo hitinfo)
+        void OnStructureAttack(BaseEntity entity, HitInfo hitinfo)
         {
             ulong targetID = 0;
-            string weapon = hitinfo.WeaponPrefab.LookupShortPrefabName();
 
-            targetID = FindOwner(entity);
+            targetID = entity.OwnerID;
             if (targetID != 0 && HasPerm(targetID.ToString(), "antiofflineraid.protect"))
             {
                 if (!lastOnline.ContainsKey(targetID))
@@ -435,18 +430,21 @@ namespace Oxide.Plugins
         {
             if (scale > -1 && scale != 1)
             {
+                bool isFire = hitinfo.damageTypes.GetMajorityDamageType() == DamageType.Heat;
+
                 if (scale == 0)
                 {
                     // completely cancel damage
+                    
                     hitinfo.damageTypes = new DamageTypeList();
                     hitinfo.DoHitEffects = false;
                     hitinfo.HitMaterial = 0;
-                    if (this.showMessage)
+                    if (showMessage && ((isFire && hitinfo.WeaponPrefab != null) || (!isFire)) )
                     {
-                        this.sendMessage(hitinfo);
+                        sendMessage(hitinfo);
                     }
 
-                    if (playSound)
+                    if (playSound && hitinfo.Initiator is BasePlayer && !isFire)
                     {
                         Effect.server.Run(sound, hitinfo.Initiator.transform.position);
                     }
@@ -457,12 +455,12 @@ namespace Oxide.Plugins
                     hitinfo.damageTypes.ScaleAll(scale);
                     if (scale < 1)
                     {
-                        if(this.showMessage) 
+                        if (showMessage && ((isFire && hitinfo.WeaponPrefab != null) || (!isFire))) 
                         {
-                            this.sendMessage(hitinfo, 100 - Convert.ToInt32(scale * 100));
+                            sendMessage(hitinfo, 100 - Convert.ToInt32(scale * 100));
                         }
 
-                        if (playSound)
+                        if (playSound && hitinfo.Initiator is BasePlayer && !isFire)
                         {
                             Effect.server.Run(sound, hitinfo.Initiator.transform.position);
                         }
@@ -483,19 +481,38 @@ namespace Oxide.Plugins
         {
             float scale = -1;
 
-            if (!lastOnline.ContainsKey(targetID))
+            ulong lastOffline = targetID;
+            if (clanShare)
+            {
+                string tag = Clans.Call<string>("GetClanOf", targetID);
+                if (!string.IsNullOrEmpty(tag))
+                {
+                    if (clanFirstOffline)
+                    {
+                        lastOffline = getClanFirstOffline(tag);
+                    }
+                    else
+                    {
+                        lastOffline = getClanLastOffline(tag);
+                    }
+                }
+            }
+
+            LastOnline lastOnlinePlayer;
+
+            if (!lastOnline.TryGetValue(lastOffline, out lastOnlinePlayer))
             {
                 return -1;
             }
 
-            if (!lastOnline[targetID].IsOffline())
+            if (!lastOnlinePlayer.IsOffline())
             {
                 // must be logged out for atleast x minutes before damage is reduced
                 return -1;
             }
             else
             {
-                if (lastOnline[targetID].HasMinutes(60))
+                if (lastOnlinePlayer.HasMinutes(60))
                 {
                     // if you've been offline/afk for more than an hour, use hourly scales
                     var keys = damageScale.Keys.Select(int.Parse).ToList();
@@ -503,7 +520,7 @@ namespace Oxide.Plugins
 
                     foreach (int key in keys)
                     {
-                        if (lastOnline[targetID].HasHours(key))
+                        if (lastOnlinePlayer.HasHours(key))
                         {
                             scale = Convert.ToSingle(damageScale[key.ToString()]);
                         }
@@ -526,7 +543,7 @@ namespace Oxide.Plugins
                 return true;
             }
 
-            string prefabName = entity.LookupShortPrefabName();
+            string prefabName = entity.ShortPrefabName;
 
             foreach (string p in prefabs)
             {
@@ -541,9 +558,10 @@ namespace Oxide.Plugins
 
         public bool IsOffline(ulong playerID)
         {
-            if (lastOnline.ContainsKey(playerID))
+            LastOnline lastOnlinePlayer;
+            if (lastOnline.TryGetValue(playerID, out lastOnlinePlayer))
             {
-                return lastOnline[playerID].IsOffline();
+                return lastOnlinePlayer.IsOffline();
             }
 
             BasePlayer player = BasePlayer.FindByID(playerID);
@@ -562,7 +580,7 @@ namespace Oxide.Plugins
 
         public bool IsClanOffline(ulong targetID)
         {
-            int mcount = this.getClanMembersOnline(targetID);
+            int mcount = getClanMembersOnline(targetID);
 
             if (mcount >= minMembers)
             {
@@ -575,23 +593,18 @@ namespace Oxide.Plugins
         public int getClanMembersOnline(ulong targetID)
         {
             var player = covalence.Players.GetPlayer(targetID.ToString());
-            var start = (player.ConnectedPlayer == null) ? 0 : 1;
+            var start = (player.IsConnected == false) ? 0 : 1;
             string tag = Clans.Call<string>("GetClanOf", targetID);
             if (tag == null)
             {
                 return start;
             }
 
-            JObject clan = Clans.Call<JObject>("GetClan", tag);
-
-            if (clan == null)
-            {
-                return start;
-            }
+            List<string> members = getClanMembers(tag);
 
             int mcount = start;
 
-            foreach (string memberid in clan["members"])
+            foreach (string memberid in members)
             {
                 ulong mid = Convert.ToUInt64(memberid);
                 if (mid == targetID) continue;
@@ -604,9 +617,121 @@ namespace Oxide.Plugins
             return mcount;
         }
 
-        ulong FindOwner(BaseEntity entity)
+        Dictionary<string, List<string>> memberCache = new Dictionary<string, List<string>>();
+
+        public List<string> getClanMembers(string tag)
         {
-            return entity.OwnerID;
+            List<string> memberList;
+            if (memberCache.TryGetValue(tag, out memberList))
+            {
+                return memberList;
+            }
+
+            return CacheClan(tag);
+        }
+
+        public List<string> CacheClan(string tag)
+        {
+            JObject clan = Clans.Call<JObject>("GetClan", tag);
+
+            List<string> members = new List<string>();
+
+            if (clan == null)
+            {
+                return members;
+            }
+
+            foreach (string memberid in clan["members"])
+            {
+                members.Add(memberid);
+            }
+
+            if (memberCache.ContainsKey(tag))
+            {
+                memberCache[tag] = members;
+            }
+            else
+            {
+                memberCache.Add(tag, members);
+            }
+
+            return members;
+        }
+
+        public ulong getClanFirstOffline(string tag)
+        {
+            List<string> clanMembers = getClanMembers(tag);
+
+            Dictionary<string, DateTime> members = new Dictionary<string, DateTime>();
+
+            if (clanMembers.Count == 0)
+            {
+                return 0;
+            }
+
+            foreach (string memberid in clanMembers)
+            {
+                ulong mid = Convert.ToUInt64(memberid);
+                LastOnline lastOnlineMember;
+                if (lastOnline.TryGetValue(mid, out lastOnlineMember) && IsOffline(mid))
+                {
+                    members.Add(memberid, lastOnlineMember.lastOnline);
+                }
+            }
+
+            foreach (KeyValuePair<string, DateTime> kvp in members.OrderByDescending(p => p.Value))
+            {
+                return Convert.ToUInt64(kvp.Key);
+            }
+
+            return 0;
+        }
+
+        public ulong getClanLastOffline(string tag)
+        {
+            List<string> clanMembers = getClanMembers(tag);
+
+            Dictionary<string, DateTime> members = new Dictionary<string, DateTime>();
+
+            if (clanMembers.Count == 0)
+            {
+                return 0;
+            }
+
+            foreach (string memberid in clanMembers)
+            {
+                ulong mid = Convert.ToUInt64(memberid);
+                LastOnline lastOnlineMember;
+                if(lastOnline.TryGetValue(mid, out lastOnlineMember) && IsOffline(mid))  
+                {
+                    members.Add(memberid, lastOnlineMember.lastOnline);
+                }
+            }
+
+            foreach (KeyValuePair<string, DateTime> kvp in members.OrderBy(p => p.Value))
+            {
+                return Convert.ToUInt64(kvp.Key);
+            }
+
+            return 0;
+        }
+
+        void OnClanCreate(string tag)
+        {
+            CacheClan(tag);
+        }
+
+        void OnClanUpdate(string tag)
+        {
+            CacheClan(tag);
+        }
+
+        void OnClanDestroy(string tag)
+        {
+            if (memberCache.ContainsKey(tag))
+            {
+                memberCache.Remove(tag);
+            }
         }
 
         private T GetConfig<T>(string name, T defaultValue)
@@ -648,7 +773,14 @@ namespace Oxide.Plugins
         //[ChatCommand("boffline")]
         //private void cmdboffline(BasePlayer player, string command, string[] args)
         //{
-        //    this.lastOnline[player.userID].lastOnline = this.lastOnline[player.userID].lastOnline.Subtract(TimeSpan.FromHours(3));
+        //    lastOnline[player.userID].lastOnline = lastOnline[player.userID].lastOnline.Subtract(TimeSpan.FromHours(3));
+        //}
+
+        //[ChatCommand("bonline")]
+        //private void cmdbonline(BasePlayer player, string command, string[] args)
+        //{
+        //    lastOnline[player.userID].lastOnline = DateTime.Now;
+        //    lastOnline[player.userID].afkMinutes = 0;
         //}
 
         private string SendStatus(Network.Connection connection, string[] args)
@@ -661,16 +793,22 @@ namespace Oxide.Plugins
             if (args.Length == 1)
             {
                 BasePlayer target = FindPlayerByPartialName(args[0]);
-                if (target is BasePlayer && lastOnline.ContainsKey(target.userID))
+                LastOnline lo;
+                if (target is BasePlayer && lastOnline.TryGetValue(target.userID, out lo))
                 {
-                    LastOnline lo = lastOnline[target.userID];
-
                     StringBuilder sb = new StringBuilder();
 
                     if (IsOffline(target.userID))
                     {
                         sb.AppendLine("<color=red><size=15>AntiOfflineRaid Status</size></color>: " + target.displayName);
-                        sb.AppendLine("<color=lightblue>Player Status</color>: <color=red>Offline</color>: " + lo.lastOnline.ToString());
+                        if (target.IsConnected())
+                        {
+                            sb.AppendLine("<color=lightblue>Player Status</color>: <color=orange>AFK</color>: " + lo.lastOnline.ToString());
+                        }
+                        else
+                        {
+                            sb.AppendLine("<color=lightblue>Player Status</color>: <color=red>Offline</color>: " + lo.lastOnline.ToString());
+                        }
                     }
                     else
                     {
@@ -680,7 +818,33 @@ namespace Oxide.Plugins
                     sb.AppendLine("<color=lightblue>AFK</color>: " + lo.afkMinutes + " minutes");
                     if (clanShare)
                     {
-                        sb.AppendLine("<color=lightblue>Clan Status</color>: " + (IsClanOffline(target.userID) ? "<color=red>Offline</color>" : "<color=lime>Online</color>") + " (" + this.getClanMembersOnline(target.userID) + ")");
+                        sb.AppendLine("<color=lightblue>Clan Status</color>: " + (IsClanOffline(target.userID) ? "<color=red>Offline</color>" : "<color=lime>Online</color>") + " (" + getClanMembersOnline(target.userID) + ")");
+                        string tag = Clans.Call<string>("GetClanOf", target.userID);
+                        if (!string.IsNullOrEmpty(tag))
+                        {
+                            ulong lastOffline = 0;
+                            string msg = "";
+                            if (clanFirstOffline)
+                            {
+                                lastOffline = getClanFirstOffline(tag);
+                                msg = "First Offline";
+                            }
+                            else
+                            {
+                                lastOffline = getClanLastOffline(tag);
+                                msg = "Last Offline";
+                            }
+
+                            LastOnline lastOfflinePlayer;
+
+                            if (lastOnline.TryGetValue(lastOffline, out lastOfflinePlayer))
+                            {
+                                DateTime lastOfflineTime = lastOfflinePlayer.lastOnline;
+                                IPlayer p = covalence.Players.GetPlayer(lastOffline.ToString());
+                                sb.AppendLine("<color=lightblue>Clan " + msg + "</color>: " + p.Name + " - " + lastOfflineTime.ToString());
+                            }
+                        }
+                        
                     }
 
                     float scale = scaleDamage(target.userID);
@@ -743,8 +907,8 @@ namespace Oxide.Plugins
 
         private void ShowMessage(BasePlayer player, int amount = 100)
         {
-            this.HideMessage(player);
-            string send = this.jsonMessage;
+            HideMessage(player);
+            string send = jsonMessage;
             send = send.Replace("{1}", Oxide.Core.Random.Range(1, 99999).ToString());
             send = send.Replace("{protection_message}", protectionMessage);
             send = send.Replace("{amount}", amount.ToString());
@@ -753,10 +917,10 @@ namespace Oxide.Plugins
 
             timer.In(3f, delegate()
             {
-                this.HideMessage(player);
+                HideMessage(player);
             });
         }
 
-        private string jsonMessage = @"[{""name"":""AntiOfflineRaidMsg"",""parent"":""HUD/Overlay"",""components"":[{""type"":""UnityEngine.UI.Image"",""color"":""0 0 0 0.78""},{""type"":""RectTransform"",""anchormax"":""0.64 0.88"",""anchormin"":""0.38 0.79""}]},{""name"":""MessageLabel{1}"",""parent"":""AntiOfflineRaidMsg"",""components"":[{""type"":""UnityEngine.UI.Text"",""align"":""MiddleCenter"",""fontSize"":""19"",""text"":""{protection_message}""},{""type"":""RectTransform"",""anchormax"":""1 1"",""anchormin"":""0 0""}]}]";
+        private string jsonMessage = @"[{""name"":""AntiOfflineRaidMsg"",""parent"":""Overlay"",""components"":[{""type"":""UnityEngine.UI.Image"",""color"":""0 0 0 0.78""},{""type"":""RectTransform"",""anchormax"":""0.64 0.88"",""anchormin"":""0.38 0.79""}]},{""name"":""MessageLabel{1}"",""parent"":""AntiOfflineRaidMsg"",""components"":[{""type"":""UnityEngine.UI.Text"",""align"":""MiddleCenter"",""fontSize"":""19"",""text"":""{protection_message}""},{""type"":""RectTransform"",""anchormax"":""1 1"",""anchormin"":""0 0""}]}]";
     }
 }

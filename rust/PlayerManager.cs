@@ -12,7 +12,7 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("PlayerManager", "Reneb", "1.0.6", ResourceId= 1535)]
+    [Info("PlayerManager", "Reneb", "1.0.9", ResourceId= 1535)]
     class PlayerManager : RustPlugin
     {
         [PluginReference]
@@ -916,7 +916,7 @@ namespace Oxide.Plugins
         string parentoverlay = @"[
 			{
 				""name"": ""PlayerManagerOverlay"",
-				""parent"": ""HUD/Overlay"",
+				""parent"": ""Overlay"",
 				""components"":
 				[
 					{
@@ -1076,7 +1076,7 @@ namespace Oxide.Plugins
         string dialogoverlay = @"[
 			{
 				""name"": ""DialogOverlay"",
-				""parent"": ""HUD/Overlay"",
+				""parent"": ""Overlay"",
 				""components"":
 				[
 					{
@@ -1311,7 +1311,7 @@ namespace Oxide.Plugins
                 SendReply(player, string.Format("The player {0} isnt online", steamidstring));
                 return;
             }
-            ConsoleSystem.Broadcast("chat.add", new object[] { 0, string.Format(lang.GetMessage("PlayerKicked", this), targetplayer.displayName, playerDialog[player.userID].option.ContainsKey("kick") ? playerDialog[player.userID].option["kick"] : "Unknown") });
+            ConsoleNetwork.BroadcastToAllClients("chat.add", new object[] { 0, string.Format(lang.GetMessage("PlayerKicked", this), targetplayer.displayName, playerDialog[player.userID].option.ContainsKey("kick") ? playerDialog[player.userID].option["kick"] : "Unknown") });
             targetplayer.Kick(string.Format(lang.GetMessage("YouKicked", this), playerDialog[player.userID].option.ContainsKey("kick") ? playerDialog[player.userID].option["kick"] : "Unknown"));
         }
         [ConsoleCommand("playermanager.teleport")]
@@ -1324,6 +1324,7 @@ namespace Oxide.Plugins
             if (arg.Player().net.connection.authLevel < 2 && !permission.UserHasPermission(arg.Player().userID.ToString(), permissionTP)) return;
             Vector3 destination = new Vector3(float.Parse(arg.Args[0]), float.Parse(arg.Args[1]), float.Parse(arg.Args[2]));
             arg.Player().MovePosition(destination);
+            arg.Player().ClientRPCPlayer(null, arg.Player(), "ForcePositionTo", destination);
         }
         void PlayerManagerBan(BasePlayer player, string steamidstring)
         {
@@ -1351,7 +1352,7 @@ namespace Oxide.Plugins
             }
             else
             {
-                ConsoleSystem.Broadcast("chat.add", new object[] { 0, string.Format(lang.GetMessage("PlayerBanned", this), steamid.ToString(), name, playerDialog[player.userID].option.ContainsKey("ban") ? playerDialog[player.userID].option["ban"] : "Unknown") });
+                ConsoleNetwork.BroadcastToAllClients("chat.add", new object[] { 0, string.Format(lang.GetMessage("PlayerBanned", this), steamid.ToString(), name, playerDialog[player.userID].option.ContainsKey("ban") ? playerDialog[player.userID].option["ban"] : "Unknown") });
                 if (EnhancedBanSystem != null)
                 {
                     EnhancedBanSystem.Call("BanID", null, steamid, playerDialog[player.userID].option.ContainsKey("ban") ? playerDialog[player.userID].option["ban"] : "Unknown", playerDialog[player.userID].option.ContainsKey("timelimit") ? int.Parse(playerDialog[player.userID].option["timelimit"]) : 0);

@@ -5,7 +5,7 @@
     "version": "1.0.3",
     "configuration": true,
     "suggest": {
-        "helptext": "*"
+        "HelpText": "*"
     },
     "require": {
         "Economics": "*"

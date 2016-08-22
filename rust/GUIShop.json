@@ -2,7 +2,7 @@
     "name": "GUI Shop",
     "description": "GUI Shop based on Economics. Supports NPC",
     "author": "Nogrod",
-    "version": "1.3.1",
+    "version": "1.4.1",
     "configuration": true,
     "suggest": {
         "Kits": "*",

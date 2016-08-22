@@ -2,7 +2,7 @@
     "name": "Death Notes",
     "description": "Broadcasts players and animals deaths to chat",
     "author": "LaserHydra",
-    "version": "5.2.5",
+    "version": "5.2.8",
     "configuration": true,
     "suggest": {
         "PopupNotifications": "*"

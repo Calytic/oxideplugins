@@ -1,0 +1,20 @@
+{
+    "name": "Guess The Number",
+    "description": "An event that requires player to guess the correct number",
+    "author": "Dora",
+    "version": "1.2.1",
+    "configuration": true,
+    "suggest": {
+        "ServerRewards": "*",
+        "Economics": "*",
+        "Updater": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

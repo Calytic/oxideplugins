@@ -18,11 +18,11 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("SpawnConfig", "Nogrod", "1.0.7")]
+    [Info("SpawnConfig", "Nogrod", "1.0.8")]
     internal class SpawnConfig : RustPlugin
     {
         private const bool Debug = false;
-        private const int VersionConfig = 3;
+        private const int VersionConfig = 4;
         private readonly FieldInfo PrefabsField = typeof (SpawnPopulation).GetField("Prefabs", BindingFlags.Instance | BindingFlags.NonPublic);
         private readonly FieldInfo toStringField = typeof(StringPool).GetField("toString", BindingFlags.Static | BindingFlags.NonPublic);
         private readonly FieldInfo toNumberField = typeof(StringPool).GetField("toNumber", BindingFlags.Static | BindingFlags.NonPublic);
@@ -135,7 +135,7 @@ namespace Oxide.Plugins
                 var data = ToJsonString(spawnGroup);
                 var spawnGroupData = ToObject<SpawnGroupData>(data);
                 foreach (var spawnEntry in spawnGroup.prefabs)
-                    spawnGroupData.Prefabs.Add(new SpawnEntryData {Prefab = spawnEntry.prefab.Get().GetComponent<LootContainer>().LookupPrefabName(), Weight = spawnEntry.weight, Mobile = spawnEntry.mobile});
+                    spawnGroupData.Prefabs.Add(new SpawnEntryData {Prefab = spawnEntry.prefab.Get().GetComponent<LootContainer>().PrefabName, Weight = spawnEntry.weight, Mobile = spawnEntry.mobile});
                 var spawnPoints = (BaseSpawnPoint[])SpawnPointsField.GetValue(spawnGroup);
                 foreach (var spawnPoint in spawnPoints)
                 {
@@ -194,9 +194,9 @@ namespace Oxide.Plugins
                 {
                     var loot = entry.prefab.Get()?.GetComponent<LootContainer>();
                     containers.Add(loot);
-                    if (GameManager.server.FindPrefab(loot.LookupPrefabName()) == entry.prefab.Get())
+                    if (GameManager.server.FindPrefab(loot.PrefabName) == entry.prefab.Get())
                         stringBuilder.AppendLine("Identical!!!");
-                    stringBuilder.AppendLine("\tPrefab: " + loot.LookupPrefabName() + " Name: " + entry.prefab.Get()?.name + " CName: " + loot.name + " Weight: " + entry.weight);
+                    stringBuilder.AppendLine("\tPrefab: " + loot.PrefabName + " Name: " + entry.prefab.Get()?.name + " CName: " + loot.name + " Weight: " + entry.weight);
                 }
             }
             stringBuilder.AppendLine("Containers: " + containers.Count);
@@ -322,12 +322,12 @@ namespace Oxide.Plugins
                 spawnGroup.numToSpawnPerTickMax = spawnGroupData.NumToSpawnPerTickMax;
                 spawnGroup.respawnDelayMin = spawnGroupData.RespawnDelayMin;
                 spawnGroup.respawnDelayMax = spawnGroupData.RespawnDelayMax;
-                //spawnGroupPrefabsOld.AddRange(spawnGroup.prefabs.Where(entry => GameManager.server.FindPrefab(entry.prefab.Get().GetComponent<BaseEntity>().LookupPrefabName()) != entry.prefab.Get()).Select(entry => entry.prefab.Get()));
+                //spawnGroupPrefabsOld.AddRange(spawnGroup.prefabs.Where(entry => GameManager.server.FindPrefab(entry.prefab.Get().GetComponent<BaseEntity>().PrefabName) != entry.prefab.Get()).Select(entry => entry.prefab.Get()));
                 /*foreach (var entry in spawnGroup.prefabs)
                 {
-                    var entity = GameManager.server.FindPrefab(entry.prefab.Get().GetComponent<BaseEntity>().LookupPrefabName());
+                    var entity = GameManager.server.FindPrefab(entry.prefab.Get().GetComponent<BaseEntity>().PrefabName);
                     var inst = entry.prefab.Get();
-                    Puts("{0} - {1} - {2}", entity.GetInstanceID(), inst.GetInstanceID(), GameManager.server.FindPrefab(entry.prefab.Get().GetComponent<BaseEntity>().LookupPrefabName()) == entry.prefab.Get());
+                    Puts("{0} - {1} - {2}", entity.GetInstanceID(), inst.GetInstanceID(), GameManager.server.FindPrefab(entry.prefab.Get().GetComponent<BaseEntity>().PrefabName) == entry.prefab.Get());
                 }*/
                 spawnGroup.prefabs.Clear();
                 foreach (var spawnEntryData in spawnGroupData.Prefabs)
@@ -589,7 +589,7 @@ namespace Oxide.Plugins
             Grass = 16,
             Forest = 32,
             Stones = 64,
-            Path = 128
+            Gravel = 128
         }
 
         #endregion

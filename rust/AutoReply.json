@@ -2,7 +2,7 @@
     "name": "AutoReply",
     "description": "Plugin for AutoReply system, based on key words or phrases",
     "author": "4seti",
-    "version": "1.4.2",
+    "version": "1.5.0",
     "configuration": false,
     "language": "cs",
     "games": [

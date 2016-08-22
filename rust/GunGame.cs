@@ -9,7 +9,7 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("Gun Game", "k1lly0u", "0.3.51", ResourceId = 1485)]
+    [Info("Gun Game", "k1lly0u", "0.3.52", ResourceId = 1485)]
     class GunGame : RustPlugin
     {
         [PluginReference]
@@ -41,8 +41,6 @@ namespace Oxide.Plugins
             public List<Gear> PlayerGear { get; set; }
             public Dictionary<int, RankItem> Weapons { get; set; }
         }
-
-
         class GunGamePlayer : MonoBehaviour
         {
             public BasePlayer player;
@@ -690,7 +688,8 @@ namespace Oxide.Plugins
         }
         object OnEventCancel()
         {
-            CheckScores(null, false, true);
+            if (useThisEventGG && GGStarted)
+                CheckScores(null, false, true);
             return null;
         }
         object OnEventClosePost()
@@ -701,7 +700,7 @@ namespace Oxide.Plugins
         {
             if (useThisEventGG)
             {
-                CheckScores(null, false, true);
+                //CheckScores(null, false, true);
                 DestroyEvent();
             }
             return null;
@@ -762,7 +761,7 @@ namespace Oxide.Plugins
                 {
                     GunGamePlayers.Remove(gunGamePlayer);
                     UnityEngine.Object.Destroy(gunGamePlayer);
-                    CheckScores(null);
+                    //CheckScores(null);
                 }
             }
             return null;
@@ -897,7 +896,7 @@ namespace Oxide.Plugins
             {
                 var giveamount = i >= stack ? stack : i;
                 if (giveamount < 1) return;
-                var item = ItemManager.Create(definition, giveamount, false, rankItem.skin);
+                var item = ItemManager.Create(definition, giveamount, rankItem.skin);
                 if (item == null)
                 {
                     Puts("Error making item: " + rankItem.shortname);
@@ -955,7 +954,7 @@ namespace Oxide.Plugins
             {
                 var giveamount = i >= stack ? stack : i;
                 if (giveamount < 1) return;
-                var item = ItemManager.Create(definition, giveamount, false, skin);
+                var item = ItemManager.Create(definition, giveamount, skin);
                 if (item == null)
                 {
                     Puts("Error making item: " + shortname);

@@ -2,7 +2,7 @@
     "name": "Custom Spawn Points",
     "description": "Create custom spawn points for your server",
     "author": "Reneb",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "configuration": false,
     "language": "cs",
     "games": [

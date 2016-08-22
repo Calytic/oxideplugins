@@ -1,0 +1,15 @@
+{
+    "name": "XP Equalizer",
+    "description": "Automatically sets a new players XP to the current server average and force set any player",
+    "author": "k1lly0u",
+    "version": "0.1.4",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

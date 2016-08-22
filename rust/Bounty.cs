@@ -4,14 +4,11 @@ using Oxide.Core;
 using Oxide.Core.Plugins;
 using System.Linq;
 using Oxide.Core.Configuration;
-using Newtonsoft.Json;
 using UnityEngine;
-
-
 
 namespace Oxide.Plugins
 {
-    [Info("Bounty", "k1lly0u", "0.1.71", ResourceId = 1649)]
+    [Info("Bounty", "k1lly0u", "0.1.73", ResourceId = 1649)]
     class Bounty : RustPlugin
     {
 
@@ -47,6 +44,7 @@ namespace Oxide.Plugins
         {
             permission.RegisterPermission("bounty.use", this);
             permission.RegisterPermission("bounty.admin", this);
+            permission.RegisterPermission("bounty.ban", this);
 
             lang.RegisterMessages(messages, this);
             
@@ -127,7 +125,7 @@ namespace Oxide.Plugins
                 }
             }
         }
-        void LoadDefaultConfig()
+        protected override void LoadDefaultConfig()
         {
             Puts("Creating a new config file");
             Config.Clear();
@@ -148,11 +146,21 @@ namespace Oxide.Plugins
                 if (entity is BasePlayer && info.Initiator is BasePlayer)
                 {
                     if ((BasePlayer)entity != (BasePlayer)info.Initiator)
-                    {
+                    {                        
                         BasePlayer victim = (BasePlayer)entity;
                         ulong VID = victim.userID;
                         BasePlayer attacker = (BasePlayer)info.Initiator;
                         ulong AID = attacker.userID;
+                        if (isBanned(attacker))
+                        {
+                            if (usePopup && PopupNotifications)
+                            {
+                                SendPopup(attacker, lang.GetMessage("title", this, attacker.UserIDString) + lang.GetMessage("playerBanned", this, attacker.UserIDString));
+                            }
+                            else
+                                SendMSG(attacker, lang.GetMessage("playerBanned", this, attacker.UserIDString));
+                            return;
+                        }
                         if (bountyData.players.ContainsKey(VID))
                         {
                             if (bountyData.players[VID].Bountys.Count > 0)
@@ -423,19 +431,13 @@ namespace Oxide.Plugins
         }
         private object GiveItem(BasePlayer player, string itemname, int amount, ItemContainer pref)
         {
-            itemname = itemname.ToLower();
-            bool isBP = false;
-            if (itemname.EndsWith(" bp"))
-            {
-                isBP = true;
-                itemname = itemname.Substring(0, itemname.Length - 3);
-            }
+            itemname = itemname.ToLower();            
             if (itemInfo.ContainsKey(itemname))
                 itemname = itemInfo[itemname];
             var definition = ItemManager.FindItemDefinition(itemname);
             if (definition == null)
                 return string.Format("{0} {1}", "Item not found: ", itemname);
-            player.inventory.GiveItem(ItemManager.CreateByItemID((int)definition.itemid, amount, isBP), pref);
+            player.inventory.GiveItem(ItemManager.CreateByItemID((int)definition.itemid, amount), pref);
             return true;
         }
         List<BasePlayer> FindPlayer(string arg)
@@ -866,11 +868,21 @@ namespace Oxide.Plugins
                         if (args.Length >= 2)
                         {
                             int amount = 1;
-                            //if (target == player)
-                            //{
-                            //    SendMSG(player, lang.GetMessage("noSelf", this, player.UserIDString));
-                            //    return;
-                            //}
+                            if (isBanned(player))
+                            {
+                                if (usePopup && PopupNotifications)
+                                {
+                                    SendPopup(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("playerBanned", this, player.UserIDString));
+                                }
+                                else
+                                    SendMSG(player, lang.GetMessage("playerBanned", this, player.UserIDString));
+                                return;
+                            }                            
+                            if (target == player)
+                            {
+                                SendMSG(player, lang.GetMessage("noSelf", this, player.UserIDString));
+                                return;
+                            }
                             if (args.Length == 4)
                             {                                
                                 if (args[2].ToLower() == "money" && useEconomics)
@@ -998,6 +1010,11 @@ namespace Oxide.Plugins
         {
             if (permission.UserHasPermission(player.userID.ToString(), "bounty.admin")) return true;
             else if (isAuth(player)) return true;
+            return false;
+        }
+        bool isBanned(BasePlayer player)
+        {
+            if (permission.UserHasPermission(player.userID.ToString(), "bounty.ban")) return true;            
             return false;
         }
         bool isAuth(BasePlayer player)
@@ -1297,6 +1314,7 @@ namespace Oxide.Plugins
             {"checkFormat", "Format: /bounty check PlayerName"},
             {"commands", "Commands" },
             {"noTop", "There are currently no top hunters" },
+            {"playerBanned", "You are currently banned from adding/claiming a bounty" },
             {"noWanted", "There are currently no wanted players" }
         };
         #endregion

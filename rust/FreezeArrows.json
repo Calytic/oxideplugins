@@ -2,7 +2,7 @@
     "name": "Freeze Arrows",
     "description": "Freezes players within radius for a short time",
     "author": "Colon Blow",
-    "version": "1.0.4",
+    "version": "1.0.7",
     "configuration": true,
     "language": "cs",
     "games": [

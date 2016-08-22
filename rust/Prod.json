@@ -2,7 +2,7 @@
     "name": "Prod (Who Owns)",
     "description": "Get owners of deployable, building structures and whitelist of tool cupboards",
     "author": "Reneb",
-    "version": "2.2.1",
+    "version": "2.2.4",
     "configuration": true,
     "language": "cs",
     "games": [

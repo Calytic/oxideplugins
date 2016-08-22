@@ -11,7 +11,7 @@ using System.Reflection;
 
 namespace Oxide.Plugins
 {
-    [Info("TargetPractice", "k1lly0u", "0.1.52", ResourceId = 1731)]
+    [Info("TargetPractice", "k1lly0u", "0.1.55", ResourceId = 1731)]
     class TargetPractice : RustPlugin
     {
         TargetData shotData;
@@ -64,7 +64,7 @@ namespace Oxide.Plugins
                         var time = data[attacker.userID].PopupTime;
 
                         string weapon = FormatWeapon(attacker.GetActiveItem());
-
+                        if (weapon == "Flame Thrower" && disableFlamer) return;
                         if (hitinfo.HitBone == StringPool.Get("target_collider_bullseye"))
                         {
                             hit = lang.GetMessage("bullseye", this, attacker.UserIDString);
@@ -72,7 +72,7 @@ namespace Oxide.Plugins
                         }
                         else if (data[attacker.userID].Range < distance) { data[attacker.userID].Range = distance; data[attacker.userID].Weapon = weapon; }
 
-                            if (distance > shotData.bestHit.Range)
+                        if (distance > shotData.bestHit.Range)
                         {
                             shotData.bestHit.Name = attacker.displayName;
                             shotData.bestHit.Range = distance;
@@ -82,6 +82,7 @@ namespace Oxide.Plugins
                         }
                         if (target.IsKnockedDown())
                         {
+                            target.CancelInvoke("ResetTarget");
                             target.health = target.MaxHealth();
                             target.SendNetworkUpdate();
                             timer.Once(time, () => target.SetFlag(BaseEntity.Flags.On, true));
@@ -218,7 +219,7 @@ namespace Oxide.Plugins
                 CuiElement textElement = new CuiElement
                 {
                     Name = uiNum,
-                    Parent = "HUD/Overlay",
+                    Parent = "Overlay",
                     FadeOut = 0.1f,
                     Components =
                     {
@@ -415,6 +416,7 @@ namespace Oxide.Plugins
         private static int maxUIMsg = 11;
 
         private static bool broadcastNewScore = true;
+        private static bool disableFlamer = true;
         private static string fontColor1 = "<color=orange>";
         private static string fontColor2 = "<color=#939393>";
 
@@ -429,6 +431,7 @@ namespace Oxide.Plugins
         private void LoadConfigVariables()
         {
             CheckCfg("Target - Default time to reset target (seconds)", ref popupTime);
+            CheckCfg("Disable Flamethrower", ref disableFlamer);
             CheckCfg("Messages - Duration (seconds)", ref popupTime);
             CheckCfg("Messages - Font size", ref fontSize);
             CheckCfg("Messages - Message color", ref fontColor2);

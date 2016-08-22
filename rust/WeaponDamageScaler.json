@@ -2,7 +2,7 @@
     "name": "Weapon Damage Scaler",
     "description": "Allows scaling of player damage per weapon\/ammo",
     "author": "Shady757",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "configuration": true,
     "language": "cs",
     "games": [

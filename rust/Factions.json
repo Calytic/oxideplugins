@@ -1,13 +1,15 @@
 {
     "name": "Factions",
-    "description": "A Configurable 3-Faction system with Faction Leader and Tax System",
+    "description": "A Faction system with Leaders, Taxes, Trades, Ranks, Kill Rewards, and MORE!",
     "author": "",
-    "version": "1.4",
+    "version": "3.3.6",
     "configuration": true,
     "suggest": {
         "Economics": "*",
         "ServerRewards": "*",
-        "EventManager": "*"
+        "EventManager": "*",
+        "LustyMap": "*",
+        "ZoneManager": "*"
     },
     "language": "cs",
     "games": [

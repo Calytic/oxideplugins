@@ -8,10 +8,12 @@ using Oxide.Core.Plugins;
 using Oxide.Core.Libraries;
 using Oxide.Core.Libraries.Covalence;
 
+using UnityEngine;
+
 namespace Oxide.Plugins
 {
-	[Info("HelpText", "Domestos/Calytic", "2.0.0", ResourceId = 676)]
-	class HelpText : CovalencePlugin
+    [Info("HelpText", "Domestos/Calytic", "2.0.1", ResourceId = 676)]
+    class HelpText : CovalencePlugin
     {
         private bool UseCustomHelpText;
         private bool AllowHelpTextFromOtherPlugins;
@@ -19,19 +21,19 @@ namespace Oxide.Plugins
 
         private void Loaded()
         {
-            this.UseCustomHelpText = GetConfig<bool>("Settings","UseCustomHelpText", false);
-            this.AllowHelpTextFromOtherPlugins = GetConfig<bool>("Settings","AllowHelpTextFromOtherPlugins", true);
+            this.UseCustomHelpText = GetConfig<bool>("Settings", "UseCustomHelpText", false);
+            this.AllowHelpTextFromOtherPlugins = GetConfig<bool>("Settings", "AllowHelpTextFromOtherPlugins", true);
             this.CustomHelpText = GetConfig<List<object>>("CustomHelpText", new List<object>() {
                 "custom helptext",
                 "custom helptext"
             });
         }
 
-        protected override void LoadDefaultConfig ()
-		{
-			Config["UseCustomHelpText"] = false;
-            Config["Settings","AllowHelpTextFromOtherPlugins"] = true;
-            Config["Settings","CustomHelpText"] = CustomHelpText = new List<object>() {
+        protected override void LoadDefaultConfig()
+        {
+            Config["UseCustomHelpText"] = false;
+            Config["Settings", "AllowHelpTextFromOtherPlugins"] = true;
+            Config["Settings", "CustomHelpText"] = CustomHelpText = new List<object>() {
                 "custom helptext",
                 "custom helptext"
             };
@@ -43,20 +45,36 @@ namespace Oxide.Plugins
         void cmdHelp(IPlayer player, string command, string[] args)
         {
             if (player == null) return;
-            
+
             if (UseCustomHelpText)
             {
+                StringBuilder sb = new StringBuilder();
+                int i = 0;
                 foreach (var text in CustomHelpText)
                 {
-                	player.Reply(text.ToString());
+                    sb.AppendLine(text.ToString());
+                    i++;
+
+                    if (i % 10 == 0)
+                    {
+                        player.Reply(sb.ToString());
+                        sb.Clear();
+                        i = 0;
+                    }
+                }
+
+                if (i > 0)
+                {
+                    player.Reply(sb.ToString());
                 }
             }
 
             if (AllowHelpTextFromOtherPlugins)
             {
-				#if RUST
-				plugins.CallHook("SendHelpText", player.ConnectedPlayer.Character.Object);
-	            #endif
+                var gameObject = player.Character.Object;
+                if(gameObject is GameObject) {
+				    plugins.CallHook("SendHelpText", (gameObject as GameObject).GetComponent<BasePlayer>());
+                }
             }
         }
 

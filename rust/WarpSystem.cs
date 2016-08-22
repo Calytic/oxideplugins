@@ -9,7 +9,7 @@ using Oxide.Core.Plugins;
  
 namespace Oxide.Plugins
 {
-    [Info("Warp System", "PaiN", "1.9.7", ResourceId = 760)] 
+    [Info("Warp System", "PaiN", "1.9.8", ResourceId = 760)] 
     [Description("Create warp points for players.")]
     class WarpSystem : RustPlugin 
     { 
@@ -698,7 +698,7 @@ namespace Oxide.Plugins
 				storedData.cantele.Clear();
 				Interface.GetMod().DataFileSystem.WriteObject("WarpSystem", storedData);
 			}*/
-			void OnRunCommand(ConsoleSystem.Arg arg)
+			void OnServerCommand(ConsoleSystem.Arg arg)
 			{
 				if(arg == null) return;
 				if(arg.connection == null) return; 
@@ -735,7 +735,7 @@ namespace Oxide.Plugins
 										else
 										{
 											int nexttele = Convert.ToInt32(GetTimeStamp() - nextteletime);
-											SendReply(player, youhavetowait, nexttele.ToString());
+											SendReply(player, youhavetowait, nexttele.ToString().Replace("-", ""));
 											return;
 										}
 									}

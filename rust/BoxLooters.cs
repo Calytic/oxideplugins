@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("BoxLooters", "4seti [Lunatiq] for Rust Planet", "0.2.92", ResourceId = 989)]
+    [Info("BoxLooters", "4seti [Lunatiq] for Rust Planet", "0.2.95", ResourceId = 989)]
     public class BoxLooters : RustPlugin
     {
         Vector3 eyesAdjust;
@@ -35,7 +35,7 @@ namespace Oxide.Plugins
             LoadVariables();
             LoadData();
         }
-        void LoadDefaultConfig()
+        protected override void LoadDefaultConfig()
         {
             Puts("Creating a new config file");
             Config.Clear();
@@ -53,7 +53,7 @@ namespace Oxide.Plugins
                       || box.panelName == "fuelstorage" || box.panelName == "smallstash"
                       || box.panelName == "furnace" || box.panelName == "smallrefinery"
                       || box.panelName == "largefurnace" || box.panelName == "watercatcher"
-                      || box.name.Contains("quarry/hopperoutput.prefab")
+                      || box.name.Contains("hopperoutput")
                       || box.prefabID == 349880778))
                     return;
                 if (box == null || looter == null) return;
@@ -220,30 +220,40 @@ namespace Oxide.Plugins
         {
             player.ChatMessage(string.Format("<color=#81D600>{0}</color>: {1}", Title, msg));
         }
-        object FindBoxFromRay(Vector3 Pos, Vector3 Aim)
+        object FindBoxFromRay(BasePlayer player)
         {
-            var hits = UnityEngine.Physics.RaycastAll(Pos, Aim);
-            float distance = 1000f;
             object target = null;
+            var input = serverinput.GetValue(player) as InputState;
+            Ray ray = new Ray(player.eyes.position, Quaternion.Euler(input.current.aimAngles) * Vector3.forward);
+            RaycastHit hit;
+            if (!UnityEngine.Physics.Raycast(ray, out hit, 20))
+                return null;
+
+            if (hit.collider.GetComponentInParent<StorageContainer>() != null)            
+                target = hit.collider.GetComponentInParent<StorageContainer>();
             
-            foreach (var hit in hits)
+            else if (hit.collider.GetComponentInParent<BasePlayer>() != null)            
+                target = hit.collider.GetComponentInParent<BasePlayer>();
+
+            else if (hit.collider.GetComponentInParent<BaseEntity>() != null)
             {
-                if (hit.collider.GetComponentInParent<StorageContainer>() != null)
+                var ent = hit.collider.GetComponentInParent<BaseEntity>();
+                if (ent.GetComponent<MiningQuarry>())
                 {
-                    if (hit.distance < distance)
+                    var quarry = ent.GetComponent<MiningQuarry>();
+                    var children = quarry.children;
+                    if (children != null)
                     {
-                        distance = hit.distance;
-                        target = hit.collider.GetComponentInParent<StorageContainer>();
-                    }
-                }
-                else if (hit.collider.GetComponentInParent<BasePlayer>() != null)
-                {
-                    if (hit.distance < distance)
-                    {
-                        distance = hit.distance;
-                        target = hit.collider.GetComponentInParent<BasePlayer>();
-                    }
-                }
+                        var containers = new List<StorageContainer>();
+                        foreach (var entry in children)
+                        {
+                            if (entry is StorageContainer)
+                                containers.Add(entry.GetComponent<StorageContainer>());
+                        }
+                        if (containers.Count > 0)
+                            return containers;
+                    }                    
+                }                
             }
             return target;
         }
@@ -275,10 +285,10 @@ namespace Oxide.Plugins
         {
             if (!HavePerm(player)) return;
 
-            var input = serverinput.GetValue(player) as InputState;
-            var currentRot = Quaternion.Euler(input.current.aimAngles) * Vector3.forward;
+            //var input = serverinput.GetValue(player) as InputState;
+            //var currentRot = Quaternion.Euler(input.current.aimAngles) * Vector3.forward;
 
-            var rayResult = FindBoxFromRay(player.transform.position + eyesAdjust, currentRot);
+            var rayResult = FindBoxFromRay(player);
             if (rayResult is StorageContainer)
             {
                 var box = rayResult as StorageContainer;
@@ -320,6 +330,29 @@ namespace Oxide.Plugins
                 }
                 else
                     ReplyChat(player, lang.GetMessage("NoPlayer", this, player.UserIDString));
+            }
+            else if (rayResult is List<StorageContainer>)
+            {
+                foreach (var box in (List<StorageContainer>)rayResult)
+                {                    
+                    if (box != null)
+                    {
+                        if (boxData.ContainsKey(box.net.ID))
+                        {
+                            ReplyChat(player, string.Format(lang.GetMessage("BoxData", this, player.UserIDString), box.net.ID));
+                            int i = 1;
+                            foreach (var data in boxData[box.net.ID].Looters)
+                            {
+                                ReplyChat(player, string.Format(lang.GetMessage("DetectedLooter", this, player.UserIDString), i, data.Value.Name, data.Key, data.Value.FirstLoot, data.Value.LastLoot));
+                                i++;
+                            }
+                        }
+                        else
+                            ReplyChat(player, string.Format(lang.GetMessage("NoLooters", this, player.UserIDString), box.net.ID));
+                    }
+                    else
+                        ReplyChat(player, lang.GetMessage("NoBox", this, player.UserIDString));
+                }
             }
             else
                 ReplyChat(player, lang.GetMessage("Nothing", this, player.UserIDString));

@@ -2,8 +2,11 @@
     "name": "Notifier",
     "description": "Server administration tool with chat based notifications",
     "author": "SkinN \u00f5.\u00d5'.|.",
-    "version": "3.0.8",
+    "version": "3.1.3",
     "configuration": true,
+    "suggest": {
+        "BetterChat": "*"
+    },
     "language": "cs",
     "games": [
         "rust"

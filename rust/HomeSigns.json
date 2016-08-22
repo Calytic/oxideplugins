@@ -2,7 +2,7 @@
     "name": "HomeSigns",
     "description": "Allows players to only place signs where they can build",
     "author": "Wulf",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "configuration": false,
     "language": "cs",
     "games": [

@@ -2,7 +2,7 @@
     "name": "Pets",
     "description": "Do you want a pet? This plugin is for you!",
     "author": "Nogrod",
-    "version": "0.5.3",
+    "version": "0.5.5",
     "configuration": true,
     "language": "cs",
     "games": [

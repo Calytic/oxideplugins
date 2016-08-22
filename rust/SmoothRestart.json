@@ -2,7 +2,7 @@
     "name": "Smooth Restarter",
     "description": "Shutdown\/restart with timer and announcements!",
     "author": "Visagalis",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "configuration": false,
     "language": "cs",
     "games": [

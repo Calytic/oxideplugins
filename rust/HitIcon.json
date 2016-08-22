@@ -2,7 +2,7 @@
     "name": "HitIcon",
     "description": "Configurable GUI icon and damage when you hit player|friend|clanmate|head",
     "author": "",
-    "version": "0.3",
+    "version": "0.6",
     "configuration": true,
     "suggest": {
         "Friends": "*"

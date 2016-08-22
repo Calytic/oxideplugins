@@ -2,7 +2,7 @@
     "name": "ProximityAlert",
     "description": "Displays a UI warning message when players get within a set radius of the user",
     "author": "k1lly0u",
-    "version": "0.1.21",
+    "version": "0.1.22",
     "configuration": true,
     "language": "cs",
     "games": [

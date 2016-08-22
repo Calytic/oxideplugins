@@ -1,5 +1,6 @@
 /*
 TODO:
+- Add options to enable/disable each container type (wear, bar, main)
 - Finish implementing permissions support
 - Fix GetUselessItems giving an NRE
 */
@@ -11,7 +12,7 @@ using Oxide.Game.Rust.Cui;
 
 namespace Oxide.Plugins
 {
-    [Info("QuickSort", "Wulf/lukespragg", "1.0.1", ResourceId = 1263)]
+    [Info("QuickSort", "Wulf/lukespragg", "1.0.2", ResourceId = 1263)]
     [Description("Adds a new GUI that allows players to quickly sort items into containers")]
 
     class QuickSort : RustPlugin
@@ -294,7 +295,7 @@ namespace Oxide.Plugins
             {
                 Image = { Color = "0.5 0.5 0.5 0.33" },
                 RectTransform = { AnchorMin = "0.677 0.769", AnchorMax = "0.963 0.96" }
-            }, "HUD/Overlay", guiInfo[player.userID]);
+            }, "Overlay", guiInfo[player.userID]);
             elements.Add(new CuiLabel
             {
                 Text = { Text = Lang("Deposit"), FontSize = 16, Align = TextAnchor.MiddleCenter },

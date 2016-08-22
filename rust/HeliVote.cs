@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("HeliVote", "k1lly0u", "0.1.3", ResourceId = 1665)]
+    [Info("HeliVote", "k1lly0u", "0.1.31", ResourceId = 1665)]
     class HeliVote : RustPlugin
     {
         bool Changed;
@@ -124,7 +124,7 @@ namespace Oxide.Plugins
                 BaseEntity entity = GameManager.server.CreateEntity("assets/prefabs/npc/patrol helicopter/patrolhelicopter.prefab", new Vector3(), new Quaternion(), true);
                 if (!entity) return;
                 PatrolHelicopterAI heliAI = entity.GetComponent<PatrolHelicopterAI>();
-                entity.Spawn(true);
+                entity.Spawn();
                 currentHelis.Add(entity);
 
                 float mapSize = (TerrainMeta.Size.x / 2) - 50f;

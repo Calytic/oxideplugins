@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("ProximityAlert", "k1lly0u", "0.1.21", ResourceId = 1801)]
+    [Info("ProximityAlert", "k1lly0u", "0.1.22", ResourceId = 1801)]
     class ProximityAlert : RustPlugin
     {
         #region Fields
@@ -15,13 +15,13 @@ namespace Oxide.Plugins
         Plugin Clans;
         [PluginReference]
         Plugin Friends;
+        [PluginReference]
+        Plugin EventManager;
 
         private static int playerLayer = UnityEngine.LayerMask.GetMask("Player (Server)");
         List<ProximityPlayer> playerList = new List<ProximityPlayer>();
         private Vector2 guiPos;
         private Vector2 guiDim;
-
-        
         #endregion
 
         #region Functions
@@ -57,9 +57,9 @@ namespace Oxide.Plugins
         }
         private void InitializePlayer(BasePlayer player)
         {
-            if (player.GetComponent<ProximityPlayer>())
-                DestroyPlayer(player);
             if (!permission.UserHasPermission(player.UserIDString, "proximityalert.use")) return;
+            if (player.GetComponent<ProximityPlayer>())
+                DestroyPlayer(player);            
             GetPlayer(player);
         }
         private void CheckDependencies()
@@ -84,6 +84,18 @@ namespace Oxide.Plugins
             bool isFriend = (bool)Friends?.Call("IsFriend", playerID, friendID);
             return isFriend;
         }
+        private bool PA_IsPlaying(BasePlayer player)
+        {
+            if (EventManager)
+            {
+                object isPlaying = EventManager?.Call("isPlaying", new object[] { player });
+                if (isPlaying is bool)
+                {
+                    if ((bool)isPlaying) return true;
+                }
+            }
+            return false;
+        }
         private void SendUI(BasePlayer player, string msg)
         {
             if (!GetPlayer(player).GUIDestroyed)
@@ -92,11 +104,11 @@ namespace Oxide.Plugins
         }
         private ProximityPlayer GetPlayer(BasePlayer player)
         {
-            ProximityPlayer p = player.GetComponent<ProximityPlayer>();
-            if (p == null)
+            if (!player.GetComponent<ProximityPlayer>())
             {
                 playerList.Add(player.gameObject.AddComponent<ProximityPlayer>());
                 player.GetComponent<ProximityPlayer>().SetRadius(configData.TriggerRadius);
+                player.GetComponent<ProximityPlayer>().Instance = this;
             }
             return player.GetComponent<ProximityPlayer>();
         }
@@ -127,6 +139,7 @@ namespace Oxide.Plugins
             private BasePlayer player;
             private List<ulong> inProximity = new List<ulong>();
             private float collisionRadius;
+            public ProximityAlert Instance;
             public bool GUIDestroyed = true;
             public bool Activated = true;
 
@@ -140,6 +153,7 @@ namespace Oxide.Plugins
             private void UpdateTrigger()
             {
                 if (!Activated) return;
+                if (IsPlaying(player)) return;
                 var colliderArray = Physics.OverlapSphere(player.transform.position, collisionRadius, playerLayer);
                 var collidePlayers = new List<ulong>();
                 var outProximity = new List<ulong>();
@@ -149,10 +163,8 @@ namespace Oxide.Plugins
                 foreach (Collider collider in colliderArray)
                 {
                     var col = collider.GetComponentInParent<BasePlayer>();
-                    if (col == null || col == player) continue;
-                    if (IsClanmate(col) || IsFriend(col) || col.IsSleeping() || col.IsAdmin() || !col.IsAlive()) break;
-
-                    collidePlayers.Add(col.userID);
+                    if (col != null && col != player && !IsClanmate(col) && !IsFriend(col) && !col.IsSleeping() && !col.IsAdmin() && col.IsAlive())
+                        collidePlayers.Add(col.userID);
 
                     if (!inProximity.Contains(col.userID))
                         inProximity.Add(col.userID);
@@ -174,22 +186,24 @@ namespace Oxide.Plugins
             }
             private bool IsClanmate(BasePlayer target)
             {
-                object confirmed = Interface.CallHook("PA_IsClanmate", player.userID, target.userID);
-                if (confirmed is bool)
-                    if ((bool)confirmed)
+                if (Instance.PA_IsClanmate(player.userID, target.userID))               
                         return true;
                 return false;
             }
             private bool IsFriend(BasePlayer target)
             {
-                object confirmed = Interface.CallHook("PA_IsFriend", player.userID, target.userID);
-                if (confirmed is bool)
-                    if ((bool)confirmed)
+                if (Instance.PA_IsFriend(player.userID, target.userID))                
                         return true;
                 return false;
             }
-            void EnterTrigger() => Interface.CallHook("ProxCollisionEnter", player);
-            void LeaveTrigger() => Interface.CallHook("ProxCollisionLeave", player);            
+            private bool IsPlaying(BasePlayer player)
+            {
+                if (Instance.PA_IsPlaying(player))               
+                        return true;
+                return false;
+            }
+            void EnterTrigger() => Instance.ProxCollisionEnter(player);
+            void LeaveTrigger() => Instance.ProxCollisionLeave(player);            
             public void UseUI(string msg, Vector2 pos, Vector2 dim, int size = 20)
             {                
                 GUIDestroyed = false;        
@@ -200,7 +214,7 @@ namespace Oxide.Plugins
                 CuiElement textElement = new CuiElement
                 {
                     Name = "ProxWarn",
-                    Parent = "HUD/Overlay",
+                    Parent = "Overlay",
                     FadeOut = 0.3f,
                     Components =
                     {
@@ -225,7 +239,7 @@ namespace Oxide.Plugins
                 };
                 elements.Add(textElement);
                 CuiHelper.AddUi(player, elements);
-                Invoke("DestroyNotification", 5f);
+                Invoke("DestroyNotification", 4f);
             }
             private void DestroyNotification()
             {
@@ -243,7 +257,7 @@ namespace Oxide.Plugins
             public float GUI_X_Dim { get; set; }
             public float GUI_Y_Pos { get; set; }
             public float GUI_Y_Dim { get; set; }
-            public float TriggerRadius { get; set; }
+            public float TriggerRadius { get; set; }          
         }
         private void LoadVariables()
         {

@@ -2,7 +2,7 @@
     "name": "InfoPanel",
     "description": "A small panel with in-game clock, online players, sleepers and custom messages, etc.",
     "author": "Nogrod",
-    "version": "0.9.3",
+    "version": "0.9.5",
     "configuration": true,
     "language": "cs",
     "games": [

@@ -1,8 +1,8 @@
 {
     "name": "ExplodingBarrels",
-    "description": "Barrels containing rockets can explode",
+    "description": "Barrels containing explosive items can explode",
     "author": "ignignokt84",
-    "version": "0.1.1",
+    "version": "0.2.3",
     "configuration": true,
     "language": "cs",
     "games": [

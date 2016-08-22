@@ -20,7 +20,7 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("ZoneManager", "Reneb / Nogrod", "2.4.2", ResourceId = 739)]
+    [Info("ZoneManager", "Reneb / Nogrod", "2.4.4", ResourceId = 739)]
     public class ZoneManager : RustPlugin
     {
         private const string PermZone = "zonemanager.zone";
@@ -132,6 +132,11 @@ namespace Oxide.Plugins
         private StoredData storedData;
         private Zone[] zoneObjects = new Zone[0];
 
+        private static readonly FieldInfo decay = typeof(DecayEntity).GetField("decay", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo decayTimer = typeof(DecayEntity).GetField("decayTimer", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo decayDelayTime = typeof(DecayEntity).GetField("decayDelayTime", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo decayDeltaTime = typeof(DecayEntity).GetField("decayDeltaTime", BindingFlags.Instance | BindingFlags.NonPublic);
+
         private readonly FieldInfo npcNextTick = typeof(NPCAI).GetField("nextTick", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
         //private static readonly int triggerLayer = LayerMask.NameToLayer("Trigger");
         private static readonly int playersMask = LayerMask.GetMask("Player (Server)");
@@ -201,7 +206,7 @@ namespace Oxide.Plugins
                         sphereCollider = gameObject.AddComponent<SphereCollider>();
                         sphereCollider.isTrigger = true;
                     }
-                    sphereCollider.radius = Info.radius;
+                    sphereCollider.radius = Info.Radius;
                 }
             }
 
@@ -209,12 +214,12 @@ namespace Oxide.Plugins
             {
                 Info = info;
                 if (Info == null) return;
-                gameObject.name = $"Zone Manager({Info.ID})";
+                gameObject.name = $"Zone Manager({Info.Id})";
                 transform.position = Info.Location;
                 transform.rotation = Quaternion.Euler(Info.Rotation);
                 UpdateCollider();
-                gameObject.SetActive(Info.enabled);
-                enabled = Info.enabled;
+                gameObject.SetActive(Info.Enabled);
+                enabled = Info.Enabled;
 
                 if (ZoneManagerPlugin.HasZoneFlag(this, ZoneFlags.AutoLights))
                 {
@@ -229,13 +234,13 @@ namespace Oxide.Plugins
                 }
 
                 var radiation = gameObject.GetComponent<TriggerRadiation>();
-                if (Info.radiation > 0)
+                if (Info.Radiation > 0)
                 {
                     radiation = radiation ?? gameObject.AddComponent<TriggerRadiation>();
-                    radiation.RadiationAmount = Info.radiation;
-                    radiation.radiationSize = Info.radius;
+                    radiation.RadiationAmount = Info.Radiation;
+                    radiation.radiationSize = Info.Radius;
                     radiation.interestLayers = playersMask;
-                    radiation.enabled = Info.enabled;
+                    radiation.enabled = Info.Enabled;
                 }
                 else if (radiation != null)
                 {
@@ -267,10 +272,11 @@ namespace Oxide.Plugins
                 if (Info.Size != Vector3.zero)
                     entities = Physics.OverlapBoxNonAlloc(Info.Location, Info.Size, colBuffer, Quaternion.Euler(Info.Rotation), playersMask);
                 else
-                    entities = Physics.OverlapSphereNonAlloc(Info.Location, Info.radius, colBuffer, playersMask);
+                    entities = Physics.OverlapSphereNonAlloc(Info.Location, Info.Radius, colBuffer, playersMask);
                 for (var i = 0; i < entities; i++)
                 {
                     var player = colBuffer[i].GetComponentInParent<BasePlayer>();
+                    colBuffer[i] = null;
                     if (player != null)
                     {
                         if (players.Add(player) && !oldPlayers.Contains(player))
@@ -308,7 +314,7 @@ namespace Oxide.Plugins
                             continue;
                         }
                         var door = building as Door;
-                        if (door != null && door.LookupPrefabName().Contains("shutter"))
+                        if (door != null && door.PrefabName.Contains("shutter"))
                             door.SetFlag(BaseEntity.Flags.Open, true);
                     }
                     foreach (var player in players)
@@ -317,7 +323,7 @@ namespace Oxide.Plugins
                         var items = player.inventory.containerWear.itemList;
                         foreach (var item in items)
                         {
-                            if (!item.info.shortname.Equals("hat.miner")) continue;
+                            if (!item.info.shortname.Equals("hat.miner") && !item.info.shortname.Equals("hat.candle")) continue;
                             item.SwitchOnOff(false, player);
                             player.inventory.ServerUpdate(0f);
                             break;
@@ -337,7 +343,7 @@ namespace Oxide.Plugins
                             continue;
                         }
                         var door = building as Door;
-                        if (door != null && door.LookupPrefabName().Contains("shutter"))
+                        if (door != null && door.PrefabName.Contains("shutter"))
                             door.SetFlag(BaseEntity.Flags.Open, false);
                     }
                     var fuel = ItemManager.FindItemDefinition("lowgradefuel");
@@ -347,7 +353,7 @@ namespace Oxide.Plugins
                         var items = player.inventory.containerWear.itemList;
                         foreach (var item in items)
                         {
-                            if (!item.info.shortname.Equals("hat.miner")) continue;
+                            if (!item.info.shortname.Equals("hat.miner") && !item.info.shortname.Equals("hat.candle")) continue;
                             if (item.contents == null) item.contents = new ItemContainer();
                             var array = item.contents.itemList.ToArray();
                             for (var i = 0; i < array.Length; i++)
@@ -376,11 +382,11 @@ namespace Oxide.Plugins
             {
                 if (ZoneManagerPlugin.HasZoneFlag(this, ZoneFlags.NoDecay))
                 {
-                    var decay = col.GetComponentInParent<Decay>();
-                    if (decay != null)
+                    var decayEntity = col.GetComponentInParent<DecayEntity>();
+                    if (decayEntity != null && decay.GetValue(decayEntity) != null)
                     {
-                        decay.CancelInvoke("RunDecay");
-                        decay.enabled = false;
+                        decayEntity.CancelInvoke("RunDecay");
+                        decayTimer.SetValue(decayEntity, 0f);
                     }
                 }
                 var resourceDispenser = col.GetComponentInParent<ResourceDispenser>();
@@ -413,8 +419,9 @@ namespace Oxide.Plugins
             {
                 if (ZoneManagerPlugin.HasZoneFlag(this, ZoneFlags.NoDecay))
                 {
-                    var decay = col.GetComponentInParent<Decay>();
-                    if (decay != null) decay.enabled = true;
+                    var decayEntity = col.GetComponentInParent<DecayEntity>();
+                    if (decayEntity != null && decay.GetValue(decayEntity) != null && !decayEntity.IsInvoking("RunDecay"))
+                        decayEntity.InvokeRepeating("RunDecay", (float) decayDelayTime.GetValue(decayEntity), (float) decayDeltaTime.GetValue(decayEntity));
                 }
                 var resourceDispenser = col.GetComponentInParent<ResourceDispenser>();
                 if (resourceDispenser != null)
@@ -456,12 +463,10 @@ namespace Oxide.Plugins
                 else
                 {
                     var colliderBatch = col.GetComponent<MeshColliderBatch>();
-                    if (colliderBatch != null)
-                    {
-                        var colliders = (ListDictionary<Component, ColliderCombineInstance>) InstancesField.GetValue(colliderBatch);
-                        foreach (var instance in colliders.Values)
-                            CheckCollisionEnter(instance.collider);
-                    }
+                    if (colliderBatch == null) return;
+                    var colliders = (ListDictionary<Component, ColliderCombineInstance>) InstancesField.GetValue(colliderBatch);
+                    foreach (var instance in colliders.Values)
+                        CheckCollisionEnter(instance.collider);
                 }
             }
 
@@ -479,12 +484,10 @@ namespace Oxide.Plugins
                 else
                 {
                     var colliderBatch = col.GetComponent<MeshColliderBatch>();
-                    if (colliderBatch != null)
-                    {
-                        var colliders = (ListDictionary<Component, ColliderCombineInstance>) InstancesField.GetValue(colliderBatch);
-                        foreach (var instance in colliders.Values)
-                            CheckCollisionLeave(instance.collider);
-                    }
+                    if (colliderBatch == null) return;
+                    var colliders = (ListDictionary<Component, ColliderCombineInstance>) InstancesField.GetValue(colliderBatch);
+                    foreach (var instance in colliders.Values)
+                        CheckCollisionLeave(instance.collider);
                 }
             }
         }
@@ -496,17 +499,17 @@ namespace Oxide.Plugins
         public class ZoneDefinition
         {
 
-            public string name;
-            public float radius;
-            public float radiation;
+            public string Name;
+            public float Radius;
+            public float Radiation;
             public Vector3 Location;
             public Vector3 Size;
             public Vector3 Rotation;
-            public string ID;
-            public string enter_message;
-            public string leave_message;
-            public bool enabled = true;
-            public ZoneFlags flags;
+            public string Id;
+            public string EnterMessage;
+            public string LeaveMessage;
+            public bool Enabled = true;
+            public ZoneFlags Flags;
 
             public ZoneDefinition()
             {
@@ -515,7 +518,7 @@ namespace Oxide.Plugins
 
             public ZoneDefinition(Vector3 position)
             {
-                radius = 20f;
+                Radius = 20f;
                 Location = position;
             }
 
@@ -552,13 +555,14 @@ namespace Oxide.Plugins
             NoUpgrade = 1 << 25,
             EjectSleepers = 1 << 26,
             NoPickup = 1 << 27,
-            NoCollect = 1 << 28
+            NoCollect = 1 << 28,
+            NoDrop = 1 << 29
         }
 
         private bool HasZoneFlag(Zone zone, ZoneFlags flag)
         {
             if ((disabledFlags & flag) == flag) return false;
-            return (zone.Info.flags & ~zone.disabledFlags & flag) == flag;
+            return (zone.Info.Flags & ~zone.disabledFlags & flag) == flag;
         }
         private static bool HasAnyFlag(ZoneFlags flags, ZoneFlags flag)
         {
@@ -566,15 +570,15 @@ namespace Oxide.Plugins
         }
         private static bool HasAnyZoneFlag(Zone zone)
         {
-            return (zone.Info.flags & ~zone.disabledFlags) != ZoneFlags.None;
+            return (zone.Info.Flags & ~zone.disabledFlags) != ZoneFlags.None;
         }
         private static void AddZoneFlag(ZoneDefinition zone, ZoneFlags flag)
         {
-            zone.flags |= flag;
+            zone.Flags |= flag;
         }
         private static void RemoveZoneFlag(ZoneDefinition zone, ZoneFlags flag)
         {
-            zone.flags &= ~flag;
+            zone.Flags &= ~flag;
         }
         /////////////////////////////////////////
         // Data Management
@@ -605,7 +609,7 @@ namespace Oxide.Plugins
             }
             ZoneManagerData.Settings.NullValueHandling = NullValueHandling.Include;
             foreach (var zonedef in storedData.ZoneDefinitions)
-                ZoneDefinitions[zonedef.ID] = zonedef;
+                ZoneDefinitions[zonedef.Id] = zonedef;
         }
 
         private void SetupCollectibleEntity()
@@ -668,15 +672,12 @@ namespace Oxide.Plugins
         {
             foreach (var zone in zoneObjects)
                 UnityEngine.Object.Destroy(zone);
-            NextTick(() =>
+            var collectibleEntities = Resources.FindObjectsOfTypeAll<CollectibleEntity>();
+            for (var i = 0; i < collectibleEntities.Length; i++)
             {
-                var collectibleEntities = Resources.FindObjectsOfTypeAll<CollectibleEntity>();
-                for (var i = 0; i < collectibleEntities.Length; i++)
-                {
-                    var collider = collectibleEntities[i].GetComponent<Collider>();
-                    if (collider != null) UnityEngine.Object.Destroy(collider);
-                }
-            });
+                var collider = collectibleEntities[i].GetComponent<Collider>();
+                if (collider != null) UnityEngine.Object.Destroy(collider);
+            }
         }
 
         private void OnTerrainInitialized()
@@ -691,7 +692,7 @@ namespace Oxide.Plugins
         private void OnServerInitialized()
         {
             if (Initialized) return;
-            timer.In(10, () => {
+            timer.In(1, () => {
                 SetupCollectibleEntity();
                 foreach (var zoneDefinition in ZoneDefinitions.Values)
                     NewZone(zoneDefinition);
@@ -705,11 +706,12 @@ namespace Oxide.Plugins
         /////////////////////////////////////////
         private void OnEntityBuilt(Planner planner, GameObject gameobject)
         {
-            if (planner.ownerPlayer == null) return;
-            if (HasPlayerFlag(planner.ownerPlayer, ZoneFlags.NoBuild) && !hasPermission(planner.ownerPlayer, PermCanBuild))
+            var player = planner.GetOwnerPlayer();
+            if (player == null) return;
+            if (HasPlayerFlag(player, ZoneFlags.NoBuild) && !hasPermission(player, PermCanBuild))
             {
                 gameobject.GetComponentInParent<BaseCombatEntity>().Kill(BaseNetworkable.DestroyMode.Gib);
-                SendMessage(planner.ownerPlayer, "You are not allowed to build here");
+                SendMessage(player, "You are not allowed to build here");
             }
         }
 
@@ -725,11 +727,12 @@ namespace Oxide.Plugins
         /////////////////////////////////////////
         private void OnItemDeployed(Deployer deployer, BaseEntity deployedEntity)
         {
-            if (deployer.ownerPlayer == null) return;
-            if (HasPlayerFlag(deployer.ownerPlayer, ZoneFlags.NoDeploy) && !hasPermission(deployer.ownerPlayer, PermCanDeploy))
+            var player = deployer.GetOwnerPlayer();
+            if (player == null) return;
+            if (HasPlayerFlag(player, ZoneFlags.NoDeploy) && !hasPermission(player, PermCanDeploy))
             {
                 deployedEntity.Kill(BaseNetworkable.DestroyMode.Gib);
-                SendMessage(deployer.ownerPlayer, "You are not allowed to deploy here");
+                SendMessage(player, "You are not allowed to deploy here");
             }
         }
 
@@ -759,10 +762,10 @@ namespace Oxide.Plugins
         }
 
         /////////////////////////////////////////
-        // OnRunCommand(ConsoleSystem.Arg arg)
+        // OnServerCommand(ConsoleSystem.Arg arg)
         // Called when a user executes a command
         /////////////////////////////////////////
-        private object OnRunCommand(ConsoleSystem.Arg arg)
+        private object OnServerCommand(ConsoleSystem.Arg arg)
         {
             if (arg.Player() == null) return null;
             if (arg.cmd?.name == null) return null;
@@ -833,6 +836,8 @@ namespace Oxide.Plugins
                         CancelDamage(hitinfo);
                 }
                 else if (HasPlayerFlag(player, ZoneFlags.PveGod))
+                    CancelDamage(hitinfo);
+                else if (hitinfo.Initiator is FireBall && HasPlayerFlag(player, ZoneFlags.PvpGod))
                     CancelDamage(hitinfo);
                 return;
             }
@@ -951,7 +956,7 @@ namespace Oxide.Plugins
                             if (!new Bounds(zone.Info.Location, Quaternion.Euler(zone.Info.Rotation) * zone.Info.Size).Contains(block.transform.position))
                                 continue;
                         }
-                        else if (Vector3.Distance(block.transform.position, zone.Info.Location) > zone.Info.radius)
+                        else if (Vector3.Distance(block.transform.position, zone.Info.Location) > zone.Info.Radius)
                             continue;
                         block.grounded = true;
                         break;
@@ -1026,6 +1031,16 @@ namespace Oxide.Plugins
             return null;
         }
 
+        private bool CanChat(BasePlayer player)
+        {
+            if (HasPlayerFlag(player, ZoneFlags.NoChat))
+            {
+                //SendMessage(player, "You are not allowed to chat here");
+                return false;
+            }
+            return true;
+        }
+
         private void UpdateZoneDefinition(ZoneDefinition zone, string[] args, BasePlayer player = null)
         {
             for (var i = 0; i < args.Length; i = i + 2)
@@ -1034,16 +1049,16 @@ namespace Oxide.Plugins
                 switch (args[i].ToLower())
                 {
                     case "name":
-                        editvalue = zone.name = args[i + 1];
+                        editvalue = zone.Name = args[i + 1];
                         break;
                     case "id":
-                        editvalue = zone.ID = args[i + 1];
+                        editvalue = zone.Id = args[i + 1];
                         break;
                     case "radiation":
-                        editvalue = zone.radiation = Convert.ToSingle(args[i + 1]);
+                        editvalue = zone.Radiation = Convert.ToSingle(args[i + 1]);
                         break;
                     case "radius":
-                        editvalue = zone.radius = Convert.ToSingle(args[i + 1]);
+                        editvalue = zone.Radius = Convert.ToSingle(args[i + 1]);
                         break;
                     case "rotation":
                         zone.Rotation = player?.GetNetworkRotation() ?? Vector3.zero;/* + Quaternion.AngleAxis(90, Vector3.up).eulerAngles*/
@@ -1076,14 +1091,14 @@ namespace Oxide.Plugins
                         }
                         break;
                     case "enter_message":
-                        editvalue = zone.enter_message = args[i + 1];
+                        editvalue = zone.EnterMessage = args[i + 1];
                         break;
                     case "leave_message":
-                        editvalue = zone.leave_message = args[i + 1];
+                        editvalue = zone.LeaveMessage = args[i + 1];
                         break;
                     case "enabled":
                     case "enable":
-                        editvalue = zone.enabled = GetBoolValue(args[i + 1]);
+                        editvalue = zone.Enabled = GetBoolValue(args[i + 1]);
                         break;
                     default:
                         try
@@ -1121,7 +1136,7 @@ namespace Oxide.Plugins
         {
             ZoneDefinition zonedef;
             if (!ZoneDefinitions.TryGetValue(zoneId, out zonedef))
-                zonedef = new ZoneDefinition { ID = zoneId, radius = 20 };
+                zonedef = new ZoneDefinition { Id = zoneId, Radius = 20 };
             else
                 storedData.ZoneDefinitions.Remove(zonedef);
             UpdateZoneDefinition(zonedef, args);
@@ -1163,15 +1178,15 @@ namespace Oxide.Plugins
             if (zone == null) return null;
             var fieldlistzone = new Dictionary<string, string>
             {
-                { "name", zone.Info.name },
-                { "ID", zone.Info.ID },
-                { "radiation", zone.Info.radiation.ToString() },
-                { "radius", zone.Info.radius.ToString() },
+                { "name", zone.Info.Name },
+                { "ID", zone.Info.Id },
+                { "radiation", zone.Info.Radiation.ToString() },
+                { "radius", zone.Info.Radius.ToString() },
                 { "rotation", zone.Info.Rotation.ToString() },
                 { "size", zone.Info.Size.ToString() },
                 { "Location", zone.Info.Location.ToString() },
-                { "enter_message", zone.Info.enter_message },
-                { "leave_message", zone.Info.leave_message }
+                { "enter_message", zone.Info.EnterMessage },
+                { "leave_message", zone.Info.LeaveMessage }
             };
 
             var values = Enum.GetValues(typeof(ZoneFlags));
@@ -1184,7 +1199,7 @@ namespace Oxide.Plugins
         {
             var players = new List<ulong>();
             foreach (var pair in playerZones)
-                players.AddRange(pair.Value.Where(zone => zone.Info.ID == zoneId).Select(zone => pair.Key.userID));
+                players.AddRange(pair.Value.Where(zone => zone.Info.Id == zoneId).Select(zone => pair.Key.userID));
             return players;
         }
 
@@ -1192,7 +1207,7 @@ namespace Oxide.Plugins
         {
             HashSet<Zone> zones;
             if (!playerZones.TryGetValue(player, out zones)) return false;
-            return zones.Any(zone => zone.Info.ID == zoneId);
+            return zones.Any(zone => zone.Info.Id == zoneId);
         }
 
         private bool AddPlayerToZoneWhitelist(string zoneId, BasePlayer player)
@@ -1266,16 +1281,16 @@ namespace Oxide.Plugins
                 player.SendConsoleCommand("ddraw.line", 30f, Color.blue, point7, point3);
             }
             else
-                player.SendConsoleCommand("ddraw.sphere", 10f, Color.blue, targetZone.Info.Location, targetZone.Info.radius);
+                player.SendConsoleCommand("ddraw.sphere", 10f, Color.blue, targetZone.Info.Location, targetZone.Info.Radius);
         }
 
         /////////////////////////////////////////
         // Random Commands
         /////////////////////////////////////////
-        private object GetZoneRadius(string zoneID) => GetZoneByID(zoneID)?.Info.radius;
+        private object GetZoneRadius(string zoneID) => GetZoneByID(zoneID)?.Info.Radius;
         private object GetZoneSize(string zoneID) => GetZoneByID(zoneID)?.Info.Size;
-        private object CheckZoneID(string zoneID) => GetZoneByID(zoneID)?.Info.ID;
-        private object GetZoneIDs() => zoneObjects.ToList().ConvertAll(z => z.Info.ID).ToArray();
+        private object CheckZoneID(string zoneID) => GetZoneByID(zoneID)?.Info.Id;
+        private object GetZoneIDs() => zoneObjects.ToList().ConvertAll(z => z.Info.Id).ToArray();
         private Vector3 GetZoneLocation(string zoneId) => GetZoneByID(zoneId)?.Info.Location ?? Vector3.zero;
         private void AddToWhitelist(Zone zone, BasePlayer player) { zone.WhiteList.Add(player.userID); }
         private void RemoveFromWhitelist(Zone zone, BasePlayer player) { zone.WhiteList.Remove(player.userID); }
@@ -1336,7 +1351,7 @@ namespace Oxide.Plugins
 
         private Zone GetZoneByID(string zoneId)
         {
-            return zoneObjects.FirstOrDefault(gameObj => gameObj.Info.ID == zoneId);
+            return zoneObjects.FirstOrDefault(gameObj => gameObj.Info.Id == zoneId);
         }
 
         private void NewZone(ZoneDefinition zonedef)
@@ -1372,7 +1387,7 @@ namespace Oxide.Plugins
             if (!playerZones.TryGetValue(player, out zones) || zones.Count == 0) return;
             var newFlags = ZoneFlags.None;
             foreach (var zone in zones)
-                newFlags |= zone.Info.flags & ~zone.disabledFlags;
+                newFlags |= zone.Info.Flags & ~zone.disabledFlags;
             playerTags[player] = newFlags;
         }
 
@@ -1396,7 +1411,7 @@ namespace Oxide.Plugins
             foreach (var zone in zoneObjects)
             {
                 if (!HasZoneFlag(zone, ZoneFlags.UnDestr)) continue;
-                if (Vector3.Distance(explosive.GetEstimatedWorldPosition(), zone.transform.position) > zone.Info.radius) continue;
+                if (Vector3.Distance(explosive.GetEstimatedWorldPosition(), zone.transform.position) > zone.Info.Radius) continue;
                 explosive.KillMessage();
                 break;
             }
@@ -1416,15 +1431,15 @@ namespace Oxide.Plugins
                 playerZones[player] = zones = new HashSet<Zone>();
             if (!zones.Add(zone)) return;
             UpdateFlags(player);
-            if (!string.IsNullOrEmpty(zone.Info.enter_message))
+            if (!string.IsNullOrEmpty(zone.Info.EnterMessage))
             {
                 if (PopupNotifications != null && usePopups)
-                    PopupNotifications.Call("CreatePopupNotification", string.Format(zone.Info.enter_message, player.displayName), player);
+                    PopupNotifications.Call("CreatePopupNotification", string.Format(zone.Info.EnterMessage, player.displayName), player);
                 else
-                    SendMessage(player, zone.Info.enter_message, player.displayName);
+                    SendMessage(player, zone.Info.EnterMessage, player.displayName);
             }
             if (HasZoneFlag(zone, ZoneFlags.Eject)) EjectPlayer(zone, player);
-            Interface.Oxide.CallHook("OnEnterZone", zone.Info.ID, player);
+            Interface.Oxide.CallHook("OnEnterZone", zone.Info.Id, player);
             //Puts("OnPlayerEnterZone: {0}", player.GetType());
         }
 
@@ -1437,29 +1452,29 @@ namespace Oxide.Plugins
                 zone.OnEntityKill(player);
                 if (!zones.Remove(zone)) return;
                 if (zones.Count <= 0) playerZones.Remove(player);
-                if (!string.IsNullOrEmpty(zone.Info.leave_message))
+                if (!string.IsNullOrEmpty(zone.Info.LeaveMessage))
                 {
                     if (PopupNotifications != null && usePopups)
-                        PopupNotifications.Call("CreatePopupNotification", string.Format(zone.Info.leave_message, player.displayName), player);
+                        PopupNotifications.Call("CreatePopupNotification", string.Format(zone.Info.LeaveMessage, player.displayName), player);
                     else
-                        SendMessage(player, zone.Info.leave_message, player.displayName);
+                        SendMessage(player, zone.Info.LeaveMessage, player.displayName);
                 }
                 if (zone.KeepInList.Contains(player.userID)) AttractPlayer(zone, player);
-                Interface.Oxide.CallHook("OnExitZone", zone.Info.ID, player);
+                Interface.Oxide.CallHook("OnExitZone", zone.Info.Id, player);
             }
             else
             {
                 foreach (var zone1 in zones)
                 {
-                    if (!string.IsNullOrEmpty(zone1.Info.leave_message))
+                    if (!string.IsNullOrEmpty(zone1.Info.LeaveMessage))
                     {
                         if (PopupNotifications != null && usePopups)
-                            PopupNotifications.Call("CreatePopupNotification", string.Format(zone1.Info.leave_message, player.displayName), player);
+                            PopupNotifications.Call("CreatePopupNotification", string.Format(zone1.Info.LeaveMessage, player.displayName), player);
                         else
-                            SendMessage(player, zone1.Info.leave_message, player.displayName);
+                            SendMessage(player, zone1.Info.LeaveMessage, player.displayName);
                     }
                     if (zone1.KeepInList.Contains(player.userID)) AttractPlayer(zone1, player);
-                    Interface.Oxide.CallHook("OnExitZone", zone1.Info.ID, player);
+                    Interface.Oxide.CallHook("OnExitZone", zone1.Info.Id, player);
                 }
                 playerZones.Remove(player);
             }
@@ -1531,8 +1546,13 @@ namespace Oxide.Plugins
             if (HasZoneFlag(zone, ZoneFlags.NoStability))
             {
                 var block = entity as StabilityEntity;
-                if (block == null) return;
-                block.grounded = true;
+                if (block != null) block.grounded = true;
+            }
+            if (HasZoneFlag(zone, ZoneFlags.NoPickup))
+            {
+                var door = entity as Door;
+                if (door == null) return;
+                door.pickup.enabled = false;
             }
             //Puts("OnBuildingEnterZone: {0}", entity.GetType());
         }
@@ -1542,11 +1562,13 @@ namespace Oxide.Plugins
             HashSet<Zone> zones;
             if (!buildingZones.TryGetValue(entity, out zones)) return;
             var stability = false;
+            var pickup = false;
             if (!all)
             {
                 zone.OnEntityKill(entity);
                 if (!zones.Remove(zone)) return;
                 stability = HasZoneFlag(zone, ZoneFlags.NoStability);
+                pickup = HasZoneFlag(zone, ZoneFlags.NoPickup);
                 if (zones.Count <= 0) buildingZones.Remove(entity);
             }
             else
@@ -1555,14 +1577,24 @@ namespace Oxide.Plugins
                 {
                     zone1.OnEntityKill(entity);
                     stability |= HasZoneFlag(zone1, ZoneFlags.NoStability);
+                    pickup |= HasZoneFlag(zone1, ZoneFlags.NoPickup);
                 }
                 buildingZones.Remove(entity);
             }
-            if (!stability) return;
-            var block = entity as StabilityEntity;
-            if (block == null) return;
-            var prefab = GameManager.server.FindPrefab(PrefabAttribute.server.Find<Construction>(block.prefabID).fullName);
-            block.grounded = prefab.GetComponent<StabilityEntity>()?.grounded ?? false;
+            if (stability)
+            {
+                var block = entity as StabilityEntity;
+                if (block == null) return;
+                var prefab = GameManager.server.FindPrefab(PrefabAttribute.server.Find<Construction>(block.prefabID).fullName);
+                block.grounded = prefab.GetComponent<StabilityEntity>()?.grounded ?? false;
+            }
+            if (pickup)
+            {
+                var door = entity as Door;
+                if (door == null) return;
+                var prefab = GameManager.server.FindPrefab(PrefabAttribute.server.Find<Construction>(door.prefabID).fullName);
+                door.pickup.enabled = prefab.GetComponent<Door>()?.pickup.enabled ?? true;
+            }
             //Puts("OnBuildingExitZone: {0}", entity.GetType());
         }
 
@@ -1578,9 +1610,16 @@ namespace Oxide.Plugins
                 collectible.itemList = null;
             }
             var worldItem = entity as WorldItem;
-            if (worldItem != null && HasZoneFlag(zone, ZoneFlags.NoPickup))
+            if (worldItem != null)
             {
-                worldItem.allowPickup = false;
+                if (HasZoneFlag(zone, ZoneFlags.NoDrop))
+                    timer.Once(2f, () =>
+                    {
+                        if (worldItem.isDestroyed) return;
+                        worldItem.KillMessage();
+                    });
+                else if (HasZoneFlag(zone, ZoneFlags.NoPickup))
+                    worldItem.allowPickup = false;
             }
             //Puts("OnOtherEnterZone: {0}", entity.GetType());
         }
@@ -1641,7 +1680,7 @@ namespace Oxide.Plugins
             {
                 if (!otherZones.TryGetValue(key, out zones))
                 {
-                    Puts("Zone: {0} Entity: {1} ({2}) {3}", zone.Info.ID, key.GetType(), key.net?.ID, key.isDestroyed);
+                    Puts("Zone: {0} Entity: {1} ({2}) {3}", zone.Info.Id, key.GetType(), key.net?.ID, key.isDestroyed);
                     continue;
                 }
                 if (zones.Contains(zone))
@@ -1653,13 +1692,12 @@ namespace Oxide.Plugins
         private static void EjectPlayer(Zone zone, BasePlayer player)
         {
             if (isAdmin(player) || zone.WhiteList.Contains(player.userID) || zone.KeepInList.Contains(player.userID)) return;
-            var cachedDirection = player.transform.position - zone.transform.position;
             float dist;
             if (zone.Info.Size != Vector3.zero)
                 dist = zone.Info.Size.x > zone.Info.Size.z ? zone.Info.Size.x : zone.Info.Size.z;
             else
-                dist = zone.Info.radius;
-            var newPos = zone.transform.position + (cachedDirection / cachedDirection.magnitude * (dist + 5f));
+                dist = zone.Info.Radius;
+            var newPos = zone.transform.position + (player.transform.position - zone.transform.position).normalized * (dist + 5f);
             newPos.y = TerrainMeta.HeightMap.GetHeight(newPos);
             player.MovePosition(newPos);
             player.ClientRPCPlayer(null, player, "ForcePositionTo", player.transform.position);
@@ -1669,13 +1707,12 @@ namespace Oxide.Plugins
 
         private static void AttractPlayer(Zone zone, BasePlayer player)
         {
-            var cachedDirection = player.transform.position - zone.transform.position;
             float dist;
             if (zone.Info.Size != Vector3.zero)
                 dist = zone.Info.Size.x > zone.Info.Size.z ? zone.Info.Size.x : zone.Info.Size.z;
             else
-                dist = zone.Info.radius;
-            var newPos = zone.transform.position + (cachedDirection / cachedDirection.magnitude * (dist - 5f));
+                dist = zone.Info.Radius;
+            var newPos = zone.transform.position + (player.transform.position - zone.transform.position).normalized * (dist - 5f);
             newPos.y = TerrainMeta.HeightMap.GetHeight(newPos);
             player.MovePosition(newPos);
             player.ClientRPCPlayer(null, player, "ForcePositionTo", player.transform.position);
@@ -1700,14 +1737,14 @@ namespace Oxide.Plugins
         private void cmdChatZoneAdd(BasePlayer player, string command, string[] args)
         {
             if (!hasPermission(player, PermZone)) { SendMessage(player, "You don't have access to this command"); return; }
-            var newzoneinfo = new ZoneDefinition(player.transform.position) { ID = UnityEngine.Random.Range(1, 99999999).ToString() };
+            var newzoneinfo = new ZoneDefinition(player.transform.position) { Id = UnityEngine.Random.Range(1, 99999999).ToString() };
             NewZone(newzoneinfo);
-            if (ZoneDefinitions.ContainsKey(newzoneinfo.ID)) storedData.ZoneDefinitions.Remove(ZoneDefinitions[newzoneinfo.ID]);
-            ZoneDefinitions[newzoneinfo.ID] = newzoneinfo;
-            LastZone[player.userID] = newzoneinfo.ID;
+            if (ZoneDefinitions.ContainsKey(newzoneinfo.Id)) storedData.ZoneDefinitions.Remove(ZoneDefinitions[newzoneinfo.Id]);
+            ZoneDefinitions[newzoneinfo.Id] = newzoneinfo;
+            LastZone[player.userID] = newzoneinfo.Id;
             storedData.ZoneDefinitions.Add(newzoneinfo);
             SaveData();
-            ShowZone(player, newzoneinfo.ID);
+            ShowZone(player, newzoneinfo.Id);
             SendMessage(player, "New Zone created, you may now edit it: " + newzoneinfo.Location);
         }
         [ChatCommand("zone_reset")]
@@ -1757,7 +1794,7 @@ namespace Oxide.Plugins
                     SendMessage(player, "/zone_edit XXXXXID");
                     return;
                 }
-                zoneId = zones.First().Info.ID;
+                zoneId = zones.First().Info.Id;
             }
             else
                 zoneId = args[0];
@@ -1788,7 +1825,7 @@ namespace Oxide.Plugins
             HashSet<Zone> zones;
             if (!playerZones.TryGetValue(targetPlayer, out zones) || zones.Count == 0) { SendMessage(player, "empty"); return; }
             foreach (var zone in zones)
-                SendMessage(player, $"{zone.Info.ID} => {zone.Info.name} - {zone.Info.Location}");
+                SendMessage(player, $"{zone.Info.Id} => {zone.Info.Name} - {zone.Info.Location}");
             UpdateFlags(targetPlayer);
         }
         [ChatCommand("zone_list")]
@@ -1798,7 +1835,7 @@ namespace Oxide.Plugins
             SendMessage(player, "========== Zone list ==========");
             if (ZoneDefinitions.Count == 0) { SendMessage(player, "empty"); return; }
             foreach (var pair in ZoneDefinitions)
-                SendMessage(player, $"{pair.Key} => {pair.Value.name} - {pair.Value.Location}");
+                SendMessage(player, $"{pair.Key} => {pair.Value.Name} - {pair.Value.Location}");
         }
         [ChatCommand("zone")]
         private void cmdChatZone(BasePlayer player, string command, string[] args)
@@ -1811,17 +1848,17 @@ namespace Oxide.Plugins
             if (args.Length < 1)
             {
                 SendMessage(player, "/zone option value/reset");
-                SendMessage(player, $"name => {zoneDefinition.name}");
-                SendMessage(player, $"enabled => {zoneDefinition.enabled}");
-                SendMessage(player, $"ID => {zoneDefinition.ID}");
-                SendMessage(player, $"radiation => {zoneDefinition.radiation}");
-                SendMessage(player, $"radius => {zoneDefinition.radius}");
+                SendMessage(player, $"name => {zoneDefinition.Name}");
+                SendMessage(player, $"enabled => {zoneDefinition.Enabled}");
+                SendMessage(player, $"ID => {zoneDefinition.Id}");
+                SendMessage(player, $"radiation => {zoneDefinition.Radiation}");
+                SendMessage(player, $"radius => {zoneDefinition.Radius}");
                 SendMessage(player, $"Location => {zoneDefinition.Location}");
                 SendMessage(player, $"Size => {zoneDefinition.Size}");
                 SendMessage(player, $"Rotation => {zoneDefinition.Rotation}");
-                SendMessage(player, $"enter_message => {zoneDefinition.enter_message}");
-                SendMessage(player, $"leave_message => {zoneDefinition.leave_message}");
-                SendMessage(player, $"flags => {zoneDefinition.flags}");
+                SendMessage(player, $"enter_message => {zoneDefinition.EnterMessage}");
+                SendMessage(player, $"leave_message => {zoneDefinition.LeaveMessage}");
+                SendMessage(player, $"flags => {zoneDefinition.Flags}");
 
                 //var values = Enum.GetValues(typeof(ZoneFlags));
                 //foreach (var value in values)

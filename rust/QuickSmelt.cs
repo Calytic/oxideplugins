@@ -3,7 +3,7 @@ using Random = UnityEngine.Random;
 
 namespace Oxide.Plugins
 {
-    [Info("QuickSmelt", "Wulf/lukespragg", "1.2.0", ResourceId = 1067)]
+    [Info("QuickSmelt", "Wulf/lukespragg", "1.2.1", ResourceId = 1067)]
     [Description("Increases the speed of the furnace smelting.")]
 
     class QuickSmelt : RustPlugin
@@ -17,7 +17,7 @@ namespace Oxide.Plugins
         float CharcoalProductionModifier => GetConfig("CharcoalProductionModifier", 1f);
         bool DontOvercookMeat => GetConfig("DontOvercookMeat", true);
         float ProductionModifier => GetConfig("ProductionModifier", 1f);
-        bool UsePermissions => GetConfig("UsePermission", false);
+        bool UsePermissions => GetConfig("UsePermissions", false);
 
         protected override void LoadDefaultConfig()
         {
@@ -96,7 +96,7 @@ namespace Oxide.Plugins
         static int TakeFromInventorySlot(ItemContainer container, int itemId, int amount, int slot)
         {
             var item = container.GetSlot(slot);
-            if (item.info.itemid != itemId || item.IsBlueprint()) return 0;
+            if (item.info.itemid != itemId) return 0;
 
             if (item.amount > amount)
             {

@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("RemoveAAA", "Tuntenfisch", "0.4.1", ResourceId = 1645)]
+    [Info("RemoveAAA", "Tuntenfisch", "0.4.3", ResourceId = 1645)]
     [Description("Removes admin abuse announcements!")]
     class RemoveAAA : RustPlugin
     {
@@ -39,7 +39,7 @@ namespace Oxide.Plugins
         /// </summary>
         /// <param name="arg"> The console argument containing information about the command.</param>
         /// <returns> An object that determines whether the command handling system should be overriden or not.</returns>
-        object OnRunCommand(ConsoleSystem.Arg arg)
+        object OnServerCommand(ConsoleSystem.Arg arg)
         {
             if (arg == null || arg.cmd == null) return null;
 
@@ -160,7 +160,7 @@ namespace Oxide.Plugins
                 BasePlayer player = arg.Player();
                 if (!player) return true;
 
-                Item item = ItemManager.CreateByItemID(arg.GetInt(0, 0), 1, false, 0);
+                Item item = ItemManager.CreateByItemID(arg.GetInt(0), 1, 0);
                 if (item == null)
                 {
                     if (arg.Player())
@@ -224,7 +224,7 @@ namespace Oxide.Plugins
                     }
                     return true;
                 }
-                player.blueprints.Learn(definition);
+                player.blueprints.Unlock(definition);
                 Debug.Log(string.Concat(new object[] { "[admin] ", player.displayName, " learning blueprint ", definition.displayName.english }));
                 return true;
             }
@@ -259,7 +259,7 @@ namespace Oxide.Plugins
                 }
                 foreach (BasePlayer player in BasePlayer.activePlayerList)
                 {
-                    player.blueprints.Learn(definition);
+                    player.blueprints.Unlock(definition);
                     Debug.Log(string.Concat(new string[] { "[admin] teaching ", player.displayName, " ", definition.displayName.english, " blueprint" }));
                 }
                 return true;
@@ -279,7 +279,7 @@ namespace Oxide.Plugins
                 BasePlayer player = arg.Player();
                 if (!player) return true;
 
-                Item item = ItemManager.CreateByItemID(arg.GetInt(0), 1, false, 0);
+                Item item = ItemManager.CreateByItemID(arg.GetInt(0), 1, 0);
                 if (item == null)
                 {
                     if (arg.Player())

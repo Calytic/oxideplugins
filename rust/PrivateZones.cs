@@ -6,11 +6,14 @@ using Oxide.Core.Configuration;
 
 namespace Oxide.Plugins
 {
-    [Info("PrivateZones", "k1lly0u", "0.1.2", ResourceId = 1703)]
+    [Info("PrivateZones", "k1lly0u", "0.1.3", ResourceId = 1703)]
     class PrivateZones : RustPlugin
     {
         [PluginReference]
         Plugin ZoneManager;
+		
+		[PluginReference]
+		Plugin PopupNotifications;
 
         private bool Changed;
 
@@ -52,26 +55,22 @@ namespace Oxide.Plugins
             player.TransformChanged();
             player.SendNetworkUpdateImmediate();
         }
-        private Vector3 CalculateOutsidePos(string zoneID)
+        private Vector3 CalculateOutsidePos(BasePlayer player, string zoneID)
         {
             float distance = 0;
-            Vector3 calcPos;
-            object zonePos = ZoneManager?.Call("GetZoneLocation", new object[] { zoneID });
-            object zoneRadius = ZoneManager?.Call("GetZoneRadius", new object[] { zoneID });
-            if (zoneRadius == null) zoneRadius = ZoneManager?.Call("GetZoneSize", new object[] { zoneID });
-            if (zoneRadius is Vector3)
-            {
-                var difference = (Vector3)zoneRadius - (Vector3)zoneRadius;
-                distance = difference.x;
-            }
-            else distance = (float)zoneRadius + 10;
-            if (distance > 0)
-            {
-                calcPos = (Vector3)zonePos + new Vector3(distance, 0, 0);
-            }
-            else calcPos = (Vector3)zonePos - new Vector3(distance, 0, 0);
-            Vector3 finalPos = CalculateGroundPos(calcPos);
-            return finalPos;
+			Vector3 zonePos = (Vector3) ZoneManager?.Call("GetZoneLocation", new object[] { zoneID });
+			object zoneRadius = ZoneManager?.Call("GetZoneRadius", new object[] { zoneID });
+            Vector3 zoneSize = (Vector3) ZoneManager?.Call("GetZoneSize", new object[] { zoneID });
+			var playerPos = player.transform.position;
+            var cachedDirection = playerPos - zonePos;
+			if (zoneSize != Vector3.zero)
+                distance = zoneSize.x > zoneSize.z ? zoneSize.x : zoneSize.z;
+            else
+				distance = (float)zoneRadius;
+			
+			var newPos = zonePos + (cachedDirection / cachedDirection.magnitude * (distance + 2f));
+            newPos.y = TerrainMeta.HeightMap.GetHeight(newPos);
+            return newPos;
         }
         static Vector3 CalculateGroundPos(Vector3 sourcePos) // credit Wulf & Nogrod
         {
@@ -98,9 +97,11 @@ namespace Oxide.Plugins
             if (data.zones.ContainsKey(ZoneID))
             {
                 string perm = data.zones[ZoneID];
-                if (permission.UserHasPermission(player.userID.ToString(), perm) || isAuth(player)) return;
-                SendMsg(player, lang.GetMessage("noPerms", this, player.UserIDString));
-                Vector3 newPos = CalculateOutsidePos(ZoneID);
+                if (permission.UserHasPermission(player.userID.ToString(), perm) || isAuth(player)) return;                
+				if (PopupNotifications)
+                    PopupNotifications?.Call("CreatePopupNotification", lang.GetMessage("noPerms", this, player.UserIDString), player);
+                else SendMsg(player, lang.GetMessage("noPerms", this, player.UserIDString));
+                Vector3 newPos = CalculateOutsidePos(player, ZoneID);
                 TPPlayer(player, newPos);
             }
         }
@@ -223,7 +224,7 @@ namespace Oxide.Plugins
             {"synAdd", "/pz add <zoneid> <permission>" },
             {"synRem", "/pz remove <zoneid>" },
             {"synList", "/pz list" },
-            {"noPerms", "You do not have permission to enter this zone" },
+            {"noPerms", "You don't have permission to enter this zone, bought a HL Pass or become a VIP." },
             {"MsgColor", "<color=#d3d3d3>" }
         };
         #endregion

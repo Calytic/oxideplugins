@@ -1,0 +1,22 @@
+{
+    "name": "Admin Panel",
+    "description": "A small panel for clickable commands for admins",
+    "author": "Austinv900",
+    "version": "1.2.1",
+    "configuration": true,
+    "suggest": {
+        "Vanish": "*",
+        "Godmode": "*",
+        "NTeleportation": "*",
+        "AdminRadar": "*",
+        "Updater": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

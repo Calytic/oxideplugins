@@ -2,7 +2,7 @@
     "name": "Repair Tool",
     "description": "Repair any entity that has health",
     "author": "k1lly0u",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "configuration": false,
     "language": "cs",
     "games": [

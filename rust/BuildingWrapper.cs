@@ -8,7 +8,7 @@ using Facepunch;
 
 namespace Oxide.Plugins
 {
-	[Info("BuildingWrapper", "ignignokt84", "0.1.2", ResourceId = 1798)]
+	[Info("BuildingWrapper", "ignignokt84", "0.1.3", ResourceId = 1798)]
 	class BuildingWrapper : RustPlugin
 	{
 		/*
@@ -27,15 +27,21 @@ namespace Oxide.Plugins
 				
 				{"UsageHeader", "---- BuildingWrapper usage ----"},
 				{"CmdUsageWrap", "Wrap new or existing zone around the building being looked at"},
+				{"CmdUsageRewrap", "Re-wrap all buildings within a zone"},
+				{"CmdUsageExtend", "Extend an existing zone to include building being looked at"},
 				{"CmdUsageParamZoneId", "Note: [zone_id] is required, but can be entered as \"auto\" for automatic generation"},
 				
 				{"NoZoneManager", "ZoneManager not detected - BuildingWrapper disabled"},
+				{"ZoneManagerLoaded", "ZoneManager loaded - BuildingWrapper enabled"},
+				{"ZoneManagerUnloaded", "ZoneManager unloaded - BuildingWrapper disabled"},
 				{"NoPermission", "You do not have permission to use this command"},
 				
 				{"NotSupported", "The command \"{0}\" is not currently supported"},
 				
 				{"InvalidParameter", "Invalid Parameter: {0}"},
 				{"MissingZoneId", "Missing value for required parameter zone_id (use \"auto\" for automatic assignment)"},
+				{"NoAutoZoneId", "Zone ID cannot be auto generated for the command \"{0}\""},
+				{"ZoneNotFound", "Zone with ID \"{0}\" could not be found"},
 				{"InvalidBuffer", "Invalid buffer value: {0}"},
 				{"NoBuilding", "No building detected"},
 				
@@ -58,15 +64,18 @@ namespace Oxide.Plugins
 		// usage information string with formatting
 		public string usageString;
 		// command enum
-		private enum Command { usage, wrap, extend};
+		private enum Command { usage, wrap, rewrap, extend};
 		// option enum
-		private enum Option { box, sphere };
+		private enum Option { box, sphere, undef };
 		// vertical height adjustment
 		private const float yAdjust = 2f;
+		// collider buffer for finding building blocks
+    	private Collider[] colBuffer;
 		
 		// load
 		void Loaded()
 		{
+			colBuffer = new Collider[8192];
 			LoadDefaultMessages();
 			string chatCommand = GetMessage("ChatCommand");
 			cmd.AddChatCommand(chatCommand, this, "cmdChatDelegator");
@@ -74,8 +83,9 @@ namespace Oxide.Plugins
 			// build usage string
 			usageString = wrapSize(14, wrapColor("orange", GetMessage("UsageHeader"))) + "\n" +
 						  wrapSize(12, wrapColor("cyan", "/" + chatCommand + " " + Command.wrap + " [zone_id] <box|sphere> <buffer>") + " - " + GetMessage("CmdUsageWrap") + "\n" +
-						  wrapColor("yellow", GetMessage("CmdUsageParamZoneId")));// + "\n" +
-									   //wrapColor("cyan", "/" + chatCommand + " " + Command.update + " [zone_id] <box|sphere> <buffer>") + " - " + GetMessage("CmdUsageUpdate"));
+						  wrapColor("cyan", "/" + chatCommand + " " + Command.rewrap + " [zone_id] <box|sphere> <buffer>") + " - " + GetMessage("CmdUsageRewrap") + "\n" +
+						  wrapColor("cyan", "/" + chatCommand + " " + Command.extend + " [zone_id] <box|sphere> <buffer>") + " - " + GetMessage("CmdUsageExtend") + "\n" +
+						  wrapColor("yellow", GetMessage("CmdUsageParamZoneId")));
 			
 			serverinput = typeof(BasePlayer).GetField("serverInput", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
 		}
@@ -87,6 +97,26 @@ namespace Oxide.Plugins
 				PrintError(GetMessage("NoZoneManager"));
 			// don't use popups yet
 			//usePopups = (PopupNotifications != null);
+		}
+		
+		// plugin loaded
+		private void OnPluginLoaded(Plugin plugin)
+		{
+			if(plugin.Name == "ZoneManager")
+			{
+				ZoneManager = plugin;
+				Puts(GetMessage("ZoneManagerLoaded"));
+			}
+		}
+		
+		// plugin unloaded
+		private void OnPluginUnloaded(Plugin plugin)
+		{
+			if(plugin.Name == "ZoneManager")
+			{
+				ZoneManager = null;
+				PrintWarning(GetMessage("ZoneManagerUnloaded"));
+			}
 		}
 
 		// get message from Lang
@@ -117,31 +147,36 @@ namespace Oxide.Plugins
 				SendReply(player, wrapSize(12, wrapColor("red", String.Format(GetMessage("InvalidParameter"), args[0]))));
 			else
 			{
-				switch((Command) Enum.Parse(typeof(Command), args[0]))
+				Command cmd = (Command) Enum.Parse(typeof(Command), args[0]);
+				if(cmd == Command.usage)
 				{
-					case Command.wrap:
-						break;
-					case Command.extend:
-						SendReply(player, wrapSize(12, wrapColor("red", String.Format(GetMessage("NotSupported"),"extend"))));
-						return;
-					case Command.usage:
-						showUsage(player);
-						return;
+					showUsage(player);
+					return;
 				}
 				
 				bool update = false;
 				float buffer = 1.0f;
-				Option opt = Option.sphere;
+				Option opt = Option.undef;
 				if(args.Length < 2 || args[1] == "")
 				{
 					SendReply(player, wrapSize(12, wrapColor("red", GetMessage("MissingZoneId"))));
 					return;
 				}
 				
+				// get zone ID
 				string zoneId = args[1];
 				if(zoneId == null || zoneId == "auto")
+				{
+					if(cmd == Command.extend)
+					{
+						SendReply(player, wrapSize(12, wrapColor("red", String.Format(GetMessage("NoAutoZoneId"), cmd.ToString()))));
+						return;
+					}
 					zoneId = UnityEngine.Random.Range(1, 99999999).ToString();
+				}
 				int i = 2;
+				
+				// get option and buffer values if they exist
 				if(i < args.Length)
 					if(args[i] == "box" || args[i] == "sphere")
 						opt = (Option) Enum.Parse(typeof(Option), args[i++]);
@@ -151,36 +186,64 @@ namespace Oxide.Plugins
 					} catch(FormatException e) {
 						SendReply(player, wrapSize(12, wrapColor("red", String.Format(GetMessage("InvalidBuffer"), args[i-1]))));
 					}
+				
 				//float timestart = UnityEngine.Time.realtimeSinceStartup;
-				WrapBuilding(player, zoneId, opt, buffer);
+				WrapBuilding(player, zoneId, opt, buffer, cmd);
 				//float timeend = UnityEngine.Time.realtimeSinceStartup;
 				//Puts("wrap time: " + (timeend-timestart) + "s");
 			}
 		}
 		
 		// wrap building delegator
-		void WrapBuilding(BasePlayer player, string zoneId, Option shape, float buffer)
+		void WrapBuilding(BasePlayer player, string zoneId, Option shape, float buffer, Command cmd)
 		{
-			object closestEntity;
-			if(!GetRaycastTarget(player, out closestEntity))
+			HashSet<BuildingBlock> initialBlocks = new HashSet<BuildingBlock>();
+			Option zoneShape = Option.undef;
+			if(cmd == Command.rewrap)
 			{
-				SendReply(player, wrapSize(12, wrapColor("red", GetMessage("NoBuilding"))));
-				return;
+				// if rewrap, get BuildingBlocks inside zone
+				initialBlocks = getZoneEntities(player, zoneId, out zoneShape);
+				if(zoneShape == Option.undef)
+					return; // failure in getZoneEntities
 			}
-			BuildingBlock initialBlock = closestEntity as BuildingBlock;
-			if(initialBlock == null)
+			else
 			{
-				SendReply(player, wrapSize(12, wrapColor("red", GetMessage("NoBuilding"))));
-				return;
+				// default sphere
+				zoneShape = Option.sphere;
+				// raycast to find building
+				object closestEntity;
+				if(!GetRaycastTarget(player, out closestEntity))
+				{
+					SendReply(player, wrapSize(12, wrapColor("red", GetMessage("NoBuilding"))));
+					return;
+				}
+				BuildingBlock initialBlock = closestEntity as BuildingBlock;
+				if(initialBlock == null)
+				{
+					SendReply(player, wrapSize(12, wrapColor("red", GetMessage("NoBuilding"))));
+					return;
+				}
+				initialBlocks.Add(initialBlock);
 			}
+			// retrieve structure
 			HashSet<BuildingBlock> all_blocks;
-			if(!GetStructure(initialBlock, out all_blocks))
+			if(!GetStructure(initialBlocks, out all_blocks))
 			{
 				SendReply(player, wrapSize(12, wrapColor("red", GetMessage("NoBuilding"))));
 				return;
 			}
 			
+			if(cmd == Command.extend)
+			{
+				// if extend, merge structure block coordinates
+				all_blocks.UnionWith(getZoneEntities(player, zoneId, out zoneShape));
+				if(zoneShape == Option.undef)
+					return; // failure in getZoneEntities
+			}
+			
 			bool success = false;
+			if(shape == Option.undef)
+				shape = (Option) zoneShape;
 			if(shape == Option.box)
 				success = WrapBox(player, zoneId, all_blocks, buffer);
 			else if(shape == Option.sphere)
@@ -189,6 +252,61 @@ namespace Oxide.Plugins
 			string str = success ? "Success" : "Failure";
 			
 			SendReply(player, wrapSize(12, wrapColor(success ? "cyan" : "red", String.Format(GetMessage("ZoneWrap"+str), zoneId))));
+		}
+		
+		// get zone entities from existing zone, returning zoneShape "undef" signals failure
+		HashSet<BuildingBlock> getZoneEntities(BasePlayer player, string zoneId, out Option zoneShape)
+		{
+			HashSet<BuildingBlock> structure = new HashSet<BuildingBlock>();
+			// get zone information
+			Dictionary<string,string> zoneInfo = (Dictionary<string, string>) ZoneManager?.Call("ZoneFieldList", new object[] {zoneId});
+			if(zoneInfo == null || zoneInfo.Count() == 0)
+			{
+				// failed to find zone - send message, flag zoneShape as undef
+				SendReply(player, wrapSize(12, wrapColor("red", String.Format(GetMessage("ZoneNotFound"), zoneId))));
+				zoneShape = Option.undef;
+				return null;
+			}
+			// get zone values
+			Vector3 zoneLocation = parseVector3(zoneInfo["Location"]);
+			Vector3 zoneSize = parseVector3(zoneInfo["size"]);
+			Vector3 rotation = parseVector3(zoneInfo["rotation"]);
+			float zoneRadius = Convert.ToSingle(zoneInfo["radius"]);
+			
+			List<BaseEntity> list = Pool.GetList<BaseEntity>();
+			// find intersecting entities
+			if(zoneSize != Vector3.zero)
+			{
+				zoneShape = Option.box;
+				BoxEntities<BaseEntity>(zoneLocation, zoneSize/2f, Quaternion.Euler(rotation), list, layerMasks);
+			}
+			else
+			{
+				zoneShape = Option.sphere;
+				Vis.Entities<BaseEntity>(zoneLocation, zoneRadius, list, layerMasks);
+			}
+			
+			// add building blocks to structure set
+			BuildingBlock fbuildingblock;
+			for (int i = 0; i < list.Count; i++)
+			{
+				BaseEntity hit = list[i];
+				if (hit.GetComponentInParent<BuildingBlock>() != null)
+				{
+					fbuildingblock = hit.GetComponentInParent<BuildingBlock>();
+					if (!(structure.Contains(fbuildingblock)))
+						structure.Add(fbuildingblock);
+				}
+			}
+			
+			return structure;
+		}
+		
+		// parse Vector3 coordinates from a string in the format "(x, y, z)"
+		Vector3 parseVector3(string str)
+		{
+			string[] strArray = str.Substring(1, str.Length - 2).Split(',');
+			return new Vector3(float.Parse(strArray[0]), float.Parse(strArray[1]), float.Parse(strArray[2]));
 		}
 		
 		// raycast and return the closest entity - returns false if a valid entity is not found
@@ -222,14 +340,17 @@ namespace Oxide.Plugins
 		
 		// get all BuildingBlock entities in structure
 		// basic process replicated from CopyPaste, reduced to only handle BuildingBlocks
-		bool GetStructure(BuildingBlock initialBlock, out HashSet<BuildingBlock> structure)
+		bool GetStructure(HashSet<BuildingBlock> initialBlocks, out HashSet<BuildingBlock> structure)
 		{
 			structure = new HashSet<BuildingBlock>();
 			List<Vector3> checkFrom = new List<Vector3>();
 			BuildingBlock fbuildingblock;
 			
-			checkFrom.Add(initialBlock.transform.position);
-			structure.Add(initialBlock);
+			foreach(BuildingBlock block in initialBlocks)
+			{
+				checkFrom.Add(block.transform.position);
+				structure.Add(block);
+			}
 
 			int current = 0;
 			while (true)
@@ -253,6 +374,7 @@ namespace Oxide.Plugins
 					}
 				}
 			}
+			
 			return true;
 		}
 		
@@ -409,7 +531,8 @@ namespace Oxide.Plugins
 			radius += extents + buffer; // add extents and buffer
 			// create zone with parameters: zoneId, args, position
 			return (bool) ZoneManager?.Call("CreateOrUpdateZone", new object[] {zoneId,
-																				new string[] { "radius", radius.ToString() },
+																				new string[] { "radius", radius.ToString(),
+																							   "size", "0 0 0"},
 																				center
 																				});
 		}
@@ -607,5 +730,47 @@ namespace Oxide.Plugins
 		{
 			return isAdmin(player) || permission.UserHasPermission(player.UserIDString, permname);
         }
+        
+        public void BoxColliders<T>(Vector3 position, Vector3 halfExtents, Quaternion orientation, List<T> list, int layerMask = -1, QueryTriggerInteraction triggerInteraction = QueryTriggerInteraction.Collide)
+		where T : Collider
+		{
+			layerMask = GamePhysics.HandleTerrainCollision(position, layerMask);
+			int num = Physics.OverlapBoxNonAlloc(position, halfExtents, colBuffer, orientation, layerMask, triggerInteraction);
+			if (num >= (int)colBuffer.Length)
+			{
+				Debug.LogWarning("Vis query is exceeding collider buffer length.");
+			}
+			for (int i = 0; i < num; i++)
+			{
+				T t = (T)(colBuffer[i] as T);
+				colBuffer[i] = null;
+				if (t != null)
+				{
+					if (!t.transform.CompareTag("MeshColliderBatch"))
+					{
+						list.Add(t);
+					}
+					else
+					{
+						t.transform.GetComponent<MeshColliderBatch>().LookupColliders<T>(position, 100f, list);
+					}
+				}
+			}
+		}
+		public void BoxEntities<T>(Vector3 position, Vector3 halfExtents, Quaternion orientation, List<T> list, int layerMask = -1, QueryTriggerInteraction triggerInteraction = QueryTriggerInteraction.Collide)
+		where T : BaseEntity
+		{
+			List<Collider> colliders = Pool.GetList<Collider>();
+			BoxColliders<Collider>(position, halfExtents, orientation, colliders, layerMask, triggerInteraction);
+			for (int i = 0; i < colliders.Count; i++)
+			{
+				T baseEntity = (T)(colliders[i].gameObject.ToBaseEntity() as T);
+				if (baseEntity != null)
+				{
+					list.Add(baseEntity);
+				}
+			}
+			Pool.FreeList<Collider>(ref colliders);
+    	}
 	}
 }

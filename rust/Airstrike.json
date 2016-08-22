@@ -2,7 +2,7 @@
     "name": "Airstrike",
     "description": "Call an airstrike using a supply signal\/chat command",
     "author": "k1lly0u",
-    "version": "0.2.2",
+    "version": "0.2.32",
     "configuration": true,
     "suggest": {
         "Economics": "*"

@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 namespace Oxide.Plugins
 {
-    [Info("Cupboard Logging", "DylanSMR", "1.0.2", ResourceId = 1904)]
+    [Info("Cupboard Logging", "DylanSMR", "1.0.3", ResourceId = 1904)]
     [Description("Creates a log when a player places a cupboard.")]
     class CupboardLogs : RustPlugin
     {  
@@ -45,7 +45,7 @@ namespace Oxide.Plugins
                         Vis.Entities(entity.transform.position, 1, nearby);
                         foreach (var ent in nearby)  
                         {
-                            if(ent.LookupPrefabName().Contains("cupboard"))
+                            if(ent.ShortPrefabName.Contains("cupboard"))
                             {
                                 foreach(var ent1 in nearby)
                                 {

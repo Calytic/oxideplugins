@@ -151,7 +151,7 @@ namespace Oxide.Plugins
 
                         int final_amount = task.blueprint.amountToCreate * amount; int skinid = 0;
                         if (!Convert.ToBoolean(Config["RandomizeSkins"])) { if (entry.Value.SkinID != 0) { skinid = entry.Value.SkinID; } } else { skinid = item.skins.GetRandom().id; }
-                        crafter.inventory.GiveItem(ItemManager.CreateByItemID(item.itemid, final_amount, false, skinid), null);
+                        crafter.inventory.GiveItem(ItemManager.CreateByItemID(item.itemid, final_amount, skinid), null);
                         if (Convert.ToBoolean(Config["MessagesEnabled"]))
                         {
                             string returnstring = null; string skin_string = null;

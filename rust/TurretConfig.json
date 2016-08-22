@@ -2,7 +2,7 @@
     "name": "TurretConfig",
     "description": "Change turret damage, accuracy, bullet speed, health, targeting, etc",
     "author": "Calytic",
-    "version": "0.1.7",
+    "version": "0.1.8",
     "configuration": true,
     "language": "cs",
     "games": [

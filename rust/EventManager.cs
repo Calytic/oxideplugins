@@ -10,7 +10,7 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("Event Manager", "Reneb / k1lly0u", "2.0.21", ResourceId = 740)]
+    [Info("Event Manager", "Reneb / k1lly0u", "2.0.24", ResourceId = 740)]
     class EventManager : RustPlugin
     {
         #region Fields
@@ -130,7 +130,6 @@ namespace Oxide.Plugins
                 return container.itemList.Select(item => new EventInvItem
                 {
                     itemid = item.info.itemid,
-                    bp = item.IsBlueprint(),
                     container = containerName,
                     amount = item.amount,
                     ammo = (item.GetHeldEntity() as BaseProjectile)?.primaryMagazine.contents ?? 0,
@@ -150,7 +149,7 @@ namespace Oxide.Plugins
                 player.inventory.Strip();
                 foreach (var kitem in InvItems)
                 {
-                    var item = ItemManager.CreateByItemID(kitem.itemid, kitem.amount, kitem.bp, kitem.skin);
+                    var item = ItemManager.CreateByItemID(kitem.itemid, kitem.amount, kitem.skin);
                     item.condition = kitem.condition;
                     var weapon = item.GetHeldEntity() as BaseProjectile;
                     if (weapon != null) weapon.primaryMagazine.contents = kitem.ammo;
@@ -234,7 +233,7 @@ namespace Oxide.Plugins
                             RectTransform = {AnchorMin = aMin, AnchorMax = aMax},
                             CursorEnabled = useCursor
                         },
-                        new CuiElement().Parent,
+                        new CuiElement().Parent = "Overlay",
                         panelName
                     }
                 };
@@ -516,7 +515,7 @@ namespace Oxide.Plugins
         void BroadcastToChat(string msg)
         {
             ELog(msg);
-            ConsoleSystem.Broadcast("chat.add", 0, $"<color={configData.Messaging_MainColor}>{GetMessage("Title")}</color><color={configData.Messaging_MsgColor}>{GetMessage(msg)}</color>");
+            PrintToChat($"<color={configData.Messaging_MainColor}>{GetMessage("Title")}</color><color={configData.Messaging_MsgColor}>{GetMessage(msg)}</color>");
         }
         private string GetMessage(string key) => lang.GetMessage(key, this);
 

@@ -1,8 +1,8 @@
 {
     "name": "Crosshair",
     "description": "Adds a customizable crosshair to your screen",
-    "author": "LaserHydra",
-    "version": "2.1.1",
+    "author": "Kappasaurus",
+    "version": "2.1.4",
     "configuration": false,
     "language": "cs",
     "games": [

@@ -1,0 +1,23 @@
+{
+    "name": "Rewards",
+    "description": "Reward players for killing animals, players, entities, and activity using Economics\/ServerRewards",
+    "author": "",
+    "version": "1.2.7",
+    "configuration": true,
+    "suggest": {
+        "Friends": "*",
+        "Clans": "*"
+    },
+    "require": {
+        "Economics": "*",
+        "ServerRewards": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

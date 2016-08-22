@@ -9,243 +9,244 @@ using Oxide.Core;
 
 namespace Oxide.Plugins
 {
-    [Info("Airstrike", "k1lly0u", "0.2.2", ResourceId = 1489)]
+    [Info("Airstrike", "k1lly0u", "0.2.32", ResourceId = 1489)]
     class Airstrike : RustPlugin
     {
 
         #region fields
+
         [PluginReference]
         Plugin Economics;
 
         private bool changed;
-        private bool strikeCalled;        
         private float rocketDrop = 0f;
 
-        private FieldInfo strikePlanesecondsToTake;
-        private FieldInfo strikePlanestartPos;
-        private FieldInfo strikePlaneendPos;
-        private FieldInfo strikePlanedropPosition;
+        static FieldInfo TimeToTake;
+        static FieldInfo StartPos;
+        static FieldInfo EndPos;
+        static FieldInfo DropPos;
         
         public Dictionary<ulong, bool> toggleList = new Dictionary<ulong, bool>();
-        private List<CargoPlane> strikePlanesInAir = new List<CargoPlane>();
-        private List<CargoPlane> massStrikePlanesInAir = new List<CargoPlane>();
+
+        private List<StrikePlane> StrikePlanes = new List<StrikePlane>();
 
         PlayerCooldown pcdData;
         private DynamicConfigFile PCDDATA;
         #endregion
-        #region oxide hooks
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Oxide Hooks ///////////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-        void Loaded()
+
+        #region Classes
+        public class StrikePlane : MonoBehaviour
+        {
+            public CargoPlane Plane;
+            public Vector3 TargetPosition;
+            public int FiredRockets = 0;
+
+            public void SpawnPlane(CargoPlane plane, Vector3 position, float speed, bool isSquad = false, Vector3 offset = new Vector3())
+            {
+                enabled = true;                
+                Plane = plane;                
+                TargetPosition = position;
+                Plane.InitDropPosition(position);
+                Plane.Spawn();
+                if (isSquad)
+                {
+                    Vector3 SpawnPos = CalculateSpawnPos(offset);
+                    StartPos.SetValue(Plane, SpawnPos);
+                    EndPos.SetValue(Plane, SpawnPos - new Vector3(0, 0, TerrainMeta.Size.x));
+                    Plane.transform.position = SpawnPos;
+                    Plane.transform.rotation = new Quaternion(0, 180, 0, 0);
+                }
+                TimeToTake.SetValue(Plane, Vector3.Distance((Vector3)StartPos.GetValue(Plane), (Vector3)EndPos.GetValue(Plane)) / speed);
+                InvokeRepeating("CheckDistance", 3, 3);
+            }
+            private Vector3 CalculateSpawnPos(Vector3 offset)
+            {
+                float mapSize = (TerrainMeta.Size.x / 2) + 150f;
+                Vector3 spawnPos = new Vector3();
+                spawnPos.x = TargetPosition.x + offset.x;
+                spawnPos.z = mapSize + offset.z;
+                spawnPos.y = 150;
+                return spawnPos;
+            }
+            private void CheckDistance()
+            {               
+                var currentPos = Plane.transform.position;
+                if (Vector3.Distance(currentPos, TargetPosition) < (currentPos.y + planeDistance))
+                {
+                    FireRockets(Plane, TargetPosition);
+                    CancelInvoke("CheckDistance");                    
+                }                
+            }
+            private void FireRockets(CargoPlane strikePlane, Vector3 targetPos)
+            {
+                InvokeRepeating("SpreadRockets", rocketInterval, rocketInterval);
+            }
+            private void SpreadRockets()
+            {
+                if (FiredRockets >= rocketAmount)
+                {
+                    CancelInvoke("SpreadRockets");
+                    return;
+                }
+                Vector3 targetPos = Quaternion.Euler(UnityEngine.Random.Range((float)(-rocketSpread * 0.2), rocketSpread * 0.2f), UnityEngine.Random.Range((float)(-rocketSpread * 0.2), rocketSpread * 0.2f), UnityEngine.Random.Range((float)(-rocketSpread * 0.2), rocketSpread * 0.2f)) * TargetPosition;
+                LaunchRocket(targetPos);
+                FiredRockets++;
+            }
+            private void LaunchRocket(Vector3 targetPos)
+            {
+                var rocket = rocketType;
+                if (useMixedRockets)                
+                    if (UnityEngine.Random.Range(1, fireChance) == 1)
+                        rocket = fireRocket;                
+                var launchPos = Plane.transform.position;
+
+                ItemDefinition projectileItem = ItemManager.FindItemDefinition(rocket);
+                ItemModProjectile component = projectileItem.GetComponent<ItemModProjectile>();
+
+                BaseEntity entity = GameManager.server.CreateEntity(component.projectileObject.resourcePath, launchPos, new Quaternion(), true);
+
+                TimedExplosive rocketExplosion = entity.GetComponent<TimedExplosive>();
+                ServerProjectile rocketProjectile = entity.GetComponent<ServerProjectile>();
+
+                rocketProjectile.speed = rocketSpeed;
+                rocketProjectile.gravityModifier = 0;
+                rocketExplosion.timerAmountMin = 60;
+                rocketExplosion.timerAmountMax = 60;
+                for (int i = 0; i < rocketExplosion.damageTypes.Count; i++)
+                    rocketExplosion.damageTypes[i].amount *= damageModifier;
+
+                Vector3 newDirection = (targetPos - launchPos);                
+
+                entity.SendMessage("InitializeVelocity", (newDirection));
+                entity.Spawn();                
+            }           
+        }
+        private CargoPlane CreatePlane() => (CargoPlane)GameManager.server.CreateEntity(cargoPlanePrefab, new Vector3(), new Quaternion(), true);
+        #endregion
+
+        #region Oxide Hooks        
+        void Loaded() => PCDDATA = Interface.Oxide.DataFileSystem.GetFile("airstrike_data");
+        void OnServerInitialized()
         {
             broadcastStrikeAll = true;
-            strikeCalled = false;
+            //strikeCalled = false;
+            
+            RegisterPermissions();
+            RegisterMessages();
+            SetFieldInfo();
+            CheckDependencies();
+            LoadVariables();
+            LoadData();
+        }
+        void Unload()
+        {
+            SaveData();
+            DestroyAllPlanes();      
+        }
+        
+        void OnExplosiveThrown(BasePlayer player, BaseEntity entity)
+        {
+            if (useSignalStrike && canSmokeStrike(player))
+                if (toggleList.ContainsKey(player.userID) && toggleList[player.userID])
+                    if (entity is SupplySignal)
+                    {
+                        entity.GetComponent<TimedExplosive>().timerAmountMin = 30f;                        
+                        if (useCooldown)                        
+                            if (!CheckPlayerData(player))
+                                return;
+                        var pos = entity.GetEstimatedWorldPosition();
+                        timer.Once(2.8f, () => 
+                        {                            
+                            Effect.server.Run("assets/bundled/prefabs/fx/smoke_signal.prefab", pos);
+                            strikeOnSmoke(player, pos);
+                            if (entity != null)                                                            
+                                entity.Kill(BaseNetworkable.DestroyMode.None);                            
+                        });
+                    }
+        }
+        void OnEntitySpawned(BaseEntity entity)
+        {
+            if (entity != null)
+            {
+                if (entity is SupplyDrop)
+                    CheckStrikeDrop(entity as SupplyDrop);                          
+            }
+        }
+        #endregion
+
+        #region Plugin Init
+        private void RegisterPermissions()
+        {
             permission.RegisterPermission("airstrike.admin", this);
             permission.RegisterPermission("airstrike.canuse", this);
             permission.RegisterPermission("airstrike.buystrike", this);
             permission.RegisterPermission("airstrike.mass", this);
-            lang.RegisterMessages(messages, this);
-
-            strikePlanestartPos = typeof(CargoPlane).GetField("startPos", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
-            strikePlaneendPos = typeof(CargoPlane).GetField("endPos", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
-            strikePlanesecondsToTake = typeof(CargoPlane).GetField("secondsToTake", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
-            strikePlanedropPosition = typeof(CargoPlane).GetField("dropPosition", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
-
-            LoadVariables();
-            LoadData();
-            PCDDATA = Interface.Oxide.DataFileSystem.GetFile("airstrike_data");
         }
-        void OnServerInitialized()
-        {           
+        private void RegisterMessages() => lang.RegisterMessages(messages, this);
+        private void SetFieldInfo()
+        {
+            StartPos = typeof(CargoPlane).GetField("startPos", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
+            EndPos = typeof(CargoPlane).GetField("endPos", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
+            TimeToTake = typeof(CargoPlane).GetField("secondsToTake", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
+            DropPos = typeof(CargoPlane).GetField("dropPosition", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
+        }
+        private void CheckDependencies()
+        {
             if (Economics == null)
-            {
                 if (useEconomics)
                 {
                     PrintWarning($"Economics could not be found! Disabling money feature");
                     useEconomics = false;
                 }
-            }
-        }
-        void LoadDefaultConfig()
-        {
-            Puts("Creating a new config file");
-            Config.Clear();
-            LoadVariables();
-        }
-        void Unload()
-        {
-            SaveData();
-            foreach (CargoPlane plane in strikePlanesInAir)
-                plane.KillMessage();
-            foreach (CargoPlane plane in massStrikePlanesInAir)
-                plane.KillMessage();
-            strikePlanesInAir.Clear();
-            massStrikePlanesInAir.Clear();      
-        }
-        void OnExplosiveThrown(BasePlayer player, BaseEntity entity)
-        {
-            if ((useSignalStrike) && (canSmokeStrike(player)))
-            {
-                if (toggleList.ContainsKey(player.userID) && (toggleList[player.userID] == true))
-                {
-                    if (entity.name.Contains(lang.GetMessage("Only change this is your supply signal name is in a differant language", this)))
-                    {
-                        if (useCooldown)
-                            if (!CheckPlayerData(player)) return;
-
-                        timer.Once(3, () => strikeOnSmoke(player, entity));
-                        return;
-                    }
-                }                
-            }
-        }
-        void OnEntitySpawned(BaseEntity entity)
-        {
-            if (entity == null) return;
-            if (entity is SupplyDrop)
-            {
-                var drop = entity as SupplyDrop;
-                               
-                checkStrikeDrop(drop);
-            }
-            if (strikeCalled == true)
-            {
-                if (entity is CargoPlane)
-                {
-                    var plane = entity.GetComponent<CargoPlane>();
-                    if (plane == null) return;
-                    if (!strikePlanesInAir.Contains(plane))
-                    {
-                        plane.KillMessage();
-                    }
-                }                
-            }
         }
         #endregion
-        #region airstrike functions
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Airstrike /////////////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
 
+        #region Core Functions       
         public const string cargoPlanePrefab = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";    
         
-        private void removePlaneFromList(CargoPlane plane)
+        private void DestroyPlane(StrikePlane plane)
         {
-            strikePlanesInAir.Remove(plane);
-            if (massStrikePlanesInAir.Contains(plane))
-                massStrikePlanesInAir.Remove(plane);           
-        }        
-        public static CargoPlane createStrikePlane()
-        {
-            var newPlane = (CargoPlane)GameManager.server.CreateEntity(cargoPlanePrefab, new Vector3(), new Quaternion(), true);
-            return newPlane;
-        }
-        private void checkPlaneDistance(CargoPlane strikePlane, Vector3 targetPos)
-        {
-            var currentPos = strikePlane.transform.position;
-            if (Vector3.Distance(currentPos, targetPos) < (currentPos.y + planeDistance))
+            if (StrikePlanes.Contains(plane))
             {
-                fireRockets(strikePlane, targetPos);
-                return;
-            }
-            timer.Once(3, () => checkPlaneDistance(strikePlane, targetPos));
+                if (plane.Plane != null)                
+                    plane.Plane.Kill();                
+                StrikePlanes.Remove(plane);
+                UnityEngine.Object.Destroy(plane);
+            }    
         }
-        
-        private void fireRockets(CargoPlane strikePlane, Vector3 targetPos)
+
+        private void DestroyAllPlanes()
         {
-            if (!strikeCalled) strikeCalled = true;
-            timer.Repeat(rocketInterval, rocketAmount, () => spreadRockets(strikePlane, targetPos));
-            timer.Once(10, () => strikeCalled = false);           
+            foreach (var plane in StrikePlanes)
+                DestroyPlane(plane);
         }
-        private void spreadRockets(CargoPlane strikePlane, Vector3 targetPos)
-        {
-            targetPos = Quaternion.Euler(UnityEngine.Random.Range((float)(-rocketSpread * 0.2), rocketSpread * 0.2f), UnityEngine.Random.Range((float)(-rocketSpread * 0.2), rocketSpread * 0.2f), UnityEngine.Random.Range((float)(-rocketSpread * 0.2), rocketSpread * 0.2f)) * targetPos;
-            createRocket(strikePlane, targetPos);
-        }
-        private BaseEntity createRocket(CargoPlane strikePlane, Vector3 targetPos)
-        {
-            var rocket = rocketType;
-            if (useMixedRockets)
-            {
 
-                int rand = UnityEngine.Random.Range(1, fireChance);
-                if (rand == 1)
-                    rocket = fireRocket;
-            }
-            var launchPos = strikePlane.transform.position;
-
-            ItemDefinition projectileItem = ItemManager.FindItemDefinition(rocket);
-            ItemModProjectile component = projectileItem.GetComponent<ItemModProjectile>();
-
-            BaseEntity entity = GameManager.server.CreateEntity(component.projectileObject.resourcePath, launchPos, new Quaternion(), true);                            
-            
-            TimedExplosive rocketExplosion = entity.GetComponent<TimedExplosive>();
-            ServerProjectile rocketProjectile = entity.GetComponent<ServerProjectile>();            
-                       
-            rocketProjectile.speed = rocketSpeed;
-            rocketProjectile.gravityModifier = rocketDrop;
-            rocketExplosion.timerAmountMin = 60;
-            rocketExplosion.timerAmountMax = 60;
-
-            Vector3 newDirection = (targetPos - launchPos);
-            scaleRocketDamage(rocketExplosion.damageTypes, damageModifier);
-
-            entity.SendMessage("InitializeVelocity", (newDirection));
-            entity.Spawn(true);
-
-            return null;
-        }
-        private void scaleRocketDamage(List<DamageTypeEntry> damageTypes, float scale)
-        {
-            for (int i = 0; i < damageTypes.Count; i++)
-            {
-                damageTypes[i].amount *= scale;
-            }
-        }
-        public bool checkStrikeDrop(SupplyDrop drop)
+        public bool CheckStrikeDrop(SupplyDrop drop)
         {
             bool istrue = false;
             var supplyDrop = drop.GetComponent<LootContainer>();
-            Vector3 dropPosition = supplyDrop.transform.position;            
-            foreach (var plane in strikePlanesInAir)
+            foreach (var plane in StrikePlanes)
             {
-                float dropDistance = ((Vector3.Distance(plane.transform.position, dropPosition)));
+                if (plane.Plane == null) return false;
+                float dropDistance = ((Vector3.Distance(plane.Plane.transform.position, supplyDrop.transform.position)));
                 if (dropDistance < 100) supplyDrop.KillMessage();
                 istrue = true;
             }
             return istrue;
         }
-        private void massSet(CargoPlane plane, Vector3 position, Vector3 offset, int speed = -1)
+        private void MassSet(Vector3 position, Vector3 offset, int speed = -1)
         {
             if (speed == -1) speed = planeSpeed;
-            CargoPlane strikePlane = plane.GetComponent<CargoPlane>();
-            var spawnPos = calculateSpawnPos(position, offset);
-            Vector3 endPos = calculateEndPos(position, offset);
+            CargoPlane plane = CreatePlane();            
 
-            strikePlane.Spawn();
-
-            strikePlane.InitDropPosition(position + offset);
-            strikePlanestartPos.SetValue(strikePlane, spawnPos);
-            strikePlaneendPos.SetValue(strikePlane, endPos);
-            strikePlane.transform.position = spawnPos;
-            strikePlane.transform.rotation = new Quaternion(0, 180, 0, 0);
-            strikePlanesecondsToTake.SetValue(plane, Vector3.Distance((Vector3)strikePlanestartPos.GetValue(plane), (Vector3)strikePlaneendPos.GetValue(plane)) / speed);
-
-            checkPlaneDistance(plane, position);
-            float removePlane = ((Vector3.Distance((Vector3)strikePlanestartPos.GetValue(plane), (Vector3)strikePlanedropPosition.GetValue(plane)) / speed) + 10);
-            timer.Once(removePlane, () => removePlaneFromList(plane));
-            timer.Once(10, () => strikeCalled = false);
+            var strikePlane = plane.gameObject.AddComponent<StrikePlane>();
+            StrikePlanes.Add(strikePlane);
+            strikePlane.SpawnPlane(plane, position, speed, true, offset);
+            
+            float removePlane = ((Vector3.Distance((Vector3)StartPos.GetValue(plane), (Vector3)DropPos.GetValue(plane)) / speed) + 10);
+            timer.Once(removePlane, () => DestroyPlane(strikePlane));
         }
-        private Vector3 calculateSpawnPos(Vector3 pos, Vector3 offset)
-        {
-            float mapSize = (TerrainMeta.Size.x / 2) + 150f;
-            Vector3 spawnPos = new Vector3();
-            spawnPos.x = pos.x + offset.x;
-            spawnPos.z = mapSize + offset.z;
-            spawnPos.y = 150;
-            return spawnPos;
-        }
+        
         private Vector3 calculateEndPos(Vector3 pos, Vector3 offset)
         {
             float mapSize = (TerrainMeta.Size.x / 2);
@@ -260,35 +261,33 @@ namespace Oxide.Plugins
             int playerHQ = player.inventory.GetAmount(374890416);
             int playerFlare = player.inventory.GetAmount(97513422);
             int playerTC = player.inventory.GetAmount(1490499512);
-
-            if (type == "computer")
+            switch (type)
             {
-                if ((playerFlare >= buyFlare) && (playerTC >= buyTarget))
-                {
-                    player.inventory.Take(null, 97513422, buyFlare);
-                    player.inventory.Take(null, 1490499512, buyTarget);
+                case "computer":
+                    if (playerFlare >= buyFlare && playerTC >= buyTarget)
+                    {
+                        player.inventory.Take(null, 97513422, buyFlare);
+                        player.inventory.Take(null, 1490499512, buyTarget);
+                        callPaymentStrike(player);                        
+                    }
+                    return;
+                case "metal":
+                    if (playerHQ >= buyMetal)
+                    {
+                        player.inventory.Take(null, 374890416, buyMetal);
+                        callPaymentStrike(player);
+                    }
+                    return;
+                case "money":
                     callPaymentStrike(player);
                     return;
-                }
-            }
-            else if (type == "metal")
-            {
-                if ((playerHQ >= buyMetal))
-                {
-                    player.inventory.Take(null, 374890416, buyMetal);
-                    callPaymentStrike(player);
+                default:
+                    Effect.server.Run("assets/prefabs/locks/keypad/effects/lock.code.denied.prefab", player.transform.position);
+                    SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("buyCost", this, player.UserIDString));
+                    SendReply(player, string.Format(lang.GetMessage("buyFlare", this, player.UserIDString), buyTarget.ToString(), buyFlare.ToString()));
+                    SendReply(player, string.Format(lang.GetMessage("buyMetal", this, player.UserIDString), buyMetal.ToString()));
                     return;
-                }
             }
-            else if (type == "money")
-            {
-                callPaymentStrike(player);
-                return;
-            }
-            Effect.server.Run("assets/prefabs/locks/keypad/effects/lock.code.denied.prefab", player.transform.position);
-            SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("buyCost", this, player.UserIDString));
-            SendReply(player, string.Format(lang.GetMessage("buyFlare", this, player.UserIDString), buyTarget.ToString(), buyFlare.ToString()));
-            SendReply(player, string.Format(lang.GetMessage("buyMetal", this, player.UserIDString), buyMetal.ToString()));
         }
         private void squadStrikeOnPayment(BasePlayer player, bool type)
         {
@@ -296,25 +295,20 @@ namespace Oxide.Plugins
             int playerFlare = player.inventory.GetAmount(97513422);
             int playerTC = player.inventory.GetAmount(1490499512);
 
-            if (type == false)
-            {
-                if ((playerFlare >= buyFlare) && (playerTC >= buyTarget))
+            if (!type)
+                if (playerFlare >= buyFlare && playerTC >= buyTarget)
                 {
                     player.inventory.Take(null, 97513422, buyFlare * 3);
                     player.inventory.Take(null, 1490499512, buyTarget * 3);
                     callPaymentSquadStrike(player);
                     return;
                 }
-            }
-            else if (type == true)
-            {
-                if ((playerHQ >= buyMetal))
+                else if (playerHQ >= buyMetal)
                 {
                     player.inventory.Take(null, 374890416, buyMetal * 3);
                     callPaymentSquadStrike(player);
                     return;
-                }
-            }
+                }            
             Effect.server.Run("assets/prefabs/locks/keypad/effects/lock.code.denied.prefab", player.transform.position);
             SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("squadCost", this, player.UserIDString));
             SendReply(player, string.Format(lang.GetMessage("buyFlare", this, player.UserIDString), (buyTarget * 3).ToString(), (buyFlare * 3).ToString()));
@@ -339,9 +333,8 @@ namespace Oxide.Plugins
         private bool CheckPlayerData(BasePlayer player)
         {
             if (noAdminCooldown)
-            {
                 if (player.net.connection.authLevel >= auth) return true;
-            }
+            
             var d = pcdData.pCooldown;
             ulong ID = player.userID;
             double timeStamp = GrabCurrentTime();
@@ -368,17 +361,10 @@ namespace Oxide.Plugins
                 }
             }
         }
-        static double GrabCurrentTime()
-        {
-            return DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1, 0, 0, 0)).TotalSeconds;
-        }
-
+        static double GrabCurrentTime() => DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1, 0, 0, 0)).TotalSeconds;
         #endregion
-        #region callstrike functions
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Call Strike Funtions  /////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
 
+        #region Callstrike Functions        
         private void strikeOnPlayer(BasePlayer player)
         {
             callStrike(player.transform.position);
@@ -391,9 +377,8 @@ namespace Oxide.Plugins
             SendReply(player, string.Format(lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("strikeConfirmed", this, player.UserIDString), player.transform.position.ToString()));
             Puts(player.displayName.ToString() + lang.GetMessage("calledMassStrike", this, player.UserIDString) + player.transform.position.ToString());
         }
-        private void strikeOnSmoke(BasePlayer player, BaseEntity entity)
+        private void strikeOnSmoke(BasePlayer player, Vector3 strikePos)
         {
-            Vector3 strikePos = entity.GetEstimatedWorldPosition();
             if (changeSupplyStrike)
                 massStrike(strikePos);
             else callStrike(strikePos);
@@ -406,50 +391,27 @@ namespace Oxide.Plugins
             if (broadcastStrikeAll)
                 PrintToChat(lang.GetMessage("strikeInbound", this));
 
-            Puts(lang.GetMessage("calledTo", this), position.ToString());
+            Puts(string.Format(lang.GetMessage("calledTo", this), position.ToString()));
 
-            strikeCalled = true;
+            CargoPlane plane = CreatePlane();            
+            var strikePlane = plane.gameObject.AddComponent<StrikePlane>();
+            if (strikePlane == null) Puts("null plane");
+            StrikePlanes.Add(strikePlane);
+            strikePlane.SpawnPlane(plane, position, speed);
 
-            var plane = createStrikePlane();
-            strikePlanesInAir.Add(plane);
-
-            CargoPlane strikePlane = plane.GetComponent<CargoPlane>();
-
-            strikePlane.InitDropPosition(position);
-            strikePlane.Spawn();
-            strikePlanesecondsToTake.SetValue(plane, Vector3.Distance((Vector3)strikePlanestartPos.GetValue(plane), (Vector3)strikePlaneendPos.GetValue(plane)) / speed);
-
-            checkPlaneDistance(plane, position);
-            float removePlane = ((Vector3.Distance((Vector3)strikePlanestartPos.GetValue(plane), (Vector3)strikePlanedropPosition.GetValue(plane)) / speed) + 10);            
-            timer.Once(removePlane, () => removePlaneFromList(plane));
-            timer.Once(10, () => strikeCalled = false);            
+            float removePlane = ((Vector3.Distance((Vector3)StartPos.GetValue(plane), (Vector3)DropPos.GetValue(plane)) / speed) + 10);
+            timer.Once(removePlane, () => DestroyPlane(strikePlane));
         }
         private void massStrike(Vector3 position)
         {
             if (broadcastStrikeAll)
                 PrintToChat(lang.GetMessage("strikeInbound", this));
 
-            Puts(lang.GetMessage("calledTo", this), position.ToString());
+            Puts(lang.GetMessage("calledTo", this), position.ToString());                        
                         
-            Vector3 offsetLeft = new Vector3(-70, 0, 80);
-            Vector3 offsetRight = new Vector3(70, 0, 80);
-            strikeCalled = true;
-            var plane = createStrikePlane();
-            strikePlanesInAir.Add(plane);
-            massStrikePlanesInAir.Add(plane);
-            massSet(plane, position, new Vector3());
-
-            var planeLeft = createStrikePlane();
-            strikePlanesInAir.Add(planeLeft);
-            massStrikePlanesInAir.Add(planeLeft);
-            massSet(planeLeft, position, offsetLeft);
-
-            var planeRight = createStrikePlane();
-            strikePlanesInAir.Add(planeRight);
-            massStrikePlanesInAir.Add(planeRight);
-            massSet(planeRight, position, offsetRight);
-
-
+            MassSet(position, new Vector3(0, 0, 0));
+            MassSet(position, new Vector3(-70, 0, 80));
+            MassSet(position, new Vector3(70, 0, 80));            
         }       
         private void callPaymentStrike(BasePlayer player)
         {
@@ -480,12 +442,8 @@ namespace Oxide.Plugins
 
             if (single)callStrike(pos);
             if (!single) massStrike(pos);            
-        }      
-
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Find players by name //////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-
+        }  
+       
         List<BasePlayer> FindPlayer(string arg)
         {
             var foundPlayers = new List<BasePlayer>();
@@ -510,21 +468,16 @@ namespace Oxide.Plugins
                 }
             }
             return foundPlayers;
-        }
-        public bool isStrikePlane(CargoPlane plane)
+        }        
+        private bool isStrikePlane(CargoPlane plane)
         {
-            Puts("called");
-            if (massStrikePlanesInAir.Contains(plane)) return true;
-            else if (strikePlanesInAir.Contains(plane)) return true;
-            else return false;
+            if (plane.GetComponent<StrikePlane>() != null && StrikePlanes.Contains(plane.GetComponent<StrikePlane>())) return true;
+            return false;
         }
 
         #endregion
-        #region chat/console commands and auth/perms
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Permission/Auth Check /////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
 
+        #region Chat/Console Commands and Perms       
         bool canChatStrike(BasePlayer player)
         {
             if (permission.UserHasPermission(player.userID.ToString(), "airstrike.admin")) return true;
@@ -562,10 +515,6 @@ namespace Oxide.Plugins
             return true;
         }
 
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Chat/Console Commands /////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-
         [ChatCommand("callstrike")]
         private void chatStrike(BasePlayer player, string command, string[] args)
         {
@@ -597,10 +546,8 @@ namespace Oxide.Plugins
                 SendReply(player, lang.GetMessage("multiplePlayers", this, player.UserIDString));
                 return;
             }
-            foreach (BasePlayer targetPlayer in fplayer)
-            {
-                strikeOnPlayer(targetPlayer);
-            }
+            strikeOnPlayer(fplayer[0]);
+            
         }
         [ChatCommand("squadstrike")]
         private void chatsquadStrike(BasePlayer player, string command, string[] args)
@@ -629,10 +576,8 @@ namespace Oxide.Plugins
                 SendReply(player, lang.GetMessage("multiplePlayers", this, player.UserIDString));
                 return;
             }
-            foreach (BasePlayer targetPlayer in fplayer)
-            {
-                squadStrikeOnPlayer(targetPlayer);
-            }
+            squadStrikeOnPlayer(fplayer[0]);
+            
         }
         [ChatCommand("buystrike")]
         private void chatBuyStrike(BasePlayer player, string command, string[] args)
@@ -791,11 +736,8 @@ namespace Oxide.Plugins
                     SendReply(arg, lang.GetMessage("multiplePlayers", this));
                     return;
                 }
-                foreach (BasePlayer targetPlayer in fplayer)
-                {
-                    strikeOnPlayer(targetPlayer);
-                    return;
-                }
+                strikeOnPlayer(fplayer[0]);
+                return;                  
             }
 
             if (arg.Args.Length == 3)
@@ -891,10 +833,8 @@ namespace Oxide.Plugins
 
         }
         #endregion
-        #region class and datamanagement
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Player class and data management //////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
+
+        #region Classes and Data Management       
         class PlayerCooldown
         {
             public Dictionary<ulong, PCDInfo> pCooldown = new Dictionary<ulong, PCDInfo>();
@@ -926,40 +866,43 @@ namespace Oxide.Plugins
             }
         }
         #endregion
-        #region config
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Configuration /////////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-        private bool broadcastStrikeAll = true;
-        private bool useSignalStrike = true;
-        private bool usePaymentStrike = true;
-        private bool usePaymentSquad = true;
-        private bool useEconomics = true;
-        private bool useCooldown = false;
-        private bool noAdminCooldown = true;
-        private bool useMixedRockets = false;
-        private bool changeSupplyStrike = false;
 
-        private float rocketSpeed = 110f;
-        private float rocketInterval = 0.6f;
-        private float damageModifier = 1.0f;
-        private float rocketSpread = 1.5f;
+        #region Config       
+        private static bool broadcastStrikeAll = true;
+        private static bool useSignalStrike = true;
+        private static bool usePaymentStrike = true;
+        private static bool usePaymentSquad = true;
+        private static bool useEconomics = true;
+        private static bool useCooldown = false;
+        private static bool noAdminCooldown = true;
+        private static bool useMixedRockets = false;
+        private static bool changeSupplyStrike = false;
 
-        private int rocketAmount = 15;
-        private int planeSpeed = 105;
-        private int planeDistance = 900;
-        private int buyMetal = 1000;
-        private int buyFlare = 2;
-        private int buyTarget = 1;
-        private int buyMoney = 500;
-        private int cooldownTime = 3600;
-        private int auth = 1;
-        private int fireChance = 4;
+        private static float rocketSpeed = 110f;
+        private static float rocketInterval = 0.6f;
+        private static float damageModifier = 1.0f;
+        private static float rocketSpread = 1.5f;
 
-        private string normalRocket = "ammo.rocket.basic";
-        private string fireRocket = "ammo.rocket.fire";
-        private string rocketType = "ammo.rocket.basic";
+        private static int rocketAmount = 15;
+        private static int planeSpeed = 105;
+        private static int planeDistance = 900;
+        private static int buyMetal = 1000;
+        private static int buyFlare = 2;
+        private static int buyTarget = 1;
+        private static int buyMoney = 500;
+        private static int cooldownTime = 3600;
+        private static int auth = 1;
+        private static int fireChance = 4;
 
+        private static string normalRocket = "ammo.rocket.basic";
+        private static string fireRocket = "ammo.rocket.fire";
+        private static string rocketType = "ammo.rocket.basic";
+        protected override void LoadDefaultConfig()
+        {
+            Puts("Creating a new config file");
+            Config.Clear();
+            LoadVariables();
+        }
         private void LoadVariables()
         {
             LoadConfigVariables();
@@ -1029,11 +972,7 @@ namespace Oxide.Plugins
         }
         #endregion
 
-        #region messages
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Messages //////////////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-
+        #region Localization       
         Dictionary<string, string> messages = new Dictionary<string, string>()
         {
             {"title", "<color=orange>Airstrike</color> : "},

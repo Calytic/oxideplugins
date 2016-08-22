@@ -1,7 +1,7 @@
 {
-    "name": "Start Protection",
-    "description": "Protect new players after they first connect to the server",
-    "author": "Norn",
+    "name": "StartProtection",
+    "description": "Protect new players when they first connect",
+    "author": "Wulf",
     "version": "1.9",
     "configuration": true,
     "language": "cs",

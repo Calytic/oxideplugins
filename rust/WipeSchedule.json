@@ -1,8 +1,8 @@
 {
     "name": "Wipe Schedule",
     "description": "The ablity to report regular wipe cycles",
-    "author": "Smoosher",
-    "version": "1.0.0",
+    "author": "k1lly0u",
+    "version": "2.0.1",
     "configuration": true,
     "language": "cs",
     "games": [

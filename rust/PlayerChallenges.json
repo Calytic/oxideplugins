@@ -1,8 +1,8 @@
 {
     "name": "Player Challenges",
-    "description": "Allows titles to be set when certain criteria are met, or is a leader in a criteria",
-    "author": "Smoosher",
-    "version": "1.7.0",
+    "description": "Allows titles to be set when certain criteria are met, with a UI Leader board",
+    "author": "k1lly0u",
+    "version": "2.0.35",
     "configuration": true,
     "suggest": {
         "BetterChat": "*"

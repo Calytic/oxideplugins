@@ -1,0 +1,15 @@
+{
+    "name": "System Inmation",
+    "description": "Rcon commands to display current server memroy usage and uptime.",
+    "author": "",
+    "version": "0.1.3",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

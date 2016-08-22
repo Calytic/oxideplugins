@@ -3,10 +3,10 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 { 
-    [Info("PrivilegeDeploy", "k1lly0u", "0.1.21", ResourceId = 1800)]
+    [Info("PrivilegeDeploy", "k1lly0u", "0.1.23", ResourceId = 1800)]
     class PrivilegeDeploy : RustPlugin
     {
-        private readonly int triggerMask = LayerMask.GetMask("Trigger");
+        private readonly int triggerMask = LayerMask.GetMask("Trigger", "Construction");
         private bool Loaded = false;
 
         private Dictionary<ulong, PendingItem> pendingItems = new Dictionary<ulong, PendingItem>();
@@ -17,7 +17,7 @@ namespace Oxide.Plugins
             if (Loaded)
             {
                 for (int i = 0; i < configData.deployables.Count; i++)
-                    if (entity.LookupShortPrefabName().Contains(configData.deployables[i]))
+                    if (entity.ShortPrefabName.Contains(configData.deployables[i]))
                     {
                         var ownerID = entity.GetComponent<BaseEntity>().OwnerID;
                         if (ownerID != 0)
@@ -27,12 +27,12 @@ namespace Oxide.Plugins
                             if (!HasPriv(player))
                             {
                                 Item item;
-                                if (entity.LookupShortPrefabName().Contains("landmine"))
+                                if (entity.ShortPrefabName.Contains("landmine"))
                                 {
                                     entity.KillMessage();                                    
                                     item = ItemManager.CreateByPartialName("trap.landmine");
                                 }
-                                else if (entity.LookupShortPrefabName().Contains("bear"))
+                                else if (entity.ShortPrefabName.Contains("bear"))
                                 {
                                     entity.GetComponent<BaseCombatEntity>().DieInstantly();
                                     item = ItemManager.CreateByPartialName("trap.bear");
@@ -41,6 +41,13 @@ namespace Oxide.Plugins
                                 {
                                     entity.GetComponent<BaseCombatEntity>().DieInstantly();
                                     item = ItemManager.CreateByPartialName(configData.deployables[i]);
+                                    var deployable = item.info.GetComponent<ItemModDeployable>();
+                                    if (deployable != null)
+                                    {
+                                        var oven = deployable.entityPrefab.Get()?.GetComponent<BaseOven>();
+                                        if (oven != null)
+                                            oven.startupContents = null;
+                                    }
                                 }
 
                                 if (!pendingItems.ContainsKey(player.userID))

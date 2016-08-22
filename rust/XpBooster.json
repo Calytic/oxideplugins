@@ -1,0 +1,18 @@
+{
+    "name": "XpBooster",
+    "description": "Multiplies the base XP players earn per XP source +  optional permissions",
+    "author": "Wulf",
+    "version": "0.5.1",
+    "configuration": true,
+    "suggest": {
+        "Godmode": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

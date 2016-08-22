@@ -2,7 +2,7 @@
     "name": "Radtown Animals",
     "description": "Spawns animals at designated monuments",
     "author": "k1lly0u",
-    "version": "0.1.2",
+    "version": "0.2.11",
     "configuration": true,
     "language": "cs",
     "games": [

@@ -1,8 +1,8 @@
 {
     "name": "ZLevels Remastered",
     "description": "Allows player to level up 4 different skills (Mining, Woodcutting, Crafting, Skinning)",
-    "author": "Visagalis",
-    "version": null,
+    "author": "Wulf",
+    "version": "1.6.4",
     "configuration": true,
     "language": "cs",
     "games": [

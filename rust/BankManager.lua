@@ -1,7 +1,7 @@
 PLUGIN.Title        = "Bank Manager"
 PLUGIN.Description  = "Allows players to deposit and withdraw items from a bank."
 PLUGIN.Author       = "InSaNe8472"
-PLUGIN.Version      = V(1,0,7)
+PLUGIN.Version      = V(1,0,8)
 PLUGIN.ResourceID   = 1331
 
 local DataFile_PB = "BankManager_PlayerBank"
@@ -41,6 +41,8 @@ function PLUGIN:LoadDefaultConfig()
 	self.Config.Items = self.Config.Items or {}
 	self.Config.Settings.Enabled = self.Config.Settings.Enabled or "true"
 	self.Config.Settings.MessageSize = self.Config.Settings.MessageSize or "13"
+	self.Config.Settings.Ground = self.Config.Settings.Ground or "true"
+	self.Config.Settings.Tier = self.Config.Settings.Tier or "-1"
 	self.Config.Settings.BuildingBlocked = self.Config.Settings.BuildingBlocked or "true"
 	self.Config.Settings.PerformItemCheck = self.Config.Settings.PerformItemCheck or "true"
 	self.Config.Settings.UsePermissions = self.Config.Settings.UsePermissions or "true"
@@ -92,27 +94,30 @@ function PLUGIN:LoadDefaultConfig()
 	self.Config.Messages.NoItem = self.Config.Messages.NoItem or "No item found in first slot of inventory to check for information."
 	self.Config.Messages.RequiredPermission = self.Config.Messages.RequiredPermission or "You cannot share your bank with <color=#cd422b>{player}</color>.  They do not have the required permissions."
 	self.Config.Messages.BuildingBlocked = self.Config.Messages.BuildingBlocked or "You cannot access a bank in building blocked areas."
+	self.Config.Messages.CheckGround = self.Config.Messages.CheckGround or "You may only access a bank while standing on the ground."
+	self.Config.Messages.CheckTier = self.Config.Messages.CheckTier or "You may only access a bank while standing on the ground or on tier <color=#cd422b>{tier}</color> or highier foundations."
 	self.Config.Messages.CheckRadius = self.Config.Messages.CheckRadius or "You cannot access a bank within <color=#cd422b>{range} meters</color> of another online player.  Current nearest range is <color=#cd422b>{current} meters</color>."
 	self.Config.Defaults.ForceUpdate = self.Config.Defaults.ForceUpdate or "false"
 	self.Config.Defaults.Items = self.Config.Defaults.Items or {
-		"Ammunition:0:0:2:1000:0:0:2:1000",
-		"Attire:0:0:2:1000:0:0:2:1000",
-		"Construction:0:0:2:1000:0:0:2:1000",
-		"Food:0:0:2:1000:0:0:2:1000",
-		"Items:0:0:2:1000:0:0:2:1000",
-		"Medical:0:0:2:1000:0:0:2:1000",
-		"Misc:0:0:2:1000:0:0:2:1000",
-		"Resources:1:0:2:1000:1:0:2:1000",
-		"Tool:0:0:2:1000:0:0:2:1000",
-		"Traps:0:0:2:1000:0:0:2:1000",
-		"Unknown:0:0:2:1000:0:0:2:1000",
-		"Weapon:0:0:2:1000:0:0:2:1000"
+		"Ammunition:0:2:1000:0:2:1000",
+		"Attire:0:2:1000:0:2:1000",
+		"Construction:0:2:1000:0:2:1000",
+		"Food:0:2:1000:0:2:1000",
+		"Items:0:2:1000:0:2:1000",
+		"Medical:0:2:1000:0:2:1000",
+		"Misc:0:2:1000:0:2:1000",
+		"Resources:1:2:1000:1:2:1000",
+		"Tool:0:2:1000:0:2:1000",
+		"Traps:0:2:1000:0:2:1000",
+		"Unknown:0:2:1000:0:2:1000",
+		"Weapon:0:2:1000:0:2:1000"
 	}
 	self.Config.CustomPermissions = self.Config.CustomPermissions or {
-		{["Permission"] = "bankmanager.vip1", ["MaxBank"] = "20", ["MaxShare"] = "20", ["Items"] = {"wood:1:0:3:2000"}},
-		{["Permission"] = "bankmanager.vip2", ["MaxBank"] = "30", ["MaxShare"] = "30", ["Items"] = {"wood:1:0:3:3000"}}
+		{["Permission"] = "bankmanager.vip1", ["MaxBank"] = "20", ["MaxShare"] = "20", ["Items"] = {"wood:1:3:2000"}},
+		{["Permission"] = "bankmanager.vip2", ["MaxBank"] = "30", ["MaxShare"] = "30", ["Items"] = {"wood:1:3:3000"}}
 	}
 	if not tonumber(self.Config.Settings.MessageSize) or tonumber(self.Config.Settings.MessageSize) < 1 then self.Config.Settings.MessageSize = "13" end
+	if not tonumber(self.Config.Settings.Tier) or tonumber(self.Config.Settings.Tier) < -1 or tonumber(self.Config.Settings.Tier) > 4 then self.Config.Settings.Tier = "-1" end
 	if not tonumber(self.Config.Settings.MaxBank) or tonumber(self.Config.Settings.MaxBank) < 1 or tonumber(self.Config.Settings.MaxBank) > 30 then self.Config.Settings.MaxBank = "15" end
 	if not tonumber(self.Config.Settings.MaxShare) or tonumber(self.Config.Settings.MaxShare) < 1 then self.Config.Settings.MaxShare = "10" end
 	if not tonumber(self.Config.Settings.Cooldown) or tonumber(self.Config.Settings.Cooldown) < 3 then self.Config.Settings.Cooldown = "3" end
@@ -183,11 +188,11 @@ function PLUGIN:OnServerInitialized()
 			x = x + 1
 		end
 		if addtocfg then
-			local ItemCat, iName, iEnable, iBP, iMaxD, iMaxS, _iEnable, _iBP, _iMaxD, _iMaxS = tostring(items[i].category), "", "", "", "", "", "", "", "", ""
+			local ItemCat, iName, iEnable, iMaxD, iMaxS, _iEnable, _iMaxD, _iMaxS = tostring(items[i].category), "", "", "", "", "", "", ""
 			local y = 1
 			while self.Config.Defaults.Items[y] do
 				if tostring(self.Config.Defaults.Items[y]):match("([^:]+)") == tostring(ItemCat):match("([^:]+)") then
-					iName, iEnable, iBP, iMaxD, iMaxS, _iEnable, _iBP, _iMaxD, _iMaxS = tostring(self.Config.Defaults.Items[y]):match("([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+)")
+					iName, iEnable, iMaxD, iMaxS, _iEnable, _iMaxD, _iMaxS = tostring(self.Config.Defaults.Items[y]):match("([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+)")
 					break
 				end
 				y = y + 1
@@ -196,13 +201,13 @@ function PLUGIN:OnServerInitialized()
 				local y = 1
 				while self.Config.Defaults.Items[y] do
 					if string.match(self.Config.Defaults.Items[y], "Unknown") then
-						iName, iEnable, iBP, iMaxD, iMaxS, _iEnable, _iBP, _iMaxD, _iMaxS = tostring(self.Config.Defaults.Items[y]):match("([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+)")
+						iName, iEnable, iMaxD, iMaxS, _iEnable, _iMaxD, _iMaxS = tostring(self.Config.Defaults.Items[y]):match("([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+)")
 						break
 					end
 					y = y + 1
 				end
 			end
-			table.insert(self.Config.Items, items[i].shortname..":"..iEnable..":"..iBP..":"..iMaxD..":"..iMaxS..":".._iEnable..":".._iBP..":".._iMaxD..":".._iMaxS)
+			table.insert(self.Config.Items, items[i].shortname..":"..iEnable..":"..iMaxD..":"..iMaxS..":".._iEnable..":".._iMaxD..":".._iMaxS)
 			acnt = acnt..items[i].shortname..", "
 		end
 	end
@@ -441,11 +446,13 @@ function PLUGIN:cmdBank(player, cmd, args)
 			if sfunc == "bank" then
 				local found, targetplayer, targetname, targetid = self:CheckPlayer(player, args[2])
 				if not found then return end
+				if not self:CheckGround(player) then return end
 				if self:CheckRadius(player) then return end
 				self:OpenPlayerBank(player, targetplayer)
-				end
+			end
 			if sfunc == "clan" then
 				if not self:CheckPlugin(player) then return end
+				if not self:CheckGround(player) then return end
 				if self:CheckRadius(player) then return end
 				local ClanList = clans:Call("GetAllClans")
 				for line in string.gmatch(tostring(ClanList),"\"[^\r\n]+") do
@@ -523,17 +530,17 @@ function PLUGIN:cmdBank(player, cmd, args)
 				end
 				local FindItem = true
 				local found, CustomMaxBank, CustomMaxShare, CustomItems = self:CheckCustomPermission(playerSteamID)
-				local id, bnk, bp, maxd, maxs, id_, bnk_, bp_, maxd_, maxs_, _bnk, _bp, _maxd, _maxs
+				local id, bnk, maxd, maxs, id_, bnk_, maxd_, maxs_, _bnk, _maxd, _maxs
 				if found and CustomItems[1] then
 					local i = 1
 					while CustomItems[i] do
 						if tostring(CustomItems[i]):match("([^:]+)") == FindItemInfo then
-							id, bnk, bp, maxd, maxs = tostring(CustomItems[i]):match("([^:]+):([^:]+):([^:]+):([^:]+):([^:]+)")
+							id, bnk, maxd, maxs = tostring(CustomItems[i]):match("([^:]+):([^:]+):([^:]+):([^:]+)")
 							FindItem = false
 							local x = 1
 							while self.Config.Items[x] do
 								if tostring(self.Config.Items[x]):match("([^:]+)") == FindItemInfo then
-									id_, bnk_, bp_, maxd_, maxs_, _bnk, _bp, _maxd, _maxs = tostring(self.Config.Items[x]):match("([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+)")
+									id_, bnk_, maxd_, maxs_, _bnk, _maxd, _maxs = tostring(self.Config.Items[x]):match("([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+)")
 									break
 								end
 								x = x + 1
@@ -547,27 +554,23 @@ function PLUGIN:cmdBank(player, cmd, args)
 					local i = 1
 					while self.Config.Items[i] do
 						if tostring(self.Config.Items[i]):match("([^:]+)") == FindItemInfo then
-							id, bnk, bp, maxd, maxs, _bnk, _bp, _maxd, _maxs = tostring(self.Config.Items[i]):match("([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+)")
+							id, bnk, maxd, maxs, _bnk, _maxd, _maxs = tostring(self.Config.Items[i]):match("([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+)")
 							break
 						end
 						i = i + 1
 					end
 				end
-				local CanBank, CanBankBP, _CanBank, _CanBankBP = "false", "false", "false", "false"
+				local CanBank, _CanBank = "false", "false"
 				if tonumber(bnk) == 1 then CanBank = "true" end
-				if tonumber(bp) == 1 then CanBankBP = "true" end
 				if tonumber(_bnk) == 1 then _CanBank = "true" end
-				if tonumber(_bp) == 1 then _CanBankBP = "true" end
 				self:RustMessage(player,
 					self.Config.Settings.Prefix.." Your limits for <color=#cd422b>"..FindItemInfo.."</color>:\n"..
 					self.Config.Settings.Prefix.." [Player] Bankable: <color=#ffd479>"..CanBank.."</color>\n"..
-					self.Config.Settings.Prefix.." [Player] Blueprint Bankable: <color=#ffd479>"..CanBankBP.."</color>\n"..
 					self.Config.Settings.Prefix.." [Player] Maximum Deposit: <color=#ffd479>"..maxd.."</color>\n"..
 					self.Config.Settings.Prefix.." [Player] Maximum Stack: <color=#ffd479>"..maxs.."</color>"
 				)
 				self:RustMessage(player,
 					self.Config.Settings.Prefix.." [Clan] Bankable: <color=#ffd479>".._CanBank.."</color>\n"..
-					self.Config.Settings.Prefix.." [Clan] Blueprint Bankable: <color=#ffd479>".._CanBankBP.."</color>\n"..
 					self.Config.Settings.Prefix.." [Clan] Maximum Deposit: <color=#ffd479>".._maxd.."</color>\n"..
 					self.Config.Settings.Prefix.." [Clan] Maximum Stack: <color=#ffd479>".._maxs.."</color>"
 				)
@@ -595,6 +598,7 @@ function PLUGIN:cmdBank(player, cmd, args)
 				return
 			end
 			if not self:CheckCooldown(player, 1) then return end
+			if not self:CheckGround(player) then return end
 			if self:CheckRadius(player) then return end
 			self:OpenPlayerBank(player, player)
 			return
@@ -610,6 +614,7 @@ function PLUGIN:cmdBank(player, cmd, args)
 			if args.Length >= 2 then sfunc = args[1] end
 			if sfunc == nil then
 				if not self:CheckCooldown(player, 2) then return end
+				if not self:CheckGround(player) then return end
 				if self:CheckRadius(player) then return end
 				local found, playerClan, playerGroup, count = self:GetClanMember(player)
 				if not found then return end
@@ -687,6 +692,7 @@ function PLUGIN:cmdBank(player, cmd, args)
 			local found, targetplayer, targetname, targetid = self:CheckPlayer(player, args[1])
 			if not found then return end
 			if not self:CheckCooldown(player, 1) then return end
+			if not self:CheckGround(player) then return end
 			if self:CheckRadius(player) then return end
 			local playerData = self:GetPlayerData_PS(targetid, true)
 			if #playerData.Shared > 0 then
@@ -831,28 +837,26 @@ function PLUGIN:OpenPlayerBank(player, target)
 		if #playerData.Bank > 0 then
 			local loot = box:GetComponent("StorageContainer").inventory
 			for current, data in pairs(playerData.Bank) do
-				local item = global.ItemManager.CreateByItemID(data.item, data.quantity, data.bp)
-				if not data.bp then
-					if self.Config.Settings.KeepDurability == "true" and data.durability then item.condition = data.durability end
-					if data.skin then
-						item.skin = data.skin
-						local ent = item:GetHeldEntity()
-						if ent then ent.skinID = data.skin end
+				local item = global.ItemManager.CreateByItemID(data.item, data.quantity)
+				if self.Config.Settings.KeepDurability == "true" and data.durability then item.condition = data.durability end
+				if data.skin then
+					item.skin = data.skin
+					local ent = item:GetHeldEntity()
+					if ent then ent.skinID = data.skin end
+				end
+				if data.attachments then
+					for _, _data in pairs(data.attachments) do
+						if item.contents:GetSlot(0) then item.contents:GetSlot(0):Remove(0) end
+						local newItem = global.ItemManager.CreateByName(_data.id, _data.quantity)
+						if self.Config.Settings.KeepDurability == "true" and _data.durability then newItem.condition = _data.durability end
+						timer.Once(1, function() newItem:MoveToContainer(item.contents) end)
 					end
-					if data.attachments then
-						for _, _data in pairs(data.attachments) do
-							if item.contents:GetSlot(0) then item.contents:GetSlot(0):Remove(0) end
-							local newItem = global.ItemManager.CreateByName(_data.id, _data.quantity)
-							if self.Config.Settings.KeepDurability == "true" and _data.durability then newItem.condition = _data.durability end
-							timer.Once(1, function() newItem:MoveToContainer(item.contents) end)
-						end
-					end
-					if data.ammo and data.ammo.id then
-						local mag = item:GetHeldEntity().primaryMagazine
-						local itemDef = global.ItemManager.FindItemDefinition.methodarray[1]:Invoke(nil, util.TableToArray({data.ammo.id}))
-						mag.ammoType = itemDef
-						mag.contents = data.ammo.quantity
-					end
+				end
+				if data.ammo and data.ammo.id then
+					local mag = item:GetHeldEntity().primaryMagazine
+					local itemDef = global.ItemManager.FindItemDefinition.methodarray[1]:Invoke(nil, util.TableToArray({data.ammo.id}))
+					mag.ammoType = itemDef
+					mag.contents = data.ammo.quantity
 				end
 				item:MoveToContainer(loot, data.pos)
 			end
@@ -909,28 +913,26 @@ function PLUGIN:OpenClanBank(player, clan, group, call)
 		if #playerData.Bank > 0 then
 			local loot = box:GetComponent("StorageContainer").inventory
 			for current, data in pairs(playerData.Bank) do
-				local item = global.ItemManager.CreateByItemID(data.item, data.quantity, data.bp)
-				if not data.bp then
-					if self.Config.Clan.KeepDurability == "true" and data.durability then item.condition = data.durability end
-					if data.skin then
-						item.skin = data.skin
-						local ent = item:GetHeldEntity()
-						if ent then ent.skinID = data.skin end
+				local item = global.ItemManager.CreateByItemID(data.item, data.quantity)
+				if self.Config.Clan.KeepDurability == "true" and data.durability then item.condition = data.durability end
+				if data.skin then
+					item.skin = data.skin
+					local ent = item:GetHeldEntity()
+					if ent then ent.skinID = data.skin end
+				end
+				if data.attachments then
+					for _, _data in pairs(data.attachments) do
+						if item.contents:GetSlot(0) then item.contents:GetSlot(0):Remove(0) end
+						local newItem = global.ItemManager.CreateByName(_data.id, _data.quantity)
+						if self.Config.Clan.KeepDurability == "true" and _data.durability then newItem.condition = _data.durability end
+						timer.Once(1, function() newItem:MoveToContainer(item.contents) end)
 					end
-					if data.attachments then
-						for _, _data in pairs(data.attachments) do
-							if item.contents:GetSlot(0) then item.contents:GetSlot(0):Remove(0) end
-							local newItem = global.ItemManager.CreateByName(_data.id, _data.quantity)
-							if self.Config.Clan.KeepDurability == "true" and _data.durability then newItem.condition = _data.durability end
-							timer.Once(1, function() newItem:MoveToContainer(item.contents) end)
-						end
-					end
-					if data.ammo and data.ammo.id then
-						local mag = item:GetHeldEntity().primaryMagazine
-						local itemDef = global.ItemManager.FindItemDefinition.methodarray[1]:Invoke(nil, util.TableToArray({data.ammo.id}))
-						mag.ammoType = itemDef
-						mag.contents = data.ammo.quantity
-					end
+				end
+				if data.ammo and data.ammo.id then
+					local mag = item:GetHeldEntity().primaryMagazine
+					local itemDef = global.ItemManager.FindItemDefinition.methodarray[1]:Invoke(nil, util.TableToArray({data.ammo.id}))
+					mag.ammoType = itemDef
+					mag.contents = data.ammo.quantity
 				end
 				item:MoveToContainer(loot, data.pos)
 			end
@@ -974,12 +976,12 @@ function PLUGIN:SaveBank(player, call)
 			local MaxStk
 			if not permission.UserHasPermission(playerSteamID, "bankmanager.admin") then
 				local FindItem = true
-				local id, bnk, bp, maxd, maxs, _bnk, _bp, _maxd, _maxs
+				local id, bnk, maxd, maxs, _bnk, _maxd, _maxs
 				if call == 1 and found and CustomItems[1] then
 					local i = 1
 					while CustomItems[i] do
 						if tostring(CustomItems[i]):match("([^:]+)") == loot.Current.info.shortname then
-							id, bnk, bp, maxd, maxs = tostring(CustomItems[i]):match("([^:]+):([^:]+):([^:]+):([^:]+):([^:]+)")
+							id, bnk, maxd, maxs = tostring(CustomItems[i]):match("([^:]+):([^:]+):([^:]+):([^:]+)")
 							FindItem = false
 							break
 						end
@@ -990,21 +992,19 @@ function PLUGIN:SaveBank(player, call)
 					local i = 1
 					while self.Config.Items[i] do
 						if tostring(self.Config.Items[i]):match("([^:]+)") == loot.Current.info.shortname then
-							id, bnk, bp, maxd, maxs, _bnk, _bp, _maxd, _maxs = tostring(self.Config.Items[i]):match("([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+)")
+							id, bnk, maxd, maxs, _bnk, _maxd, _maxs = tostring(self.Config.Items[i]):match("([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^:]+)")
 							break
 						end
 						i = i + 1
 					end
 				end
-				local CanBank, CanBankBP, MaxDep
+				local CanBank, MaxDep
 				if call == 1 then
 					CanBank = bnk
-					CanBankBP = bp
 					MaxDep = maxd
 					MaxStk = maxs
 					else
 					CanBank = _bnk
-					CanBankBP = _bp
 					MaxDep = _maxd
 					MaxStk = _maxs
 					if Owner[playerSteamID] then
@@ -1018,12 +1018,6 @@ function PLUGIN:SaveBank(player, call)
 					if not string.match(Returned, "2") then Returned = Returned.."2" end
 					self:ReturnItem(player, loot.Current, call)
 				end
-				if SaveItem and tonumber(CanBankBP) ~= 1 and loot.Current:IsBlueprint() then
-					SaveItem = false
-					if not string.match(Returned, "3") then Returned = Returned.."3" end
-					local item = global.ItemManager.CreateByItemID(loot.Current.info.itemid, 1, true)
-					item:MoveToContainer(player.inventory.containerMain, -1)
-				end
 				if SaveItem then
 					local CurItem = loot.Current.info.itemid
 					if not BankItem[CurItem] then
@@ -1033,7 +1027,7 @@ function PLUGIN:SaveBank(player, call)
 					end
 					if tonumber(BankItem[CurItem]) > tonumber(MaxDep) then
 						SaveItem = false
-						if not string.match(Returned, "4") then Returned = Returned.."4" end
+						if not string.match(Returned, "3") then Returned = Returned.."3" end
 						self:ReturnItem(player, loot.Current, call)
 					end
 				end
@@ -1041,7 +1035,7 @@ function PLUGIN:SaveBank(player, call)
 					ItemCount = ItemCount + 1
 					if ItemCount > tonumber(MaxBank) then
 						SaveItem = false
-						if not string.match(Returned, "5") then Returned = Returned.."5" end
+						if not string.match(Returned, "4") then Returned = Returned.."4" end
 						self:ReturnItem(player, loot.Current, call)
 					end
 				end
@@ -1050,9 +1044,9 @@ function PLUGIN:SaveBank(player, call)
 				local Stack = loot.Current.amount
 				if not permission.UserHasPermission(playerSteamID, "bankmanager.admin") then
 					if tonumber(loot.Current.amount) > tonumber(MaxStk) then
-						if not string.match(Returned, "6") then Returned = Returned.."6" end
+						if not string.match(Returned, "5") then Returned = Returned.."5" end
 						Stack = tonumber(MaxStk)
-						local item = global.ItemManager.CreateByItemID(loot.Current.info.itemid, (loot.Current.amount - tonumber(MaxStk)), false)
+						local item = global.ItemManager.CreateByItemID(loot.Current.info.itemid, (loot.Current.amount - tonumber(MaxStk)))
 						item:MoveToContainer(player.inventory.containerMain, -1)
 					end
 				end
@@ -1078,7 +1072,7 @@ function PLUGIN:SaveBank(player, call)
 						ammo = {id = magazine.ammoType.shortname, quantity = magazine.contents}
 					end
 				end
-				local Bank = {["item"] = loot.Current.info.itemid, ["bp"] = loot.Current:IsBlueprint(), ["quantity"] = Stack, ["durability"] = loot.Current.condition, ["pos"] = loot.Current.position, ["skin"] = skin, ["attachments"] = alist, ["ammo"] = ammo}
+				local Bank = {["item"] = loot.Current.info.itemid, ["quantity"] = Stack, ["durability"] = loot.Current.condition, ["pos"] = loot.Current.position, ["skin"] = skin, ["attachments"] = alist, ["ammo"] = ammo}
 				table.insert(playerData.Bank, Bank)
 			end
 		end
@@ -1105,10 +1099,9 @@ function PLUGIN:SaveBank(player, call)
 		local Reason = ""
 		if string.match(Returned, "1") then Reason = Reason.."Insufficent clan members, " end
 		if string.match(Returned, "2") then Reason = Reason.."Item cannot be banked, " end
-		if string.match(Returned, "3") then Reason = Reason.."Item blueprint cannot be banked, " end
-		if string.match(Returned, "4") then Reason = Reason.."Item reached max deposit, " end
-		if string.match(Returned, "5") then Reason = Reason.."Max bank reached, " end
-		if string.match(Returned, "6") then Reason = Reason.."Max item stack reached, " end
+		if string.match(Returned, "3") then Reason = Reason.."Item reached max deposit, " end
+		if string.match(Returned, "4") then Reason = Reason.."Max bank reached, " end
+		if string.match(Returned, "5") then Reason = Reason.."Max item stack reached, " end
 		local message = FormatMessage(self.Config.Messages.Returned, { reason = string.sub(Reason, 1, -3) })
 		self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
 	end
@@ -1118,7 +1111,7 @@ function PLUGIN:ReturnItem(player, loot, call)
 	local KeepDurability = false
 	if call == 1 and self.Config.Settings.KeepDurability == "true" then KeepDurability = true end
 	if call == 2 and self.Config.Clan.KeepDurability == "true" then KeepDurability = true end
-	local item = global.ItemManager.CreateByItemID(loot.info.itemid, loot.amount, false)
+	local item = global.ItemManager.CreateByItemID(loot.info.itemid, loot.amount)
 	if KeepDurability then item.condition = loot.condition end
 	if loot.skin ~= 0 then item.skin = loot.skin end
 	if loot.contents then
@@ -1296,12 +1289,43 @@ function PLUGIN:CheckCooldown(player, call)
 	return true
 end
 
+function PLUGIN:CheckGround(player)
+	if self.Config.Settings.Ground ~= "true" then return true end
+	local Raycast = UnityEngine.Physics.Raycast.methodarray[12]
+	local ray = new(UnityEngine.Ray._type, util.TableToArray { player.transform.position, UnityEngine.Vector3.get_down() })
+	local arr = util.TableToArray { ray, new( UnityEngine.RaycastHit._type, nil ), 1.5, -5 }
+	util.ConvertAndSetOnArray(arr, 2, 1.5, System.Int64._type)
+	util.ConvertAndSetOnArray(arr, 3, -5, System.Int32._type)
+	if Raycast:Invoke(nil, arr) then
+		local hitEntity = global.RaycastHitEx.GetEntity(arr[1])
+		if hitEntity then
+			if hitEntity:GetComponentInParent(global.BuildingBlock._type) then
+				if self.Config.Settings.Tier ~= "-1" then
+					local Tier = self.Config.Settings.Tier
+					local buildingBlock = hitEntity:GetComponentInParent(global.BuildingBlock._type)
+					local Grade = tostring(buildingBlock.grade)
+					local _, _Tier = Grade:match("([^:]+):([^:]+)")
+					_Tier = string.sub(_Tier, 2)
+					if tonumber(_Tier) >= tonumber(Tier) then return true end
+					local message = FormatMessage(self.Config.Messages.CheckTier, { tier = Tier })
+					self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+					return false
+					else
+					self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.CheckGround)
+					return false
+				end
+			end
+		end
+	end
+	return true
+end
+
 function PLUGIN:CheckRadius(player)
 	local players = global.BasePlayer.activePlayerList:GetEnumerator()
 	while players:MoveNext() do
 		if players.Current ~= player then
 			if UnityEngine.Vector3.Distance(players.Current.transform.position, player.transform.position) <= tonumber(self.Config.Settings.Radius) then
-				local Near = tostring(UnityEngine.Vector3.Distance(players.Current.transform.position, player.transform.position)):match"([^.]*).(.*)"
+				local Near = tostring(UnityEngine.Vector3.Distance(players.Current.transform.position, player.transform.position)):match("([^.]*).(.*)")
 				local message = FormatMessage(self.Config.Messages.CheckRadius, { range = self.Config.Settings.Radius, current = Near })
 				self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
 				return true
@@ -1330,4 +1354,4 @@ end
 
 function PLUGIN:SendHelpText(player)
 	self:RustMessage(player, "<color=#ffd479>/bank</color> - Allows players to deposit and withdraw items from a bank")
-end
+end	

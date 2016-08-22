@@ -1,0 +1,18 @@
+{
+    "name": "Ragnarok",
+    "description": "Ragnarok Hellscape: A constant barrage of meteors.",
+    "author": "",
+    "version": "0.7.8",
+    "configuration": true,
+    "suggest": {
+        "Cornucopia": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

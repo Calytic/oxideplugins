@@ -1,91 +1,41 @@
-using System.Collections.Generic;
-using System.Reflection;
 using System;
-using System.Data;
+using System.Collections.Generic;
 using UnityEngine;
-using Oxide.Core;
+using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("Inventory Cleaner", "PaiN", "1.1.0", ResourceId = 0)]
-    [Description("This plugin allows players with permission to clean all/their/target's inventory.")]
+    [Info("Admin Inventory Cleaner", "TheDoc - Uprising Servers", "1.2.0", ResourceId = 973)]
     class InventoryCleaner : RustPlugin
     {
-		void Loaded()
-		{
-		if (!permission.PermissionExists("cancleaninv")) permission.RegisterPermission("cancleaninv", this);
-		
-		}
-      
-		[ChatCommand("invcleanall")]
-		void cmdInvCleanAll(BasePlayer player, string cmd, string[] args)
-		{
-			
-			string steamId = Convert.ToString(player.userID);
-			if (permission.UserHasPermission(steamId, "cancleaninv"))
-			{
-				if (args.Length == 1)
-				{
-					SendReply(player, "Commands: \n/invcleanme => Cleans your inventory.\n/invclean \"player\" => Cleans the target's inventory\n/invcleanall => Cleans everyones invetory.");
-					return;
-				}
-				
-					var players = BasePlayer.activePlayerList as List<BasePlayer>;
-					foreach (BasePlayer current in BasePlayer.activePlayerList)
-					{
-						current.inventory.Strip();
-						Puts(player.displayName + " has cleaned all the inventories!");
-						PrintToChat("<color=orange>[Inventory Cleaner]</color> " + player.displayName + " has cleaned all the inventories (" + players.Count + ") !");
-						SendReply(player, "<color=orange>[Inventory Cleaner]</color> " + "You have cleaned " + players.Count + " inventories!");
-					
-					}
-					
-				}
-				else
-				{
-					SendReply(player, "You do not have permission to use this command!");
-					return;		
-				}
-			}
-		
-		
-		[ChatCommand("invclean")]
-		void cmdInvClean(BasePlayer player, string cmd, string[] args)
-		{
-			string steamId = Convert.ToString(player.userID);
-			if (permission.UserHasPermission(steamId, "cancleaninv"))
-			{
-				if (args.Length == 0)
-				{
-					SendReply(player, "Commands: \n/invcleanme => Cleans your inventory.\n/invclean \"player\" => Cleans the target's inventory\n/invcleanall => Cleans everyones invetory.");
-					return;
-				}
-				if (args.Length == 1)
-				{
-				var target = BasePlayer.Find(args[0]);
-				target.inventory.Strip();
-				SendReply(player, "<color=orange>[Inventory Cleaner]</color> " + "You have successfully cleaned <color=cyan>" + target.displayName + "</color>'s inventory!");
-				}
-			}
-			else
-			{
-			SendReply(player, "You do not have permission to use this command!");
-			return;
-			}
-		
-		}
-		
-		[ChatCommand("invcleanme")]
-		void cmdInvCleanMe(BasePlayer player, string cmd, string[] args)
-		{
-				if (args.Length == 0)
-				{
-				player.inventory.Strip();
-				SendReply(player, "<color=orange>[Inventory Cleaner]</color> " + "You have cleaned your inventory!");
-				}
+	void SendChatMessage(BasePlayer player, string message, string args = null) => PrintToChat(player, $"<color=lime>InvCleaner</color> : {message}", args);
 
+	void Init() => PluginSetup();
+
+        [ChatCommand("cleaninv")]
+        void cmdChatCleanInv(BasePlayer player, string command, string[] args)
+        {
+            if (IsAllowed(player, "CanUseInvClean") && player != null) {
+	        player.inventory.Strip();
+		SendChatMessage(player, "Your Inventory is now clean!");
+	    }	
+        }
+
+        void PluginSetup()
+        {
+            LoadPermissions();
+        }
 		
-		}
-		
-	}
+        void LoadPermissions()
+        {
+            if (!permission.PermissionExists("CanUseInvClean")) permission.RegisterPermission("CanUseInvClean", this);
+        }
+
+        bool IsAllowed(BasePlayer player, string perm)
+        {
+            if (permission.UserHasPermission(player.userID.ToString(), perm)) return true;
+            SendChatMessage(player, "You are <color=red>Not Allowed</color> To Use this command!");
+            return false;
+        }
+    }
 }

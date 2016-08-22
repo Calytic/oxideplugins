@@ -3,7 +3,7 @@
     "description": "Easily heal yourself or other players",
     "author": "LaserHydra",
     "version": "2.2.0",
-    "configuration": true,
+    "configuration": false,
     "language": "cs",
     "games": [
         "rust"

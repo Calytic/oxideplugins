@@ -1,635 +1,971 @@
 using System.Collections.Generic;
 using System;
+using System.Linq;
 using System.Reflection;
 using UnityEngine;
 using Oxide.Core;
 using Facepunch;
+using System.IO;
 
 namespace Oxide.Plugins
 {
-    [Info("Copy Paste", "Reneb & VVoid & Alex", "2.2.15")]
+    [Info("Copy Paste", "Reneb", "3.0.12", ResourceId = 5981)]
     class CopyPaste : RustPlugin
     {
-        private MethodInfo inventoryClear = typeof(ItemContainer).GetMethod("Clear", BindingFlags.NonPublic | BindingFlags.Instance);
-        private FieldInfo serverinput = typeof(BasePlayer).GetField("serverInput", BindingFlags.NonPublic | BindingFlags.Instance);
-        private FieldInfo keycode = typeof(KeyLock).GetField("keyCode", BindingFlags.NonPublic | BindingFlags.Instance);
-        private FieldInfo codelock = typeof(CodeLock).GetField("code", BindingFlags.NonPublic | BindingFlags.Instance);
-        private FieldInfo firstKeyCreated = typeof(KeyLock).GetField("firstKeyCreated", BindingFlags.NonPublic | BindingFlags.Instance);
-        private Dictionary<string, string> deployedToItem = new Dictionary<string, string>();
-        private int layerMasks = LayerMask.GetMask("Construction", "Construction Trigger", "Trigger", "Deployed", "Tree", "AI");
-
-        /// CACHED VARIABLES
-
-        private Vector3 transformedPos;
-        private Vector3 normedPos;
-        private Quaternion currentRot;
-        private float normedYRot;
-        private float newX;
-        private float newZ;
-        private Dictionary<string, object> posCleanData;
-        private Dictionary<string, object> rotCleanData;
-        private List<object> rawStructure;
-        private List<object> rawDeployables;
-        private List<object> rawSpawnables;
-        private float heightAdjustment;
-        private string filename;
-        private object closestEnt;
-        private Vector3 closestHitpoint;
-        private string cleanDeployedName;
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Static Fields
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////
          
-        void OnServerInitialized()
-        {
-            var allItemsDef = Resources.FindObjectsOfTypeAll<ItemDefinition>();
-            foreach (ItemDefinition itemDef in allItemsDef)
-            {
-                if (itemDef.GetComponent<ItemModDeployable>() != null)
-                {
-                    deployedToItem.Add(itemDef.GetComponent<ItemModDeployable>().entityPrefab.Get().gameObject.name.ToString(), itemDef.shortname.ToString());
-                }
-            }
-        }
+        string copyPermission = "copypaste.copy";
+        string pastePermission = "copypaste.paste";
+        string undoPermission = "copypaste.undo";
+        string subDirectory = "copypaste/";
 
-        bool TryGetClosestRayPoint(Vector3 sourcePos, Quaternion sourceDir, out object closestEnt, out Vector3 closestHitpoint)
-        {
-            Vector3 sourceEye = sourcePos + new Vector3(0f, 1.5f, 0f);
-            Ray ray = new Ray(sourceEye, sourceDir * Vector3.forward);
+        int rayLayer = LayerMask.GetMask(new string[] { "Construction", "Deployed", "Tree", "Terrain", "Resource", "World", "Water", "Default", "Prevent Building" });
+        int copyLayer = LayerMask.GetMask("Construction", "Construction Trigger", "Trigger", "Deployed", "Tree", "AI");
+        int collisionLayer = LayerMask.GetMask("Construction", "Construction Trigger", "Trigger", "Deployed", "Default");
+        int terrainLayer = LayerMask.GetMask(new string[] { "Terrain", "World", "Water", "Default" });
+        int groundLayer = LayerMask.GetMask(new string[] { "Terrain", "Default" });
 
-            var hits = Physics.RaycastAll(ray);
-            float closestdist = 999999f;
-            closestHitpoint = sourcePos;
-            closestEnt = false;
-            foreach (var hit in hits)
-            {
-                if (hit.collider.isTrigger)
-                    continue;
-                if (hit.distance < closestdist)
-                {
-                    closestdist = hit.distance;
-                    closestEnt = hit.GetEntity();
-                    closestHitpoint = hit.point;
-                }
-            }
-            if (closestEnt is bool)
-                return false;
+        private FieldInfo codelock = typeof(CodeLock).GetField("code", BindingFlags.NonPublic | BindingFlags.Instance);
+        private FieldInfo keycode = typeof(KeyLock).GetField("keyCode", BindingFlags.NonPublic | BindingFlags.Instance);
+        private FieldInfo firstKeyCreated = typeof(KeyLock).GetField("firstKeyCreated", BindingFlags.NonPublic | BindingFlags.Instance);
+        private MethodInfo inventoryClear = typeof(ItemContainer).GetMethod("Clear", BindingFlags.NonPublic | BindingFlags.Instance);
+        private MethodInfo newbuildingid = typeof(BuildingBlock).GetMethod("NewBuildingID", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+
+        DataFileSystem datafile = Interface.GetMod().DataFileSystem;
+
+        Dictionary<string, List<BaseEntity>> lastPastes = new Dictionary<string, List<BaseEntity>>();
+
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // General Methods
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        string GetMsg(string key, object steamid = null) { return lang.GetMessage(key, this, steamid == null ? null : steamid.ToString()); }
+        bool hasAccess(BasePlayer player, string permissionName) { if (player.net.connection.authLevel > 1) return true; return permission.UserHasPermission(player.userID.ToString(), permissionName); }
+
+        bool FindRayEntity(Vector3 sourcePos, Vector3 sourceDir, out Vector3 point, out BaseEntity entity)
+        {
+            RaycastHit hitinfo;
+            entity = null;
+            point = default(Vector3);
+
+            if (!Physics.Raycast(sourcePos, sourceDir, out hitinfo, 1000f, rayLayer)) { return false; }
+
+            point = hitinfo.point;
+            entity = hitinfo.GetEntity();
             return true;
         }
 
-        bool hasAccess(BasePlayer player)
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Oxide Hooks
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        void Loaded()
         {
-            if (player.net.connection.authLevel < 1)
+            permission.RegisterPermission(copyPermission, this);
+            permission.RegisterPermission(pastePermission, this);
+            permission.RegisterPermission(undoPermission, this);
+
+            lang.RegisterMessages(new Dictionary<string, string>
             {
-                SendReply(player, "You are not allowed to use this command");
-                return false;
-            }
-            return true;
+                { "This file is empty.", "This file is empty."},
+                {"You don't have the permissions to use this command.","You don't have the permissions to use this command." },
+                {"Syntax: /paste TARGETFILENAME options values\r\nheight XX - Adjust the height\r\nblockcollision XX - blocks the entire paste if something the new building collides with something","Syntax: /paste TARGETFILENAME options values\r\nheight XX - Adjust the height\r\nblockcollision XX - blocks the entire paste if something the new building collides with something" },
+                {"Syntax: /placeback TARGETFILENAME options values\r\nheight XX - Adjust the height\r\ncheckplaced true/false - checks if parts of the house are already placed or not, if they are already placed, the building part will be removed","Syntax: /placeback TARGETFILENAME options values\r\nheight XX - Adjust the height\r\ncheckplaced true/false - checks if parts of the house are already placed or not, if they are already placed, the building part will be removed" },
+                {"Syntax: /paste or /placeback TARGETFILENAME options values\r\nheight XX - Adjust the height\r\nautoheight true/false - sets best height, carefull of the steep\r\ncheckplaced true/false - checks if parts of the house are already placed or not, if they are already placed, the building part will be removed \r\nblockcollision XX - blocks the entire paste if something the new building collides with something\r\ndeployables true/false - false to remove deployables\r\ninventories true/false - false to ignore inventories","Syntax: /paste or /placeback TARGETFILENAME options values\r\nheight XX - Adjust the height\r\nautoheight true/false - sets best height, carefull of the steep\r\ncheckplaced true/false - checks if parts of the house are already placed or not, if they are already placed, the building part will be removed \r\nblockcollision XX - blocks the entire paste if something the new building collides with something\r\ndeployables true/false - false to remove deployables\r\ninventories true/false - false to ignore inventories" },
+                { "You've successfully placed back the structure.","You've successfully placed back the structure." },
+                {"You've successfully pasted the structure.","You've successfully pasted the structure." },
+                {"Syntax: /copy TARGETFILENAME options values\r\n radius XX (default 3)\r\n mechanics proximity/building (default building)\r\nbuilding true/false (saves structures or not)\r\ndeployables true/false (saves deployables or not)\r\ninventories true/false (saves inventories or not)","Syntax: /copy TARGETFILENAME options values\r\n radius XX (default 3)\r\n mechanics proximity/building (default building)\r\nbuilding true/false (saves structures or not)\r\ndeployables true/false (saves deployables or not)\r\ninventories true/false (saves inventories or not)" },
+                {"Couldn't ray something valid in front of you.","Couldn't ray something valid in front of you." },
+                {"The structure was successfully copied as {0}","The structure was successfully copied as {0}" },
+                {"You must paste something before undoing it.","You must paste something before undoing it." },
+                {"You've successfully undid what you pasted.","You've successfully undid what you pasted." }
+            }, this);
         }
 
-        bool TryGetPlayerView(BasePlayer player, out Quaternion viewAngle)
-        {
-            viewAngle = new Quaternion(0f, 0f, 0f, 0f);
-            var input = serverinput.GetValue(player) as InputState;
-            if (input == null || input.current == null || input.current.aimAngles == Vector3.zero)
-                return false;
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Copy
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-            viewAngle = Quaternion.Euler(input.current.aimAngles);
-            return true;
-        }
+        bool isValid(BaseEntity entity) { return entity.GetComponentInParent<BuildingBlock>() || entity.GetComponentInParent<Deployable>() || entity.GetComponentInParent<Spawnable>(); }
 
-        Vector3 GenerateGoodPos(Vector3 InitialPos, Vector3 CurrentPos, float diffRot)
-        {
-            transformedPos = CurrentPos - InitialPos;
-            newX = (transformedPos.x * (float)System.Math.Cos(-diffRot)) + (transformedPos.z * (float)System.Math.Sin(-diffRot));
-            newZ = (transformedPos.z * (float)System.Math.Cos(-diffRot)) - (transformedPos.x * (float)System.Math.Sin(-diffRot));
-            transformedPos.x = newX;
-            transformedPos.z = newZ;
-            return transformedPos;
-        }
-
-        bool GetStructureClean(BuildingBlock initialBlock, float playerRot, BuildingBlock currentBlock, out Dictionary<string, object> data)
-        {
-            data = new Dictionary<string, object>();
-            posCleanData = new Dictionary<string, object>();
-            rotCleanData = new Dictionary<string, object>();
-
-            normedPos = GenerateGoodPos(initialBlock.transform.position, currentBlock.transform.position, playerRot);
-            normedYRot = currentBlock.transform.rotation.ToEulerAngles().y - playerRot;
-
-            data.Add("prefabname", currentBlock.blockDefinition.fullName);
-            data.Add("grade", currentBlock.grade);
-
-            posCleanData.Add("x", normedPos.x.ToString());
-            posCleanData.Add("y", normedPos.y.ToString());
-            posCleanData.Add("z", normedPos.z.ToString());
-            data.Add("pos", posCleanData);
-
-            rotCleanData.Add("x", currentBlock.transform.rotation.ToEulerAngles().x.ToString());
-            rotCleanData.Add("y", normedYRot.ToString());
-            rotCleanData.Add("z", currentBlock.transform.rotation.ToEulerAngles().z.ToString());
-            data.Add("rot", rotCleanData);
-            return true;
-        }
-
-        bool GetDeployableClean(BuildingBlock initialBlock, float playerRot, Deployable currentBlock, out Dictionary<string, object> data)
-        {
-            data = new Dictionary<string, object>();
-            posCleanData = new Dictionary<string, object>();
-            rotCleanData = new Dictionary<string, object>();
-
-            normedPos = GenerateGoodPos(initialBlock.transform.position, currentBlock.transform.position, playerRot);
-            normedYRot = currentBlock.transform.rotation.ToEulerAngles().y - playerRot;
-            data.Add("prefabname", StringPool.Get(currentBlock.prefabID).ToString());
-
-            posCleanData.Add("x", normedPos.x.ToString());
-            posCleanData.Add("y", normedPos.y.ToString());
-            posCleanData.Add("z", normedPos.z.ToString());
-            data.Add("pos", posCleanData);
-
-            rotCleanData.Add("x", currentBlock.transform.rotation.ToEulerAngles().x.ToString());
-            rotCleanData.Add("y", normedYRot.ToString());
-            rotCleanData.Add("z", currentBlock.transform.rotation.ToEulerAngles().z.ToString());
-            data.Add("rot", rotCleanData);
-            return true;
-        }
-
-        bool GetSpawnableClean(BuildingBlock initialBlock, float playerRot, Spawnable currentSpawn, out Dictionary<string, object> data)
-        {
-            data = new Dictionary<string, object>();
-            posCleanData = new Dictionary<string, object>();
-            rotCleanData = new Dictionary<string, object>();
-
-            normedPos = GenerateGoodPos(initialBlock.transform.position, currentSpawn.transform.position, playerRot);
-            normedYRot = currentSpawn.transform.rotation.ToEulerAngles().y - playerRot;
-            data.Add("prefabname", currentSpawn.GetComponent<BaseNetworkable>().LookupPrefabName().ToString());
-
-            posCleanData.Add("x", normedPos.x.ToString());
-            posCleanData.Add("y", normedPos.y.ToString());
-            posCleanData.Add("z", normedPos.z.ToString());
-            data.Add("pos", posCleanData);
-
-            rotCleanData.Add("x", currentSpawn.transform.rotation.ToEulerAngles().x.ToString());
-            rotCleanData.Add("y", normedYRot.ToString());
-            rotCleanData.Add("z", currentSpawn.transform.rotation.ToEulerAngles().z.ToString());
-            data.Add("rot", rotCleanData);
-            return true;
-        }
-
-        object CopyBuilding(Vector3 playerPos, float playerRot, BuildingBlock initialBlock, out List<object> rawStructure, out List<object> rawDeployables, out List<object> rawSpawnables)
-        {
-            rawStructure = new List<object>();
-            rawDeployables = new List<object>();
-            rawSpawnables = new List<object>();
-            List<object> houseList = new List<object>();
-            List<Vector3> checkFrom = new List<Vector3>();
-            BuildingBlock fbuildingblock;
-            Deployable fdeployable;
-            Spawnable fspawnable;
-
-            houseList.Add(initialBlock);
-            checkFrom.Add(initialBlock.transform.position);
-
-            Dictionary<string, object> housedata;
-            if (!GetStructureClean(initialBlock, playerRot, initialBlock, out housedata))
-            {
-                return "Couldn\'t get a clean initial block";
-            }
-            if (initialBlock.HasSlot(BaseEntity.Slot.Lock)) // initial block could be a door.
-                TryCopyLock(initialBlock, housedata);
-            rawStructure.Add(housedata);
-
-            int current = 0;
-            while (true)
-            {
-                current++;
-                if (current > checkFrom.Count)
-                    break;
-                List<BaseEntity> list = Pool.GetList<BaseEntity>();
-                Vis.Entities<BaseEntity>(checkFrom[current - 1], 3f, list, layerMasks);
-                for (int i = 0; i < list.Count; i++)
-                {
-                    BaseEntity hit = list[i];
-                    if (hit.GetComponentInParent<BuildingBlock>() != null)
-                    {
-                        fbuildingblock = hit.GetComponentInParent<BuildingBlock>();
-                        if (!(houseList.Contains(fbuildingblock)))
-                        {
-                            houseList.Add(fbuildingblock);
-                            checkFrom.Add(fbuildingblock.transform.position);
-                            if (GetStructureClean(initialBlock, playerRot, fbuildingblock, out housedata))
-                            {
-
-                                if (fbuildingblock.HasSlot(BaseEntity.Slot.Lock))
-                                    TryCopyLock(fbuildingblock, housedata);
-                                rawStructure.Add(housedata);
-                            }
-                        }
-                    }
-                    else if (hit.GetComponentInParent<Deployable>() != null)
-                    {
-                        fdeployable = hit.GetComponentInParent<Deployable>();
-                        if (!(houseList.Contains(fdeployable)))
-                        {
-                            houseList.Add(fdeployable);
-                            checkFrom.Add(fdeployable.transform.position);
-                            if (GetDeployableClean(initialBlock, playerRot, fdeployable, out housedata))
-                            {
-                                if (fdeployable.GetComponent<StorageContainer>())
-                                {
-                                    var box = fdeployable.GetComponent<StorageContainer>();
-                                    var itemlist = new List<object>();
-                                    foreach (Item item in box.inventory.itemList)
-                                    {
-                                        var newitem = new Dictionary<string, object>();
-                                        newitem.Add("blueprint", item.IsBlueprint().ToString());
-                                        newitem.Add("id", item.info.itemid.ToString());
-                                        newitem.Add("amount", item.amount.ToString());
-                                        itemlist.Add(newitem);
-                                    }
-                                    housedata.Add("items", itemlist);
-
-                                    if (box.HasSlot(BaseEntity.Slot.Lock))
-                                        TryCopyLock(box, housedata);
-                                }
-                                else if (fdeployable.GetComponent<Signage>())
-                                {
-                                    var signage = fdeployable.GetComponent<Signage>();
-                                    var sign = new Dictionary<string, object>();
-									var get = FileStorage.server.Get(signage.textureID, FileStorage.Type.png, signage.net.ID);
-                                    if (signage.textureID > 0 && get!=null)
-                                        sign.Add("texture", Convert.ToBase64String(get));
-                                    sign.Add("locked", signage.IsLocked());
-                                    housedata.Add("sign", sign);
-                                }
-                                rawDeployables.Add(housedata);
-                            }
-                        }
-                    }
-                    else if (hit.GetComponentInParent<Spawnable>() != null)
-                    {
-                        fspawnable = hit.GetComponentInParent<Spawnable>();
-                        if (!(houseList.Contains(fspawnable)))
-                        {
-                            houseList.Add(fspawnable);
-                            checkFrom.Add(fspawnable.transform.position);
-                            if (GetSpawnableClean(initialBlock, playerRot, fspawnable, out housedata))
-                            {
-                                rawSpawnables.Add(housedata);
-                            }
-                        }
-                    }
-                }
-            }
-            return true;
-        }
-
-        [ChatCommand("copy")]
-        void cmdChatCopy(BasePlayer player, string command, string[] args)
-        {
-            if (!hasAccess(player)) return;
-
-            if (args == null || args.Length == 0)
-            {
-                SendReply(player, "You need to set the name of the copy file: /copy NAME");
-                return;
-            }
-
-            // Get player camera view directly from the player
-            if (!TryGetPlayerView(player, out currentRot))
-            {
-                SendReply(player, "Couldn\'t find your eyes");
-                return;
-            }
-
-            // Get what the player is looking at
-            if (!TryGetClosestRayPoint(player.transform.position, currentRot, out closestEnt, out closestHitpoint))
-            {
-                SendReply(player, "Couldn\'t find any Entity");
-                return;
-            }
-
-            // Check if what the player is looking at is a collider
-            var baseentity = closestEnt as BaseEntity;
-            if (baseentity == null)
-            {
-                SendReply(player, "You are not looking at a Structure, or something is blocking the view.");
-                return;
-            }
-
-            // Check if what the player is looking at is a BuildingBlock (like a wall or something like that)
-            var buildingblock = baseentity.GetComponentInParent<BuildingBlock>();
-            if (buildingblock == null)
-            {
-                SendReply(player, "You are not looking at a Structure, or something is blocking the view.");
-                return;
-            }
-
-            var returncopy = CopyBuilding(player.transform.position, currentRot.ToEulerAngles().y, buildingblock, out rawStructure, out rawDeployables, out rawSpawnables);
-            if (returncopy is string)
-            {
-                SendReply(player, (string)returncopy);
-                return;
-            }
-
-            if (rawStructure.Count == 0)
-            {
-                SendReply(player, "Something went wrong, house is empty?");
-                return;
-            }
-
-            Dictionary<string, object> defaultValues = new Dictionary<string, object>();
-
-            Dictionary<string, object> defaultPos = new Dictionary<string, object>();
-            defaultPos.Add("x", buildingblock.transform.position.x.ToString());
-            defaultPos.Add("y", buildingblock.transform.position.y.ToString());
-            defaultPos.Add("z", buildingblock.transform.position.z.ToString());
-            defaultValues.Add("position", defaultPos);
-            defaultValues.Add("yrotation", buildingblock.transform.rotation.ToEulerAngles().y.ToString());
-
-            filename = string.Format("copypaste-{0}", args[0].ToString());
-            Core.Configuration.DynamicConfigFile CopyData = Interface.GetMod().DataFileSystem.GetDatafile(filename);
-            CopyData.Clear();
-            CopyData["structure"] = rawStructure;
-            CopyData["deployables"] = rawDeployables;
-            CopyData["spawnables"] = rawSpawnables;
-            CopyData["default"] = defaultValues;
-
-
-            Interface.GetMod().DataFileSystem.SaveDatafile(filename);
-
-            SendReply(player, string.Format("The house {0} was successfully saved", args[0].ToString()));
-            SendReply(player, string.Format("{0} building parts detected", rawStructure.Count.ToString()));
-            SendReply(player, string.Format("{0} deployables detected", rawDeployables.Count.ToString()));
-            SendReply(player, string.Format("{0} spawnables detected", rawSpawnables.Count.ToString()));
-        }
-
-        [ChatCommand("paste")]
-        void cmdChatPaste(BasePlayer player, string command, string[] args)
-        {
-            if (!hasAccess(player)) return;
-            if (args == null || args.Length == 0)
-            {
-                SendReply(player, "You need to set the name of the copy file: /paste NAME optional:HeightAdjustment");
-                return;
-            }
-
-            // Adjust height so you don't automatically paste in the ground
-            heightAdjustment = 0.5f;
-            if (args.Length > 1)
-            {
-                float.TryParse(args[1].ToString(), out heightAdjustment);
-            }
-
-            // Get player camera view directly from the player
-            if (!TryGetPlayerView(player, out currentRot))
-            {
-                SendReply(player, "Couldn\'t find your eyes");
-                return;
-            }
-
-            // Get what the player is looking at
-            if (!TryGetClosestRayPoint(player.transform.position, currentRot, out closestEnt, out closestHitpoint))
-            {
-                SendReply(player, "Couldn\'t find any Entity");
-                return;
-            }
-
-            closestHitpoint.y = closestHitpoint.y + heightAdjustment;
-
-            filename = string.Format("copypaste-{0}", args[0].ToString());
-            Core.Configuration.DynamicConfigFile PasteData = Interface.GetMod().DataFileSystem.GetDatafile(filename);
-            if (PasteData["structure"] == null || PasteData["default"] == null)
-            {
-                SendReply(player, "This is not a correct copypaste file, or it\'s empty.");
-                return;
-            }
-            List<object> structureData = PasteData["structure"] as List<object>;
-            List<object> deployablesData = PasteData["deployables"] as List<object>;
-            List<object> spawnablesData = PasteData["spawnables"] as List<object>;
-
-            PasteBuilding(structureData, closestHitpoint, currentRot.ToEulerAngles().y, heightAdjustment);
-            PasteDeployables(deployablesData, closestHitpoint, currentRot.ToEulerAngles().y, heightAdjustment, player);
-            PasteSpawnables(spawnablesData, closestHitpoint, currentRot.ToEulerAngles().y, heightAdjustment, player);
-        }
-
-        [ChatCommand("placeback")]
-        void cmdChatPlaceback(BasePlayer player, string command, string[] args)
-        {
-            if (player.net.connection.authLevel < 1)
-            {
-                SendReply(player, "You are not allowed to use this command");
-                return;
-            }
-            if (args == null || args.Length == 0)
-            {
-                SendReply(player, "You need to set the name of the copy file: /placeback NAME");
-                return;
-            }
-            heightAdjustment = 0;
-            filename = string.Format("copypaste-{0}", args[0].ToString());
-
-            Core.Configuration.DynamicConfigFile PasteData = Interface.GetMod().DataFileSystem.GetDatafile(filename);
-            if (PasteData["structure"] == null || PasteData["default"] == null)
-            {
-                SendReply(player, "This is not a correct copypaste file, or it\'s empty.");
-                return;
-            }
-            Dictionary<string, object> defaultData = PasteData["default"] as Dictionary<string, object>;
-            Dictionary<string, object> defaultPos = defaultData["position"] as Dictionary<string, object>;
-            Vector3 defaultposition = new Vector3(Convert.ToSingle(defaultPos["x"]), Convert.ToSingle(defaultPos["y"]), Convert.ToSingle(defaultPos["z"]));
-            List<object> structureData = PasteData["structure"] as List<object>;
-            List<object> deployablesData = PasteData["deployables"] as List<object>;
-
-            PasteBuilding(structureData, defaultposition, Convert.ToSingle(defaultData["yrotation"]), heightAdjustment);
-            PasteDeployables(deployablesData, defaultposition, Convert.ToSingle(defaultData["yrotation"]), heightAdjustment, player);
-        }
-
-        BuildingBlock SpawnStructure(GameObject prefab, Vector3 pos, Quaternion angles, BuildingGrade.Enum grade)
-        {
-            BuildingBlock block = prefab.GetComponent<BuildingBlock>();
-            if (block == null) return null;
-            block.transform.position = pos;
-            block.transform.rotation = angles;
-            block.gameObject.SetActive(true);
-            block.blockDefinition = PrefabAttribute.server.Find<Construction>(block.prefabID);
-            block.Spawn(true);
-            block.SetGrade(grade);
-            block.health = block.MaxHealth();
-            return block;
-        }
-
-        void SpawnDeployable(Item newitem, Vector3 pos, Quaternion angles, BasePlayer player)
-        {
-            if (newitem.info.GetComponent<ItemModDeployable>() == null)
-            {
-                return;
-            }
-            var deployable = newitem.info.GetComponent<ItemModDeployable>().entityPrefab.resourcePath;
-            if (deployable == null)
-            {
-                return;
-            }
-            var newBaseEntity = GameManager.server.CreateEntity(deployable, pos, angles);
-            if (newBaseEntity == null)
-            {
-                return;
-            }
-            newBaseEntity.SendMessage("SetDeployedBy", player, SendMessageOptions.DontRequireReceiver);
-            newBaseEntity.SendMessage("InitializeItem", newitem, SendMessageOptions.DontRequireReceiver);
-            newBaseEntity.Spawn(true);
-        }
-
-        void PasteBuilding(List<object> structureData, Vector3 targetPoint, float targetRot, float heightAdjustment)
-        {
-            Vector3 OriginRotation = new Vector3(0f, targetRot, 0f);
-            Quaternion OriginRot = Quaternion.EulerRotation(OriginRotation);
-            foreach (Dictionary<string, object> structure in structureData)
-            {
-
-                Dictionary<string, object> structPos = structure["pos"] as Dictionary<string, object>;
-                Dictionary<string, object> structRot = structure["rot"] as Dictionary<string, object>;
-                string prefabname = (string)structure["prefabname"];
-				if (!prefabname.Contains(".prefab")) prefabname = "assets/bundled/prefabs/"+prefabname+".prefab";
-                BuildingGrade.Enum grade = (BuildingGrade.Enum)structure["grade"];
-                Quaternion newAngles = Quaternion.EulerRotation((new Vector3(Convert.ToSingle(structRot["x"]), Convert.ToSingle(structRot["y"]), Convert.ToSingle(structRot["z"]))) + OriginRotation);
-                Vector3 TempPos = OriginRot * (new Vector3(Convert.ToSingle(structPos["x"]), Convert.ToSingle(structPos["y"]), Convert.ToSingle(structPos["z"])));
-                Vector3 NewPos = TempPos + targetPoint;
-                GameObject newPrefab = GameManager.server.CreatePrefab(prefabname, NewPos, newAngles, true);
-                if (newPrefab != null)
-                {
-                    var block = SpawnStructure(newPrefab, NewPos, newAngles, grade);
-                    if (block && block.HasSlot(BaseEntity.Slot.Lock))
-                    {
-                        TryPasteLock(block, structure);
-                    }
-                }
-            }
-        }
-
-        void TryCopyLock(BaseCombatEntity lockableEntity, IDictionary<string, object> housedata)
+        void TryCopyLock(BaseEntity lockableEntity, IDictionary<string, object> housedata)
         {
             var slotentity = lockableEntity.GetSlot(BaseEntity.Slot.Lock);
             if (slotentity != null)
             {
+                var codedata = new Dictionary<string, object>
+                {
+                    {"prefabname", slotentity.PrefabName}
+                };
+
                 if (slotentity.GetComponent<CodeLock>())
                 {
-                    housedata.Add("codelock", codelock.GetValue(slotentity.GetComponent<CodeLock>()).ToString());
+                    codedata.Add("code", codelock.GetValue(slotentity.GetComponent<CodeLock>()).ToString());
                 }
                 else if (slotentity.GetComponent<KeyLock>())
                 {
                     var code = (int)keycode.GetValue(slotentity.GetComponent<KeyLock>());
                     if ((bool)firstKeyCreated.GetValue(slotentity.GetComponent<KeyLock>()))
                         code |= 0x80;
-                    housedata.Add("keycode", code.ToString());
+                    codedata.Add("code", code.ToString());
                 }
+                housedata.Add("lock",codedata);
             }
         }
+        object CopyByBuilding(Vector3 sourcePos, Vector3 sourceRot, float RotationCorrection, float range, bool saveBuildings, bool saveDeployables, bool saveInventories)
+        {
+            var rawData = new List<object>();
+            var houseList = new List<BaseEntity>();
+            var checkFrom = new List<Vector3> { sourcePos };
+            uint buildingid = 0;
+            int current = 0;
+            try
+            {
+                while (true)
+                {
+                    if (current >= checkFrom.Count) break;
 
-        void TryPasteLock(BaseCombatEntity lockableEntity, IDictionary<string, object> structure)
+                    List<BaseEntity> list = Pool.GetList<BaseEntity>();
+                    Vis.Entities<BaseEntity>(checkFrom[current], range, list, copyLayer);
+
+                    for (int i = 0; i < list.Count; i++)
+                    {
+                        var entity = list[i];
+                        if (isValid(entity) && !houseList.Contains(entity))
+                        {
+                            houseList.Add(entity);
+                            var buildingblock = entity.GetComponentInParent<BuildingBlock>();
+                            if (buildingblock)
+                            {
+                                if (buildingid == 0) buildingid = buildingblock.buildingID;
+                                else if(buildingid != buildingblock.buildingID) continue;
+                            }
+                            if (!checkFrom.Contains(entity.transform.position)) checkFrom.Add(entity.transform.position);
+
+                            if (!saveBuildings && entity.GetComponentInParent<BuildingBlock>() != null) continue;
+                            if (!saveDeployables && entity.GetComponentInParent<Deployable>() != null) continue;
+                            rawData.Add(EntityData(entity, sourcePos, sourceRot, entity.transform.position, entity.transform.rotation.ToEulerAngles(), RotationCorrection, saveInventories));
+                        }
+                    }
+                    current++;
+                }
+            }
+            catch (Exception e)
+            {
+                return e.Message;
+            }
+            return rawData;
+        }
+        object CopyByProximity(Vector3 sourcePos, Vector3 sourceRot, float RotationCorrection, float range, bool saveBuildings, bool saveDeployables, bool saveInventories)
+        {
+            var rawData = new List<object>();
+            var houseList = new List<BaseEntity>();
+            var checkFrom = new List<Vector3> { sourcePos };
+            int current = 0;
+            try
+            {
+                while (true)
+                {
+                    if (current >= checkFrom.Count) break;
+
+                    List<BaseEntity> list = Pool.GetList<BaseEntity>();
+                    Vis.Entities<BaseEntity>(checkFrom[current], range, list, copyLayer);
+
+                    for (int i = 0; i < list.Count; i++)
+                    {
+                        var entity = list[i];
+                        if (isValid(entity) && !houseList.Contains(entity))
+                        {
+                            houseList.Add(entity);
+                            if (!checkFrom.Contains(entity.transform.position)) checkFrom.Add(entity.transform.position);
+
+                            if (!saveBuildings && entity.GetComponentInParent<BuildingBlock>() != null) continue;
+                            if (!saveDeployables && entity.GetComponentInParent<Deployable>() != null) continue;
+
+                            rawData.Add(EntityData(entity, sourcePos, sourceRot, entity.transform.position, entity.transform.rotation.ToEulerAngles(), RotationCorrection, saveInventories));
+                        }
+                    }
+                    current++;
+                }
+            }
+            catch (Exception e)
+            {
+                return e.Message;
+            }
+            return rawData;
+        }
+        enum CopyMechanics
+        {
+            Building,
+            Proximity
+        }
+
+
+        object TryCopyFromSteamID(string steamid, string filename, string[] args)
+        {
+            ulong userid;
+            if (!ulong.TryParse(steamid, out userid)) { return "First argument isn't a steamid"; }
+            var player = BasePlayer.FindByID(userid);
+            if (player == null) return "Couldn't find the player";
+            if (!player.IsConnected()) return "Player is not connected?";
+
+            return TryCopyFromPlayer(player, filename, args);
+        }
+
+        object TryCopyFromPlayer(BasePlayer player, string filename, string[] args)
+        {
+            if (player == null) return "Player is null?";
+            if (!player.IsConnected()) return "Player is not connected?";
+
+            var ViewAngles = Quaternion.Euler(player.GetNetworkRotation());
+            BaseEntity sourceEntity;
+            Vector3 sourcePoint;
+
+            if (!FindRayEntity(player.eyes.position, ViewAngles * Vector3.forward, out sourcePoint, out sourceEntity))
+            {
+                return GetMsg("Couldn't ray something valid in front of you.", player.userID.ToString());
+            }
+
+            return TryCopy(sourcePoint, sourceEntity.transform.rotation.ToEulerAngles(), filename, ViewAngles.ToEulerAngles().y, args);
+        }
+
+        object TryCopy(Vector3 sourcePos, Vector3 sourceRot, string filename, float RotationCorrection, string[] args)
+        {
+            CopyMechanics copyMechanics = CopyMechanics.Building;
+            float radius = 3f;
+            bool saveInventories = true;
+            bool saveDeployables = true;
+            bool saveBuilding = true;
+            for(int i = 0; ; i = i + 2)
+            {
+                if (i >= args.Length) break;
+                if(i+1 >= args.Length)
+                {
+                    return GetMsg("Syntax: /copy TARGETFILENAME options values\r\n radius XX (default 3)\r\n mechanics proximity/building (default building)\r\nbuilding true/false (saves structures or not)\r\ndeployables true/false (saves deployables or not)\r\ninventories true/false (saves inventories or not)", null);
+                }
+                switch(args[i].ToLower())
+                {
+                    case "r":
+                    case "rad":
+                    case "radius":
+                        if(!float.TryParse(args[i+1], out radius))
+                        {
+                            return "radius must be a number";
+                        }
+                        break;
+                    case "mechanics":
+                    case "m":
+                    case "mecha":
+                        switch(args[i+1].ToLower())
+                        {
+                            case "building":
+                            case "build":
+                            case "b":
+                                copyMechanics = CopyMechanics.Building;
+                                break;
+                            case "proximity":
+                            case "prox":
+                            case "p":
+                                copyMechanics = CopyMechanics.Proximity;
+                                break;
+                        }
+                        break;
+                    case "i":
+                    case "inventories":
+                    case "inv":
+                        if(!bool.TryParse(args[i + 1], out saveInventories))
+                        {
+                            return "save inventories needs to be true or false";
+                        }
+                        break;
+                    case "b":
+                    case "building":
+                    case "structure":
+                        if (!bool.TryParse(args[i + 1], out saveBuilding))
+                        {
+                            return "save buildings needs to be true or false";
+                        }
+                        break;
+                    case "d":
+                    case "deployables":
+                        if (!bool.TryParse(args[i + 1], out saveDeployables))
+                        {
+                            return "save deployables needs to be true or false";
+                        }
+                        break;
+
+                    default:
+                        return GetMsg("Syntax: /copy TARGETFILENAME options values\r\n radius XX (default 3)\r\n mechanics proximity/building (default building)\r\nbuilding true/false (saves structures or not)\r\ndeployables true/false (saves deployables or not)\r\ninventories true/false (saves inventories or not)", null);
+                        break;
+                }
+
+            }
+
+            return Copy(sourcePos, sourceRot, filename, RotationCorrection, copyMechanics, radius, saveBuilding, saveDeployables, saveInventories);
+        }
+        object Copy(Vector3 sourcePos, Vector3 sourceRot, string filename, float RotationCorrection, CopyMechanics copyMechanics, float range, bool saveBuildings, bool saveDeployables, bool saveInventories )
+        {
+            var rawData = new List<object>();
+            var copy = copyMechanics == CopyMechanics.Proximity ? CopyByProximity(sourcePos, sourceRot, RotationCorrection, range, saveBuildings, saveDeployables, saveInventories) : CopyByBuilding(sourcePos, sourceRot, RotationCorrection, range, saveBuildings, saveDeployables, saveInventories); ;
+            if (copy is string) return copy;
+            rawData = copy as List<object>;
+
+            var defaultData = new Dictionary<string, object>
+            {
+                {"position", new Dictionary<string, object>
+                    {
+                        {"x", sourcePos.x.ToString()  },
+                        {"y", sourcePos.y.ToString() },
+                        {"z", sourcePos.z.ToString() }
+                    }
+                },
+                {"rotationy", sourceRot.y.ToString() },
+                {"rotationdiff", RotationCorrection.ToString() }
+            };
+
+            string path = subDirectory + filename;
+            var CopyData = Interface.GetMod().DataFileSystem.GetDatafile(path);
+            CopyData.Clear();
+            CopyData["default"] = defaultData;
+            CopyData["entities"] = rawData;
+            Interface.GetMod().DataFileSystem.SaveDatafile(path);
+            return true;
+        }
+
+        Dictionary<string,object> EntityData(BaseEntity entity, Vector3 sourcePos, Vector3 sourceRot, Vector3 entPos, Vector3 entRot, float diffRot, bool saveInventories)
+        {
+            var normalizedPos = NormalizePosition(sourcePos, entPos, diffRot);
+            var normalizedRot = entRot.y - diffRot;
+
+            var data = new Dictionary<string, object>
+            {
+                { "prefabname", entity.PrefabName },
+                { "skinid", entity.skinID },
+                { "pos", new Dictionary<string,object>
+                    {
+                        { "x", normalizedPos.x.ToString() },
+                        { "y", normalizedPos.y.ToString() },
+                        { "z", normalizedPos.z.ToString() }
+                    }
+                },
+                { "rot", new Dictionary<string,object>
+                    {
+                        { "x", entRot.x.ToString() },
+                        { "y", normalizedRot.ToString() },
+                        { "z", entRot.z.ToString() },
+                    }
+                }
+            };
+
+            if (entity.HasSlot(BaseEntity.Slot.Lock))
+                TryCopyLock(entity, data);
+
+            var buildingblock = entity.GetComponentInParent<BuildingBlock>();
+            if (buildingblock != null )
+            {
+                data.Add("grade", buildingblock.grade);
+            }
+
+            var box = entity.GetComponentInParent<StorageContainer>();
+            if (box != null)
+            {
+                var itemlist = new List<object>();
+                if (saveInventories)
+                {
+                    foreach (Item item in box.inventory.itemList)
+                    {
+                        var itemdata = new Dictionary<string, object>
+                        {
+                            {"condition", item.condition.ToString() },
+                            {"id", item.info.itemid },
+                            {"amount", item.amount },
+                            {"skinid", item.skin },
+                        };
+                        var heldEnt = item.GetHeldEntity();
+                        if(heldEnt != null)
+                        {
+                            var projectiles = heldEnt.GetComponent<BaseProjectile>();
+                            if(projectiles != null)
+                            {
+                                var magazine = projectiles.primaryMagazine;
+                                if(magazine != null)
+                                {
+                                    itemdata.Add("magazine", new Dictionary<string, object> { { magazine.ammoType.itemid.ToString(), magazine.contents } });
+                                }
+                            }
+                        }
+                        
+                        if(item.contents != null)
+                        {
+                            if(item.contents.itemList != null)
+                            {
+                                var contents = new List<object>();
+                                foreach (Item item2 in item.contents.itemList)
+                                {
+                                    contents.Add(new Dictionary<string, object>
+                                    {
+                                        {"condition", item.condition.ToString() },
+                                        {"id", item.info.itemid },
+                                        {"amount", item.amount },
+                                        {"skinid", item.skin },
+                                        {"items", new List<object>() }
+                                    });
+                                }
+                                itemdata["items"] = contents;
+                            }
+                        }
+
+                        itemlist.Add(itemdata);
+                    }
+                }
+                data.Add("items", itemlist);
+            }
+
+            var sign = entity.GetComponentInParent<Signage>();
+            if(sign != null)
+            {
+                var get = FileStorage.server.Get(sign.textureID, FileStorage.Type.png, sign.net.ID);
+                data.Add("sign", new Dictionary<string, object>
+                {
+                    {"locked", sign.IsLocked() }
+                });
+                if (sign.textureID > 0 && get != null) ((Dictionary<string, object>)data["sign"]).Add("texture", Convert.ToBase64String(get));
+            }
+
+            return data;
+        }
+        Vector3 NormalizePosition(Vector3 InitialPos, Vector3 CurrentPos, float diffRot)
+        {
+            var transformedPos = CurrentPos - InitialPos;
+            var newX = (transformedPos.x * (float)System.Math.Cos(-diffRot)) + (transformedPos.z * (float)System.Math.Sin(-diffRot));
+            var newZ = (transformedPos.z * (float)System.Math.Cos(-diffRot)) - (transformedPos.x * (float)System.Math.Sin(-diffRot));
+            transformedPos.x = newX;
+            transformedPos.z = newZ;
+            return transformedPos;
+        }
+
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Placeback
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        object TryPlaceback(string filename, BasePlayer player, string[] args)
+        {
+            string path = subDirectory + filename;
+
+            if (datafile.ExistsDatafile(path)) { }
+
+            var data = Interface.GetMod().DataFileSystem.GetDatafile(path);
+            if (data["default"] == null || data["entities"] == null)
+            {
+                return GetMsg("This file is empty.", player.userID.ToString());
+            }
+
+            var defaultdata = data["default"] as Dictionary<string, object>;
+            var pos = defaultdata["position"] as Dictionary<string, object>;
+            var startPos = new Vector3(Convert.ToSingle(pos["x"]), Convert.ToSingle(pos["y"]), Convert.ToSingle(pos["z"]));
+            var RotationCorrection = Convert.ToSingle(defaultdata["rotationdiff"]);
+
+            return TryPaste(startPos, filename, player, RotationCorrection, args);
+        }
+
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Paste
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        object TryPasteFromVector3(Vector3 startPos, Vector3 direction, string filename, string[] args)
+        {
+            return TryPaste(startPos, filename, null, direction.y, args);
+        }
+
+        object TryPasteFromSteamID(string steamid, string filename, string[] args)
+        {
+            ulong userid;
+            if (!ulong.TryParse(steamid, out userid)) { return "First argument isn't a steamid"; }
+            var player = BasePlayer.FindByID(userid);
+            if(player == null) return "Couldn't find the player";
+            if (!player.IsConnected()) return "Player is not connected?";
+
+            return TryPasteFromPlayer(player, filename, args);
+        }
+
+        object TryPasteFromPlayer(BasePlayer player, string filename, string[] args)
+        {
+            if (player == null) return "Player is null?";
+            if (!player.IsConnected()) return "Player is not connected?";
+
+            var ViewAngles = Quaternion.Euler(player.GetNetworkRotation());
+            BaseEntity sourceEntity;
+            Vector3 sourcePoint;
+
+            if (!FindRayEntity(player.eyes.position, ViewAngles * Vector3.forward, out sourcePoint, out sourceEntity)) {
+                return GetMsg("Couldn't ray something valid in front of you.", player.userID.ToString());
+            }
+
+            return TryPaste(sourcePoint, filename, player, ViewAngles.ToEulerAngles().y, args);
+        }
+
+        object TryPaste(Vector3 startPos, string filename, BasePlayer player, float RotationCorrection, string[] args)
+        {
+            var steamid = player == null ? null : player.userID.ToString();
+
+            string path = subDirectory + filename;
+
+            if (datafile.ExistsDatafile(path)) { }
+
+            var data = Interface.GetMod().DataFileSystem.GetDatafile(path);
+            if(data["default"] == null || data["entities"] == null)
+            {
+                return GetMsg("This file is empty.", steamid);
+            }
+
+            float heightAdj = 0f;
+            float blockCollision = 0f;
+            bool checkPlaced = false;
+            bool autoHeight = false;
+            bool inventories = true;
+            bool deployables = true;
+
+            for (int i = 0; ; i = i + 2)
+            {
+                if (i >= args.Length) break;
+                if (i + 1 >= args.Length)
+                {
+                    return GetMsg("Syntax: /paste or /placeback TARGETFILENAME options values\r\nheight XX - Adjust the height\r\nautoheight true/false - sets best height, carefull of the steep\r\ncheckplaced true/false - checks if parts of the house are already placed or not, if they are already placed, the building part will be removed \r\nblockcollision XX - blocks the entire paste if something the new building collides with something\r\ndeployables true/false - false to remove deployables\r\ninventories true/false - false to ignore inventories", steamid);
+                }
+                switch (args[i].ToLower())
+                {
+                    case "autoheight":
+                        if (!bool.TryParse(args[i + 1], out autoHeight))
+                        {
+                            return "autoheight must be true or false";
+                        }
+                        break;
+                    case "height":
+                        if (!float.TryParse(args[i + 1], out heightAdj))
+                        {
+                            return "height must be a number";
+                        }
+                        break;
+                    case "checkplaced":
+                        if (!bool.TryParse(args[i + 1], out checkPlaced))
+                        {
+                            return "checkplaced must be true or false";
+                        }
+                        
+                        break;
+                    case "blockcollision":
+                        if (!float.TryParse(args[i + 1], out blockCollision))
+                        {
+                            return "blockcollision must be a number, 0 will deactivate the option";
+                        }
+                        break;
+                    case "deployables":
+                        if (!bool.TryParse(args[i + 1], out deployables))
+                        {
+                            return "deployables must be true or false";
+                        }
+
+                        break;
+                    case "inventories":
+                        if (!bool.TryParse(args[i + 1], out inventories))
+                        {
+                            return "inventories must be true or false";
+                        }
+                        break;
+                    default:
+                        return GetMsg("Syntax: /paste or /placeback TARGETFILENAME options values\r\nheight XX - Adjust the height\r\nautoheight true/false - sets best height, carefull of the steep\r\ncheckplaced true/false - checks if parts of the house are already placed or not, if they are already placed, the building part will be removed \r\nblockcollision XX - blocks the entire paste if something the new building collides with something\r\ndeployables true/false - false to remove deployables\r\ninventories true/false - false to ignore inventories", steamid);
+                        break;
+                }
+
+            }
+
+            startPos.y += heightAdj;
+
+            var preloadData = PreLoadData(data["entities"] as List<object>, startPos, RotationCorrection, deployables, inventories);
+            if(autoHeight)
+            {
+                var bestHeight = FindBestHeight(preloadData, startPos);
+                if (bestHeight is string)
+                {
+                    return bestHeight;
+                }
+                heightAdj = (float)bestHeight - startPos.y;
+                FixPreloadData(preloadData, heightAdj);
+            }
+
+            if (blockCollision > 0f)
+            {
+                var collision = CheckCollision(preloadData, startPos,blockCollision);
+                if(collision is string)
+                {
+                    return collision;
+                }
+            }
+
+            return Paste(preloadData, startPos, player, checkPlaced);
+        }
+        object GetGround(Vector3 pos)
+        {
+            RaycastHit hitInfo;
+            if (Physics.Raycast(pos, Vector3.up, out hitInfo, groundLayer))
+            {
+                return hitInfo.point;
+            }
+            if (Physics.Raycast(pos, Vector3.down, out hitInfo, groundLayer))
+            {
+                return hitInfo.point;
+            }
+            return null;
+        }
+        object FindBestHeight(List<Dictionary<string,object>> entities, Vector3 startPos)
+        {
+            float minHeight = 0f;
+            float maxHeight = 0f;
+            foreach(var entity in entities)
+            {
+                if(((string)entity["prefabname"]).Contains("/foundation/"))
+                {
+                    var foundHeight = GetGround((Vector3)entity["position"]);
+                    if(foundHeight != null)
+                    {
+                        var height = (Vector3)foundHeight;
+                        if (height.y > maxHeight) maxHeight = height.y;
+                        if (height.y < minHeight) minHeight = height.y;
+                    }
+                }
+            }
+            if (maxHeight - minHeight > 3f) return "The ground is too steep";
+            return maxHeight;
+        }
+        void FixPreloadData(IList<Dictionary<string,object>> entities, float heightAdj)
+        {
+            foreach(var entity in entities)
+            {
+                var pos = ((Vector3)entity["position"]);
+                pos.y += heightAdj;
+                entity["position"] = pos;
+            }
+        }
+        List<Dictionary<string, object>> PreLoadData(List<object> entities, Vector3 startPos, float RotationCorrection, bool deployables, bool inventories)
+        {
+            var eulerRotation = new Vector3(0f, RotationCorrection, 0f);
+            var quaternionRotation = Quaternion.EulerRotation(eulerRotation);
+            var preloaddata = new List<Dictionary<string, object>>();
+            foreach(var entity in entities)
+            {
+                var data = entity as Dictionary<string, object>;
+                if (!deployables && !data.ContainsKey("grade")) continue;
+                var pos = (Dictionary<string, object>)data["pos"];
+                var rot = (Dictionary<string, object>)data["rot"];
+                var fixedRotation = Quaternion.EulerRotation(eulerRotation + new Vector3(Convert.ToSingle(rot["x"]), Convert.ToSingle(rot["y"]), Convert.ToSingle(rot["z"])));
+                var tempPos = quaternionRotation * (new Vector3(Convert.ToSingle(pos["x"]), Convert.ToSingle(pos["y"]), Convert.ToSingle(pos["z"])));
+                Vector3 newPos = tempPos + startPos;
+                data.Add("position", newPos);
+                data.Add("rotation", fixedRotation);
+                if (!inventories && data.ContainsKey("items")) data["items"] = new List<object>();
+                preloaddata.Add(data);
+            }
+            return preloaddata;
+        }
+        void TryPasteLock(BaseEntity lockableEntity, Dictionary<string, object> structure)
         {
             BaseEntity lockentity = null;
-            if (structure.ContainsKey("codelock"))
+            if (structure.ContainsKey("lock"))
             {
-                lockentity = GameManager.server.CreateEntity("assets/bundled/prefabs/build/locks/lock.code.prefab", Vector3.zero, new Quaternion());
-                lockentity.OnDeployed(lockableEntity);
-                var code = (string)structure["codelock"];
-                if (!string.IsNullOrEmpty(code))
+                var lockdata = structure["lock"] as Dictionary<string, object>;
+                lockentity = GameManager.server.CreateEntity((string)lockdata["prefabname"], Vector3.zero, new Quaternion(), true);
+                if (lockentity != null)
                 {
-                    var @lock = lockentity.GetComponent<CodeLock>();
-                    codelock.SetValue(@lock, (string)structure["codelock"]);
-                    @lock.SetFlag(BaseEntity.Flags.Locked, true);
+                    lockentity.gameObject.Identity();
+                    lockentity.SetParent(lockableEntity, "lock");
+                    lockentity.OnDeployed(lockableEntity);
+                    lockentity.Spawn();
+                    lockableEntity.SetSlot(BaseEntity.Slot.Lock, lockentity);
+                    if (lockentity.GetComponent<CodeLock>())
+                    {
+                        var code = (string)lockdata["code"];
+                        if (!string.IsNullOrEmpty(code))
+                        {
+                            var @lock = lockentity.GetComponent<CodeLock>();
+                            codelock.SetValue(@lock, code);
+                            @lock.SetFlag(BaseEntity.Flags.Locked, true);
+                        }
+                    }
+                    else if (lockentity.GetComponent<KeyLock>())
+                    {
+                        var code = Convert.ToInt32(lockdata["code"]);
+                        var @lock = lockentity.GetComponent<KeyLock>();
+                        if ((code & 0x80) != 0)
+                        {
+                            keycode.SetValue(@lock, (code & 0x7F));
+                            firstKeyCreated.SetValue(@lock, true);
+                            @lock.SetFlag(BaseEntity.Flags.Locked, true);
+                        }
+                    }
                 }
-            }
-            else if (structure.ContainsKey("keycode"))
-            {
-                lockentity = GameManager.server.CreateEntity("assets/bundled/prefabs/build/locks/lock.key.prefab", Vector3.zero, new Quaternion());
-                lockentity.OnDeployed(lockableEntity);
-                var code = Convert.ToInt32(structure["keycode"]);
-                var @lock = lockentity.GetComponent<KeyLock>();
-                if ((code & 0x80) != 0)
-                {
-                    // Set the keycode only if that lock had keys before. Otherwise let it be random.
-                    keycode.SetValue(@lock, (code & 0x7F));
-                    firstKeyCreated.SetValue(@lock, true);
-                    @lock.SetFlag(BaseEntity.Flags.Locked, true);
-                }
-
-            }
-
-            if (lockentity)
-            {
-                lockentity.gameObject.Identity();
-                lockentity.SetParent(lockableEntity, "lock");
-                lockentity.Spawn(true);
-                lockableEntity.SetSlot(BaseEntity.Slot.Lock, lockentity);
             }
         }
-
-        void PasteDeployables(List<object> deployablesData, Vector3 targetPoint, float targetRot, float heightAdjustment, BasePlayer player)
+        object CheckCollision(List<Dictionary<string,object>> entities, Vector3 startPos, float radius)
         {
-            Vector3 OriginRotation = new Vector3(0f, targetRot, 0f);
-            Quaternion OriginRot = Quaternion.EulerRotation(OriginRotation);
-            foreach (Dictionary<string, object> deployable in deployablesData)
+            foreach (var entityobj in entities)
             {
+                var pos = (Vector3)entityobj["position"];
+                var rot = (Quaternion)entityobj["rotation"];
 
-                Dictionary<string, object> structPos = deployable["pos"] as Dictionary<string, object>;
-                Dictionary<string, object> structRot = deployable["rot"] as Dictionary<string, object>;
-                string prefabname = (string)deployable["prefabname"];
-                if (!prefabname.Contains(".prefab")) prefabname = "assets/bundled/prefabs/" + prefabname + ".prefab";
-                Quaternion newAngles = Quaternion.EulerRotation((new Vector3(Convert.ToSingle(structRot["x"]), Convert.ToSingle(structRot["y"]), Convert.ToSingle(structRot["z"]))) + OriginRotation);
-                Vector3 TempPos = OriginRot * (new Vector3(Convert.ToSingle(structPos["x"]), Convert.ToSingle(structPos["y"]), Convert.ToSingle(structPos["z"])));
-                Vector3 NewPos = TempPos + targetPoint;
-                BaseEntity entity = GameManager.server.CreateEntity(prefabname, NewPos, newAngles, true);
-                if (entity == null) return;
-                entity.SendMessage("SetDeployedBy", player, SendMessageOptions.DontRequireReceiver);
-                entity.Spawn(true);
-                if (entity.GetComponent<StorageContainer>())
+                foreach(var collider in Physics.OverlapSphere(pos, radius, collisionLayer))
                 {
-                    var box = entity.GetComponent<StorageContainer>();
-                    inventoryClear.Invoke(box.inventory, null);
-                    var items = deployable["items"] as List<object>;
-                    foreach (var itemDef in items)
+                    return string.Format("Something is blocking the paste ({0})",collider.gameObject.name.ToString());
+                }
+                
+            }
+            return true;
+        }
+
+        List<BaseEntity> Paste(List<Dictionary<string,object>> entities, Vector3 startPos, BasePlayer player, bool checkPlaced)
+        {
+            bool unassignid = true;
+            uint buildingid = 0;
+            var pastedEntities = new List<BaseEntity>();
+            foreach(var data in entities)
+            {
+                var prefabname = (string)data["prefabname"];
+                var skinid = (int)data["skinid"];
+                var pos = (Vector3)data["position"];
+                var rot = (Quaternion)data["rotation"];
+
+                bool isplaced = false;
+                if (checkPlaced)
+                {
+                    foreach (var col in Physics.OverlapSphere(pos, 1f))
                     {
-                        var item = itemDef as Dictionary<string, object>;
-                        var i = ItemManager.CreateByItemID(Convert.ToInt32(item["id"]), Convert.ToInt32(item["amount"]), Convert.ToBoolean(item["blueprint"]));
-                        i?.MoveToContainer(box.inventory);
+                        var ent = col.GetComponentInParent<BaseEntity>();
+                        if (ent != null)
+                        {
+                            if (ent.PrefabName == prefabname && ent.transform.position == pos && ent.transform.rotation == rot)
+                            {
+                                isplaced = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (isplaced) continue;
+
+                var entity = GameManager.server.CreateEntity(prefabname, pos, rot, true);
+                if (entity != null)
+                {
+                    entity.transform.position = pos;
+                    entity.transform.rotation = rot;
+                    entity.SendMessage("SetDeployedBy", player, SendMessageOptions.DontRequireReceiver);
+
+                    var buildingblock = entity.GetComponentInParent<BuildingBlock>();
+                    if (buildingblock != null)
+                    {
+                        buildingblock.blockDefinition = PrefabAttribute.server.Find<Construction>(buildingblock.prefabID);
+                        buildingblock.SetGrade((BuildingGrade.Enum)data["grade"]);
+                        if(unassignid)
+                        {
+                            buildingid = (uint)newbuildingid.Invoke(buildingblock, null);
+                            unassignid = false;
+                        }
+                        buildingblock.buildingID = buildingid;
+                    }
+                    entity.skinID = skinid;
+                    entity.Spawn();
+
+                    bool killed = false;
+                   
+                    if (killed) continue;
+
+                    var basecombat = entity.GetComponentInParent<BaseCombatEntity>();
+                    if (basecombat != null)
+                    {
+                        basecombat.ChangeHealth(basecombat.MaxHealth());
                     }
 
-                    if (box.HasSlot(BaseEntity.Slot.Lock))
-                        TryPasteLock(box, deployable);
-                }
-                else if (entity.GetComponent<Signage>())
-                {
-                    var sign = entity.GetComponent<Signage>();
-                    var signData = deployable["sign"] as Dictionary<string, object>;
-                    if (signData.ContainsKey("texture"))
-                        sign.textureID = FileStorage.server.Store(Convert.FromBase64String(signData["texture"].ToString()), FileStorage.Type.png, sign.net.ID);
-                    if (Convert.ToBoolean(signData["locked"]))
-                        sign.SetFlag(BaseEntity.Flags.Locked, true);
-                    sign.SendNetworkUpdate();
-                }
+                    if (entity.HasSlot(BaseEntity.Slot.Lock))
+                    {
+                        TryPasteLock(entity, data);
+                    }
 
+                    var box = entity.GetComponentInParent<StorageContainer>();
+                    if (box != null)
+                    {
+                        inventoryClear.Invoke(box.inventory, null);
+                        var items = data["items"] as List<object>;
+                        var itemlist = new List<ItemAmount>();
+                        foreach (var itemDef in items)
+                        {
+                            var item = itemDef as Dictionary<string, object>;
+                            var itemid = Convert.ToInt32(item["id"]);
+                            var itemamount = Convert.ToInt32(item["amount"]);
+                            var itemskin = Convert.ToInt32(item["skinid"]);
+                            var itemcondition = Convert.ToSingle(item["condition"]);
+
+                            var i = ItemManager.CreateByItemID(itemid, itemamount, itemskin);
+                            i.condition = itemcondition;
+                            
+                            if(item.ContainsKey("magazine"))
+                            {
+                                var magazine = item["magazine"] as Dictionary<string, object>;
+                                var ammotype = int.Parse(magazine.Keys.ToArray()[0]);
+                                var ammoamount = int.Parse(magazine[ammotype.ToString()].ToString());
+                                var heldent = i.GetHeldEntity();
+                                if(heldent != null)
+                                {
+                                    var projectiles = heldent.GetComponent<BaseProjectile>();
+                                    if(projectiles != null)
+                                    {
+                                        projectiles.primaryMagazine.ammoType = ItemManager.FindItemDefinition(ammotype);
+                                        projectiles.primaryMagazine.contents = ammoamount;
+                                    }
+                                }
+                            }
+
+                            i?.MoveToContainer(box.inventory).ToString();
+                        };
+                    }
+
+                    var sign = entity.GetComponentInParent<Signage>();
+                    if (sign != null)
+                    {
+                        var signData = data["sign"] as Dictionary<string, object>;
+                        if (signData.ContainsKey("texture"))
+                        {
+                            var stream = new MemoryStream();
+                            var stringSign = Convert.FromBase64String(signData["texture"].ToString());
+                            stream.Write(stringSign, 0, stringSign.Length);
+                            sign.textureID = FileStorage.server.Store(stream, FileStorage.Type.png, sign.net.ID);
+                            stream.Position = 0;
+                            stream.SetLength(0);
+                        }
+                        if (Convert.ToBoolean(signData["locked"]))
+                            sign.SetFlag(BaseEntity.Flags.Locked, true);
+                        sign.SendNetworkUpdate();
+                    }
+
+                    pastedEntities.Add(entity);
+                }
             }
+            return pastedEntities;
         }
 
-        void PasteSpawnables(List<object> spawnablesData, Vector3 targetPoint, float targetRot, float heightAdjustment, BasePlayer player)
-        {
-            if (spawnablesData == null) return;
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Undo
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-            Vector3 OriginRotation = new Vector3(0f, targetRot, 0f);
-            Quaternion OriginRot = Quaternion.EulerRotation(OriginRotation);
-            foreach (Dictionary<string, object> spawnable in spawnablesData)
+        object TryUndo(BasePlayer player)
+        {
+            return TryUndo(player.userID.ToString());
+        }
+        object TryUndo(string steamid)
+        {
+            if (!lastPastes.ContainsKey(steamid)) { return GetMsg("You must paste something before undoing it.", steamid); }
+
+            var success = Undo(lastPastes[steamid]);
+            lastPastes.Remove(steamid);
+
+            return success;
+        }
+
+        object Undo(List<BaseEntity> entities)
+        {
+            foreach(var entity in entities)
             {
-                Dictionary<string, object> structPos = spawnable["pos"] as Dictionary<string, object>;
-                Dictionary<string, object> structRot = spawnable["rot"] as Dictionary<string, object>;
-                string prefabname = (string)spawnable["prefabname"];
-				if (!prefabname.Contains(".prefab")) prefabname = "assets/bundled/prefabs/"+prefabname+".prefab";
-                Quaternion newAngles = Quaternion.EulerRotation((new Vector3(Convert.ToSingle(structRot["x"]), Convert.ToSingle(structRot["y"]), Convert.ToSingle(structRot["z"]))) + OriginRotation);
-                Vector3 TempPos = OriginRot * (new Vector3(Convert.ToSingle(structPos["x"]), Convert.ToSingle(structPos["y"]), Convert.ToSingle(structPos["z"])));
-                Vector3 NewPos = TempPos + targetPoint;
-                BaseEntity entity = GameManager.server.CreateEntity(prefabname, NewPos, newAngles, true);
-                if (entity == null) return;
-                entity.Spawn(true);
+                if (entity == null) continue;
+                if (entity.isDestroyed) continue;
+                entity.KillMessage();
+            }
+            return true;
+        }
+
+
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Chat commands
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        [ChatCommand("paste")]
+        void cmdChatPaste(BasePlayer player, string command, string[] args)
+        {
+            var steamid = player.userID.ToString();
+            if (!hasAccess(player, pastePermission)) { SendReply(player, GetMsg("You don't have the permissions to use this command.", steamid)); return; }
+            if (args == null || args.Length == 0) { SendReply(player, GetMsg("Syntax: /paste or /placeback TARGETFILENAME options values\r\nheight XX - Adjust the height\r\nautoheight true/false - sets best height, carefull of the steep\r\ncheckplaced true/false - checks if parts of the house are already placed or not, if they are already placed, the building part will be removed \r\nblockcollision XX - blocks the entire paste if something the new building collides with something", steamid)); return; }
+
+            var loadname = args[0];
+
+            var success = TryPasteFromPlayer(player, loadname, args.Skip(1).ToArray());
+
+            if (success is string)
+            {
+                SendReply(player, (string)success);
+                return;
             }
 
+            if (lastPastes.ContainsKey(steamid)) lastPastes.Remove(steamid);
+            lastPastes.Add(steamid,(List<BaseEntity>)success);
+
+            SendReply(player, GetMsg("You've successfully pasted the structure.", steamid));
+        }
+
+        [ChatCommand("undo")]
+        void cmdChatUndo(BasePlayer player, string command, string[] args)
+        {
+            var steamid = player.userID.ToString();
+            if (!hasAccess(player, undoPermission)) { SendReply(player, GetMsg("You don't have the permissions to use this command.", steamid)); return; }
+
+            var success = TryUndo(player);
+
+            if (success is string)
+            {
+                SendReply(player, (string)success);
+                return;
+            }
+
+            SendReply(player, GetMsg("You've successfully undid what you pasted.", steamid));
+        }
+
+        [ChatCommand("placeback")]
+        void cmdChatPlaceback(BasePlayer player, string command, string[] args)
+        {
+            var steamid = player.userID.ToString();
+            if (!hasAccess(player, pastePermission)) { SendReply(player, GetMsg("You don't have the permissions to use this command.", steamid)); return; }
+            if (args == null || args.Length == 0) { SendReply(player, GetMsg("Syntax: /placeback TARGETFILENAME options values\r\nheight XX - Adjust the height\r\ncheckplaced true/false - checks if parts of the house are already placed or not, if they are already placed, the building part will be removed", steamid)); return; }
+
+            var loadname = args[0];
+
+            var success = TryPlaceback(loadname, player, args.Skip(1).ToArray());
+
+            if (success is string)
+            {
+                SendReply(player, (string)success);
+                return;
+            }
+
+            if (lastPastes.ContainsKey(steamid)) lastPastes.Remove(steamid);
+            lastPastes.Add(steamid, (List<BaseEntity>)success);
+
+            SendReply(player, GetMsg("You've successfully placed back the structure.", steamid));
+        }
+
+        [ChatCommand("copy")]
+        void cmdChatCopy(BasePlayer player, string command, string[] args)
+        {
+            if (!hasAccess(player, copyPermission)) { SendReply(player, GetMsg("You don't have the permissions to use this command.", player.userID.ToString())); return; }
+            if (args == null || args.Length == 0) { SendReply(player, GetMsg("Syntax: /copy TARGETFILENAME options values\r\n radius XX (default 3)\r\n mechanics proximity/building (default building)\r\nbuilding true/false (saves structures or not)\r\ndeployables true/false (saves deployables or not)\r\ninventories true/false (saves inventories or not)", player.userID.ToString())); return; }
+            var savename = args[0];
+
+            
+            var success = TryCopyFromPlayer(player, savename, args.Skip(1).ToArray());
+
+            if(success is string) {
+                SendReply(player, (string)success);
+                return;
+            }
+
+            SendReply(player, string.Format(GetMsg("The structure was successfully copied as {0}", player.userID.ToString()), savename));
         }
     }
 }

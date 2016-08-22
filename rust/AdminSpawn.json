@@ -2,7 +2,7 @@
     "name": "Admin Spawn",
     "description": "Manage administrator item spawns and messages.",
     "author": "insane8472",
-    "version": "1.1.0",
+    "version": "1.1.2",
     "configuration": true,
     "suggest": {
         "PopupNotifications": "*"

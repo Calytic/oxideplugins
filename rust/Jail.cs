@@ -3,41 +3,89 @@ using System;
 using Oxide.Core;
 using Oxide.Core.Plugins;
 using Oxide.Core.Configuration;
+using Oxide.Game.Rust.Cui;
 using Newtonsoft.Json;
 using UnityEngine;
 using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Linq;
 
-
 namespace Oxide.Plugins
 {
-    [Info("Jail", "Reneb / k1lly0u", "3.0.61", ResourceId = 1649)]
+    [Info("Jail", "Reneb / k1lly0u", "3.0.17", ResourceId = 794)]
     class Jail : RustPlugin
     {
-        [PluginReference]
-        Plugin ZoneManager;
-        [PluginReference]
-        Plugin Spawns;
-        [PluginReference]
-        Plugin Kits;
+        [PluginReference] Plugin ZoneManager;
+        [PluginReference] Plugin Spawns;
+        [PluginReference] Plugin Kits;
 
         private bool Changed;
         private bool Started = false;
-        public DateTime epoch = new System.DateTime(1970, 1, 1);
 
         JailDataStorage jailData;
         private DynamicConfigFile JailData;
 
-        private Dictionary<BasePlayer, Timer> jailTimerList = new Dictionary<BasePlayer, Timer>();
-
+        private Dictionary<ulong, int> jailTimerList = new Dictionary<ulong, int>();
         private List<string> prisonIDs = new List<string>();
 
         private static LayerMask GROUND_MASKS = LayerMask.GetMask("Terrain", "World", "Construction");
 
-        #region oxide hooks
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Oxide Hooks ///////////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
+        #region UI
+        class UI
+        {
+            static public CuiElementContainer CreateElementContainer(string panelName, string color, string aMin, string aMax, bool useCursor)
+            {
+                var NewElement = new CuiElementContainer()
+                {
+                    {
+                        new CuiPanel
+                        {
+                            Image = {Color = color},
+                            RectTransform = {AnchorMin = aMin, AnchorMax = aMax},
+                            CursorEnabled = useCursor
+                        },
+                        new CuiElement().Parent = "Overlay",
+                        panelName
+                    }
+                };
+                return NewElement;
+            }            
+            static public void CreateLabel(ref CuiElementContainer container, string panel, string color, string text, int size, string aMin, string aMax, TextAnchor align = TextAnchor.MiddleCenter)
+            {
+                container.Add(new CuiLabel
+                {
+                    Text = { Color = color, FontSize = size, Align = align, Text = text },
+                    RectTransform = { AnchorMin = aMin, AnchorMax = aMax }
+                },
+                panel);
+
+            }            
+        }
+        private void CreateJailTimer(BasePlayer player)
+        {
+            if (player != null)
+            {
+                CuiHelper.DestroyUi(player, "jailTimer");
+                if (jailData.Prisoners.ContainsKey(player.userID) && jailTimerList.ContainsKey(player.userID))
+                {
+                    TimeSpan dateDifference = TimeSpan.FromSeconds(jailTimerList[player.userID]);
+                    string clock = string.Format("{0:D2}:{1:D2}:{2:D2}", dateDifference.Hours, dateDifference.Minutes, dateDifference.Seconds);
+                    if (jailData.Prisoners[player.userID].expireTime == -99999)
+                        clock = "~";
+
+                    var container = UI.CreateElementContainer("jailTimer", "0.3 0.3 0.3 0.6", "0.42 0.965", "0.58 0.995", false);
+                    UI.CreateLabel(ref container, "jailTimer", "", $"Remaining: {clock}", 18, "0 0", "1 1");
+                    CuiHelper.AddUi(player, container);
+
+                    jailTimerList[player.userID]--;
+                    if (jailTimerList[player.userID] > 0)
+                        timer.Once(1, () => CreateJailTimer(player));
+                    else timer.Once(2, () => CheckPlayerExpireTime(player));
+                }
+            }
+        }
+        #endregion
+
+        #region Oxide Hooks        
         void Loaded()
         {
             permission.RegisterPermission("jail.admin", this);
@@ -52,6 +100,8 @@ namespace Oxide.Plugins
             if (!CheckDependencies()) return;
             LoadData();
             LoadVariables();
+            foreach(var player in BasePlayer.activePlayerList)
+                CheckPlayer(player);
         }
         private bool CheckDependencies()
         {
@@ -68,14 +118,8 @@ namespace Oxide.Plugins
             }
             Started = true;
             return true;
-        }        
-        private bool IsPrisoner(BasePlayer player)
-        {
-            if (jailData.Prisoners.ContainsKey(player.userID)) return true;
-            return false;
-        }
-
-        void LoadDefaultConfig()
+        } 
+        protected override void LoadDefaultConfig()
         {
             Puts("Creating a new config file");
             Config.Clear();
@@ -84,10 +128,14 @@ namespace Oxide.Plugins
         void Unload()
         {
             if (Started)
-            {
-                foreach (var entry in jailTimerList)
-                    entry.Value.Destroy();
+            {                
                 jailTimerList.Clear();
+                foreach (var player in BasePlayer.activePlayerList)
+                {
+                    foreach(var jail in jailData.prisons)
+                        ZoneManager.Call("RemovePlayerFromZoneKeepinlist", jail.Value.zoneID, player);
+                    CuiHelper.DestroyUi(player, "jailTimer");
+                }
                 SaveData();
             }
         }
@@ -137,19 +185,20 @@ namespace Oxide.Plugins
                 if (!isInZone(player, zoneID))
                 {
                     int cellNum = jailData.Prisoners[player.userID].cellNumber;
-                    object cellPos = FindSpawnPoint(prisonName, (int)cellNum);
-                    if (cellPos == null) return;
-                    TeleportPlayerPosition(player, (Vector3)cellPos);
+                    object cellPos = FindSpawnPoint(prisonName, cellNum);
+                    if (cellPos == null) { Puts("null cell pos"); return; }
+                    ZoneManager.Call("AddPlayerToZoneKeepinlist", zoneID, player);
+                    TeleportPlayerPosition(player, (Vector3)cellPos);                    
                 }
+                if (!jailTimerList.ContainsKey(player.userID))
+                    jailTimerList.Add(player.userID, (int)(jailData.Prisoners[player.userID].expireTime - GrabCurrentTime()));
+                CreateJailTimer(player);
             }
         }
                 
         #endregion
 
-        #region main functions
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Main Funtions /////////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
+        #region Main Functions        
         private object FindPlayer(string arg)
         {
             var foundPlayers = new List<BasePlayer>();
@@ -164,7 +213,7 @@ namespace Oxide.Plugins
                     {
                         foundPlayers.Clear();
                         foundPlayers.Add(p);
-                        return foundPlayers;
+                        return foundPlayers[0];
                     }
                 string lowername = p.displayName.ToLower();
                 if (lowername.Contains(lowerarg))
@@ -214,19 +263,28 @@ namespace Oxide.Plugins
             Prison data = new Prison();
             if (CheckSpawns(args[3]) != null)
             {
-
-                object zoneid = ZoneManager.Call("CheckZoneID", new object[] { args[2] });
+                object zoneid = ZoneManager.Call("CheckZoneID", args[2] );
                 if (zoneid is string && (string)zoneid != "")
                 {
                     data.zoneID = (string)zoneid;
 
-                    object location = ZoneManager?.Call("GetZoneLocation", new object[] { (string)zoneid });
+                    object location = ZoneManager?.Call("GetZoneLocation", (string)zoneid );
                     if (location != null && location is Vector3)
                         data.location = (Vector3)location;
+                    else
+                    {
+                        SendMsg(player, lang.GetMessage("invalidZPos", this, player.UserIDString));
+                        return;
+                    }
 
-                    object radius = ZoneManager?.Call("GetZoneRadius", new object[] { (string)zoneid });
+                    object radius = ZoneManager?.Call("GetZoneRadius", (string)zoneid );
                     if (radius != null && radius is float)
                         data.zoneRadius = float.Parse(radius.ToString());
+                    else
+                    {
+                        SendMsg(player, lang.GetMessage("invalidZRad", this, player.UserIDString));
+                        return;
+                    }
 
                     data.spawnFile = args[3];
 
@@ -234,7 +292,11 @@ namespace Oxide.Plugins
                     for (int i = 0; i < cellCount; i++)
                         data.freeCells.Add(i, false);
                 }
-                else { SendMsg(player, lang.GetMessage("invalidZID", this, player.UserIDString) + args[2]); return; }
+                else
+                {
+                    SendMsg(player, lang.GetMessage("invalidZID", this, player.UserIDString) + args[2]);
+                    return;
+                }
 
                 jailData.prisons.Add(args[1].ToLower(), data);
                 SendMsg(player, lang.GetMessage("newJailAdd", this, player.UserIDString));
@@ -269,36 +331,48 @@ namespace Oxide.Plugins
                 if (cellPos == null) return "noPos";
                 jailData.prisons[prisonName].freeCells[(int)cellNum] = true;
 
-                long jailTime = -99999;
-                if (time != -99999) jailTime = time += CurrentTime();
+                double jailTime = -99999;
+
+                if (time != -99999)
+                    jailTime = time + GrabCurrentTime();
 
                 Inmate inmate = new Inmate() { initialPos = player.transform.position, prisonName = prisonName, cellNumber = (int)cellNum, expireTime = jailTime};
                 jailData.Prisoners.Add(player.userID, inmate);
 
                 SendMsg(player, lang.GetMessage("sentPrison", this, player.UserIDString));
-                timer.Once(5, ()=> 
+                timer.Once(5, ()=>
                 {
                     SaveInventory(player);
                     ZoneManager.Call("AddPlayerToZoneKeepinlist", zoneID, player);
                     player.inventory.Strip();
                     TeleportPlayerPosition(player, (Vector3)cellPos);
-                    if (jailTime != -99999)
-                        jailTimerList.Add(player, timer.Once(jailTime, () => CheckPlayerExpireTime(player)));
+
+                    jailTimerList.Add(player.userID, time);
+                    CreateJailTimer(player);
+
                     SendMsg(player, lang.GetMessage("checkTime", this, player.UserIDString));
-                    if (giveKit) { if (kitName == null || kitName == "") return; Kits?.Call("GiveKit", player, kitName); }
+
+                    if (giveKit)
+                    {
+                        if (kitName == null || kitName == "") return;
+                        Kits?.Call("GiveKit", player, kitName);
+                    }
                 });
                 SaveData();
                 return true;
             }
-            return "noCell";
+            return "noCells";
         }       
         private void FreeFromJail(BasePlayer player)
         {
             string prisonName = jailData.Prisoners[player.userID].prisonName;
             int cellNum = jailData.Prisoners[player.userID].cellNumber;
             string zoneID = jailData.prisons[prisonName].zoneID;
+            CuiHelper.DestroyUi(player, "jailTimer");
+            if (jailTimerList.ContainsKey(player.userID))
+                jailTimerList.Remove(player.userID);
 
-            jailData.prisons[prisonName].freeCells[(int)cellNum] = false;
+            jailData.prisons[prisonName].freeCells[cellNum] = false;
             RestoreInventory(player);
 
             SendMsg(player, lang.GetMessage("relPrison", this, player.UserIDString));
@@ -345,11 +419,16 @@ namespace Oxide.Plugins
             if (!player.IsConnected()) return false;
             if (player.IsDead()) return false;
 
-            long time = jailData.Prisoners[player.userID].expireTime;
-            if (time == -99999) return false;
-            long current = CurrentTime();
-            long timeLeft = time - current;
-            if (timeLeft >= 0) { jailTimerList.Remove(player); FreeFromJail(player); return true; }
+            double time = jailData.Prisoners[player.userID].expireTime;
+            if (time == -99999)
+                return false;
+            double timeLeft = time - GrabCurrentTime();
+            if (timeLeft <= 0)
+            {                
+                jailTimerList.Remove(player.userID);
+                FreeFromJail(player);
+                return true;
+            }
             return false;
         }
         void TeleportPlayerPosition(BasePlayer player, Vector3 destination)
@@ -389,18 +468,21 @@ namespace Oxide.Plugins
             if (emptyCell == -1) return null;
             return emptyCell;
         }
-       
-        int CurrentTime() { return System.Convert.ToInt32(System.DateTime.UtcNow.Subtract(epoch).TotalSeconds); }
+
+        static double GrabCurrentTime() => DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1, 0, 0, 0)).TotalSeconds;
+
         private void SendMsg(BasePlayer player, string msg)
         {
             SendReply(player, lang.GetMessage("title", this, player.UserIDString) + msgColor + msg + "</color>");
         }
+        private bool IsPrisoner(BasePlayer player)
+        {
+            if (jailData.Prisoners.ContainsKey(player.userID)) return true;
+            return false;
+        }
+        #endregion
 
-        #region zonemanager hooks
-        //////////////////////////////////////////////////////////////////////////////////////
-        // ZoneManager Hooks /////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-
+        #region ZoneManager Hooks       
         bool isInZone(BasePlayer player, string zoneID)
         {
             if (ZoneManager == null) return false;
@@ -422,6 +504,8 @@ namespace Oxide.Plugins
                 if (jailData.Prisoners.ContainsKey(player.userID)) { SendMsg(player, lang.GetMessage("keepIn", this, player.UserIDString)); }
         }
         #endregion
+
+        #region Permissions
         bool isAuth(BasePlayer player)
         {
             if (player.net.connection != null)
@@ -436,25 +520,21 @@ namespace Oxide.Plugins
         }
         #endregion
 
-        #region chat/console commands
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Chat/Console Commands /////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-
+        #region Chat/Console Commands        
         [ChatCommand("jail")]
         private void cmdJail(BasePlayer player, string command, string[] args)
         {
             if (Started)
             if (jailData.Prisoners.ContainsKey(player.userID) && !hasPermission(player))
             {
-                long currentTime = CurrentTime();
-                long expTime = jailData.Prisoners[player.userID].expireTime;
+                double currentTime = GrabCurrentTime();
+                double expTime = jailData.Prisoners[player.userID].expireTime;
                 if (expTime == -99999)
                 {
                     SendMsg(player, lang.GetMessage("noRelease", this, player.UserIDString));
                     return;
                 }
-                long timeLeft = expTime - currentTime;
+                double timeLeft = expTime - currentTime;
                 if (timeLeft > 0)
                 {
                     string msg = lang.GetMessage("mins", this, player.UserIDString);
@@ -470,11 +550,12 @@ namespace Oxide.Plugins
             if (!hasPermission(player)) return;
             if (args == null || args.Length == 0)
             {
-                SendMsg(player, lang.GetMessage("synSend", this, player.UserIDString));
+                SendMsg(player, lang.GetMessage("synSend1", this, player.UserIDString));
                 SendMsg(player, lang.GetMessage("synFree", this, player.UserIDString));
                 SendMsg(player, lang.GetMessage("synAdd", this, player.UserIDString));
                 SendMsg(player, lang.GetMessage("synRem", this, player.UserIDString));
                 SendMsg(player, lang.GetMessage("synList", this, player.UserIDString));
+                SendMsg(player, lang.GetMessage("synPurge", this, player.UserIDString));
                 SendMsg(player, lang.GetMessage("synZone", this, player.UserIDString));
                 SendMsg(player, lang.GetMessage("synWipe", this, player.UserIDString));
                 return;
@@ -491,9 +572,9 @@ namespace Oxide.Plugins
 
                         int time = -99999;
                         string prison = FindEmptyPrison();
-                        if (args.Length == 4)
-                            if (jailData.prisons.ContainsKey(args[3].ToLower())) prison = args[3].ToLower();
-                        if (prison == null || prison == "") { SendMsg(player, lang.GetMessage("noPrisons", this, player.UserIDString)); return; }
+                        if (args.Length >= 5)
+                            if (jailData.prisons.ContainsKey(args[4].ToLower())) prison = args[4].ToLower();
+                        if (string.IsNullOrEmpty(prison)) { SendMsg(player, lang.GetMessage("noPrisons", this, player.UserIDString)); return; }
 
                         BasePlayer target = (BasePlayer)addPlayer;
                         if (jailData.Prisoners.ContainsKey(target.userID)) return;
@@ -502,16 +583,24 @@ namespace Oxide.Plugins
                             int.TryParse(args[2], out time);
 
                         object success = SendPlayerToJail(target, prison, time);
+
                         if (success is bool)
-                            if ((bool)success) SendMsg(player, string.Format(lang.GetMessage("sentTo", this, player.UserIDString), target.displayName, prison));
-                            else if (success is string)
+                        {
+                            if ((bool)success)
                             {
-                                if ((string)success == "noPos") SendMsg(player, string.Format(lang.GetMessage("noPos", this), prison));
-                                else if ((string)success == "noCell") SendMsg(player, string.Format(lang.GetMessage("noCell", this), prison));
-                                return;
-                            }
+                                SendMsg(player, string.Format(lang.GetMessage("sentTo", this, player.UserIDString), target.displayName, prison));
+                                if (args.Length >= 4 && broadcastImprisonment)
+                                    PrintToChat(string.Format(lang.GetMessage("sentToReason", this, player.UserIDString), target.displayName, args[3]));
+                            }                          
+                        }
+                        else if (success is string)
+                        {
+                            if ((string)success == "noPos") SendMsg(player, string.Format(lang.GetMessage("noPos", this), prison));
+                            else if ((string)success == "noCells") SendMsg(player, string.Format(lang.GetMessage("noCells", this), prison));
+                            return;
+                        }
                     }
-                    else SendMsg(player, lang.GetMessage("synSend", this, player.UserIDString));
+                    else SendMsg(player, lang.GetMessage("synSend1", this, player.UserIDString));
                     return;
 
                 case "free":
@@ -554,8 +643,27 @@ namespace Oxide.Plugins
                     foreach (var entry in jailData.prisons)
                         SendReply(player, "Name: " + entry.Key + ", Location: " + entry.Value.location.ToString());
                     return;
+                case "purge":
+                    List<ulong> RemoveList = new List<ulong>();
+                    List<BasePlayer> FreeList = new List<BasePlayer>();
+                    foreach(var entry in jailData.Prisoners)
+                    {
+                        if (entry.Value.expireTime - GrabCurrentTime() < 0)
+                        {
+                            BasePlayer target = FindPlayerByID(entry.Key);
+                            if (target != null)
+                                FreeList.Add(target);
+                            else RemoveList.Add(entry.Key);
+                        }
+                    }
+                    foreach (var entry in RemoveList)
+                        jailData.Prisoners.Remove(entry);
+                    foreach (var entry in FreeList)
+                        FreeFromJail(entry);
+                    return;
                 case "wipe":
-                    foreach(var entry in jailData.prisons) EraseJailZone(entry.Key);
+                    foreach(var entry in jailData.prisons)
+                        EraseJailZone(entry.Key);
                     foreach (var entry in jailData.Prisoners)
                     {
                         BasePlayer inmate = FindPlayerByID(entry.Key);
@@ -599,9 +707,9 @@ namespace Oxide.Plugins
 
                 int time = -99999;
                 string prison = FindEmptyPrison();
-                if (arg.Args.Length == 3)
-                    if (jailData.prisons.ContainsKey(arg.Args[2].ToLower())) prison = arg.Args[2].ToLower();
-                if (prison == null || prison == "") { lang.GetMessage("noPrisons", this); return; }
+                if (arg.Args.Length >= 4)
+                    if (jailData.prisons.ContainsKey(arg.Args[3].ToLower())) prison = arg.Args[3].ToLower();
+                if (string.IsNullOrEmpty(prison)) { lang.GetMessage("noPrisons", this); return; }
 
                 BasePlayer target = (BasePlayer)addPlayer;
                 if (jailData.Prisoners.ContainsKey(target.userID)) return;
@@ -611,29 +719,33 @@ namespace Oxide.Plugins
 
                 object success = SendPlayerToJail(target, prison, time);
                 if (success is bool)
-                    if ((bool)success) SendReply(arg, lang.GetMessage("sentTo", this), target.displayName, prison);
-                    else if (success is string)
+                {
+                    if ((bool)success)
                     {
-                        if ((string) success == "noPos") SendReply(arg, string.Format(lang.GetMessage("noPos", this), prison));
-                        else if ((string) success == "noCell") SendReply(arg, string.Format(lang.GetMessage("noCell", this), prison));
-                        return;
+                        SendReply(arg, lang.GetMessage("sentTo", this), target.displayName, prison);
+                        if (arg.Args.Length >= 3 && broadcastImprisonment)
+                            PrintToChat(string.Format(lang.GetMessage("sentToReason", this), target.displayName, arg.Args[2]));
                     }
+                }
+                else if (success is string)
+                {
+                    if ((string)success == "noPos") SendReply(arg, string.Format(lang.GetMessage("noPos", this), prison));
+                    else if ((string)success == "noCell") SendReply(arg, string.Format(lang.GetMessage("noCell", this), prison));
+                    return;
+                }
             }
-            else SendReply(arg, lang.GetMessage("synSend", this));
+            else SendReply(arg, lang.GetMessage("synSend1", this));
             return;
         }
 
 
         #endregion
         
-        #region config
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Configuration /////////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-
+        #region Config        
         static bool useInitialSpawns = true;
         static bool disableDamage = false;
         static bool giveKit = true;
+        static bool broadcastImprisonment = true;
         static string kitName = "default";
         static string msgColor = "<color=#d3d3d3>";
 
@@ -649,6 +761,7 @@ namespace Oxide.Plugins
             CheckCfg("Inmates - Kits - Give kit to Inmates", ref giveKit);
             CheckCfg("Inmates - Kits - Kitname", ref kitName);
             CheckCfg("Messages - Message color", ref msgColor);
+            CheckCfg("Messages - Broadcast imprisonment", ref broadcastImprisonment);
         }
         private void CheckCfg<T>(string Key, ref T var)
         {
@@ -685,7 +798,7 @@ namespace Oxide.Plugins
         }
         #endregion        
 
-        #region classes and data
+        #region Classes and Data
         class JailDataStorage
         {
             public Dictionary<ulong, Inmate> Prisoners = new Dictionary<ulong, Inmate>();
@@ -713,7 +826,7 @@ namespace Oxide.Plugins
             public Vector3 initialPos;
             public string prisonName;
             public int cellNumber;
-            public long expireTime;
+            public double expireTime;
             public List<InvItem> savedInventory = new List<InvItem>();            
         }
         public class Prison
@@ -727,7 +840,6 @@ namespace Oxide.Plugins
         class InvItem
         {
             public int itemid;
-            public bool bp;
             public int skinid;
             public string container;
             public int amount;
@@ -740,6 +852,11 @@ namespace Oxide.Plugins
             public InvItem()
             {
             }
+        }
+        class JailTimer
+        {
+            public Timer time;
+            public int timeLeft;
         }
         private class UnityVector3Converter : JsonConverter
         {
@@ -767,7 +884,7 @@ namespace Oxide.Plugins
         } // borrowed from ZoneManager
         #endregion
 
-        #region inventory saving and restoration
+        #region Inventory Saving and Restoration
         public void SaveInventory(BasePlayer player)
         {
             jailData.Prisoners[player.userID].savedInventory.Clear();
@@ -806,7 +923,6 @@ namespace Oxide.Plugins
             iItem.mods = new List<int>();
             iItem.skinid = item.skin;
             iItem.container = container;
-            iItem.bp = item.IsBlueprint();
             iItem.condition = item.condition;
             iItem.itemid = item.info.itemid;
             iItem.weapon = false;
@@ -837,20 +953,20 @@ namespace Oxide.Plugins
             foreach (InvItem kitem in jailData.Prisoners[player.userID].savedInventory)
             {
                 if (kitem.weapon)
-                    player.inventory.GiveItem(BuildWeapon(kitem.itemid, kitem.ammo, kitem.bp, kitem.skinid, kitem.mods, kitem.condition), kitem.container == "belt" ? player.inventory.containerBelt : kitem.container == "wear" ? player.inventory.containerWear : player.inventory.containerMain);
-                else player.inventory.GiveItem(BuildItem(kitem.itemid, kitem.amount, kitem.bp, kitem.skinid, kitem.condition), kitem.container == "belt" ? player.inventory.containerBelt : kitem.container == "wear" ? player.inventory.containerWear : player.inventory.containerMain);
+                    player.inventory.GiveItem(BuildWeapon(kitem.itemid, kitem.ammo, kitem.skinid, kitem.mods, kitem.condition), kitem.container == "belt" ? player.inventory.containerBelt : kitem.container == "wear" ? player.inventory.containerWear : player.inventory.containerMain);
+                else player.inventory.GiveItem(BuildItem(kitem.itemid, kitem.amount, kitem.skinid, kitem.condition), kitem.container == "belt" ? player.inventory.containerBelt : kitem.container == "wear" ? player.inventory.containerWear : player.inventory.containerMain);
             }
         }
-        private Item BuildItem(int itemid, int amount, bool isBP, int skin, float cond)
+        private Item BuildItem(int itemid, int amount, int skin, float cond)
         {
             if (amount < 1) amount = 1;
-            Item item = ItemManager.CreateByItemID(itemid, amount, isBP, skin);
+            Item item = ItemManager.CreateByItemID(itemid, amount, skin);
             item.conditionNormalized = cond;
             return item;
         }
-        private Item BuildWeapon(int id, int ammo, bool isBP, int skin, List<int> mods, float cond)
+        private Item BuildWeapon(int id, int ammo, int skin, List<int> mods, float cond)
         {
-            Item item = ItemManager.CreateByItemID(id, 1, isBP, skin);
+            Item item = ItemManager.CreateByItemID(id, 1, skin);
             item.conditionNormalized = cond;
             var weapon = item.GetHeldEntity() as BaseProjectile;
             if (weapon != null)
@@ -860,20 +976,22 @@ namespace Oxide.Plugins
             if (mods != null)
                 foreach (var mod in mods)
                 {
-                    item.contents.AddItem(BuildItem(mod, 1, false, 0, cond).info, 1);
+                    item.contents.AddItem(BuildItem(mod, 1, 0, cond).info, 1);
                 }
 
             return item;
         }
         #endregion
 
-        #region messages
+        #region Localization
         Dictionary<string, string> messages = new Dictionary<string, string>()
         {
             {"title", "<color=#afff00>Jail</color> : " },
             {"noPlayers", "No players found." },
             {"multiPlayers", "Multiple players found." },
             {"invalidZID", "Invalid zone ID : " },
+            {"invalidZPos", "Unable to retrieve the zone location" },
+            {"invalidZRad", "Unable to retrieve the zone radius" },
             {"newJailAdd", "New Jail added!" },
             {"invalidSF", "Invalid spawnfile : " },
             {"remJail", "Removed Jail : " },
@@ -888,15 +1006,17 @@ namespace Oxide.Plugins
             {"mins", "Minutes" },
             {"secs", "Seconds" },
             {"remainJail", "You have {0} {1} remaining of your prison sentence" },
-            {"synSend", "/jail send <playername> <time> <prisonname> - Send a player to Jail, time and prison name are optional" },
+            {"synSend1", "/jail send <playername> <opt:time> <opt:reason> <opt:prisonname> - Send a player to Jail, time and prison name are optional" },
             {"synFree", "/jail free <playername> - Free a player from Jail" },
             {"synAdd", "/jail add <prisonname> <zoneID> <spawnfile> - Create a new prison" },
             {"synRem", "/jail remove <prisonname> - Remove a prison" },
             {"synZone", "/jail zone <radius> - Create a prison zone with required flags" },
             {"synList", "/jail list - Lists all prison's" },
             {"synWipe", "/jail wipe - Wipe's all prison data" },
+            {"synPurge", "/jail purge - Remove inactive players from prison" },
             {"noPrisons", "The are no prisons available!" },
             {"sentTo", "{0} has been sent to {1}" },
+            {"sentToBroadcast", "{0} has been sent to jail for: {1}" },
             {"noCells", "The are no free cells available at {0}" },
             {"noPos", "Unable to find a valid spawn point at {0}" },
             {"relFrom", "{0} has been released from prison" },

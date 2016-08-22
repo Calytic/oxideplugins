@@ -1,19 +1,10 @@
-using System.Collections.Generic;
 using System;
-using System.Reflection;
-using System.Data;
 using UnityEngine;
-//using Oxide.Core;
-//using Oxide.Core.Libraries;
-//using Oxide.Core.Plugins;
-//using Assembly-CSharp;
 
 namespace Oxide.Plugins
 {
-    [Info("Chopper Tracker", "Smoosher", "1.6.4")]
+    [Info("Chopper Tracker", "Smoosher", "1.6.5")]
     [Description("Tracking Of The Coptor")]
-
-
 
     class CoptorTracker : RustPlugin
     {
@@ -51,17 +42,17 @@ namespace Oxide.Plugins
                 case "true":
                     output = true;
                     return output;
-                    break;
+                    
 
                 case "false":
                     output = false;
                     return output;
-                    break;
+                    
 
                 default:
                     output = false;
                     return output;
-                    break;
+                    
             }
         }
         #endregion
@@ -70,7 +61,7 @@ namespace Oxide.Plugins
         void Loaded()
         {
             SetConfig();
-            if (!permission.PermissionExists("canCoptorControl")) permission.RegisterPermission("canCoptorControl", this);
+            permission.RegisterPermission("coptortracker.use", this);
             SetChopperLifetimeMins();
             StartChopperSpawnFreq();
         }
@@ -124,7 +115,7 @@ l.Hours,
         private void KillHelis(BasePlayer player, string command, string[] args)
         {
             var perm = new Oxide.Core.Libraries.Permission();
-            if (perm.UserHasPermission(player.userID.ToString(), "canCoptorControl"))
+            if (perm.UserHasPermission(player.userID.ToString(), "coptortracker.use"))
             {
                 KillCoptor();
             }
@@ -139,7 +130,7 @@ l.Hours,
         private void SpawnHeli(BasePlayer player, string command, string[] args)
         {
             var perm = new Oxide.Core.Libraries.Permission();
-            if (perm.UserHasPermission(player.userID.ToString(), "canCoptorControl"))
+            if (perm.UserHasPermission(player.userID.ToString(), "coptortracker.use"))
             {
                 SpawnChopper();
             }
@@ -190,14 +181,14 @@ l.Hours,
 
             if (entity.name.Contains("patrolhelicopter.prefab"))
             {
-                string thing = entity.LookupShortPrefabName();
+                string thing = entity.PrefabName;
                 switch (thing)
                 {
                     case "patrolhelicopter.prefab":
                         if (SpawnedHeli == true)
                         {
                             BaseHelicopter Chopper = (BaseHelicopter)entity;
-                            ConsoleSystem.Broadcast("chat.add", 0, "<color=Red> [Coptor Tracker]</color>  Patrol Helicopter Has Spawned Look Out!!", 1);
+                            PrintToChat("<color=Red> [Coptor Tracker]</color>  Patrol Helicopter Has Spawned Look Out!!");
                             SpawnedHeli = false;
                         }
                         else
@@ -214,7 +205,7 @@ l.Hours,
         void OnEntityTakeDamage(BaseCombatEntity entity, HitInfo info)
         {
             string Victim = "";
-            if (entity.LookupShortPrefabName().ToString().Equals("patrolhelicopter.prefab"))
+            if (entity.ShortPrefabName.Equals("patrolhelicopter.prefab"))
                 Victim = "PatrolHeli";
 
             switch (Victim)
@@ -228,7 +219,7 @@ l.Hours,
                     {
                         ChopperLifeTimeCurrent = ChopperLifeTimeCurrent + 5;
                         ConsoleSystem.Run.Server.Normal("heli.lifetimeminutes", new String[] { ChopperLifeTimeCurrent.ToString() });
-                        ConsoleSystem.Broadcast("chat.add", 0, "<color=Red> [Coptor Tracker]</color>  Helicopter Lifetime has been extended as has been engaged", 1);
+                        PrintToChat("<color=Red> [Coptor Tracker]</color>  Helicopter Lifetime has been extended as has been engaged");
                     }
 
                     break;
@@ -253,7 +244,7 @@ l.Hours,
             }
             if (coptors > 0)
             {
-                ConsoleSystem.Broadcast("chat.add", 0, "<color=Red> [Coptor Tracker]</color>  "+coptors.ToString()+" Helicopters Have Been Removed", 1);
+                PrintToChat("<color=Red> [Coptor Tracker]</color>  "+coptors.ToString()+" Helicopters Have Been Removed");
             }
         }
     }

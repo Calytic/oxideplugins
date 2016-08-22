@@ -1,0 +1,19 @@
+{
+    "name": "AutomaticAuthorization",
+    "description": "Add your friends list or clan mates to a cupboard or turret auth list using 1 command",
+    "author": "k1lly0u",
+    "version": "0.1.6",
+    "configuration": false,
+    "suggest": {
+        "Friends": "*",
+        "Clans": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

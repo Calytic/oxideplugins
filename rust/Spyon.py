@@ -62,9 +62,8 @@ class Spyon:
 		self.Title = "Spyon"
 		self.Description = "Logs command usage."
 		self.Author = "sqroot"
-		self.Version = V(1, 2, 0)
+		self.Version = V(1, 2, 1)
 		self.ResourceId = 1685
-		self.FilterDuplicateRCON = False
 
 	def send_msg(self, player, msg):
 		rust.SendChatMessage(player, "Spyon", msg)
@@ -109,17 +108,9 @@ class Spyon:
 	def LoadDefaultConfig(self):
 		self.save_cfg(default_cfg)
 
-	def OnRunCommand(self, arg):
+	def OnServerCommand(self, arg):
 		if not (arg.cmd and arg.cmd.namefull and self.is_rcon_or_allowed(arg)):
 			return
-		# OnRunCommand is run twice for each RCON command, filter the duplicate call
-		if self.is_rcon(arg):
-			if self.FilterDuplicateRCON:
-				# filter current rcon command as duplicate
-				self.FilterDuplicateRCON = False
-				return
-			# filter next rcon command as duplicate
-			self.FilterDuplicateRCON = True
 		p = self.name(arg)
 		cmd = arg.cmd.namefull
 		args = arg.ArgsStr

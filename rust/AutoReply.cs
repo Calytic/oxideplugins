@@ -10,7 +10,7 @@ using System.Text.RegularExpressions;
 
 namespace Oxide.Plugins
 {
-    [Info("AutoReply", "4seti [Lunatiq] for Rust Planet", "1.4.2", ResourceId = 908)]
+    [Info("AutoReply", "4seti [Lunatiq] for Rust Planet", "1.5.0", ResourceId = 908)]
     public class AutoReply : RustPlugin
     {
 
@@ -241,7 +241,7 @@ namespace Oxide.Plugins
 			Config["ReplyName"] = ReplyName;
 			Config["version"] = Version;
         }
-        private object OnRunCommand(ConsoleSystem.Arg arg)
+        private object OnServerCommand(ConsoleSystem.Arg arg)
         {
 			BasePlayer player = null;
 			string msg = "";
@@ -269,7 +269,7 @@ namespace Oxide.Plugins
 			catch
 			{
 				return null;
-			}
+			}            
 
 			//Fixing alphabets abuse			
 			foreach(var pair in replaceChars)
@@ -448,7 +448,7 @@ namespace Oxide.Plugins
 									ReplyChat(player, string.Format(messages["Error"]));
 									return;
 								}
-								//removeAttr(args[2].ToLower());
+								//removeAttr(args[2].ToLower()); 
 								attributes.Remove(args[2].ToLower());
 								Config["attributes"] = attributes;
 								ReplyChat(player, string.Format(messages["attrRemoved"], args[2]));	
@@ -817,7 +817,7 @@ namespace Oxide.Plugins
 				if (args[0] == "attr")
 				foreach (var pair in attributes)
 				{
-					ReplyChat(player, string.Format("{0} -> {1}", pair.Key, pair.Value.QuoteSafe()));
+					ReplyChat(player, string.Format("{0} -> {1}", pair.Key, pair.Value.Quote()));
 				}
 		}
 
@@ -836,7 +836,7 @@ namespace Oxide.Plugins
 				ReplyChat(player, string.Format(messages["listWords"], string.Join(", ", Wordgroups[groupName].Words.ToArray())));
 				foreach (var v in Wordgroups[groupName].Replies)
 				{
-					ReplyChat(player, string.Format("<color=#F5D400>[{0}]</color> - {1}", v.Key, v.Value.QuoteSafe()));
+					ReplyChat(player, string.Format("<color=#F5D400>[{0}]</color> - {1}", v.Key, v.Value.Quote()));
 					//if (v.Value.ReplyAttr.Count > 0)
 					//	ReplyChat(player, string.Format("A:{0}", string.Join(", ", v.Value.ReplyAttr.ToArray())));
 				}

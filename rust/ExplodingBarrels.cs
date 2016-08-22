@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-	[Info("ExplodingBarrels", "ignignokt84", "0.1.1", ResourceId = 1902)]
+	[Info("ExplodingBarrels", "ignignokt84", "0.2.3", ResourceId = 1902)]
 	class ExplodingBarrels : RustPlugin
 	{
 		// list of barrels containing explosives
@@ -14,24 +14,24 @@ namespace Oxide.Plugins
 		// random number generator
 		private System.Random random;
 		// explosive types for effects
-		private enum ExplosiveType { Rocket, IncendRocket };
-		// damage types list
-		private List<DamageTypeEntry> damage;
+		private enum ExplosiveType { Rocket, IncendiaryRocket, F1Grenade, BeancanGrenade, Landmine };
 		
 		// debug toggle
 		private bool debug = false;
 		// configuration data
-		private Dictionary<Option,object> data = new Dictionary<Option,object>();
+		private Dictionary<object,object> data = new Dictionary<object,object>();
 		// usage string
 		public string usageString;
 		// configuration changed flag
 		private bool hasConfigChanged;
 		// enum of valid commands
-		private enum Command { usage, set, get, desc, list, version, def, count, debug };
+		private enum Command { usage, set, get, desc, list, version, def, count, debug, show };
 		// enum of valid options
-		private enum Option { chance, amount, minradius, radius, delay, killinv };
+		private enum Option { killinv };
 		// default values
-		private object[] def = { 5f, 95f, 2f, 5f, 1f, true };
+		private object[] def = { true };
+		// default highlight time = 10 seconds
+		private float defaultHighlightTime = 10f;
 		
 		// load default messages to Lang
 		void LoadDefaultMessages()
@@ -46,17 +46,15 @@ namespace Oxide.Plugins
 				{"CmdUsageGet", "Get value of specified option"},
 				{"CmdUsageDesc", "Describe specified option"},
 				{"CmdUsageList", "Lists available options"},
+				{"CmdUsageShow", "Highlights explosive barrels for the specified number of seconds"},
 				{"CmdUsageDef", "Loads default configuration"},
 				{"CmdUsageCount", "Count and display locations of explodable barrels"},
 				{"CmdUsageVersion", "Prints version information"},
 				{"CmdUsageOptionString", "[option]"},
 				{"CmdUsageValueString", "[value]"},
+				{"CmdUsageClosestString", "[\"closest\"]"},
+				{"CmdUsageTimeString", "[time]"},
 				
-				{"Desc_chance", "Percent chance that a barrel containing an explosive will explode on hit"},
-				{"Desc_amount", "Max amount of damage to be dealt by explosion"},
-				{"Desc_minradius", "Minimum radius to apply max damage"},
-				{"Desc_radius", "Max explosion damage radius"},
-				{"Desc_delay", "Delay between hit and explosion"},
 				{"Desc_killinv", "Whether to destroy inventory on explosion"},
 				
 				{"AvailOptions", "Available Options: {0}"},
@@ -80,7 +78,6 @@ namespace Oxide.Plugins
 		void Init()
 		{
 			barrels = new Dictionary<uint,ExplosiveType>();
-			damage = new List<DamageTypeEntry>();
 			random = new System.Random();
 		}
 		
@@ -92,7 +89,6 @@ namespace Oxide.Plugins
 			foreach(Command command in Enum.GetValues(typeof(Command)))
 				cmd.AddConsoleCommand((baseCommand + "." + command.ToString()), this, "ccmdDelegator");
 			LoadConfig();
-			buildDamageTypes();
 			// build usage string
 			usageString = wrapSize(14, wrapColor("orange", GetMessage("UsageHeader"))) + "\n" +
 						  wrapSize(12, wrapColor("cyan", baseCommand + "." + Command.set.ToString() + " " + GetMessage("CmdUsageOptionString") + " " + GetMessage("CmdUsageValueString")) + " - " + GetMessage("CmdUsageSet") + "\n" +
@@ -100,19 +96,10 @@ namespace Oxide.Plugins
 									   wrapColor("cyan", baseCommand + "." + Command.desc.ToString() + " " + GetMessage("CmdUsageOptionString")) + " - " + GetMessage("CmdUsageDesc") + "\n" +
 									   wrapColor("cyan", baseCommand + "." + Command.list.ToString()) + " - " + GetMessage("CmdUsageList") + "\n" +
 									   wrapColor("cyan", baseCommand + "." + Command.count.ToString()) + " - " + GetMessage("CmdUsageCount") + "\n" +
+									   wrapColor("cyan", baseCommand + "." + Command.show.ToString()) + " " + GetMessage("CmdUsageClosestString") + " " + GetMessage("CmdUsageTimeString") + " - " + GetMessage("CmdUsageShow") + "\n" +
 									   wrapColor("cyan", baseCommand + "." + Command.def.ToString()) + " - " + GetMessage("CmdUsageDef") + "\n" +
 									   wrapColor("cyan", baseCommand + "." + Command.version.ToString()) + " - " + GetMessage("CmdUsageVersion"));
 			checkAllBarrels();
-		}
-		
-		// Set up damage types list
-		void buildDamageTypes()
-		{
-			damage.Clear();
-			DamageTypeEntry explosionDamage = new DamageTypeEntry();
-			explosionDamage.type = DamageType.Explosion;
-			explosionDamage.amount = getFloat(Option.amount);
-			damage.Add(explosionDamage);
 		}
 		
 		// Load default configuration
@@ -125,12 +112,80 @@ namespace Oxide.Plugins
 		// Load configuration
 		private void LoadConfig()
 		{
+			// Beancan Grenade config
+			data["BeancanGrenade_BluntDamage"] = GetConfigValue("BeancanGrenade", "BluntDamage", 50f);
+			data["BeancanGrenade_ExplosiveDamage"] = GetConfigValue("BeancanGrenade", "ExplosiveDamage", 15f);
+			data["BeancanGrenade_StabDamage"] = GetConfigValue("BeancanGrenade", "StabDamage", 50f);
+			data["BeancanGrenade_MinRadius"] = GetConfigValue("BeancanGrenade", "MinRadius", 1.5f);
+			data["BeancanGrenade_Radius"] = GetConfigValue("BeancanGrenade", "Radius", 4.5f);
+			data["BeancanGrenade_Delay"] = GetConfigValue("BeancanGrenade", "Delay", 3.5f);
+			data["BeancanGrenade_Scale"] = GetConfigValue("BeancanGrenade", "Scale", 1f);
+			data["BeancanGrenade_Chance"] = GetConfigValue("BeancanGrenade", "Chance", 50f);
+			data["BeancanGrenade_Effects"] = GetConfigValue("BeancanGrenade", "Effects", new List<object>() {"assets/prefabs/weapons/beancan grenade/effects/beancan_grenade_explosion.prefab"});
+			data["BeancanGrenade_Trigger"] = GetConfigValue("BeancanGrenade", "Trigger", "assets/prefabs/weapons/f1 grenade/effects/pullpin.prefab");
+			
+			// F1 Grenade config
+			data["F1Grenade_BluntDamage"] = GetConfigValue("F1Grenade", "BluntDamage", 50f);
+			data["F1Grenade_ExplosiveDamage"] = GetConfigValue("F1Grenade", "ExplosiveDamage", 40f);
+			data["F1Grenade_StabDamage"] = GetConfigValue("F1Grenade", "StabDamage", 50f);
+			data["F1Grenade_MinRadius"] = GetConfigValue("F1Grenade", "MinRadius", 1.5f);
+			data["F1Grenade_Radius"] = GetConfigValue("F1Grenade", "Radius", 4.5f);
+			data["F1Grenade_Delay"] = GetConfigValue("F1Grenade", "Delay", 3.5f);
+			data["F1Grenade_Scale"] = GetConfigValue("F1Grenade", "Scale", 1f);
+			data["F1Grenade_Chance"] = GetConfigValue("F1Grenade", "Chance", 50f);
+			data["F1Grenade_Effects"] = GetConfigValue("F1Grenade", "Effects", new List<object>() {"assets/prefabs/weapons/f1 grenade/effects/f1grenade_explosion.prefab"});
+			data["F1Grenade_Trigger"] = GetConfigValue("F1Grenade", "Trigger", "assets/prefabs/weapons/f1 grenade/effects/pullpin.prefab");
+			
+			// Rocket config
+			data["Rocket_BluntDamage"] = GetConfigValue("Rocket", "BluntDamage", 75f);
+			data["Rocket_ExplosiveDamage"] = GetConfigValue("Rocket", "ExplosiveDamage", 275f);
+			data["Rocket_MinRadius"] = GetConfigValue("Rocket", "MinRadius", 1f);
+			data["Rocket_Radius"] = GetConfigValue("Rocket", "Radius", 3.8f);
+			data["Rocket_Delay"] = GetConfigValue("Rocket", "Delay", 8f);
+			data["Rocket_Scale"] = GetConfigValue("Rocket", "Scale", 1f);
+			data["Rocket_Chance"] = GetConfigValue("Rocket", "Chance", 50f);
+			data["Rocket_Effects"] = GetConfigValue("Rocket", "Effects", new List<object>() {"assets/prefabs/weapons/rocketLauncher/effects/rocket_explosion.prefab"});
+			data["Rocket_Trigger"] = GetConfigValue("Rocket", "Trigger", "assets/bundled/Prefabs/fx/weapons/landmine/landmine_trigger.prefab");
+			
+			// Incendiary Rocket config
+			data["IncendiaryRocket_HeatDamage"] = GetConfigValue("IncendiaryRocket", "HeatDamage", 25f);
+			data["IncendiaryRocket_MinRadius"] = GetConfigValue("IncendiaryRocket", "MinRadius", 5f);
+			data["IncendiaryRocket_Radius"] = GetConfigValue("IncendiaryRocket", "Radius", 5f);
+			data["IncendiaryRocket_Delay"] = GetConfigValue("IncendiaryRocket", "Delay", 8f);
+			data["IncendiaryRocket_Scale"] = GetConfigValue("IncendiaryRocket", "Scale", 1f);
+			data["IncendiaryRocket_Chance"] = GetConfigValue("IncendiaryRocket", "Chance", 50f);
+			data["IncendiaryRocket_Effects"] = GetConfigValue("IncendiaryRocket", "Effects", new List<object>()
+				{"assets/prefabs/weapons/rocketlauncher/effects/rocket_explosion_incendiary.prefab", "assets/bundled/prefabs/fx/gas_explosion_small.prefab"});
+			data["IncendiaryRocket_Trigger"] = GetConfigValue("IncendiaryRocket", "Trigger", "assets/bundled/Prefabs/fx/weapons/landmine/landmine_trigger.prefab");
+			
+			// HV Rocket config
+			data["HVRocket_BluntDamage"] = GetConfigValue("HVRocket", "BluntDamage", 75f);
+			data["HVRocket_ExplosiveDamage"] = GetConfigValue("HVRocket", "ExplosiveDamage", 150f);
+			data["HVRocket_MinRadius"] = GetConfigValue("HVRocket", "MinRadius", 0f);
+			data["HVRocket_Radius"] = GetConfigValue("HVRocket", "Radius", 3f);
+			data["HVRocket_Delay"] = GetConfigValue("HVRocket", "Delay", 8f);
+			data["HVRocket_Scale"] = GetConfigValue("HVRocket", "Scale", 1f);
+			data["HVRocket_Chance"] = GetConfigValue("HVRocket", "Chance", 50f);
+			data["HVRocket_Effects"] = GetConfigValue("HVRocket", "Effects", new List<object>() {"assets/prefabs/weapons/rocketLauncher/effects/rocket_explosion.prefab"});
+			data["HVRocket_Trigger"] = GetConfigValue("HVRocket", "Trigger", "assets/bundled/Prefabs/fx/weapons/landmine/landmine_trigger.prefab");
+			
+			// Landmine config
+			data["Landmine_BluntDamage"] = GetConfigValue("Landmine", "BluntDamage", 100f);
+			data["Landmine_ExplosiveDamage"] = GetConfigValue("Landmine", "ExplosiveDamage", 100f);
+			data["Landmine_MinRadius"] = GetConfigValue("Landmine", "MinRadius", 0f);
+			data["Landmine_Radius"] = GetConfigValue("Landmine", "Radius", 3f);
+			data["Landmine_Delay"] = GetConfigValue("Landmine", "Delay", 2f);
+			data["Landmine_Scale"] = GetConfigValue("Landmine", "Scale", 1f);
+			data["Landmine_Chance"] = GetConfigValue("Landmine", "Chance", 50f);
+			data["Landmine_Effects"] = GetConfigValue("Landmine", "Effects", new List<object>() {"assets/bundled/prefabs/fx/weapons/landmine/landmine_explosion.prefab"});
+			data["Landmine_Trigger"] = GetConfigValue("Landmine", "Trigger", "assets/bundled/Prefabs/fx/weapons/landmine/landmine_trigger.prefab");
+			
 			foreach(Option opt in Enum.GetValues(typeof(Option)))
 			{
-				if(opt != Option.killinv)
-					data[opt] = Convert.ToSingle(GetConfig(opt, def[(int)opt]));
+				if(opt == Option.killinv)
+					data[opt.ToString()] = Convert.ToBoolean(GetConfigValue("Options", opt.ToString(), def[(int)opt]));
 				else
-					data[opt] = Convert.ToBoolean(GetConfig(opt, def[(int)opt]));
+					data[opt.ToString()] = Convert.ToSingle(GetConfigValue("Options", opt.ToString(), def[(int)opt]));
 			}
 			
 			if (!hasConfigChanged) return;
@@ -138,22 +193,40 @@ namespace Oxide.Plugins
 			hasConfigChanged = false;
 		}
 		
-		// Get config options, or set to default value if not found
-		private object GetConfig(object opt, object defaultValue)
-		{
-			string optstr = opt.ToString();
-			object value = Config[optstr];
-			if (value == null)
-			{
-				value = defaultValue;
-				Config[optstr] = value;
-				hasConfigChanged = true;
-			}
-			return value;
-		}
+		// Get Configuration value
+        private T GetConfigValue<T>(string category, string setting, T defaultValue)
+        {
+            var cfg = Config[category] as Dictionary<string, object>;
+            object value;
+            if (cfg == null)
+            {
+                cfg = new Dictionary<string, object>();
+                Config[category] = cfg;
+                hasConfigChanged = true;
+            }
+            if (cfg.TryGetValue(setting, out value)) return (T)Convert.ChangeType(value, typeof(T));
+            value = defaultValue;
+            cfg[setting] = value;
+            hasConfigChanged = true;
+            return (T)Convert.ChangeType(value, typeof(T));
+        }
+		
+		// Set Configuration value
+        private void SetConfigValue<T>(string category, string setting, T newValue)
+        {
+            var cfg = Config[category] as Dictionary<string, object>;
+            object value;
+            if (cfg != null && cfg.TryGetValue(setting, out value))
+            {
+                value = newValue;
+                cfg[setting] = value;
+                hasConfigChanged = true;
+            }
+            SaveConfig();
+        }
 		
 		// Save updated entry to config
-		private void SaveEntry(Option opt, object value)
+		private void SaveEntry(object opt, object value)
 		{
 			string optstr = opt.ToString();
 			data[opt] = value;
@@ -172,7 +245,7 @@ namespace Oxide.Plugins
 		void OnEntitySpawned(BaseNetworkable entity)
 		{
 			if(entity == null) return;
-			if(entity is LootContainer && entity.LookupShortPrefabName().Contains("loot-barrel"))
+			if(entity is LootContainer && entity.ShortPrefabName.Contains("loot-barrel"))
 			{
 				ExplosiveType type = ExplosiveType.Rocket;
 				Item item = ((LootContainer)entity).inventory.FindItemByItemID(1578894260); // rocket
@@ -185,11 +258,37 @@ namespace Oxide.Plugins
 				if(item == null)
 				{
 					item = ((LootContainer)entity).inventory.FindItemByItemID(1436532208); // incendiary rocket
-					type = ExplosiveType.IncendRocket;
+					type = ExplosiveType.IncendiaryRocket;
 					if(debug && item != null) Puts("found incendiary rocket at " + entity.transform.position);
 				}
-				// rocket found, ignore blueprints
-				if(item != null && !item.IsBlueprint())
+				if(item == null)
+				{
+					item = ((LootContainer)entity).inventory.FindItemByItemID(-1308622549); // f1 grenade
+					type = ExplosiveType.F1Grenade;
+					if(debug && item != null) Puts("found f1 grenade at " + entity.transform.position);
+				}
+				if(item == null)
+				{
+					item = ((LootContainer)entity).inventory.FindItemByItemID(384204160); // beancan grenade
+					type = ExplosiveType.BeancanGrenade;
+					if(debug && item != null) Puts("found beancan grenade at " + entity.transform.position);
+				}
+				if(item == null)
+				{
+					item = ((LootContainer)entity).inventory.FindItemByItemID(255101535); // landmine
+					type = ExplosiveType.Landmine;
+					if(debug && item != null) Puts("found landmine at " + entity.transform.position);
+				}
+				// condition for testing
+				if(debug && item == null)
+				{
+					// test items
+					item = ((LootContainer)entity).inventory.FindItemByItemID(1351589500); // blueprint fragment
+					type = ExplosiveType.IncendiaryRocket;
+					if(debug && item != null) Puts("found test entity at " + entity.transform.position);
+				}
+				// rocket found
+				if(item != null)
 				{
 					// rocket found
 					barrels[entity.net.ID] = type;
@@ -209,7 +308,7 @@ namespace Oxide.Plugins
 			// if entity is in barrel list, attempt to explode
 			if(barrels.ContainsKey(entity.net.ID))
 			{
-				if(random.Next(0,100) < getFloat(Option.chance))
+				if(random.Next(0,100) < getFloat(barrels[entity.net.ID].ToString() + "_Chance"))
 					explodeBarrel((LootContainer)entity, entity.transform.position);
 			}
 		}
@@ -218,24 +317,50 @@ namespace Oxide.Plugins
 		void explodeBarrel(LootContainer entity, Vector3 position)
 		{
 			ExplosiveType type = barrels[entity.net.ID];
-			if(getBool(Option.killinv))
+			if(getBool(Option.killinv.ToString()))
 				entity.inventory.Kill(); // destroy inventory
 			barrels.Remove(entity.net.ID);
-			Effect.server.Run("assets/bundled/Prefabs/fx/weapons/landmine/landmine_trigger.prefab", position); // landmine trigger click
+			Effect.server.Run(getString(type.ToString() + "_Trigger"), position);
+			//Effect.server.Run("assets/prefabs/weapons/f1 grenade/effects/pullpin.prefab", position);
 			
-			timer.Once(getFloat(Option.delay), delegate() {
-				if(type == null || type == ExplosiveType.Rocket) // normal rocket explosion
-				{
-					Effect.server.Run("assets/prefabs/weapons/rocketLauncher/effects/rocket_explosion.prefab", position);
-				}
-				else if(type == ExplosiveType.IncendRocket) // incendiary rocket explosion
-				{
-					Effect.server.Run("Assets/Prefabs/Weapons/RocketLauncher/Effects/Rocket_Explosion_Incendiary.prefab", position);
-					Effect.server.Run("assets/bundled/prefabs/fx/gas_explosion_small.prefab", position);
-				}
+			timer.Once(getFloat(type.ToString() + "_Delay"), delegate() {
+				// run effects
+				foreach(object effect in getList(type.ToString() + "_Effects"))
+					Effect.server.Run(effect.ToString(), position);
 				// damage nearby entities
-				DamageUtil.RadiusDamage(entity, null, position, getFloat(Option.minradius), getFloat(Option.radius), damage, -1, false);
+				doDamage(entity, position, type);
 			});
+		}
+		
+		void doDamage(BaseCombatEntity entity, Vector3 position, ExplosiveType type)
+		{
+			List<DamageTypeEntry> damage = new List<DamageTypeEntry>();
+			DamageTypeEntry bluntDamage = new DamageTypeEntry();
+			bluntDamage.type = DamageType.Blunt;
+			DamageTypeEntry explosionDamage = new DamageTypeEntry();
+			explosionDamage.type = DamageType.Explosion;
+			DamageTypeEntry stabDamage = new DamageTypeEntry();
+			stabDamage.type = DamageType.Stab;
+			DamageTypeEntry heatDamage = new DamageTypeEntry();
+			heatDamage.type = DamageType.Heat;
+			
+			float scale = getFloat(type.ToString() + "_Scale");
+			float blunt = getFloatOrZero(type.ToString() + "_BluntDamage");
+			float explosion = getFloatOrZero(type.ToString() + "_ExplosionDamage");
+			float stab = getFloatOrZero(type.ToString() + "_StabDamage");
+			float heat = getFloatOrZero(type.ToString() + "_HeatDamage");
+			
+			bluntDamage.amount = blunt * scale;
+			explosionDamage.amount = explosion * scale;
+			stabDamage.amount = stab * scale;
+			heatDamage.amount = heat * scale;
+			
+			damage.Add(bluntDamage);
+			damage.Add(explosionDamage);
+			damage.Add(stabDamage);
+			damage.Add(heatDamage);
+			
+			DamageUtil.RadiusDamage(entity, null, position, getFloat(type.ToString() + "_MinRadius"), getFloat(type.ToString() + "_Radius"), damage, -1, false);
 		}
 		
 		// handle list command
@@ -262,19 +387,16 @@ namespace Oxide.Plugins
 			Option opt = (Option) Enum.Parse(typeof(Option), arg.Args[0]);
 			object value;
 			try {
-				if(opt != Option.killinv)
-					value = Convert.ToSingle(arg.Args[1]);
-				else
+				if(opt == Option.killinv)
 					value = Convert.ToBoolean(arg.Args[1]);
+				else
+					value = Convert.ToSingle(arg.Args[1]);
 			} catch(FormatException e) {
 				SendReply(arg, wrapSize(12, wrapColor("red", String.Format(GetMessage("InvalidParameter"), arg.Args[1]))));
 				return false;
 			}
 			
 			SaveEntry(opt,value);
-			// if amount changed, rebuild damage types list
-			if(opt == Option.amount)
-				buildDamageTypes();
 			SendReply(arg, wrapSize(12, wrapColor("cyan", String.Format(GetMessage("SetSuccess"), new object[] {opt, value}))));
 			return true;
 		}
@@ -303,7 +425,7 @@ namespace Oxide.Plugins
 		// prints the value of an Option
 		private void printValue(ConsoleSystem.Arg arg, Option opt)
 		{
-			SendReply(arg, wrapSize(12, wrapColor("cyan", opt + ": ") + data[opt]));
+			SendReply(arg, wrapSize(12, wrapColor("cyan", opt + ": ") + data[opt.ToString()]));
 		}
 		
 		// handle desc command
@@ -332,9 +454,66 @@ namespace Oxide.Plugins
 			string str = "";
 			foreach(uint id in barrels.Keys)
 			{
-				str += BaseNetworkable.serverEntities.Find(id).transform.position + "\n";
+				str += BaseNetworkable.serverEntities.Find(id).transform.position + ": " + barrels[id].ToString() + "\n";
 			}
 			SendReply(arg, wrapSize(14, wrapColor("orange", String.Format(GetMessage("CountHeader"), barrels.Count()))) + wrapSize(12, wrapColor("cyan", str)));
+		}
+		
+		// find and highlight barrels
+		private void highlightBarrels(ConsoleSystem.Arg arg)
+		{
+			bool closest = false;
+			float time = defaultHighlightTime;
+			int i = 0;
+			if(arg.Args != null)
+			{
+				if(arg.Args[i] != null && arg.Args[i++] == "closest")
+					closest = true;
+				
+				if(arg.Args.Count() > i && arg.Args[i] != null)
+					try {
+						time = Convert.ToSingle(arg.Args[i]);
+					} catch (FormatException) {
+						SendReply(arg, wrapSize(12, wrapColor("red", String.Format(GetMessage("InvalidParameter"), arg.Args[i]))));
+						return;
+					}
+			}
+			
+			BasePlayer player = BasePlayer.Find(arg.connection.username);
+			Vector3 closestPos = Vector3.zero;
+			float distance = -1f;
+			
+			foreach(uint id in barrels.Keys)
+			{
+				Vector3 pos = BaseNetworkable.serverEntities.Find(id).transform.position;
+				if(closest)
+				{
+					float dist = Vector3.Distance(pos, player.transform.position);
+					if(distance == -1f || dist < distance)
+					{
+						closestPos = pos;
+						distance = dist;
+					}
+				}
+				else
+					highlightPath(player, pos, time, Vector3.Distance(pos, player.transform.position).ToString("#.0"));
+			}
+			if(closest)
+				highlightPath(player, closestPos, time, distance.ToString("#.0"));
+		}
+		
+		// draw line from player to target
+		private void highlightPath(BasePlayer player, Vector3 to, float duration, string text)
+		{
+			Vector3 from = player.transform.position;
+			player.SendConsoleCommand("ddraw.line", duration, Color.red, from, to);
+			// if text string is not null or empty, calculate text position as midpoint of line + 0.1y (to place text above line)
+			if(text != null && text != "")
+			{
+				Vector3 textPosition = ((from + to)/2f); // midpoint of line
+				textPosition = textPosition + new Vector3(0,0.1f,0); // shift text 0.1y
+				player.SendConsoleCommand("ddraw.text", duration, Color.red, textPosition, text);
+			}
 		}
 		
 		// show usage information
@@ -374,15 +553,37 @@ namespace Oxide.Plugins
 		}
 		
 		// convert Option value to bool
-		private bool getBool(Option opt)
+		private bool getBool(string str)
 		{
-			return Convert.ToBoolean(data[opt]);
+			return Convert.ToBoolean(data[str]);
 		}
 		
 		// convert Option value to float
-		private float getFloat(Option opt)
+		private float getFloat(string str)
 		{
-			return Convert.ToSingle(data[opt]);
+			return Convert.ToSingle(data[str]);
+		}
+		
+		private float getFloatOrZero(string str)
+		{
+			if(data.ContainsKey(str))
+				return getFloat(str);
+			return 0f;
+		}
+		
+		private string getString(string str)
+		{
+			return (string) data[str];
+		}
+		
+		private T getValue<T>(string str)
+		{
+			return (T)Convert.ChangeType(data[str], typeof(T));
+		}
+		
+		private List<object> getList(string str)
+		{
+			return (List<object>) data[str];
 		}
 		
 		// toggles debug messages
@@ -429,6 +630,9 @@ namespace Oxide.Plugins
 						break;
 					case Command.count:
 						showCount(arg);
+						return;
+					case Command.show:
+						highlightBarrels(arg);
 						return;
 					case Command.usage:
 						showUsage(arg);

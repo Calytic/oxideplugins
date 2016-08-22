@@ -5,7 +5,7 @@ using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("NoDecay", "Deicide666ra/Piarb", "1.0.10", ResourceId = 1160)]
+    [Info("NoDecay", "Deicide666ra/Piarb", "1.0.13", ResourceId = 1160)]
     [Description("Scales or disables decay of items")]
 
     class NoDecay : RustPlugin
@@ -15,19 +15,20 @@ namespace Oxide.Plugins
         private float c_stoneMultiplier;
         private float c_sheetMultiplier;
         private float c_armoredMultiplier;
+		
         private float c_campfireMultiplier;
-        private float c_reactivetargetMultiplier;
         private float c_highWoodWallMultiplier;
         private float c_highStoneWallMultiplier;
-		private float c_fishtrapMultiplier;
 		private float c_barricadeMultiplier;
 		private float c_trapMultiplier;
-		private float c_cupboard;
-		private float c_sleepingbag;
+		private float c_deployablesMultiplier;
+		private float c_boxMultiplier;
+		private float c_furnaceMultiplier;
 		
 		private bool c_outputToRcon;
 
         private bool g_configChanged;
+		private string entity_name;
 
         void Loaded() => LoadConfigValues();
         protected override void LoadDefaultConfig() => Puts("New configuration file created.");
@@ -39,16 +40,15 @@ namespace Oxide.Plugins
             c_stoneMultiplier = Convert.ToSingle(GetConfigValue("Mutipliers", "stoneMultiplier", 0.0));
             c_sheetMultiplier = Convert.ToSingle(GetConfigValue("Mutipliers", "sheetMultiplier", 0.0));
             c_armoredMultiplier = Convert.ToSingle(GetConfigValue("Mutipliers", "armoredMultiplier", 0.0));
+			
+			c_deployablesMultiplier = Convert.ToSingle(GetConfigValue("Mutipliers", "deployablesMultiplier", 0.0));
+			c_boxMultiplier = Convert.ToSingle(GetConfigValue("Mutipliers", "boxMultiplier", 0.0));
+			c_furnaceMultiplier = Convert.ToSingle(GetConfigValue("Mutipliers", "furnaceMultiplier", 0.0));
             c_campfireMultiplier = Convert.ToSingle(GetConfigValue("Mutipliers", "campfireMultiplier", 0.0));
-			c_fishtrapMultiplier = Convert.ToSingle(GetConfigValue("Mutipliers", "fishtrapMultiplier", 0.0));
-            c_reactivetargetMultiplier = Convert.ToSingle(GetConfigValue("Mutipliers", "reactivetargetMultiplier", 0.0));
 			c_barricadeMultiplier = Convert.ToSingle(GetConfigValue("Mutipliers", "barricadesMultiplier", 0.0));
 			c_trapMultiplier = Convert.ToSingle(GetConfigValue("Mutipliers", "trapMultiplier", 0.0));
-			c_cupboard = Convert.ToSingle(GetConfigValue("Mutipliers", "cupboardMultiplier", 0.0));
-			c_sleepingbag = Convert.ToSingle(GetConfigValue("Mutipliers", "sleepingbagMultiplier", 0.0));
-
-            c_highWoodWallMultiplier = Convert.ToSingle(GetConfigValue("Mutipliers", "highWoodWallMultiplier", c_woodMultiplier));
-            c_highStoneWallMultiplier = Convert.ToSingle(GetConfigValue("Mutipliers", "highStoneWallMultiplier", c_stoneMultiplier));
+            c_highWoodWallMultiplier = Convert.ToSingle(GetConfigValue("Mutipliers", "highWoodWallMultiplier", 0.0));
+            c_highStoneWallMultiplier = Convert.ToSingle(GetConfigValue("Mutipliers", "highStoneWallMultiplier", 0.0));
 			
             c_outputToRcon = Convert.ToBoolean(GetConfigValue("Debug", "outputToRcon", false));
 
@@ -90,102 +90,71 @@ namespace Oxide.Plugins
         void OnEntityTakeDamage(BaseCombatEntity entity, HitInfo hitInfo)
         {
             var tick = DateTime.Now;
+			
+			entity_name = entity.LookupPrefab().name;
             try
             {
                 if (!hitInfo.damageTypes.Has(Rust.DamageType.Decay)) return;
 
                 var block = entity as BuildingBlock;
-                if (entity.LookupShortPrefabName() == "campfire.prefab")
+                if (entity.LookupPrefab().name == "campfire")
                     ProcessCampfireDamage(hitInfo);
-                else if (entity.LookupShortPrefabName() == "cupboard.tool.deployed.prefab")
+				else if (entity.LookupPrefab().name == "box.wooden.large" ||
+						entity.LookupPrefab().name == "woodbox_deployed")
                 {
                     var before = hitInfo.damageTypes.Get(Rust.DamageType.Decay);
-                    hitInfo.damageTypes.Scale(Rust.DamageType.Decay, c_cupboard);
+                    hitInfo.damageTypes.Scale(Rust.DamageType.Decay, c_boxMultiplier);
 
                     if (c_outputToRcon)
-                        Puts($"Decay (cupboard) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
+                        Puts($"Decay ({entity_name}) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
                 }								
-				else if (entity.LookupShortPrefabName() == "sleepingbag_leather_deployed.prefab")
+				else if (entity.LookupPrefab().name.Contains("deployed"))
                 {
                     var before = hitInfo.damageTypes.Get(Rust.DamageType.Decay);
-                    hitInfo.damageTypes.Scale(Rust.DamageType.Decay, c_sleepingbag);
+                    hitInfo.damageTypes.Scale(Rust.DamageType.Decay, c_deployablesMultiplier);
 
                     if (c_outputToRcon)
-                        Puts($"Decay (sleeping bag) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
+                        Puts($"Decay ({entity_name}) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
+                }
+				else if (entity.LookupPrefab().name.Contains("furnace"))
+                {
+                    var before = hitInfo.damageTypes.Get(Rust.DamageType.Decay);
+                    hitInfo.damageTypes.Scale(Rust.DamageType.Decay, c_furnaceMultiplier);
+
+                    if (c_outputToRcon)
+                        Puts($"Decay ({entity_name}) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
                 }								
-				else if (entity.LookupShortPrefabName() == "beartrap.prefab")
+				else if (entity.LookupPrefab().name == "WaterBarrel" ||
+						entity.LookupPrefab().name == "jackolantern.angry" ||
+						entity.LookupPrefab().name == "jackolantern.happy" ||
+						entity.LookupPrefab().name == "water_catcher_small" ||
+						entity.LookupPrefab().name == "water_catcher_large")
                 {
                     var before = hitInfo.damageTypes.Get(Rust.DamageType.Decay);
-                    hitInfo.damageTypes.Scale(Rust.DamageType.Decay, c_trapMultiplier);
+                    hitInfo.damageTypes.Scale(Rust.DamageType.Decay, c_deployablesMultiplier);
 
                     if (c_outputToRcon)
-                        Puts($"Decay (beartrap) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
+                        Puts($"Decay ({entity_name}) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
                 }												
-				else if (entity.LookupShortPrefabName() == "landmine.prefab")
+				else if (entity.LookupPrefab().name == "beartrap" ||
+						entity.LookupPrefab().name == "landmine" ||
+						entity.LookupPrefab().name == "spikes.floor")
                 {
                     var before = hitInfo.damageTypes.Get(Rust.DamageType.Decay);
                     hitInfo.damageTypes.Scale(Rust.DamageType.Decay, c_trapMultiplier);
 
                     if (c_outputToRcon)
-                        Puts($"Decay (landmine) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
-                }																
-				else if (entity.LookupShortPrefabName() == "spikes.floor.prefab")
-                {
-                    var before = hitInfo.damageTypes.Get(Rust.DamageType.Decay);
-                    hitInfo.damageTypes.Scale(Rust.DamageType.Decay, c_trapMultiplier);
-
-                    if (c_outputToRcon)
-                        Puts($"Decay (spikes floor) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
-                }								
-                else if (entity.LookupShortPrefabName() == "barricade.wood.prefab")
+                        Puts($"Decay ({entity_name}) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
+                }												
+                else if (entity.LookupPrefab().name.Contains("barricade"))
                 {
                     var before = hitInfo.damageTypes.Get(Rust.DamageType.Decay);
                     hitInfo.damageTypes.Scale(Rust.DamageType.Decay, c_barricadeMultiplier);
 
                     if (c_outputToRcon)
-                        Puts($"Decay (barricade wood) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
+                        Puts($"Decay ({entity_name}) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
                 }				
-                else if (entity.LookupShortPrefabName() == "barricade.metal.prefab")
-                {
-                    var before = hitInfo.damageTypes.Get(Rust.DamageType.Decay);
-                    hitInfo.damageTypes.Scale(Rust.DamageType.Decay, c_barricadeMultiplier);
-
-                    if (c_outputToRcon)
-                        Puts($"Decay (barricade metal) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
-                }								
-                else if (entity.LookupShortPrefabName() == "barricade.stone.prefab")
-                {
-                    var before = hitInfo.damageTypes.Get(Rust.DamageType.Decay);
-                    hitInfo.damageTypes.Scale(Rust.DamageType.Decay, c_barricadeMultiplier);
-
-                    if (c_outputToRcon)
-                        Puts($"Decay (barricade stone) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
-                }								
-                else if (entity.LookupShortPrefabName() == "barricade.woodwire.prefab")
-                {
-                    var before = hitInfo.damageTypes.Get(Rust.DamageType.Decay);
-                    hitInfo.damageTypes.Scale(Rust.DamageType.Decay, c_barricadeMultiplier);
-
-                    if (c_outputToRcon)
-                        Puts($"Decay (barricade woodwire) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
-                }												
-                else if (entity.LookupShortPrefabName() == "barricade.concrete.prefab")
-                {
-                    var before = hitInfo.damageTypes.Get(Rust.DamageType.Decay);
-                    hitInfo.damageTypes.Scale(Rust.DamageType.Decay, c_barricadeMultiplier);
-
-                    if (c_outputToRcon)
-                        Puts($"Decay (barricade concrete) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
-                }												
-                else if (entity.LookupShortPrefabName() == "barricade.sandbags.prefab")
-                {
-                    var before = hitInfo.damageTypes.Get(Rust.DamageType.Decay);
-                    hitInfo.damageTypes.Scale(Rust.DamageType.Decay, c_barricadeMultiplier);
-
-                    if (c_outputToRcon)
-                        Puts($"Decay (barricade sandbags) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
-                }																
-                else if (entity.LookupShortPrefabName() == "gates.external.high.stone.prefab")
+                else if (entity.LookupPrefab().name == "gates.external.high.stone")
                 {
                     var before = hitInfo.damageTypes.Get(Rust.DamageType.Decay);
                     hitInfo.damageTypes.Scale(Rust.DamageType.Decay, c_highStoneWallMultiplier);
@@ -193,7 +162,7 @@ namespace Oxide.Plugins
                     if (c_outputToRcon)
                         Puts($"Decay (high stone gate) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
                 }
-                else if (entity.LookupShortPrefabName() == "gates.external.high.wood.prefab")
+                else if (entity.LookupPrefab().name == "gates.external.high.wood")
                 {
                     var before = hitInfo.damageTypes.Get(Rust.DamageType.Decay);
                     hitInfo.damageTypes.Scale(Rust.DamageType.Decay, c_highWoodWallMultiplier);
@@ -201,7 +170,7 @@ namespace Oxide.Plugins
                     if (c_outputToRcon)
                         Puts($"Decay (high wood gate) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
                 }
-                else if (entity.LookupShortPrefabName() == "wall.external.high.stone.prefab")
+                else if (entity.LookupPrefab().name == "wall.external.high.stone")
                 {
                     var before = hitInfo.damageTypes.Get(Rust.DamageType.Decay);
                     hitInfo.damageTypes.Scale(Rust.DamageType.Decay, c_highStoneWallMultiplier);
@@ -209,7 +178,7 @@ namespace Oxide.Plugins
                     if (c_outputToRcon)
                         Puts($"Decay (high stone wall) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
                 }
-                else if (entity.LookupShortPrefabName() == "wall.external.high.wood.prefab")
+                else if (entity.LookupPrefab().name == "wall.external.high.wood")
                 {
                     var before = hitInfo.damageTypes.Get(Rust.DamageType.Decay);
                     hitInfo.damageTypes.Scale(Rust.DamageType.Decay, c_highWoodWallMultiplier);
@@ -217,15 +186,7 @@ namespace Oxide.Plugins
                     if (c_outputToRcon)
                         Puts($"Decay (high wood wall) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
                 }
-                else if (entity.LookupShortPrefabName() == "reactivetarget_deployed.prefab")
-                {
-                    var before = hitInfo.damageTypes.Get(Rust.DamageType.Decay);
-                    hitInfo.damageTypes.Scale(Rust.DamageType.Decay, c_reactivetargetMultiplier);
-
-                    if (c_outputToRcon)
-                        Puts($"Decay (reactive target) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
-                }
-                else if (entity.LookupShortPrefabName() == "mining.pumpjack.prefab")
+                else if (entity.LookupPrefab().name == "mining.pumpjack")
                 {
                     var before = hitInfo.damageTypes.Get(Rust.DamageType.Decay);
                     hitInfo.damageTypes.Scale(Rust.DamageType.Decay, 0.0f);
@@ -233,18 +194,10 @@ namespace Oxide.Plugins
                     if (c_outputToRcon)
                         Puts($"Decay (pumpjack) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
                 }
-				else if (entity.LookupShortPrefabName() == "survivalfishtrap.deployed.prefab")
-                {
-                    var before = hitInfo.damageTypes.Get(Rust.DamageType.Decay);
-                    hitInfo.damageTypes.Scale(Rust.DamageType.Decay, c_fishtrapMultiplier);
-
-                    if (c_outputToRcon)
-                        Puts($"Decay (survival fish trap) before: {before} after: {hitInfo.damageTypes.Get(Rust.DamageType.Decay)}");
-                }
                 else if (block != null)
                     ProcessBuildingDamage(block, hitInfo);
                 else
-                    Puts($"Unsupported decaying entity detected: {entity.LookupShortPrefabName()} --- please notify author");
+                    Puts($"Unsupported decaying entity detected: {entity.LookupPrefab().name} --- please notify author");
             }
             finally
             {
@@ -264,7 +217,7 @@ namespace Oxide.Plugins
         void ProcessBuildingDamage(BuildingBlock block, HitInfo hitInfo)
         {
             var multiplier = 1.0f;
-            var isHighWall = block.LookupShortPrefabName().Contains("wall.external");
+            var isHighWall = block.LookupPrefab().name.Contains("wall.external");
 
             string type = "other";
             switch (block.grade)

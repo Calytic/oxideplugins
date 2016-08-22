@@ -1,8 +1,8 @@
 {
-    "name": "Inventory Cleaner",
-    "description": "This plugin allows players with permission to clean all\/their\/target's inventory.",
-    "author": "PaiN",
-    "version": "1.1.0",
+    "name": "Admin Inventory Cleaner",
+    "description": "This is simple plugin that will do what is says it does, clean your inventory :)",
+    "author": "TheDoc",
+    "version": "1.2.0",
     "configuration": false,
     "language": "cs",
     "games": [

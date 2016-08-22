@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace Oxide.Plugins
 {
-    [Info("SmoothRestart", "Visagalis", "0.0.1")]
+    [Info("SmoothRestart", "Visagalis", "0.0.2")]
     public class SmoothRestart : RustPlugin
     {
         private DateTime restartTime = DateTime.MinValue;
@@ -68,8 +68,8 @@ namespace Oxide.Plugins
                 activeTimer.Destroy();
                 activeTimer = null;
 
-
                 Puts("Server restart stopped!");
+				rust.RunServerCommand("restart -1");
                 rust.BroadcastChat("Server restart stopped!");
             }
         }
@@ -123,7 +123,7 @@ namespace Oxide.Plugins
             }
             else
             {
-                rust.RunServerCommand("restart");
+                rust.RunServerCommand("restart 60");
                 activeTimer.Destroy();
                 activeTimer = null;
             }

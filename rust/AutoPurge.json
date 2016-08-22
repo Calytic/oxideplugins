@@ -1,12 +1,12 @@
 {
     "name": "Auto Purge",
     "description": "Automatically removes entities created by inactive users",
-    "author": "Norn",
-    "version": "0.1",
+    "author": "Fujikura",
+    "version": "1.3.1",
     "configuration": true,
-    "require": {
-        "ConnectionDB": "*",
-        "EntityOwner": "*"
+    "suggest": {
+        "Clans": "*",
+        "Friends": "*"
     },
     "language": "cs",
     "games": [

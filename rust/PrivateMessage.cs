@@ -1,13 +1,13 @@
 using System.Collections.Generic;
 using System.Globalization;
-
+using Oxide.Core;
 using Oxide.Core.Plugins;
 
 using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("PrivateMessage", "Nogrod", "2.0.0", ResourceId = 659)]
+    [Info("PrivateMessage", "Nogrod", "2.0.2", ResourceId = 659)]
     class PrivateMessage : RustPlugin
     {
         private readonly Dictionary<ulong, ulong> pmHistory = new Dictionary<ulong, ulong>();
@@ -25,6 +25,7 @@ namespace Oxide.Plugins
                 {"NotOnlineAnymore", "The last person you was talking to is not online anymore."},
                 {"NotMessaged", "You haven't messaged anyone or they haven't messaged you."},
                 {"IgnoreYou", "<color=red>{0} is ignoring you and cant recieve your PMs</color>"},
+                {"SelfPM", "You can not send messages to yourself."},
                 {"SyntaxR", "Incorrect Syntax use: /r <msg>"},
                 {"SyntaxPM", "Incorrect Syntax use: /pm <name> <msg>"}
             }, this);
@@ -41,18 +42,28 @@ namespace Oxide.Plugins
             if (args.Length > 1)
             {
                 var name = args[0];
-                var msg = string.Empty;
-                for (var i = 1; i < args.Length; i++)
-                    msg = $"{msg} {args[i]}";
                 var p = FindPlayer(name);
+                if (p == player)
+                {
+                    PrintMessage(player, "SelfPM");
+                    return;
+                }
                 if (p != null)
                 {
+                    if (!(bool) (Interface.Oxide.CallHook("CanChat", player) ?? true))
+                    {
+                        SendReply(player, "You are not allowed to chat here");
+                        return;
+                    }
                     var hasIgnore = Ignore?.CallHook("HasIgnored", p.userID, player.userID);
                     if (hasIgnore != null && (bool) hasIgnore)
                     {
                         PrintMessage(player, "IgnoreYou", p.displayName);
                         return;
                     }
+                    var msg = string.Empty;
+                    for (var i = 1; i < args.Length; i++)
+                        msg = $"{msg} {args[i]}";
                     pmHistory[player.userID] = p.userID;
                     pmHistory[p.userID] = player.userID;
                     PrintMessage(player, "PMTo", p.displayName, msg);
@@ -71,21 +82,26 @@ namespace Oxide.Plugins
         {
             if (args.Length > 0)
             {
-                var msg = string.Empty;
-                for (var i = 0; i < args.Length; i++)
-                    msg = $"{msg} {args[i]}";
                 ulong steamid;
                 if (pmHistory.TryGetValue(player.userID, out steamid))
                 {
                     var p = FindPlayer(steamid);
                     if (p != null)
                     {
+                        if (!(bool) (Interface.Oxide.CallHook("CanChat", player) ?? true))
+                        {
+                            SendReply(player, "You are not allowed to chat here");
+                            return;
+                        }
                         var hasIgnore = Ignore?.CallHook("HasIgnored", p.userID, player.userID);
                         if (hasIgnore != null && (bool)hasIgnore)
                         {
                             PrintMessage(player, "IgnoreYou", p.displayName);
                             return;
                         }
+                        var msg = string.Empty;
+                        for (var i = 0; i < args.Length; i++)
+                            msg = $"{msg} {args[i]}";
                         PrintMessage(player, "PMTo", p.displayName, msg);
                         PrintMessage(p, "PMFrom", player.displayName, msg);
                         Puts("[PM]{0}->{1}:{2}", player.displayName, p.displayName, msg);

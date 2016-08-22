@@ -2,7 +2,7 @@
     "name": "Random Warps",
     "description": "Teleports you to a random location of a multi-location warp",
     "author": "LaserHydra",
-    "version": "1.1.1",
+    "version": "1.1.2",
     "configuration": true,
     "language": "cs",
     "games": [

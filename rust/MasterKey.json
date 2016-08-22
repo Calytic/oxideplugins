@@ -2,7 +2,7 @@
     "name": "MasterKey",
     "description": "Gain access to any locked object with permissions",
     "author": "Wulf",
-    "version": "0.4.3",
+    "version": "0.4.7",
     "configuration": true,
     "language": "cs",
     "games": [

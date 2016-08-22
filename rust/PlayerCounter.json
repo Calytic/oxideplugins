@@ -1,0 +1,15 @@
+{
+    "name": "PlayerCounter",
+    "description": "Adds a discrete player counter to the HUD",
+    "author": "Bamabo",
+    "version": "1.5.1",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

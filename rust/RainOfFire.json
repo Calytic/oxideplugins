@@ -1,8 +1,8 @@
 {
     "name": "Rain of Fire",
     "description": "Custom event that adds meteor showers to the game",
-    "author": "emu",
-    "version": "0.1.3",
+    "author": "k1lly0u",
+    "version": "0.2.11",
     "configuration": true,
     "suggest": {
         "PopupNotifications": "*"

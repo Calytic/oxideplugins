@@ -5,10 +5,11 @@ using System.Collections.Generic;
 using UnityEngine;
 using System.Reflection;
 using Oxide.Game.Rust.Cui;
+using Facepunch.Extend;
 
 namespace Oxide.Plugins
 {
-     [Info("Fishing", "Colon Blow", "1.1.9", ResourceId = 1537)]
+     [Info("Fishing", "Colon Blow", "1.2.1", ResourceId = 1537)]
      class Fishing : RustPlugin
      {
 	public int fishchance;
@@ -253,6 +254,7 @@ namespace Oxide.Plugins
 		FishIcon = iconuncommonfish1;
 		SendReply(player, lang.GetMessage("uncommonfish1", this));
 		player.inventory.GiveItem(ItemManager.CreateByItemID(865679437, 2));
+
 		player.Command("note.inv", 865679437, 2);
 		}
 	if (fishtyperoll > 45 && fishtyperoll < 90)
@@ -329,10 +331,11 @@ namespace Oxide.Plugins
         	elements.Add(new CuiElement
                 {
                     Name = GuiInfo[player.userID],
+		    Parent = "Overlay",
                     Components =
                     {
                         new CuiRawImageComponent { Color = "1 1 1 1", Url = FishIcon, Sprite = "assets/content/textures/generic/fulltransparent.tga" },
-                        new CuiRectTransformComponent { AnchorMin = "0.025 0.04",  AnchorMax = "0.075 0.12" }
+                        new CuiRectTransformComponent { AnchorMin = "0.220 0.03",  AnchorMax = "0.260 0.10" }
                     }
                 });
             }
@@ -369,7 +372,7 @@ namespace Oxide.Plugins
         {
             var createdPrefab = GameManager.server.CreateEntity(randomlootprefab, hitInfo.HitPositionWorld);
             BaseEntity entity = createdPrefab?.GetComponent<BaseEntity>();
-            entity?.Spawn(true);
+            entity?.Spawn();
         }
 
      }

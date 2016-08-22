@@ -7,7 +7,7 @@ using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("CustomSpawnPoints", "Reneb", "1.0.3", ResourceId = 1076)]
+    [Info("CustomSpawnPoints", "Reneb", "1.0.4", ResourceId = 1076)]
     public class CustomSpawnPoints : RustPlugin
     {
 
@@ -15,7 +15,6 @@ namespace Oxide.Plugins
         Plugin Spawns;
 
         bool activated = false;
-
 
 
         /////////////////////////////////////////
@@ -29,7 +28,8 @@ namespace Oxide.Plugins
                 return null;
             BasePlayer.SpawnPoint point = new BasePlayer.SpawnPoint();
             point.pos = (Vector3)targetpos;
-            point.rot = new Quaternion(1f,0f,0f,0f);
+            Debug.Log(point.pos.ToString());
+            point.rot = new Quaternion(0f, 0f, 0f, 1f);
             RaycastHit hit;
             if (checkDown != 0f)
             {

@@ -2,7 +2,7 @@
     "name": "CupboardLogs",
     "description": "Creates a log for cupboard placements",
     "author": "DylanSMR",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "configuration": false,
     "language": "cs",
     "games": [

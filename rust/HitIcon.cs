@@ -10,7 +10,7 @@ using System.Linq;
 using Rust;
 namespace Oxide.Plugins
 {
-	[Info("HitIcon", "serezhadelaet", "0.3")]
+	[Info("HitIcon", "serezhadelaet", "0.6")]
     [Description("Configurable precached icon when you hit player|friend|clanmate")]
     class HitIcon : RustPlugin
     {
@@ -207,7 +207,9 @@ namespace Oxide.Plugins
                     
                     if (string.IsNullOrEmpty(www.error))
                     {
-                        imageFiles.Add(queue.name, FileStorage.server.Store(www.bytes, FileStorage.Type.png, uint.MaxValue).ToString());
+                        var stream = new MemoryStream();
+						stream.Write(www.bytes, 0, www.bytes.Length);						
+                        imageFiles.Add(queue.name, FileStorage.server.Store(stream, FileStorage.Type.png, uint.MaxValue).ToString());
                     }
                     else
                     {
@@ -298,9 +300,13 @@ namespace Oxide.Plugins
 		
 		private void OnPlayerAttack(BasePlayer attacker, HitInfo hitinfo)
         {
+			if(hitinfo == null) return;
 			var victim = hitinfo.HitEntity as BasePlayer;
+			if(victim == null) return;
 			if (victim && !DisabledUsers.Contains(attacker.userID))
 			{
+				bool showdamage = true;
+				bool clrcl = false;
 				endcolor = colorbody;
 				if(useclans)
 				{
@@ -309,6 +315,7 @@ namespace Oxide.Plugins
 					if (ClanTagAttacker[0] == ClanTagVictim[0] && ClanTagVictim[0].StartsWith("[") && ClanTagAttacker[0].StartsWith("[") && ClanTagVictim[0].EndsWith("]") && ClanTagAttacker[0].EndsWith("]")) 
 					{
 						endcolor = colorclan;
+						clrcl = true;
 						if(usesound) Effect.server.Run(matesound, attacker.transform.position, Vector3.zero, null, false);
 					}
 				}
@@ -342,13 +349,16 @@ namespace Oxide.Plugins
 				gui.send(attacker);
 				NextTick(() => 
 				{
-					if(endcolor == colorfriend && !showfrienddmg) showdmg = false;
-					if(endcolor == colorclan && !showclandmg) showdmg = false;
 					if(showdmg)
 					{
-						float damage = (int)hitinfo.damageTypes.Total();
-						gui.dmg("hitdmg", damage.ToString(), "0.495 0.425", "0.55 0.48", dmgcolor, dmgtextsize);
-						gui.send(attacker);
+						if(endcolor == colorfriend && !showfrienddmg) showdamage = false;
+						if(!showclandmg && clrcl) showdamage = false;
+						if(showdamage)
+						{
+							float damage = (int)hitinfo.damageTypes.Total();
+							gui.dmg("hitdmg", damage.ToString(), "0.495 0.425", "0.55 0.48", dmgcolor, dmgtextsize);
+							gui.send(attacker);
+						}
 					}
 					timer.Repeat(timetodestroy, 1, () =>
 					{	
@@ -362,7 +372,7 @@ namespace Oxide.Plugins
 		
 		[ChatCommand("hit")]
 		void toggle(BasePlayer player)
-		{	
+		{
 			if(!DisabledUsers.Contains(player.userID))
 			{
 				storedData.DisabledUsers.Add(player.userID);

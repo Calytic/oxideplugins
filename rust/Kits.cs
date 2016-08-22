@@ -1,23 +1,24 @@
 using System.Collections.Generic;
 using System;
 using System.Linq;
-
+using Oxide.Core.Plugins;
 using Newtonsoft.Json;
-
 using UnityEngine;
-
+using Rust.Xp;
 using Oxide.Core;
 
 namespace Oxide.Plugins
 {
-    [Info("Kits", "Reneb", "3.1.7")]
+    [Info("Kits", "Reneb", "3.1.11")]
     class Kits : RustPlugin
     {
         readonly int playerLayer = LayerMask.GetMask("Player (Server)");
-        
+
         //////////////////////////////////////////////////////////////////////////////////////////
         ///// Plugin initialization
         //////////////////////////////////////////////////////////////////////////////////////////
+        [PluginReference]
+        Plugin CopyPaste;
 
         void Loaded()
         {
@@ -50,6 +51,7 @@ namespace Oxide.Plugins
         //////////////////////////////////////////////////////////////////////////////////////////
 
         Dictionary<ulong, GUIKit> GUIKits;
+        List<string> CopyPasteParameters = new List<string>();
 
         class GUIKit
         {
@@ -67,16 +69,22 @@ namespace Oxide.Plugins
                 config["NPC - GUI Kits"] = GetExampleGUIKits();
                 Config.WriteObject(config);
             }
+            if (!config.ContainsKey("CopyPaste - Parameters"))
+            {
+                config["CopyPaste - Parameters"] = new List<string> { "autoheight", "true", "blockcollision", "true", "deployables", "true", "inventories", "true" };
+                Config.WriteObject(config);
+            }
             var keys = config.Keys.ToArray();
             if (keys.Length > 1)
             {
                 foreach (var key in keys)
                 {
-                    if (!key.Equals("NPC - GUI Kits"))
+                    if (!key.Equals("NPC - GUI Kits") && !key.Equals("CopyPaste - Parameters"))
                         config.Remove(key);
                 }
                 Config.WriteObject(config);
             }
+            CopyPasteParameters = JsonConvert.DeserializeObject<List<string>>(JsonConvert.SerializeObject(config["CopyPaste - Parameters"]));
             GUIKits = JsonConvert.DeserializeObject<Dictionary<ulong, GUIKit>>(JsonConvert.SerializeObject(config["NPC - GUI Kits"]));
         }
 
@@ -111,6 +119,12 @@ namespace Oxide.Plugins
                 GiveKit(player, "autokit");
             }
         }
+
+        //////////////////////////////////////////////////////////////////////////////////////////
+        ///// Language
+        //////////////////////////////////////////////////////////////////////////////////////////
+
+        string GetMsg(string key, object steamid = null) { return lang.GetMessage(key, this, steamid == null ? null : steamid.ToString()); }
 
         //////////////////////////////////////////////////////////////////////////////////////////
         ///// Kit Creator
@@ -151,7 +165,6 @@ namespace Oxide.Plugins
             iItem.amount = item.amount;
             iItem.mods = new List<int>();
             iItem.container = container;
-            iItem.bp = item.IsBlueprint();
             iItem.skinid = item.skin;
             iItem.itemid = item.info.itemid;
             iItem.weapon = false;
@@ -211,32 +224,46 @@ namespace Oxide.Plugins
 
             if (kit.cooldown > 0)
                 kitData.cooldown = CurrentTime() + kit.cooldown;
-        }        
+        }
         object GiveKit(BasePlayer player, string kitname)
         {
             if (string.IsNullOrEmpty(kitname)) return "Empty kit name";
             kitname = kitname.ToLower();
             Kit kit;
             if (!storedData.Kits.TryGetValue(kitname, out kit)) return "This kit doesn't exist";
+            if (kit.xpamount != 0)
+                player.xp.Add(Definitions.Cheat, kit.xpamount);
 
             foreach (KitItem kitem in kit.items)
             {
                 if (kitem.weapon)
-                    player.inventory.GiveItem(BuildWeapon(kitem.itemid, kitem.bp, kitem.skinid, kitem.mods), kitem.container == "belt" ? player.inventory.containerBelt : kitem.container == "wear" ? player.inventory.containerWear : player.inventory.containerMain);
-                else player.inventory.GiveItem(BuildItem(kitem.itemid, kitem.amount, kitem.bp, kitem.skinid), kitem.container == "belt" ? player.inventory.containerBelt : kitem.container == "wear" ? player.inventory.containerWear : player.inventory.containerMain);
+                    player.inventory.GiveItem(BuildWeapon(kitem.itemid, kitem.skinid, kitem.mods), kitem.container == "belt" ? player.inventory.containerBelt : kitem.container == "wear" ? player.inventory.containerWear : player.inventory.containerMain);
+                else player.inventory.GiveItem(BuildItem(kitem.itemid, kitem.amount, kitem.skinid), kitem.container == "belt" ? player.inventory.containerBelt : kitem.container == "wear" ? player.inventory.containerWear : player.inventory.containerMain);
 
+            }
+            if (kit.building != null && kit.building != string.Empty)
+            {
+                var success = CopyPaste?.CallHook("TryPasteFromPlayer", player, kit.building, CopyPasteParameters.ToArray());
+                if (success is string)
+                {
+                    return success;
+                }
+                if (!(success is List<BaseEntity>))
+                {
+                    return "Something went wrong while pasting, is CopyPaste installed?";
+                }
             }
             return true;
         }
-        private Item BuildItem(int itemid, int amount, bool isBP, int skin)
+        private Item BuildItem(int itemid, int amount, int skin)
         {
             if (amount < 1) amount = 1;
-            Item item = ItemManager.CreateByItemID(itemid, amount, isBP, skin);
+            Item item = ItemManager.CreateByItemID(itemid, amount, skin);
             return item;
         }
-        private Item BuildWeapon(int id, bool isBP, int skin, List<int> mods)
+        private Item BuildWeapon(int id, int skin, List<int> mods)
         {
-            Item item = ItemManager.CreateByItemID(id, 1, isBP, skin);
+            Item item = ItemManager.CreateByItemID(id, 1, skin);
             var weapon = item.GetHeldEntity() as BaseProjectile;
             if (weapon != null)
             {
@@ -245,7 +272,7 @@ namespace Oxide.Plugins
             if (mods != null)
                 foreach (var mod in mods)
                 {
-                    item.contents.AddItem(BuildItem(mod, 1, false, 0).info, 1);
+                    item.contents.AddItem(BuildItem(mod, 1, 0).info, 1);
                 }
 
             return item;
@@ -371,7 +398,6 @@ namespace Oxide.Plugins
         class KitItem
         {
             public int itemid;
-            public bool bp;
             public string container;
             public int amount;
             public int skinid;
@@ -386,10 +412,12 @@ namespace Oxide.Plugins
             public int max;
             public double cooldown;
             public int authlevel;
+            public int xpamount;
             public bool hide;
             public bool npconly;
             public string permission;
             public string image;
+            public string building;
             public List<KitItem> items = new List<KitItem>();
         }
 
@@ -499,7 +527,7 @@ namespace Oxide.Plugins
         private const string overlayjson = @"[
 			{
 				""name"": ""KitOverlay"",
-				""parent"": ""HUD/Overlay"",
+				""parent"": ""Overlay"",
 				""components"":
 				[
 					{
@@ -928,6 +956,31 @@ namespace Oxide.Plugins
             NewKitPanel(player, npc.userID);
         }
 
+        //////////////////////////////////////////////////////////////////////////////////////
+        // External Hooks
+        //////////////////////////////////////////////////////////////////////////////////////
+        [HookMethod("GetAllKits")]
+        public string[] GetAllKits() => storedData.Kits.Keys.ToArray();
+
+        [HookMethod("GetKitContents")]
+        public string[] GetKitContents(string kitname)
+        {
+            if (storedData.Kits.ContainsKey(kitname))
+            {
+                List<string> items = new List<string>();
+                foreach (var item in storedData.Kits[kitname].items)
+                {
+                    var itemstring = $"{item.itemid}_{item.amount}";
+                    if (item.mods.Count > 0)
+                        foreach (var mod in item.mods)
+                            itemstring = itemstring + $"_{mod}";
+                    items.Add(itemstring);
+                }
+                if (items.Count > 0)
+                    return items.ToArray();
+            }
+            return null;
+        }
 
         //////////////////////////////////////////////////////////////////////////////////////
         // Console Command
@@ -1022,15 +1075,7 @@ namespace Oxide.Plugins
         }
         void SendListKitEdition(BasePlayer player)
         {
-            SendReply(player, "permission \"permission name\" => set the permission needed to get this kit");
-            SendReply(player, "description \"description text here\" => set a description for this kit");
-            SendReply(player, "image \"image http url\" => set an image for this kit (gui only)");
-            SendReply(player, "authlevel XXX");
-            SendReply(player, "cooldown XXX");
-            SendReply(player, "max XXX");
-            SendReply(player, "items => set new items for your kit (will copy your inventory)");
-            SendReply(player, "npconly TRUE/FALSE => only get this kit out of a NPC");
-            SendReply(player, "hide TRUE/FALSE => dont show this kit in lists (EVER)");
+            SendReply(player, "authlevel XXX\r\nbuilding \"filename\" => buy a building to paste from\r\ncooldown XXX\r\ndescription \"description text here\" => set a description for this kit\r\nhide TRUE/FALSE => dont show this kit in lists (EVER)\r\nimage \"image http url\" => set an image for this kit (gui only)\r\nitems => set new items for your kit (will copy your inventory)\r\nmax XXX\r\nnpconly TRUE/FALSE => only get this kit out of a NPC\r\npermission \"permission name\" => set the permission needed to get this kit\r\nxp <number> => Set a amount of XP to give with this kit");
         }
         [ChatCommand("kit")]
         void cmdChatKit(BasePlayer player, string command, string[] args)
@@ -1068,6 +1113,7 @@ namespace Oxide.Plugins
                         SendReply(player, "/kit give PLAYER/STEAMID KITNAME => give a kit to a player");
                         SendReply(player, "/kit resetkits => deletes all kits");
                         SendReply(player, "/kit resetdata => reset player data");
+                        SendReply(player, "/kit xp <amount> => add xp to a kit");
                         break;
                     case "add":
                     case "remove":
@@ -1100,6 +1146,10 @@ namespace Oxide.Plugins
                         if (!hasAccess(player)) { SendReply(player, "You don't have access to this command"); return; }
                         ResetData();
                         SendReply(player, "Resetted all player data");
+                        break;
+                    case "xp":
+                        if (!hasAccess(player)) { SendReply(player, "You don't have access to this command"); return; }
+                        SendReply(player, "You must enter a amount of xp");
                         break;
                     default:
                         TryGiveKit(player, args[0].ToLower());
@@ -1196,6 +1246,13 @@ namespace Oxide.Plugins
                                 kit.items = GetPlayerItems(player);
                                 SendReply(player, "The items were copied from your inventory");
                                 continue;
+                            case "building":
+                                var buildingvalue = args[++i];
+                                if (buildingvalue.ToLower() == "false")
+                                    editvalue = kit.building = string.Empty;
+                                else
+                                    editvalue = kit.building = buildingvalue;
+                                break;
                             case "name":
                                 continue;
                             case "description":
@@ -1225,6 +1282,9 @@ namespace Oxide.Plugins
                             case "image":
                                 editvalue = kit.image = args[++i];
                                 break;
+                            case "xp":
+                                editvalue = kit.xpamount = int.Parse(args[++i]);
+                                break;
                             default:
                                 SendReply(player, $"{args[i]} is not a valid argument");
                                 continue;
@@ -1234,6 +1294,6 @@ namespace Oxide.Plugins
                     break;
             }
             SaveKits();
-        } 
+        }
     }
 }

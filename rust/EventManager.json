@@ -2,7 +2,7 @@
     "name": "Event Manager",
     "description": "Event Manager plugin, needs mods to work",
     "author": "k1lly0u",
-    "version": "2.0.21",
+    "version": "2.0.24",
     "configuration": true,
     "suggest": {
         "ServerRewards": "*",

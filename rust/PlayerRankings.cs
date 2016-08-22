@@ -1,3 +1,4 @@
+// Requires: ConnectionDB
 using System.Collections.Generic;
 using Oxide.Core.Plugins;
 using System.Linq;
@@ -5,32 +6,35 @@ using System;
 
 namespace Oxide.Plugins
 {
-    [Info("PlayerRankings", "Ankawi", "1.4.0")]
+    [Info("PlayerRankings", "Ankawi", "2.0.2")]
     [Description("Gives players ranks based on playtime on a server")]
     class PlayerRankings : RustPlugin
     {
         [PluginReference]
         Plugin ConnectionDB;
+
         [PluginReference]
         Plugin BetterChat;
 
-        ////////////////////////////////////////
-        ///  Plugin Related
-        ////////////////////////////////////////
+        #region Plugin Related
 
         void Loaded()
         {
             if (!ConnectionDB)
                 PrintWarning("You need to have ConnectionDB installed for this plugin to work. Get it here: http://oxidemod.org/plugins/1459/");
+
             if (!BetterChat)
                 PrintWarning("Its recommended to have BetterChat installed, to grant titles for playtime. Get it here: http://oxidemod.org/plugins/979/");
 
             LoadConfig();
 
+            foreach (BasePlayer player in BasePlayer.activePlayerList)
+                UpdateGroups(player);
+
             timer.Repeat(15, 0, () =>
             {
                 foreach (BasePlayer player in BasePlayer.activePlayerList)
-                    UpdateTitles(player);
+                    UpdateGroups(player);
             });
 
             foreach (var rank in Config)
@@ -38,25 +42,45 @@ namespace Oxide.Plugins
                 if (rank.Key == "Settings")
                     continue;
 
-                if (!permission.PermissionExists(Config[rank.Key, "Permission"].ToString()))
-                    permission.RegisterPermission(Config[rank.Key, "Permission"].ToString(), this);
+                if (Config[rank.Key, "Oxide Group"] == null)
+                {
+                    PrintWarning(rank.Key + " does not have an Oxide Group specified");
+                    continue;
+                }
+
+                if (!GroupExists(Config[rank.Key, "Oxide Group"].ToString()))
+                    CreateGroup(Config[rank.Key, "Oxide Group"].ToString());
             }
         }
 
-        ////////////////////////////////////////
-        ///  Config Related
-        ////////////////////////////////////////
+        #endregion
 
-        void LoadConfig()
+        #region Helpers
+
+        bool IsUserInGroup(BasePlayer player, string group)
         {
-            SetConfig("Player", "Permission", "betterchat.player");
-            SetConfig("Player", "Playtime", "1.0");
+            return permission.GetUserGroups(player?.UserIDString).Contains(group.ToLower());
+        }
 
-            SetConfig("Regular", "Permission", "betterchat.regular");
-            SetConfig("Regular", "Playtime", "10.0");
+        void AddUserToGroup(BasePlayer player, string group) => permission.AddUserGroup(player.UserIDString, group);
 
-            SetConfig("Pro", "Permission", "betterchat.pro");
-            SetConfig("Pro", "Playtime", "25.0");
+        void RemoveUserFromGroup(BasePlayer player, string group) => permission.RemoveUserGroup(player.UserIDString, group);
+
+        void CreateGroup(string group) => permission.CreateGroup(group, string.Empty, 0);
+
+        bool GroupExists(string group) => permission.GroupExists(group);
+
+        #endregion
+
+        #region Configuration
+
+        new void LoadConfig()
+        {
+            SetConfig("Regular", "Oxide Group", "Regular");
+            SetConfig("Regular", "Playtime", 10D);
+
+            SetConfig("Pro", "Oxide Group", "Pro");
+            SetConfig("Pro", "Playtime", 25D);
 
             SetConfig("Settings", "Ignore Admins", false);
 
@@ -80,9 +104,9 @@ namespace Oxide.Plugins
             if (Config.Get(stringArgs.ToArray()) == null) Config.Set(args);
         }
 
-        ////////////////////////////////////////
-        ///  Commands
-        ////////////////////////////////////////
+        #endregion
+
+        #region Commands
 
         [ChatCommand("ranks")]
         private void RanksCommand(BasePlayer player, string command, string[] args)
@@ -98,11 +122,11 @@ namespace Oxide.Plugins
             PrintToChat(player, $"<color=red>Your Playtime</color>: " + Math.Round(GetPlayTime(player), 2) + " hours");
         }
 
-        ////////////////////////////////////////
-        ///  Subject Related
-        ////////////////////////////////////////
+        #endregion
 
-        void UpdateTitles(BasePlayer player)
+        #region Subject Related
+
+        void UpdateGroups(BasePlayer player)
         {
             if (player.net.connection.authLevel != 0 && (bool)Config["Settings", "Ignore Admins"]) return;
             if (!ConnectionDB) return;
@@ -110,7 +134,7 @@ namespace Oxide.Plugins
             double playTime = GetPlayTime(player);
 
             Dictionary<string, object> newRank = new Dictionary<string, object>{
-                {"Permission", ""},
+                {"Oxide Group", ""},
                 {"Playtime", 0.0},
                 {"Name", "none"}
             };
@@ -129,11 +153,13 @@ namespace Oxide.Plugins
                 }
             }
 
-            if (!permission.UserHasPermission(player.UserIDString, newRank["Permission"] as string) && permission.PermissionExists(newRank["Permission"] as string))
+            if (!IsUserInGroup(player, (string)newRank["Oxide Group"]) && GroupExists((string)newRank["Oxide Group"]))
             {
                 SendReply(player, $"<color=red>PlayerRankings</color>: You have been ranked up to {newRank["Name"] as string}");
                 Puts($"{player.displayName} has been ranked up to {newRank["Name"] as string}");
-                Permission("grant", player.UserIDString, newRank["Permission"] as string);
+
+                AddUserToGroup(player, (string)newRank["Oxide Group"]);
+
                 RevokeLower(player, Convert.ToDouble(newRank["Playtime"]));
             }
         }
@@ -142,27 +168,15 @@ namespace Oxide.Plugins
         {
             foreach (var rank in Config)
             {
-                if (time > Convert.ToDouble(Config[rank.Key, "Playtime"]))
-                {
-                    if (permission.UserHasPermission(player.UserIDString, Config[rank.Key, "Permission"] as string))
-                        Permission("revoke", player.UserIDString, Config[rank.Key, "Permission"] as string);
-                }
+                if (rank.Key == "Settings")
+                    continue;
+                if (time > Convert.ToDouble(Config[rank.Key, "Playtime"]) && IsUserInGroup(player, (string)Config[rank.Key, "Oxide Group"]))
+                    RemoveUserFromGroup(player, (string)Config[rank.Key, "Oxide Group"]);
             }
         }
 
-        double GetPlayTime(BasePlayer player)
-        {
-            if (ConnectionDB)
-            {
-                return Convert.ToDouble(ConnectionDB.Call("SecondsPlayed", player)) / 60 / 60;
-            }
+        double GetPlayTime(BasePlayer player) => Convert.ToDouble(ConnectionDB.Call("SecondsPlayed", player)) / 60 / 60;
 
-            return 0;
-        }
-
-        void Permission(string action, string uid, string perm)
-        {
-            ConsoleSystem.Run.Server.Normal(action, "user", uid, perm);
-        }
+        #endregion
     }
 }

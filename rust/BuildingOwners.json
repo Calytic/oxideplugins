@@ -2,7 +2,7 @@
     "name": "Building Owners",
     "description": "Sets owners of houses when someone builds a house part",
     "author": "Reneb",
-    "version": "2.1.4",
+    "version": "3.0.2",
     "configuration": false,
     "language": "cs",
     "games": [

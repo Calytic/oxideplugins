@@ -1,0 +1,18 @@
+{
+    "name": "ZoneDomes",
+    "description": "Assign shaded sphere entities to physically see the border of zones (ZoneManager)",
+    "author": "k1lly0u",
+    "version": "0.1.31",
+    "configuration": false,
+    "require": {
+        "ZoneManager": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

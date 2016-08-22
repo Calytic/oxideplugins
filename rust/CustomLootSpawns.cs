@@ -1,304 +1,260 @@
 using System;
 using System.Collections.Generic;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Oxide.Core;
+using Oxide.Core.Configuration;
 using UnityEngine;
 using System.Reflection;
-using Oxide.Core;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
-using Newtonsoft.Json.Linq;
-using Oxide.Core.Configuration;
-
 
 namespace Oxide.Plugins
 {
-    [Info("CustomLootSpawns", "k1lly0u", "0.1.82", ResourceId = 1655)]
+    [Info("CustomLootSpawns", "k1lly0u", "0.2.13", ResourceId = 1655)]
     class CustomLootSpawns : RustPlugin
-    {   
-        CustomLootData lootData;
-        private DynamicConfigFile LootSpawnData;
+    {
+        #region Fields
+        CLSData clsData;
+        private DynamicConfigFile clsdata;
 
         private FieldInfo serverinput;
 
-        private List<BaseEntity> currentBoxes = new List<BaseEntity>();
-        private Dictionary<int, BoxTypes> boxTypes = new Dictionary<int, BoxTypes>();
+        private Dictionary<BaseEntity, int> boxCache = new Dictionary<BaseEntity, int>();
+        private Dictionary<int, CustomBoxData> boxTypes = new Dictionary<int, CustomBoxData>();
+        private List<Timer> refreshTimers = new List<Timer>();
+        private List<BaseEntity> wipeList = new List<BaseEntity>();
 
-        private Dictionary<ulong, OpenBox> openBoxes = new Dictionary<ulong, OpenBox>();
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Oxide Hooks ///////////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
+        private Dictionary<ulong, BoxCreator> boxCreators = new Dictionary<ulong, BoxCreator>();
+
+        #endregion
+
+        #region Oxide Hooks
         void Loaded()
         {
             permission.RegisterPermission("customlootspawns.admin", this);
             lang.RegisterMessages(messages, this);
             serverinput = typeof(BasePlayer).GetField("serverInput", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
-
-            LootSpawnData = Interface.Oxide.DataFileSystem.GetFile("LootSpawn_Data");
-            LootSpawnData.Settings.Converters = new JsonConverter[] { new StringEnumConverter(), new UnityVector3Converter(), };
-                
-            LoadData();
-            LoadVariables();
+            clsdata = Interface.Oxide.DataFileSystem.GetFile("CustomSpawns/cls_data");
+            clsdata.Settings.Converters = new JsonConverter[] { new StringEnumConverter(), new UnityVector3Converter() };
         }
         void OnServerInitialized()
-        {            
-            FindBoxTypes();
-            RefreshBoxes();
-        }
-        protected override void LoadDefaultConfig()
         {
-            Puts("Creating a new config file");
-            Config.Clear();
             LoadVariables();
+            LoadData();
+            FindBoxTypes();
+            InitializeBoxSpawns();
         }
-        void Unload()
+        private void OnEntityKill(BaseNetworkable entity)
         {
-            SaveData();
-            ClearData(false);
-        }
-        void ClearData(bool refresh)
-        {
-            foreach (var box in currentBoxes)            
-                KillBox(box);            
-            currentBoxes.Clear();
-            boxTypes.Clear();
-            openBoxes.Clear();
-            if (refresh)            
-                FindBoxTypes();            
+            var baseEnt = entity as BaseEntity;
+            if (baseEnt == null) return;
+            if (wipeList.Contains(baseEnt)) return;
+            if (entity.GetComponent<LootContainer>())
+            {
+                if (boxCache.ContainsKey(baseEnt))
+                {
+                    InitiateRefresh(baseEnt, boxCache[baseEnt]);
+                }
+            }
+            else if (entity.GetComponent<StorageContainer>())
+            {
+                if (boxCache.ContainsKey(baseEnt))
+                {
+                    InitiateRefresh(baseEnt, boxCache[baseEnt]);
+                }
+            }
         }
         void OnPlayerLootEnd(PlayerLoot inventory)
         {
             BasePlayer player = inventory.GetComponent<BasePlayer>();
-            if (openBoxes.ContainsKey(player.userID))
+            if (boxCreators.ContainsKey(player.userID))
             {
                 StoreBoxData(player);
-                openBoxes.Remove(player.userID);
+                boxCreators.Remove(player.userID);
+            }
+            if (inventory.entitySource != null)
+            {
+                var box = inventory.entitySource;
+                if (boxCache.ContainsKey(box))
+                {
+                    if (box is LootContainer) return;
+                    if (box is StorageContainer)
+                    {
+                        if ((box as StorageContainer).inventory.itemList.Count == 0)
+                            box.KillMessage();
+                    }
+                }
             }
         }
-        void OnEntityDeath(BaseCombatEntity entity, HitInfo info)
+        void Unload()
         {
-            if (currentBoxes.Contains(entity))            
-                currentBoxes.Remove(entity);            
+            foreach (var time in refreshTimers)
+                time.Destroy();
+
+            foreach(var box in boxCache)
+            {
+                if (box.Key == null) continue;
+
+                ClearContainer(box.Key);
+                box.Key.KillMessage();
+            }
+            boxCache.Clear();
+        }
+        #endregion
+
+        #region Box Control
+        private void InitializeBoxSpawns()
+        {
+            foreach (var box in clsData.lootBoxes)
+            {
+                InitializeNewBox(box.Key);
+            }
+        }
+        private void InitiateRefresh(BaseEntity box, int ID)
+        {            
+            refreshTimers.Add(timer.Once(configData.RespawnTimer * 60, () =>
+            {
+                InitializeNewBox(ID);                
+            }));
+            boxCache.Remove(box);
+        }
+        private void InitializeNewBox(int ID)
+        {
+            if (!clsData.lootBoxes.ContainsKey(ID)) return;
+            var boxData = clsData.lootBoxes[ID];
+            var newBox = SpawnBoxEntity(boxData.boxType.Type, boxData.Position, boxData.yRotation, boxData.boxType.SkinID);
+            if (!string.IsNullOrEmpty(boxData.customLoot) && clsData.customBoxes.ContainsKey(boxData.customLoot))
+            {
+                var customLoot = clsData.customBoxes[boxData.customLoot];
+                if (customLoot.itemList.Count > 0)
+                {
+                    ClearContainer(newBox);
+                    for (int i = 0; i < customLoot.itemList.Count; i++)
+                    {
+                        var itemInfo = customLoot.itemList[i];
+                        var item = CreateItem(itemInfo.ID, itemInfo.Amount, itemInfo.SkinID);
+                        if (newBox is LootContainer)
+                            item.MoveToContainer((newBox as LootContainer).inventory);
+                        else item.MoveToContainer((newBox as StorageContainer).inventory);
+                    }
+                }
+            }
+            boxCache.Add(newBox, ID);           
+        }
+        private BaseEntity SpawnBoxEntity(string type, Vector3 pos, float rot, int skin = 0)
+        {
+            BaseEntity entity = GameManager.server.CreateEntity(type, pos, Quaternion.Euler(0, rot, 0), true);
+            entity.skinID = skin;
+            entity.Spawn();
+            return entity;
+        }
+        
+        private void ClearContainer(BaseEntity container)
+        {
+            if (container is LootContainer)
+            {
+                while ((container as LootContainer).inventory.itemList.Count > 0)
+                {
+                    var item = (container as LootContainer).inventory.itemList[0];
+                    item.RemoveFromContainer();
+                    item.Remove(0f);
+                }
+            }
+            else
+            {
+                while ((container as StorageContainer).inventory.itemList.Count > 0)
+                {
+                    var item = (container as StorageContainer).inventory.itemList[0];
+                    item.RemoveFromContainer();
+                    item.Remove(0f);
+                }
+            }
         }
 
-        //////////////////////////////////////////////////////////////////////////////////////
-        // LootSpawn methods /////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-        private void CreateBox(BasePlayer player, string name, int type, int skin = 0)
+        #endregion
+
+        #region Custom Loot Creation
+        private void AddSpawn(BasePlayer player, int type)
         {
-            var boxtype = boxTypes[type];
+            var boxData = boxTypes[type];            
+            var pos = GetSpawnPos(player);
+            var ID = GenerateRandomID();  
+            clsData.lootBoxes.Add(ID, new CLBox { Position = pos, yRotation = player.GetNetworkRotation().y, boxType = boxData.boxType, customLoot = boxData.Name });            
+            SaveData();
+            InitializeNewBox(ID);
+        }
+        private void CreateNewCLB(BasePlayer player, string name, int type, int skin = 0)
+        {
+            if (boxCreators.ContainsKey(player.userID))
+            {
+                if (boxCreators[player.userID].entity != null)
+                {
+                    ClearContainer(boxCreators[player.userID].entity);
+                    boxCreators[player.userID].entity.KillMessage();
+                }
+                boxCreators.Remove(player.userID);
+            }
+            var boxData = boxTypes[type];
+            var pos = GetGroundPosition(player.transform.position + (player.eyes.BodyForward() * 2));
 
-            if (!lootData.customLootBoxes.ContainsKey(name))
-                lootData.customLootBoxes.Add(name, new BoxTypeData() { boxtype = boxtype.Type, skin = boxtype.skin, name = name });
+            BaseEntity box = GameManager.server.CreateEntity(boxData.boxType.Type, pos);
+            if (boxData.boxType.SkinID != 0)
+                box.skinID = boxData.boxType.SkinID;
 
-            var pos = player.transform.position;
-           
-            BaseEntity box = GameManager.server.CreateEntity(boxtype.Type, new Vector3(pos.x, pos.y - 1, pos.z));
-            if (boxtype.skin != 0)
-                box.skinID = boxtype.skin;
             box.SendMessage("SetDeployedBy", player, UnityEngine.SendMessageOptions.DontRequireReceiver);
-            box.Spawn(true);
-            StorageContainer loot = box.GetComponent<StorageContainer>();
-            loot.inventory.itemList.Clear();
-            loot.PlayerOpenLoot(player);
-            openBoxes[player.userID] = new OpenBox() { box = box, name = name };
+            box.Spawn();
+
+            ClearContainer(box);            
+
+            boxCreators.Add(player.userID, new BoxCreator { entity = box, boxData = new CustomBoxData { Name = name, boxType = boxData.boxType } });
         }
         private void StoreBoxData(BasePlayer player)
         {
             ulong ID = player.userID;
-            if (openBoxes.ContainsKey(ID))
-            {
-                string name = openBoxes[ID].name;
-                BaseEntity box = openBoxes[ID].box as BaseEntity;
-                StorageContainer loot = box.GetComponent<StorageContainer>();
-                List<ItemStorage> items = new List<ItemStorage>();
+            var boxData = boxCreators[ID];
 
-                foreach (Item item in loot.inventory.itemList)
-                {
-                    ItemStorage bItem = new ItemStorage();
-                    bItem.amount = item.amount;
-                    bItem.itemname = item.info.displayName.english;
-                    bItem.BP = item.IsBlueprint();
-                    bItem.itemid = item.info.itemid;
-                    bItem.skinid = item.skin;
-                    bItem.slot = item.position;
-                    items.Add(bItem);
-                }
-                if (items.Count == 0)
-                {
-                    SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("noItems", this, player.UserIDString));
-                    loot.inventory.itemList.Clear();
-                    box.Kill();
-                    openBoxes.Remove(ID);
-                    lootData.customLootBoxes.Remove(name);
-                    return;
-                }
-                lootData.customLootBoxes[name].loot = items;
-                boxTypes.Add(boxTypes.Count + 1, new BoxTypes { Type = name, skin = box.skinID });                
-                SaveData();
-                SendReply(player, string.Format(lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("boxCreated", this, player.UserIDString), boxTypes.Count, name));
-                loot.inventory.itemList.Clear();
-                box.Kill();
-                openBoxes.Remove(ID);
-            }
-        }
-        
-        private void AddSpawn(BasePlayer player, int type)
-        {
-            string boxname = boxTypes[type].Type;
-            string boxent = boxname;
-            if (lootData.customLootBoxes.ContainsKey(boxname))
+            var itemList = new List<Item>();
+            if (boxData.entity is LootContainer) itemList = (boxData.entity as LootContainer).inventory.itemList;
+            else itemList = (boxData.entity as StorageContainer).inventory.itemList;
+
+            var storedList = new List<ItemStorage>();
+            for (int i = 0; i < itemList.Count; i++)
             {
-                boxent = lootData.customLootBoxes[boxname].boxtype;
+                storedList.Add(new ItemStorage { ID = itemList[i].info.itemid, Amount = itemList[i].amount, Shortname = itemList[i].info.shortname, SkinID = itemList[i].skin });
             }
-            var pos = GetSpawnPos(player);
-            BaseEntity entity = CreateLoot(boxent, pos, player.GetNetworkRotation().y, boxTypes[type].skin);
-            StorageContainer loot = entity.GetComponent<StorageContainer>();
-            if (lootData.customLootBoxes.ContainsKey(boxname) && lootData.customLootBoxes[boxname].loot != null)
-            {
-                loot.inventory.itemList.Clear();
-                foreach (var boxItem in lootData.customLootBoxes[boxname].loot)
-                {
-                    Item item = ItemManager.CreateByItemID(boxItem.itemid, boxItem.amount, boxItem.BP, boxItem.skinid);
-                    var weapon = item.GetHeldEntity() as BaseProjectile;
-                    if (weapon != null)                    
-                        (item.GetHeldEntity() as BaseProjectile).primaryMagazine.contents = weapon.primaryMagazine.capacity;
-                    
-                    item.MoveToContainer(loot.inventory, boxItem.slot);
-                }
-            }
-            lootData.Boxes.Add(new CLootBox() { ID = entity.net.ID, skin = boxTypes[type].skin, Position = entity.transform.position, yRotation = player.GetNetworkRotation().y, Type = boxent, Name = boxname });
-            currentBoxes.Add(entity);
-            SaveData();
-        }
-        private BaseEntity CreateLoot(string type, Vector3 pos, float rot, int skin = 0)
-        {
-            BaseEntity entity = GameManager.server.CreateEntity(type, pos, Quaternion.Euler(0, rot, 0), true);
-            entity.skinID = skin;
-            entity.Spawn(true);
-            return entity;
-        }
-        private bool KillBox(BaseEntity entity)
-        {
-            if (entity == null) return false;
-            if (entity.GetComponent<StorageContainer>()?.inventory?.itemList != null)
-            {
-                var list = entity.GetComponent<StorageContainer>()?.inventory?.itemList;
-                for (int i = 0; i < list.Count; i++)
-                    list[i].Remove(0.01f);
-            }
-            if (entity.GetComponent<BaseCombatEntity>())
-                (entity as BaseCombatEntity).DieInstantly();
-            else entity.Kill();
-                return true;
-        }
-        private bool RemoveBoxData(BaseEntity entity)
-        {
-            foreach (var box in lootData.Boxes)
-            {
-                if (box.ID == entity.net.ID)
-                {
-                    lootData.Boxes.Remove(box);
-                    entity.Kill();
-                    SaveData();
-                    return true;
-                }
-            }
-            return false;
-        }
-        private void RefreshBoxes()
-        {
-            foreach (BaseEntity box in currentBoxes)
-                KillBox(box);
-            currentBoxes.Clear();
             
-            foreach (var newBox in lootData.Boxes)
-            {             
-                var entity = CreateLoot(newBox.Type, newBox.Position, newBox.yRotation, newBox.skin);
-                currentBoxes.Add(entity);
-                StorageContainer loot = entity.GetComponent<StorageContainer>();
-                newBox.ID = entity.net.ID;
-                var boxname = newBox.Name;
-                if (lootData.customLootBoxes.ContainsKey(boxname) && lootData.customLootBoxes[boxname].loot != null)
-                {
-                    loot.inventory.itemList.Clear();
-                    foreach (var boxItem in lootData.customLootBoxes[boxname].loot)
-                    {
-                        Item item = ItemManager.CreateByItemID(boxItem.itemid, boxItem.amount, boxItem.BP, boxItem.skinid);
-                        var weapon = item.GetHeldEntity() as BaseProjectile;
-                        if (weapon != null)
-                        {
-                            (item.GetHeldEntity() as BaseProjectile).primaryMagazine.contents = weapon.primaryMagazine.capacity;
-                        }
-                        item.MoveToContainer(loot.inventory, boxItem.slot);
-                    }
-                }
+            if (storedList.Count == 0)
+            {
+                SendMSG(player, MSG("noItems", player.UserIDString));
+                boxData.entity.KillMessage();
+                boxCreators.Remove(player.userID);
+                return;
             }
-            timer.Once(respawnTimer * 60, () => RefreshBoxes());
+            var data = new CustomBoxData { boxType = boxData.boxData.boxType, Name = boxData.boxData.Name, itemList = storedList };
+            clsData.customBoxes.Add(boxData.boxData.Name, data);
+            boxTypes.Add(boxTypes.Count + 1, data);               
+            SaveData();
+            SendMSG(player, string.Format(MSG("boxCreated", player.UserIDString), boxTypes.Count, boxData.boxData.Name));
+            ClearContainer(boxData.entity);
+            boxData.entity.KillMessage();
+            boxCreators.Remove(player.userID);
         }
-        private object rayBox(Vector3 Pos, Vector3 Aim)
-        {
-            var hits = Physics.RaycastAll(Pos, Aim);
-            float distance = 1000f;
-            object target = null;
+        #endregion
 
-            foreach (var hit in hits)
-            {
-                if (hit.collider.GetComponentInParent<StorageContainer>() != null)
-                {
-                    if (hit.distance < distance)
-                    {
-                        distance = hit.distance;
-                        target = hit.collider.GetComponentInParent<StorageContainer>();
-                    }
-                }
-                else if (hit.collider.GetComponentInParent<BasePlayer>() != null)
-                {
-                    if (hit.distance < distance)
-                    {
-                        distance = hit.distance;
-                        target = hit.collider.GetComponentInParent<BasePlayer>();
-                    }
-                }
-            }
-            return target;
-        }       
-        private StorageContainer findBox(BasePlayer player)
+        #region Helper Methods
+        private Item CreateItem(int itemID, int itemAmount, int itemSkin) => ItemManager.CreateByItemID(itemID, itemAmount, itemSkin);
+        private int GenerateRandomID() => UnityEngine.Random.Range(0, 999999999);
+        static Vector3 GetGroundPosition(Vector3 sourcePos) // credit Wulf & Nogrod
         {
-            var input = serverinput.GetValue(player) as InputState;
-            var currentRot = Quaternion.Euler(input.current.aimAngles) * Vector3.forward;
-            Vector3 eyesAdjust = new Vector3(0f, 1.5f, 0f);
+            RaycastHit hitInfo;
 
-            var rayResult = rayBox(player.transform.position + eyesAdjust, currentRot);
-            if (rayResult is StorageContainer)
+            if (Physics.Raycast(sourcePos, Vector3.down, out hitInfo, LayerMask.GetMask("Terrain", "World", "Construction")))
             {
-                var box = rayResult as StorageContainer;                
-                return box;
+                sourcePos.y = hitInfo.point.y;
             }
-            return null;
-        }        
-        private void ShowBoxList(BasePlayer player)
-        {
-            foreach (var entry in boxTypes)
-            {
-                SendEchoConsole(player.net.connection, string.Format("{0} - {1} {2}", entry.Key, entry.Value.Type, entry.Value.skinname));                   
-            }
+            sourcePos.y = Mathf.Max(sourcePos.y, TerrainMeta.HeightMap.GetHeight(sourcePos));
+            return sourcePos;
         }
-        private void ShowCurrentBoxes(BasePlayer player)
-        {
-            foreach (var box in lootData.Boxes)
-            {
-                SendEchoConsole(player.net.connection, string.Format("{0} - {1}", box.Position, box.Type));
-            }
-        }
-        void SendEchoConsole(Network.Connection cn, string msg)
-        {
-            if (Network.Net.sv.IsConnected())
-            {
-                Network.Net.sv.write.Start();
-                Network.Net.sv.write.PacketID(Network.Message.Type.ConsoleMessage);
-                Network.Net.sv.write.String(msg);
-                Network.Net.sv.write.Send(new Network.SendInfo(cn));
-            }
-        } // credit Build
         private void FindBoxTypes()
         {
             var filesField = typeof(FileSystem_AssetBundles).GetField("files", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -316,27 +272,27 @@ namespace Oxide.Plugins
 
                             if (gmobj?.GetComponent<BaseEntity>() != null)
                             {
-                                boxTypes.Add(i, new BoxTypes { Type = str, skin = 0 });
+                                boxTypes.Add(i, new CustomBoxData { boxType = new BoxType { Type = str, SkinID = 0 } });
                                 i++;
                             }
                         }
                     }
                 }
             }
-            boxTypes.Add(i, new BoxTypes { Type = "assets/prefabs/deployable/large wood storage/box.wooden.large.prefab", skin = 0 });
+            boxTypes.Add(i, new CustomBoxData { boxType = new BoxType { Type = "assets/prefabs/deployable/large wood storage/box.wooden.large.prefab", SkinID = 0 } });
             i++;
-            boxTypes.Add(i, new BoxTypes { Type = "assets/prefabs/deployable/large wood storage/box.wooden.large.prefab", skin = 10124, skinname = "Ammo" });
+            boxTypes.Add(i, new CustomBoxData { boxType = new BoxType { Type = "assets/prefabs/deployable/large wood storage/box.wooden.large.prefab", SkinID = 10124, SkinName = "Ammo" } });
             i++;
-            boxTypes.Add(i, new BoxTypes { Type = "assets/prefabs/deployable/large wood storage/box.wooden.large.prefab", skin = 10123, skinname = "FirstAid" });
+            boxTypes.Add(i, new CustomBoxData { boxType = new BoxType { Type = "assets/prefabs/deployable/large wood storage/box.wooden.large.prefab", SkinID = 10123, SkinName = "FirstAid" } });
             i++;
-            boxTypes.Add(i, new BoxTypes { Type = "assets/prefabs/deployable/large wood storage/box.wooden.large.prefab", skin = 10141, skinname = "Guns" });
+            boxTypes.Add(i, new CustomBoxData { boxType = new BoxType { Type = "assets/prefabs/deployable/large wood storage/box.wooden.large.prefab", SkinID = 10141, SkinName = "Guns" } });
             i++;
-            foreach (var box in lootData.customLootBoxes)
-            {
-                boxTypes.Add(i, new BoxTypes { Type = box.Key, skin = box.Value.skin });
+            foreach (var box in clsData.customBoxes)
+            {                
+                boxTypes.Add(i, box.Value);
                 i++;
             }
-        } // credit Build
+        }
         private Vector3 GetSpawnPos(BasePlayer player)
         {
             Vector3 closestHitpoint;
@@ -361,15 +317,47 @@ namespace Oxide.Plugins
             }
             return closestHitpoint;
         }
+        private BaseEntity FindContainer(BasePlayer player)
+        {
+            var input = serverinput.GetValue(player) as InputState;
+            var currentRot = Quaternion.Euler(input.current.aimAngles) * Vector3.forward;
+            Vector3 eyesAdjust = new Vector3(0f, 1.5f, 0f);
+
+            var rayResult = CastRay(player.transform.position + eyesAdjust, currentRot);
+            if (rayResult is BaseEntity)
+            {
+                var box = rayResult as BaseEntity;
+                return box;
+            }
+            return null;
+        }
+        private object CastRay(Vector3 Pos, Vector3 Aim)
+        {
+            var hits = Physics.RaycastAll(Pos, Aim);
+            object target = null;
+
+            foreach (var hit in hits)
+            {
+                if (hit.distance < 100)
+                {
+                    if (hit.collider.GetComponentInParent<StorageContainer>() != null)
+                        target = hit.collider.GetComponentInParent<StorageContainer>();
+
+                    else if (hit.collider.GetComponentInParent<LootContainer>() != null)
+                        target = hit.collider.GetComponentInParent<LootContainer>();
+                }                
+            }
+            return target;
+        }
         private List<BaseEntity> FindInRadius(Vector3 pos, float rad)
         {
             var foundBoxes = new List<BaseEntity>();
-            foreach (var item in currentBoxes)
-            {                
-                var itemPos = item.transform.position;
+            foreach (var item in boxCache)
+            {
+                var itemPos = item.Key.transform.position;
                 if (GetDistance(pos, itemPos.x, itemPos.y, itemPos.z) < rad)
                 {
-                    foundBoxes.Add(item);                    
+                    foundBoxes.Add(item.Key);
                 }
             }
             return foundBoxes;
@@ -383,231 +371,282 @@ namespace Oxide.Plugins
 
             return distance;
         }
+        private bool IsUncreateable(string name)
+        {
+            foreach(var entry in unCreateable)
+            {
+                if (name.Contains(entry))
+                    return true;
+            }
+            return false;
+        }
+        private void ShowBoxList(BasePlayer player)
+        {
+            foreach (var entry in boxTypes)
+            {
+                SendEchoConsole(player.net.connection, string.Format("{0} - {1} {2}", entry.Key, entry.Value.boxType.Type, entry.Value.boxType.SkinName));
+            }
+        }
+        private void ShowCurrentBoxes(BasePlayer player)
+        {
+            foreach (var box in clsData.lootBoxes)
+            {
+                SendEchoConsole(player.net.connection, string.Format("{0} - {1}", box.Value.Position, box.Value.boxType.Type));
+            }
+        }
+        void SendEchoConsole(Network.Connection cn, string msg)
+        {
+            if (Network.Net.sv.IsConnected())
+            {
+                Network.Net.sv.write.Start();
+                Network.Net.sv.write.PacketID(Network.Message.Type.ConsoleMessage);
+                Network.Net.sv.write.String(msg);
+                Network.Net.sv.write.Send(new Network.SendInfo(cn));
+            }
+        }
+        #endregion
 
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Chat/Console Commands /////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-
+        #region Chat Commands
         [ChatCommand("cls")]
         private void chatLootspawn(BasePlayer player, string command, string[] args)
         {
             if (!canSpawnLoot(player)) return;
             if (args.Length == 0)
             {
-                SendReply(player, lang.GetMessage("synAdd", this, player.UserIDString));
-                SendReply(player, lang.GetMessage("synRem", this, player.UserIDString));
-                SendReply(player, lang.GetMessage("createSyn", this, player.UserIDString));
-                SendReply(player, lang.GetMessage("synList", this, player.UserIDString));
-                SendReply(player, lang.GetMessage("synBoxes", this, player.UserIDString));
-                SendReply(player, lang.GetMessage("synWipe", this, player.UserIDString));
+                SendReply(player, MSG("synAdd", player.UserIDString));
+                SendReply(player, MSG("synRem", player.UserIDString));
+                SendReply(player, MSG("createSyn", player.UserIDString));
+                SendReply(player, MSG("synList", player.UserIDString));
+                SendReply(player, MSG("synBoxes", player.UserIDString));
+                SendReply(player, MSG("synWipe", player.UserIDString));
                 return;
             }
             if (args.Length >= 1)
             {
-                if (args[0].ToLower() == "add")
+                switch (args[0].ToLower())
                 {
-                    int type;
-                    if (!int.TryParse(args[1], out type))
-                    {
-                        SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("notNum", this, player.UserIDString));
-                        return;
-                    }
-                    if (boxTypes.ContainsKey(type))
-                    {
-                        AddSpawn(player, type);
-                        return;
-                    }
-                    SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("notType", this, player.UserIDString));
-                    return;
-                }
-                if (args[0].ToLower() == "create")
-                {
-                    if (!(args.Length == 3))
-                    {
-                        SendReply(player, lang.GetMessage("createSyn", this, player.UserIDString));
-                        return;
-                    }
-                    if (!(args[1] == "") || (args[1] == null))
-                    {
-                        if (lootData.customLootBoxes.ContainsKey(args[1]))
+                    case "add":
                         {
-                            SendReply(player, lang.GetMessage("nameExists", this, player.UserIDString));
-                            return;
+                            int type;
+                            if (!int.TryParse(args[1], out type))
+                            {
+                                SendMSG(player, MSG("notNum", player.UserIDString));
+                                return;
+                            }
+                            if (boxTypes.ContainsKey(type))
+                            {
+                                AddSpawn(player, type);
+                                return;
+                            }
+                            SendMSG(player, MSG("notType", player.UserIDString));
                         }
-                        int type;
-                        if (!int.TryParse(args[2], out type))
-                        {
-                            SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("notNum", this, player.UserIDString));
-                            return;
-                        }
-                        if (boxTypes.ContainsKey(type))
-                        {                            
-                            CreateBox(player, args[1], type, boxTypes[type].skin);
-                            return;
-                        }
-                        SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("notType", this, player.UserIDString));
                         return;
-                    }
-                    SendReply(player, lang.GetMessage("createSyn", this, player.UserIDString));
-                    return;
-                }
-                else if (args[0].ToLower() == "remove")
-                {
-                    var box = findBox(player);
-                    if (box != null)
-                    {
-                        if (RemoveBoxData(box))
+                    case "create":
                         {
-                            SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("removedBox", this, player.UserIDString));
-                            return;
+                            if (!(args.Length == 3))
+                            {
+                                SendMSG(player, MSG("createSyn", player.UserIDString));
+                                return;
+                            }
+                            if (!(args[1] == "") || (args[1] == null))
+                            {
+                                if (clsData.customBoxes.ContainsKey(args[1]))
+                                {
+                                    SendMSG(player, MSG("nameExists", player.UserIDString));
+                                    return;
+                                }
+                                int type;
+                                if (!int.TryParse(args[2], out type))
+                                {
+                                    SendMSG(player, MSG("notNum", player.UserIDString));
+                                    return;
+                                }
+                                if (boxTypes.ContainsKey(type))
+                                {
+                                    if (IsUncreateable(boxTypes[type].boxType.Type))
+                                    {
+                                        SendMSG(player, MSG("unCreateable", player.UserIDString));
+                                        return;
+                                    }
+                                    CreateNewCLB(player, args[1], type, boxTypes[type].boxType.SkinID);
+                                    return;
+                                }
+                                SendMSG(player, MSG("notType", player.UserIDString));
+                                return;
+                            }
+                            SendReply(player, MSG("createSyn", player.UserIDString));
                         }
-                        else
-                            SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("notReg", this, player.UserIDString));
                         return;
-                    }
-                    SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("notBox", this, player.UserIDString));
-                    return;
-                }
-                else if (args[0].ToLower() == "list")
-                {
-                    ShowCurrentBoxes(player);
-                    SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("checkConsole", this, player.UserIDString));
-                    return;
-                }
-                else if (args[0].ToLower() == "boxes")
-                {
-                    ShowBoxList(player);
-                    SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("checkConsole", this, player.UserIDString));
-                    return;
-                }
-                else if (args[0].ToLower() == "near")
-                {
-                    float rad = 3f;
-                    if (args.Length == 2) float.TryParse(args[1], out rad);
+                    case "remove":
+                        {
+                            var box = FindContainer(player);
+                            if (box != null)
+                            {
+                                if (boxCache.ContainsKey(box))
+                                {
+                                    if (clsData.lootBoxes.ContainsKey(boxCache[box]))
+                                    {
+                                        clsData.lootBoxes.Remove(boxCache[box]);
+                                        SaveData();
+                                    }
+                                    ClearContainer(box);
+                                    box.KillMessage();
+                                    SendMSG(player, MSG("removedBox", player.UserIDString));
+                                    return;
+                                }
+                                else
+                                    SendMSG(player, MSG("notReg", player.UserIDString));
+                                return;
+                            }
+                            SendMSG(player, MSG("notBox", player.UserIDString));
+                        }
+                        return;
+                    case "list":
+                        ShowCurrentBoxes(player);
+                        SendMSG(player, MSG("checkConsole", player.UserIDString));
+                        return;
+                    case "boxes":
+                        ShowBoxList(player);
+                        SendMSG(player, MSG("checkConsole", player.UserIDString));
+                        return;
+                    case "near":
+                        {
+                            float rad = 3f;
+                            if (args.Length == 2) float.TryParse(args[1], out rad);
 
-                    var boxes = FindInRadius(player.transform.position, rad);
-                    if (boxes != null)
-                    {
-                        SendReply(player, string.Format(lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("foundBoxes", this, player.UserIDString), boxes.Count.ToString()));
-                        foreach (var box in boxes)
-                        {
-                            player.SendConsoleCommand("ddraw.box", 30f, Color.magenta, box.transform.position, 1f);
+                            var boxes = FindInRadius(player.transform.position, rad);
+                            if (boxes != null)
+                            {
+                                SendMSG(player, string.Format(MSG("foundBoxes", player.UserIDString), boxes.Count));
+                                foreach (var box in boxes)
+                                {
+                                    player.SendConsoleCommand("ddraw.box", 30f, Color.magenta, box.transform.position, 1f);
+                                }
+                            }
+                            else
+                                SendMSG(player, string.Format(MSG("noFind", player.UserIDString), rad));
                         }
-                    }
-                    else
-                        SendReply(player, string.Format(lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("noFind", this, player.UserIDString), rad.ToString()));
-                }
-                else if (args[0].ToLower() == "wipe")
-                {
-                    int count = lootData.Boxes.Count;
-                    
-                    ClearData(true);
-                    lootData.Boxes.Clear();
-                    SaveData();
-                    SendReply(player, string.Format(lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("wipedAll", this, player.UserIDString), count.ToString()));
-                    return;
-                }
-                else if (args[0].ToLower() == "wipeall")
-                {
-                    
-                    int customcount = lootData.customLootBoxes.Count;
-                    lootData.customLootBoxes.Clear();
-                    SendReply(player, string.Format(lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("wipedData", this, player.UserIDString), customcount.ToString()));
-
-                    int count = lootData.Boxes.Count;
-                    ClearData(true);
-                    lootData.Boxes.Clear();
-                    SaveData();
-                    SendReply(player, string.Format(lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("wipedAll", this, player.UserIDString), count.ToString()));
-                    return;
-                }
-            }        
+                        return;
+                    case "wipe":
+                        {
+                            var count = clsData.lootBoxes.Count;
+                            
+                            foreach(var box in boxCache)
+                            {
+                                wipeList.Add(box.Key);
+                                ClearContainer(box.Key);
+                                box.Key.KillMessage();
+                            }
+                            clsData.lootBoxes.Clear();
+                            wipeList.Clear();
+                            SaveData();
+                            SendMSG(player, string.Format(MSG("wipedAll1", player.UserIDString), count));
+                        }
+                        return;
+                    case "wipeall":
+                        {
+                            var count = clsData.lootBoxes.Count;
+                            var count2 = clsData.customBoxes.Count;
+                            foreach (var box in boxCache)
+                            {
+                                wipeList.Add(box.Key);
+                                ClearContainer(box.Key);
+                                box.Key.KillMessage();
+                            }
+                            clsData.lootBoxes.Clear();
+                            clsData.customBoxes.Clear();
+                            wipeList.Clear();
+                            SaveData();
+                            SendMSG(player, string.Format(MSG("wipedData1", player.UserIDString), count, count2));
+                        }
+                        return;
+                    default:
+                        break;
+                }               
+            }
         }
         bool canSpawnLoot(BasePlayer player)
         {
-            if (permission.UserHasPermission(player.userID.ToString(), "customlootspawns.admin")) return true;
-            else if (isAuth(player)) return true;
-            SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("noPerms", this, player.UserIDString));
+            if (permission.UserHasPermission(player.UserIDString, "customlootspawns.admin")) return true;
+            SendMSG(player, MSG("noPerms", player.UserIDString));
             return false;
         }
+        #endregion
 
-        bool isAuth(BasePlayer player)
+        #region Config        
+        private ConfigData configData;
+        class ConfigData
         {
-            if (player.net.connection != null)
+            public int RespawnTimer { get; set; }
+        }
+        private void LoadVariables()
+        {
+            LoadConfigVariables();
+            SaveConfig();
+        }
+        protected override void LoadDefaultConfig()
+        {
+            var config = new ConfigData
             {
-                if (player.net.connection.authLevel < authLevel)
-                {                    
-                    return false;
-                }
-            }
-            return true;
+                RespawnTimer = 20
+            };
+            SaveConfig(config);
         }
+        private void LoadConfigVariables() => configData = Config.ReadObject<ConfigData>();
+        void SaveConfig(ConfigData config) => Config.WriteObject(config, true);
+        #endregion
 
-        #region DataManagement
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Data Management ///////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////        
-        void SaveData()
-        {
-            LootSpawnData.WriteObject(lootData);
-        }
+        #region Data Management
+        void SaveData() => clsdata.WriteObject(clsData);
         void LoadData()
         {
             try
             {
-                lootData = LootSpawnData.ReadObject<CustomLootData>();
+                clsData = clsdata.ReadObject<CLSData>();
             }
             catch
             {
-                Puts("Couldn't load LootSpawn data, creating new datafile");
-                lootData = new CustomLootData();
+                clsData = new CLSData();
             }
-            
         }
+        class CLSData
+        {
+            public Dictionary<int, CLBox> lootBoxes = new Dictionary<int, CLBox>();
+            public Dictionary<string, CustomBoxData> customBoxes = new Dictionary<string, CustomBoxData>();
+        }
+        #endregion
 
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Custom Loot data classes //////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-        class CustomLootData
+        #region Classes
+        class CLBox
         {
-            public List<CLootBox> Boxes = new List<CLootBox>();
-            public Dictionary<string, BoxTypeData> customLootBoxes = new Dictionary<string, BoxTypeData>();
-        }
-        class CLootBox
-        {
-            public uint ID;
-            public string Type;
-            public int skin = 0;
-            public string Name;
-            public float yRotation = 0;
+            public float yRotation;
             public Vector3 Position;
-        }  
-        class BoxTypes
+            public BoxType boxType;
+            public string customLoot;            
+        }
+        class BoxCreator
         {
-            public string skinname = "";
-            public int skin;
+            public BaseEntity entity;
+            public CustomBoxData boxData;
+        }
+        class CustomBoxData
+        {
+            public string Name = null;
+            public BoxType boxType = new BoxType();
+            public List<ItemStorage> itemList = new List<ItemStorage>();
+        }
+        class BoxType
+        {
+            public string SkinName = null;
+            public int SkinID;
             public string Type;
         }
-        class BoxTypeData
-        {            
-            public string name;
-            public int skin = 0;
-            public string boxtype;
-            public List<ItemStorage> loot = new List<ItemStorage>();
-        }  
-        class OpenBox
-        {
-            public string name;            
-            public BaseEntity box;
-        }        
         class ItemStorage
         {
-            public bool BP;
-            public int slot;
-            public string itemname;
-            public int itemid;
-            public int skinid;
-            public int amount;            
+            public string Shortname;
+            public int ID;
+            public int SkinID;
+            public int Amount;
         }
         private class UnityVector3Converter : JsonConverter
         {
@@ -635,66 +674,12 @@ namespace Oxide.Plugins
         } // borrowed from ZoneManager
         #endregion
 
-        #region Config
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Configuration /////////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-        bool changed;
-        int respawnTimer = 15;
-        int authLevel = 1;
-        private void LoadVariables()
-        {
-            LoadConfigVariables();
-            SaveConfig();
-        }
-        private void LoadConfigVariables()
-        {
-            CheckCfg("Options - Box refresh timer (mins)", ref respawnTimer);
-            CheckCfg("Options - Authlevel required", ref authLevel);
-        }
-        private void CheckCfg<T>(string Key, ref T var)
-        {
-            if (Config[Key] is T)
-                var = (T)Config[Key];
-            else
-                Config[Key] = var;
-        }
-        private void CheckCfgFloat(string Key, ref float var)
-        {
-
-            if (Config[Key] != null)
-                var = Convert.ToSingle(Config[Key]);
-            else
-                Config[Key] = var;
-        }
-        object GetConfig(string menu, string datavalue, object defaultValue)
-        {
-            var data = Config[menu] as Dictionary<string, object>;
-            if (data == null)
-            {
-                data = new Dictionary<string, object>();
-                Config[menu] = data;
-                changed = true;
-            }
-            object value;
-            if (!data.TryGetValue(datavalue, out value))
-            {
-                value = defaultValue;
-                data[datavalue] = value;
-                changed = true;
-            }
-            return value;
-        }
-        #endregion
-
-
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Messages //////////////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
+        #region Messaging
+        private void SendMSG(BasePlayer player, string message) => SendReply(player, $"<color=orange>{Title}:</color> <color=#939393>{message}</color>");
+        private string MSG(string key, string playerid = null) => lang.GetMessage(key, this, playerid);
 
         Dictionary<string, string> messages = new Dictionary<string, string>()
         {
-            {"title", "<color=#31698a>LootSpawns</color> : "},
             {"checkConsole", "Check your console for a list of boxes" },
             {"noPerms", "You do not have permission to use this command" },
             {"notType", "The number you have entered is not on the list" },
@@ -702,20 +687,25 @@ namespace Oxide.Plugins
             {"notBox", "You are not looking at a box" },
             {"notReg", "This is not a custom placed box" },
             {"removedBox", "Box deleted" },
-            {"synAdd", "/cls add id - Adds a new box" },
-            {"createSyn", "/cls create yourboxname ## - Builds a custom loot box with boxID: ## and Name: yourboxname" },
+            {"synAdd", "<color=orange>/cls add id </color><color=#939393>- Adds a new box</color>" },
+            {"createSyn", "<color=orange>/cls create yourboxname ## </color><color=#939393>- Builds a custom loot box with boxID: ## and Name: yourboxname</color>" },
             {"nameExists", "You already have a box with that name" },
-            {"synRem", "/cls remove - Remove the box you are looking at" },
-            {"synBoxes", "/cls boxes - List available box types and their ID" },
-            {"synWipe", "/cls wipe - Wipes all custom placed boxes" },
-            {"synList", "/cls list - Puts all custom box details to console" },
-            {"synNear", "/cls near XX - Shows custom loot boxes in radius XX" },
-            {"wipedAll", "Wiped {0} custom box spawns" },
-            {"wipedData", "Wiped {0} loot kits" },
+            {"synRem", "<color=orange>/cls remove </color><color=#939393>- Remove the box you are looking at</color>" },
+            {"synBoxes", "<color=orange>/cls boxes </color><color=#939393>- List available box types and their ID</color>" },
+            {"synWipe", "<color=orange>/cls wipe </color><color=#939393>- Wipes all custom placed boxes</color>" },
+            {"synList", "<color=orange>/cls list </color><color=#939393>- Puts all custom box details to console</color>" },
+            {"synNear", "<color=orange>/cls near XX </color><color=#939393>- Shows custom loot boxes in radius XX</color>" },
+            {"wipedAll1", "Wiped {0} custom loot spawns" },
+            {"wipedData1", "Wiped {0} custom loot spawns and {1} custom loot kits" },
             {"foundBoxes", "Found {0} loot spawns near you"},
             {"noFind", "Couldn't find any boxes in radius: {0}M" },
             {"noItems", "You didnt place any items in the box" },
-            {"boxCreated", "You have created a new loot box. ID: {0}, Name: {1}" }
-        };       
+            {"boxCreated", "You have created a new loot box. ID: {0}, Name: {1}" },
+            {"unCreateable", "You can not create custom loot for this type of box" }
+        };
+
+        #endregion
+
+        List<string> unCreateable = new List<string> { "barrel", "trash", "giftbox" };
     }
 }

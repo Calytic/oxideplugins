@@ -2,7 +2,7 @@
     "name": "Godmode",
     "description": "Allows players with permission to become invincible\/invulnerable",
     "author": "Wulf",
-    "version": "3.0.8",
+    "version": "3.2.1",
     "configuration": true,
     "language": "cs",
     "games": [

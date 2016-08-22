@@ -1,0 +1,19 @@
+{
+    "name": "XP Death Reducer",
+    "description": "Players lose a percentage, or configurable amount of XP upon death",
+    "author": "k1lly0u",
+    "version": "0.1.2",
+    "configuration": true,
+    "suggest": {
+        "Friends": "*",
+        "Clans": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -2,7 +2,7 @@
     "name": "ComponentBlocker",
     "description": "Removes items or entities entirely from the game",
     "author": "Calytic",
-    "version": "0.0.8",
+    "version": "0.1.0",
     "configuration": true,
     "language": "cs",
     "games": [

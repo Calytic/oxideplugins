@@ -1,0 +1,15 @@
+{
+    "name": "AirdropPrecision",
+    "description": "Make supply drops fall on the supply signal's position",
+    "author": "k1lly0u",
+    "version": "0.1.1",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

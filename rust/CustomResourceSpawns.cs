@@ -8,171 +8,150 @@ using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Linq;
 using Oxide.Core.Configuration;
 
-
-
 namespace Oxide.Plugins
 {
-    [Info("CustomResourceSpawns", "k1lly0u", "0.1.1", ResourceId = 1783)]
+    [Info("CustomResourceSpawns", "k1lly0u", "0.2.21", ResourceId = 1783)]
     class CustomResourceSpawns : RustPlugin
     {
-        bool changed;
-
-        CRSData resourceData;
-        private DynamicConfigFile ResourceData;
+        #region Fields
+        CRSData crsData;
+        private DynamicConfigFile crsdata;
 
         private FieldInfo serverinput;
 
-        private List<BaseEntity> currentResources = new List<BaseEntity>();
-        private Dictionary<ulong, int> addingResources = new Dictionary<ulong, int>();
+        private List<BaseEntity> resourceCache = new List<BaseEntity>();
         private Dictionary<int, string> resourceTypes = new Dictionary<int, string>();
-        
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Oxide Hooks ///////////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
+        private List<Timer> refreshTimers = new List<Timer>();
+
+        private Dictionary<ulong, int> resourceCreators = new Dictionary<ulong, int>();
+
+        #endregion
+
+        #region Oxide Hooks
         void Loaded()
         {
             permission.RegisterPermission("customresourcespawns.admin", this);
             lang.RegisterMessages(messages, this);
             serverinput = typeof(BasePlayer).GetField("serverInput", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
-
-            ResourceData = Interface.Oxide.DataFileSystem.GetFile("CRS_Data");
-            ResourceData.Settings.Converters = new JsonConverter[] { new StringEnumConverter(), new UnityVector3Converter(), };
-
-            LoadData();
-            LoadVariables();
+            crsdata = Interface.Oxide.DataFileSystem.GetFile("CustomSpawns/crs_data");
+            crsdata.Settings.Converters = new JsonConverter[] { new StringEnumConverter(), new UnityVector3Converter() };
         }
         void OnServerInitialized()
         {
-            FindTypes();
-            RefreshResources();
-        }
-        void LoadDefaultConfig()
-        {
-            Puts("Creating a new config file");
-            Config.Clear();
             LoadVariables();
+            LoadData();
+            FindResourceTypes();
+            InitializeResourceSpawns();
+        }       
+        
+        private void OnEntityKill(BaseNetworkable entity)
+        {
+            var baseEnt = entity as BaseEntity;
+            if (baseEnt == null) return;
+            if(resourceCache.Contains(baseEnt))
+            {
+                InitiateRefresh(baseEnt);
+                resourceCache.Remove(baseEnt);
+            }
+        }
+        void OnCollectiblePickup(Item item, BasePlayer player, CollectibleEntity entity)
+        {
+            var ent = entity.GetEntity();
+            if (ent != null)
+            {
+                if (resourceCache.Contains(ent))
+                {
+                    InitiateRefresh(ent);
+                    resourceCache.Remove(ent);
+                }                
+            }                    
+        }
+        void OnPlayerInput(BasePlayer player, InputState input)
+        {
+            if (resourceCreators.ContainsKey(player.userID))
+                if (input.WasJustPressed(BUTTON.FIRE_PRIMARY))
+                {
+                    int type = resourceCreators[player.userID];
+                    AddSpawn(player, type);
+                }
         }
         void Unload()
         {
-            SaveData();
-            DestroyResource();
-        }
-        void DestroyResource()
-        {
-            foreach (var entry in currentResources)
-                KillResource(entry);
-            currentResources.Clear();            
-        }  
-        void OnPlayerDisconnected(BasePlayer player)
-        {
-            if (addingResources.ContainsKey(player.userID))
-                addingResources.Remove(player.userID);
-        }     
-        
-        void OnDispenserGather(ResourceDispenser dispenser, BaseEntity entity, Item item)
-        {
-            if (currentResources.Contains(entity))                
-                if (dispenser.fractionRemaining <= 0.05)
-                    currentResources.Remove(entity);
-        }        
+            foreach (var time in refreshTimers)
+                time.Destroy();
 
-        //////////////////////////////////////////////////////////////////////////////////////
-        // ResourceSpawn methods /////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-        
-        private void AddSpawn(BasePlayer player, int type)
-        {
-            string resource = resourceTypes[type]; 
-            var pos = GetSpawnPos(player);
-            BaseEntity entity = CreateResource(resource, pos);
-            resourceData.Resources.Add(new ResData() { ID = entity.net.ID, Key = type, Position = entity.transform.position, Type = resource });
-            currentResources.Add(entity);
-            SaveData();
+            foreach (var resource in resourceCache)                            
+                resource.KillMessage();
+            resourceCache.Clear();
         }
-        private BaseEntity CreateResource(string type, Vector3 pos)
+        #endregion
+
+        #region Resource Control
+        private void InitializeResourceSpawns()
         {
-            BaseEntity entity = GameManager.server.CreateEntity(type, pos, new Quaternion(), true);
-            entity.Spawn(true);
+            foreach (var resource in crsData.resources)
+            {
+                InitializeNewSpawn(resource.Type, resource.Position);
+            }
+        }
+        private void InitiateRefresh(BaseEntity resource)
+        {
+            var position = resource.transform.position;
+            var type = resource.PrefabName;
+            refreshTimers.Add(timer.Once(configData.RespawnTimer * 60, () =>
+            {
+                InitializeNewSpawn(type, position);
+            }));
+            resourceCache.Remove(resource);
+        }
+        private void InitializeNewSpawn(string type, Vector3 position)
+        {
+            var newRes = SpawnResourceEntity(type, position);
+            
+            resourceCache.Add(newRes);
+        }
+        private BaseEntity SpawnResourceEntity(string type, Vector3 pos)
+        {
+            BaseEntity entity = GameManager.server.CreateEntity(type, pos, new Quaternion(), true);            
+            entity.Spawn();
             return entity;
         }
-        private bool KillResource(BaseEntity entity)
-        {
-            if (currentResources.Contains(entity))
-            {
-                entity.Kill();
-                return true;
-            }
-            return false;
-        }
-        private bool RemoveResourceData(BaseEntity entity)
-        {
-            if (currentResources.Contains(entity))
-            {                
-                foreach (var resource in resourceData.Resources)
-                {
-                    if (resource.ID == entity.net.ID)
-                    {
-                        currentResources.Remove(entity);
-                        entity.Kill();
-                        resourceData.Resources.Remove(resource);
-                        SaveData();
-                        return true;
-                    }
-                }                
-            }
-            return false;
-        }
-        private void RefreshResources()
-        {
-            foreach (BaseEntity entry in currentResources)            
-                entry.Kill();            
-            currentResources.Clear();
+        
+        #endregion
 
-            foreach (var newR in resourceData.Resources)
-            {
-                var entity = CreateResource(newR.Type, newR.Position);
-                currentResources.Add(entity);
-                newR.ID = entity.net.ID;                
-            }
-            timer.Once(respawnTimer * 60, () => RefreshResources());
+        #region Resource Spawning
+        private void AddSpawn(BasePlayer player, int type)
+        {
+            string resource = resourceTypes[type];
+            var pos = GetSpawnPos(player);
+            BaseEntity entity = SpawnResourceEntity(resource, pos);
+            crsData.resources.Add(new CLResource { Position = entity.transform.position, Type = resource });
+            resourceCache.Add(entity);
+            SaveData();
         }        
-        private BaseEntity FindResource(BasePlayer player)
+        
+        #endregion
+
+        #region Helper Methods
+        static Vector3 GetGroundPosition(Vector3 sourcePos) // credit Wulf & Nogrod
         {
-            var input = serverinput.GetValue(player) as InputState;
-            Ray ray = new Ray(player.eyes.position, Quaternion.Euler(input.current.aimAngles) * Vector3.forward);
-            RaycastHit hit;
-            if (!UnityEngine.Physics.Raycast(ray, out hit, 10f))
-                return null;
-            return hit.GetEntity();
-        }
-        private void ShowResourceList(BasePlayer player)
-        {
-            foreach (var entry in resourceTypes)
-                SendEchoConsole(player.net.connection, string.Format("{0} - {1}", entry.Key, entry.Value));            
-        }
-        private void ShowCurrentResources(BasePlayer player)
-        {
-            foreach (var resource in resourceData.Resources)
-                SendEchoConsole(player.net.connection, string.Format("{0} - {1} - {2}", resource.Key, resource.Position, resource.Type));            
-        }
-        void SendEchoConsole(Network.Connection cn, string msg)
-        {
-            if (Network.Net.sv.IsConnected())
+            RaycastHit hitInfo;
+
+            if (Physics.Raycast(sourcePos, Vector3.down, out hitInfo, LayerMask.GetMask("Terrain", "World", "Construction")))
             {
-                Network.Net.sv.write.Start();
-                Network.Net.sv.write.PacketID(Network.Message.Type.ConsoleMessage);
-                Network.Net.sv.write.String(msg);
-                Network.Net.sv.write.Send(new Network.SendInfo(cn));
+                sourcePos.y = hitInfo.point.y;
             }
+            sourcePos.y = Mathf.Max(sourcePos.y, TerrainMeta.HeightMap.GetHeight(sourcePos));
+            return sourcePos;
         }
-        private void FindTypes()
+        private void FindResourceTypes()
         {
             var filesField = typeof(FileSystem_AssetBundles).GetField("files", BindingFlags.Instance | BindingFlags.NonPublic);
             var files = (Dictionary<string, AssetBundle>)filesField.GetValue(FileSystem.iface);
             int i = 1;
             foreach (var str in files.Keys)
-                if (str.StartsWith("assets/bundled/prefabs/autospawn/resource"))
-                    if (!str.Contains("loot"))// || str.StartsWith("assets/bundled/prefabs/autospawn/collectable"))
+                if (str.StartsWith("assets/bundled/prefabs/autospawn/resource") || str.StartsWith("assets/bundled/prefabs/autospawn/collectable"))
+                    if (!str.Contains("loot"))
                     {
                         var gmobj = GameManager.server.FindPrefab(str);
                         if (gmobj?.GetComponent<BaseEntity>() != null)
@@ -180,8 +159,8 @@ namespace Oxide.Plugins
                             resourceTypes.Add(i, str);
                             i++;
                         }
-                    }           
-        }
+                    }
+        }          
         private Vector3 GetSpawnPos(BasePlayer player)
         {
             Vector3 closestHitpoint;
@@ -193,63 +172,113 @@ namespace Oxide.Plugins
             var hits = Physics.RaycastAll(ray);
             float closestdist = 999999f;
             closestHitpoint = player.transform.position;
-            foreach (var hit in hits)            
-                if (hit.collider.GetComponentInParent<TriggerBase>() == null)                
+            foreach (var hit in hits)
+            {
+                if (hit.collider.GetComponentInParent<TriggerBase>() == null)
+                {
                     if (hit.distance < closestdist)
                     {
                         closestdist = hit.distance;
                         closestHitpoint = hit.point;
                     }
+                }
+            }
             return closestHitpoint;
+        }
+        private BaseEntity FindResource(BasePlayer player)
+        {
+            var input = serverinput.GetValue(player) as InputState;
+            Ray ray = new Ray(player.eyes.position, Quaternion.Euler(input.current.aimAngles) * Vector3.forward);
+            RaycastHit hit;
+            if (!UnityEngine.Physics.Raycast(ray, out hit, 10f))
+                return null;
+            return hit.GetEntity();
+        }
+        private BaseEntity FindResourcePos(Vector3 pos)
+        {
+            foreach (var entry in resourceCache)
+            {
+                if (entry.transform.position == pos)
+                    return entry;
+            }
+            return null;
         }
         private List<Vector3> FindInRadius(Vector3 pos, float rad)
         {
             var foundResources = new List<Vector3>();
-            foreach (var item in currentResources)
+            foreach (var item in crsData.resources)
             {
-                var itemPos = item.transform.position;
-                if (GetDistance(pos, itemPos.x, itemPos.y, itemPos.z) < rad)                
-                    foundResources.Add(item.transform.position);
+                var itemPos = item.Position;
+                if (GetDistance(pos, itemPos) < rad)
+                {
+                    foundResources.Add(itemPos);
+                }
             }
             return foundResources;
-        }
-        private float GetDistance(Vector3 v3, float x, float y, float z)
+        }       
+        private bool RemoveResource(BaseEntity entity)
         {
-            float distance = 1000f;
-
-            distance = (float)Math.Pow(Math.Pow(v3.x - x, 2) + Math.Pow(v3.y - y, 2), 0.5);
-            distance = (float)Math.Pow(Math.Pow(distance, 2) + Math.Pow(v3.z - z, 2), 0.5);
-
-            return distance;
-        }
-        void OnPlayerInput(BasePlayer player, InputState input)
-        {
-            if (addingResources.ContainsKey(player.userID))
-                if (input.WasJustPressed(BUTTON.FIRE_PRIMARY))
-                {
-                    int type = addingResources[player.userID];
-                    AddSpawn(player, type);
-                }
-        }
-
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Chat/Console Commands /////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-
-        [ChatCommand("crs")]
-        private void chatLootspawn(BasePlayer player, string command, string[] args)
-        {
-            if (!canSpawn(player)) return;
-            if (addingResources.ContainsKey(player.userID))
+            if (resourceCache.Contains(entity))
             {
-                addingResources.Remove(player.userID);
-                SendReply(player, lang.GetMessage("endAdd", this, player.UserIDString));
+                RemoveFromData(entity.transform.position);
+                resourceCache.Remove(entity);
+                entity.KillMessage();
+                return true;
+            }
+            return false;
+        }
+        private bool RemoveFromData(Vector3 pos)
+        {           
+            foreach (var resource in crsData.resources)
+            {
+                if (GetDistance(pos, resource.Position) < 1)
+                {                   
+                    crsData.resources.Remove(resource);
+                    return true;
+                }
+            }
+            return false;
+        }
+        private float GetDistance(Vector3 v3, Vector3 v32) => Vector3.Distance(v3, v32);
+        
+        private void ShowResourceList(BasePlayer player)
+        {
+            foreach (var entry in resourceTypes)
+                SendEchoConsole(player.net.connection, string.Format("{0} - {1}", entry.Key, entry.Value));
+        }
+        private void ShowCurrentResources(BasePlayer player)
+        {
+            foreach (var resource in crsData.resources)
+                SendEchoConsole(player.net.connection, string.Format("{0} - {1}", resource.Position, resource.Type));
+        }
+        void SendEchoConsole(Network.Connection cn, string msg)
+        {
+            if (Network.Net.sv.IsConnected())
+            {
+                Network.Net.sv.write.Start();
+                Network.Net.sv.write.PacketID(Network.Message.Type.ConsoleMessage);
+                Network.Net.sv.write.String(msg);
+                Network.Net.sv.write.Send(new Network.SendInfo(cn));
+            }
+        }
+        #endregion
+
+        #region Chat Commands
+        [ChatCommand("crs")]
+        private void chatResourceSpawn(BasePlayer player, string command, string[] args)
+        {
+            if (!canSpawnResources(player)) return;
+            if (resourceCreators.ContainsKey(player.userID))
+            {
+                resourceCreators.Remove(player.userID);
+                SendMSG(player, lang.GetMessage("endAdd", this, player.UserIDString));
                 return;
             }
             if (args.Length == 0)
             {
                 SendReply(player, lang.GetMessage("synAdd", this, player.UserIDString));
                 SendReply(player, lang.GetMessage("synRem", this, player.UserIDString));
+                SendReply(player, lang.GetMessage("synRemNear", this, player.UserIDString));
                 SendReply(player, lang.GetMessage("synList", this, player.UserIDString));
                 SendReply(player, lang.GetMessage("synResource", this, player.UserIDString));
                 SendReply(player, lang.GetMessage("synWipe", this, player.UserIDString));
@@ -257,126 +286,171 @@ namespace Oxide.Plugins
             }
             if (args.Length >= 1)
             {
-                if (args[0].ToLower() == "add")
+                switch (args[0].ToLower())
                 {
-                    int type;
-                    if (!int.TryParse(args[1], out type))
-                    {
-                        SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("notNum", this, player.UserIDString));
-                        return;
-                    }
-                    if (resourceTypes.ContainsKey(type))
-                    {
-                        addingResources.Add(player.userID, type);
-                        SendReply(player, lang.GetMessage("adding", this, player.UserIDString));
-                        return;
-                    }
-                    SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("notType", this, player.UserIDString));
-                    return;
-                }                
-                else if (args[0].ToLower() == "remove")
-                {
-                    var resource = FindResource(player);
-                    if (resource != null)
-                    {
-                        if (RemoveResourceData(resource))
+                    case "add":
                         {
-                            SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("removedResource", this, player.UserIDString));
-                            return;
+                            int type;
+                            if (!int.TryParse(args[1], out type))
+                            {
+                                SendMSG(player, MSG("notNum", player.UserIDString));
+                                return;
+                            }
+                            if (resourceTypes.ContainsKey(type))
+                            {
+                                resourceCreators.Add(player.userID, type);
+                                SendMSG(player, MSG("adding", player.UserIDString));
+                                return;
+                            }
+                            SendMSG(player, MSG("notType", player.UserIDString));
                         }
-                        else
-                            SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("notReg", this, player.UserIDString));
-                        return;
-                    }
-                    SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("notBox", this, player.UserIDString));
-                    return;
-                }
-                else if (args[0].ToLower() == "list")
-                {
-                    ShowCurrentResources(player);
-                    SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("checkConsole", this, player.UserIDString));
-                    return;
-                }
-                else if (args[0].ToLower() == "resources")
-                {
-                    ShowResourceList(player);
-                    SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("checkConsole", this, player.UserIDString));
-                    return;
-                }
-                else if (args[0].ToLower() == "near")
-                {
-                    float rad = 10f;
-                    if (args.Length == 2) float.TryParse(args[1], out rad);
+                        return;                    
+                    case "remove":
+                        {
+                            if (args.Length >= 2 && args[1].ToLower() == "near")
+                            {
+                                float rad = 10f;
+                                if (args.Length == 3) float.TryParse(args[2], out rad);
 
-                    var resources = FindInRadius(player.transform.position, rad);
-                    if (resources != null)
-                    {
-                        SendReply(player, string.Format(lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("foundResources", this, player.UserIDString), resources.Count.ToString()));
-                        foreach (var resource in resources)
-                            player.SendConsoleCommand("ddraw.box", 30f, Color.magenta, resource, 1f);                        
-                    }
-                    else
-                        SendReply(player, string.Format(lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("noFind", this, player.UserIDString), rad.ToString()));
+                                var resources = FindInRadius(player.transform.position, rad);
+                                if (resources != null)
+                                {
+                                    int i = 0;
+                                    foreach (var entry in resources)
+                                    {
+                                        var entity = FindResourcePos(entry);
+                                        if (entity != null)
+                                        {
+                                            if (RemoveResource(entity))
+                                            {
+                                                i++;                                                
+                                            }
+                                        }
+                                    }
+                                    SendMSG(player, string.Format(MSG("removedNear", player.UserIDString), i, rad));
+                                    return;
+                                }
+                                else
+                                    SendMSG(player, string.Format(MSG("noFind", player.UserIDString), rad.ToString()));
+                                return;
+                            }
+                            var resource = FindResource(player);
+                            if (resource != null)
+                            {
+                                if (resourceCache.Contains(resource))
+                                {
+                                    if (RemoveResource(resource))
+                                    {                                        
+                                        SaveData();
+                                        SendMSG(player, MSG("RemovedResource", player.UserIDString));
+                                        return;
+                                    }
+                                }
+                                else
+                                    SendMSG(player, MSG("notReg", player.UserIDString));
+                                return;
+                            }
+                            SendMSG(player, MSG("notBox", player.UserIDString));
+                        }
+                        return;
+                    case "list":
+                        ShowCurrentResources(player);
+                        SendMSG(player, MSG("checkConsole", player.UserIDString));
+                        return;
+                    case "resources":
+                        ShowResourceList(player);
+                        SendMSG(player, MSG("checkConsole", player.UserIDString));
+                        return;
+                    case "near":
+                        {
+                            float rad = 10f;
+                            if (args.Length == 2) float.TryParse(args[1], out rad);
+
+                            var resources = FindInRadius(player.transform.position, rad);
+                            if (resources != null)
+                            {
+                                SendMSG(player, string.Format(MSG("foundResources", player.UserIDString), resources.Count.ToString()));
+                                foreach (var resource in resources)
+                                    player.SendConsoleCommand("ddraw.box", 30f, Color.magenta, resource, 1f);
+                            }
+                            else
+                                SendMSG(player, string.Format(MSG("noFind", player.UserIDString), rad.ToString()));
+                        }
+                        return;
+                    case "wipe":
+                        {
+                            var count = crsData.resources.Count;
+                            foreach (var resource in resourceCache)
+                            {
+                                resource.KillMessage();
+                            }
+                            crsData.resources.Clear();
+                            SaveData();
+                            SendMSG(player, string.Format(MSG("wipedAll1", player.UserIDString), count));
+                        }
+                        return;                    
+                    default:
+                        break;
                 }
-                else if (args[0].ToLower() == "wipe")
-                {
-                    int count = resourceData.Resources.Count;
-                    DestroyResource();
-                    resourceData.Resources.Clear();
-                    SaveData();
-                    SendReply(player, string.Format(lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("wipedAll", this, player.UserIDString), count.ToString()));
-                    return;
-                }                
             }
         }
-        bool canSpawn(BasePlayer player)
+        bool canSpawnResources(BasePlayer player)
         {
-            if (permission.UserHasPermission(player.userID.ToString(), "customresourcespawns.admin")) return true;
-            else if (isAuth(player)) return true;
-            SendReply(player, lang.GetMessage("title", this, player.UserIDString) + lang.GetMessage("noPerms", this, player.UserIDString));
+            if (permission.UserHasPermission(player.UserIDString, "customresourcespawns.admin")) return true;
+            SendMSG(player, MSG("noPerms", player.UserIDString));
             return false;
         }
-        bool isAuth(BasePlayer player)
-        {
-            if (player.net.connection != null)            
-                if (player.net.connection.authLevel < authLevel)                
-                    return false;
-            return true;
-        }
+        #endregion
 
-        #region DataManagement
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Data Management ///////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////        
-        void SaveData() => ResourceData.WriteObject(resourceData);        
+        #region Config        
+        private ConfigData configData;
+        class ConfigData
+        {
+            public int RespawnTimer { get; set; }
+        }
+        private void LoadVariables()
+        {
+            LoadConfigVariables();
+            SaveConfig();
+        }
+        protected override void LoadDefaultConfig()
+        {
+            var config = new ConfigData
+            {
+                RespawnTimer = 20
+            };
+            SaveConfig(config);
+        }
+        private void LoadConfigVariables() => configData = Config.ReadObject<ConfigData>();
+        void SaveConfig(ConfigData config) => Config.WriteObject(config, true);
+        #endregion
+
+        #region Data Management
+        void SaveData() => crsdata.WriteObject(crsData);
         void LoadData()
         {
             try
             {
-                resourceData = ResourceData.ReadObject<CRSData>();
+                crsData = crsdata.ReadObject<CRSData>();
             }
             catch
             {
-                Puts("Couldn't load ResourceSpawn data, creating new datafile");
-                resourceData = new CRSData();
+                crsData = new CRSData();
             }
-
         }
-
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Custom Loot data classes //////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
         class CRSData
         {
-            public List<ResData> Resources = new List<ResData>();
+            public List<CLResource> resources = new List<CLResource>();
         }
-        class ResData
+        #endregion
+
+        #region Classes
+        class CLResource
         {
-            public uint ID;
-            public int Key;
             public string Type;
             public Vector3 Position;
-        }       
+        }
+       
         private class UnityVector3Converter : JsonConverter
         {
             public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
@@ -403,85 +477,34 @@ namespace Oxide.Plugins
         } // borrowed from ZoneManager
         #endregion
 
-        #region Config
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Configuration /////////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
-
-        int respawnTimer = 15;
-        int authLevel = 1;
-        private void LoadVariables()
-        {
-            LoadConfigVariables();
-            SaveConfig();
-        }
-        private void LoadConfigVariables()
-        {
-            CheckCfg("Options - Resource refresh timer (mins)", ref respawnTimer);
-            CheckCfg("Options - Authlevel required", ref authLevel);
-        }
-        private void CheckCfg<T>(string Key, ref T var)
-        {
-            if (Config[Key] is T)
-                var = (T)Config[Key];
-            else
-                Config[Key] = var;
-        }
-        private void CheckCfgFloat(string Key, ref float var)
-        {
-
-            if (Config[Key] != null)
-                var = Convert.ToSingle(Config[Key]);
-            else
-                Config[Key] = var;
-        }
-        object GetConfig(string menu, string datavalue, object defaultValue)
-        {
-            var data = Config[menu] as Dictionary<string, object>;
-            if (data == null)
-            {
-                data = new Dictionary<string, object>();
-                Config[menu] = data;
-                changed = true;
-            }
-            object value;
-            if (!data.TryGetValue(datavalue, out value))
-            {
-                value = defaultValue;
-                data[datavalue] = value;
-                changed = true;
-            }
-            return value;
-        }
-        #endregion
-
-
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Messages //////////////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
+        #region Messaging
+        private void SendMSG(BasePlayer player, string message) => SendReply(player, $"<color=orange>{Title}:</color> <color=#939393>{message}</color>");
+        private string MSG(string key, string playerid = null) => lang.GetMessage(key, this, playerid);
 
         Dictionary<string, string> messages = new Dictionary<string, string>()
         {
-            {"title", "<color=orange>ResourceSpawns</color> : "},
             {"checkConsole", "Check your console for a list of resources" },
             {"noPerms", "You do not have permission to use this command" },
             {"notType", "The number you have entered is not on the list" },
             {"notNum", "You must enter a resource number" },
             {"notBox", "You are not looking at a resource" },
             {"notReg", "This is not a custom placed resource" },
-            {"removedResource", "Box deleted" },
-            {"synAdd", "/crs add id - Adds a new resource" },
-            {"nameExists", "You already have a resource with that name" },
-            {"synRem", "/crs remove - Remove the resource you are looking at" },
-            {"synResource", "/crs resources - List available resource types and their ID" },
-            {"synWipe", "/crs wipe - Wipes all custom placed resources" },
-            {"synList", "/crs list - Puts all custom resource details to console" },
-            {"synNear", "/crs near XX - Shows custom resources in radius XX" },
-            {"wipedAll", "Wiped {0} custom resource spawns" },
+            {"RemovedResource", "Resource deleted" },
+            {"synAdd", "<color=orange>/crs add id </color><color=#939393>- Adds a new resource</color>" },
+            {"synRem", "<color=orange>/crs remove </color><color=#939393>- Remove the resource you are looking at</color>" },
+            {"synRemNear", "<color=orange>/crs remove near <radius> </color><color=#939393>- Removes the resources within <radius> (default 10M)</color>" },
+            {"synResource", "<color=orange>/crs resources </color><color=#939393>- List available resource types and their ID</color>" },
+            {"synWipe", "<color=orange>/crs wipe </color><color=#939393>- Wipes all custom placed resources</color>" },
+            {"synList", "<color=orange>/crs list </color><color=#939393>- Puts all custom resource details to console</color>" },
+            {"synNear", "<color=orange>/crs near XX </color><color=#939393>- Shows custom resources in radius XX</color>" },
+            {"wipedAll1", "Wiped {0} custom resource spawns" },
             {"foundResources", "Found {0} resource spawns near you"},
             {"noFind", "Couldn't find any resources in radius: {0}M" },
             {"adding", "You have activated the resouce tool. Look where you want to place and press shoot. Type /crs to end" },
-            {"endAdd", "You have de-activated the resouce tool" }
+            {"endAdd", "You have de-activated the resouce tool" },
+            {"removedNear", "Removed {0} resources within a {1}M radius of your position" }
         };
+
+        #endregion
     }
 }

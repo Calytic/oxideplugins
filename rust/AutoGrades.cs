@@ -1,5 +1,7 @@
 /*
 	Created By AlexALX (c) 2015-2016
+	Special thanks to: recon, freaky
+	for keep plugin work with latest rust updates
 */
 using System;
 using System.Collections.Generic;
@@ -8,7 +10,7 @@ using Oxide.Game.Rust.Libraries;
 
 namespace Oxide.Plugins
 {                 
-    [Info("Automatic Build Grades", "AlexALX", "0.0.6", ResourceId = 921)]
+    [Info("Automatic Build Grades", "AlexALX", "0.0.7", ResourceId = 921)]
     public class AutoGrades : RustPlugin
     {
 	
@@ -204,7 +206,7 @@ namespace Oxide.Plugins
 		}*/
 		
         void OnEntityBuilt(Planner planner, UnityEngine.GameObject gameObject) {	
-			var player = planner.ownerPlayer;
+			var player = planner.GetOwnerPlayer();
             if (!HasAnyPerm(player)) return;
 			BuildingBlock buildingBlock = gameObject.GetComponent<BuildingBlock>();
 			if (buildingBlock==null) return;

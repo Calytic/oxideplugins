@@ -1,9 +1,12 @@
 {
     "name": "Admin Radar",
     "description": "Draw boxes where all players are to easily see if players are not supposed to be at places",
-    "author": "Reneb",
-    "version": "1.0.1",
-    "configuration": false,
+    "author": "Austinv900",
+    "version": "1.1.92",
+    "configuration": true,
+    "suggest": {
+        "AdminPanel": "*"
+    },
     "language": "cs",
     "games": [
         "rust"

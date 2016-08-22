@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-     	[Info("FauxAdmin", "Colon Blow", "1.0.1", ResourceId = 1933)]
+     	[Info("FauxAdmin", "Colon Blow", "1.0.3", ResourceId = 1933)]
     	class FauxAdmin : RustPlugin
      	{
 
@@ -13,7 +13,10 @@ namespace Oxide.Plugins
 	public bool DisableFauxAdminDemolish => Config.Get<bool>("DisableFauxAdminDemolish");
 	public bool DisableFauxAdminRotate => Config.Get<bool>("DisableFauxAdminRotate");
 	public bool DisableFauxAdminUpgrade => Config.Get<bool>("DisableFauxAdminUpgrade");
+	public bool AllowGodModeToggle => Config.Get<bool>("AllowGodModeToggle");
 	public bool DisableNoclipOnNoBuild => Config.Get<bool>("DisableNoclipOnNoBuild");
+	public bool UseLevelActivation => Config.Get<bool>("UseLevelActivation");
+	public float ActivateFauxAdminOnLevel => Config.Get<float>("ActivateFauxAdminOnLevel");
 
 	Dictionary<ulong, RestrictedData> _restricted = new Dictionary<ulong, RestrictedData>();
 
@@ -29,7 +32,10 @@ namespace Oxide.Plugins
 			Config["DisableFauxAdminDemolish"] = true;
 			Config["DisableFauxAdminRotate"] = true;
 			Config["DisableFauxAdminUpgrade"] = true;
+			Config["AllowGodModeToggle"] = false;
 			Config["DisableNoclipOnNoBuild"] = true;
+			Config["UseLevelActivation"] = false;
+			Config["ActivateFauxAdminOnLevel"] = 50f;
             		SaveConfig();
         	}
 
@@ -41,6 +47,7 @@ namespace Oxide.Plugins
         	permission.RegisterPermission("fauxadmin.allowed", this);
 		permission.RegisterPermission("fauxadmin.bypass", this);
 		permission.RegisterPermission("fauxadmin.blocked", this);
+		permission.RegisterPermission("fauxadmin.god", this);
 		}
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -55,8 +62,16 @@ namespace Oxide.Plugins
 
 	void OnPlayerTick(BasePlayer player)
 		{
-
 			if (player.net?.connection?.authLevel > 0) return;
+
+			if (!AllowGodModeToggle)
+			{
+				if (isAllowed(player, "fauxadmin.god")) return;
+				if (player.net.connection.info.GetBool("global.god", true) || player.IsImmortal())
+				{
+				rust.RunClientCommand(player, "global.god false");
+				}
+			}
 			if (!DisableNoclipOnNoBuild) return;
 			if (DisableNoclipOnNoBuild)
 			{
@@ -67,7 +82,7 @@ namespace Oxide.Plugins
 				{
 					if (!player.IsFlying()) return;
 					if (isAllowed(player, "fauxadmin.bypass")) return;
-			   		if (player.IsFlying() && isAllowed(player, "fauxadmin.allowed"))
+			   		if ((player.IsFlying()) && ((isAllowed(player, "fauxadmin.allowed")) || MeetsLevelReq(player)))
 			   		{
 						player.violationLevel = 0;
 						
@@ -101,6 +116,7 @@ namespace Oxide.Plugins
         object OnStructureDemolish(BuildingBlock block, BasePlayer player)
         {
             	if (block.OwnerID == 0 || player.userID == 0) return null;
+		if (block.OwnerID == player.userID) return null;
             	if (block.OwnerID != player.userID && DisableFauxAdminDemolish)
             	{
                 	return true;
@@ -111,6 +127,7 @@ namespace Oxide.Plugins
         object OnStructureRotate(BuildingBlock block, BasePlayer player)
         {
             	if (block.OwnerID == 0 || player.userID == 0) return null;
+		if (block.OwnerID == player.userID) return null;
             	if (block.OwnerID != player.userID && DisableFauxAdminRotate)
             	{
                 	return true;
@@ -122,6 +139,7 @@ namespace Oxide.Plugins
         object OnStructureUpgrade(BuildingBlock block, BasePlayer player)
         {
             	if (block.OwnerID == 0 || player.userID == 0) return null;
+		if (block.OwnerID == player.userID) return null;
             	if (block.OwnerID != player.userID && DisableFauxAdminUpgrade)
             	{
                 	return true;
@@ -143,6 +161,15 @@ namespace Oxide.Plugins
 
 			if (player.net?.connection?.authLevel > 0) return;
 
+			if (UseLevelActivation)
+			{
+				if (MeetsLevelReq(player))
+				{
+					player.SetPlayerFlag(BasePlayer.PlayerFlags.IsAdmin, true);
+					return;
+				}
+			}
+
 			if (!isAllowed(player, "fauxadmin.allowed"))
             		{
 				player.SetPlayerFlag(BasePlayer.PlayerFlags.IsAdmin, false);
@@ -157,6 +184,16 @@ namespace Oxide.Plugins
 		}
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	bool MeetsLevelReq(BasePlayer player)
+	{
+		var playerlevel = player.ExperienceLevel;
+		if (playerlevel >= ActivateFauxAdminOnLevel)
+		{
+			return true;
+		}
+		return false;
+	}
 
 	bool isAllowed(BasePlayer player, string perm) => permission.UserHasPermission(player.UserIDString, perm);
 

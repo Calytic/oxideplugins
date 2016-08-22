@@ -1,8 +1,8 @@
 {
-    "name": "Replace On Broken",
-    "description": "Replaces your active broken item with a not broken item if in inventory.",
-    "author": "AnExiledGod",
-    "version": "1.1",
+    "name": "ReplaceOnBroken",
+    "description": "Replaces the active broken item with a not broken item if in inventory",
+    "author": "Wulf",
+    "version": "2.0.0",
     "configuration": false,
     "language": "cs",
     "games": [

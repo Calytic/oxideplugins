@@ -1,0 +1,15 @@
+{
+    "name": "XMasTime",
+    "description": "Allow admins and players with permission to use Rust XMas Event",
+    "author": "Reynostrum",
+    "version": "1.0.2",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

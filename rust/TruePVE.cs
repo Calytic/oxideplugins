@@ -11,7 +11,7 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-	[Info("TruePVE", "ignignokt84", "0.2.0", ResourceId = 1789)]
+	[Info("TruePVE", "ignignokt84", "0.3.3", ResourceId = 1789)]
 	class TruePVE : RustPlugin
 	{
 		/*
@@ -27,7 +27,6 @@ namespace Oxide.Plugins
 		- Barricades will still take damage
 		- Locked doors and boxes take no damage, however unlocked doors and boxes still take damage and can break
 		- Heli can damage aforementioned "unbreakable" entities
-		- Decay can be controlled via a modifier (1.0 = 100% decay, 0.5 = 50%, 0.0 = 0%, etc) - modifier has no effect if TwigsDecay is installed
 		
 		*/
 		
@@ -64,65 +63,68 @@ namespace Oxide.Plugins
 				
 				{"OptionDescHeader", "---- Option: \"{0}\" ----\n"},
 				
-				{"DescBarricade", "Whether or not barricades should be damageable\n" +
+				{"Desc_barricade", "Whether or not barricades should be damageable\n" +
 								  " true: Barricades will take damage and can be destroyed\n" +
 								  " false: Barricades will NOT take damage and cannot be destroyed"},
 				
-				{"DescUnlocked", "Whether or not unlocked boxes and doors should be damageable\n" +
+				{"Desc_unlocked", "Whether or not unlocked boxes and doors should be damageable\n" +
 								 " true: Unlocked doors and boxes will take damage and can be destroyed\n" + 
 								 " false: Unlocked doors and boxes will NOT take damage and cannot be destroyed"},
 				
-				{"DescSleepingBag", "Whether or not sleeping bags and beds should be damageable\n" +
+				{"Desc_sleepingbag", "Whether or not sleeping bags and beds should be damageable\n" +
 									" true: Sleeping bags and beds will take damage and can be destroyed\n" +
 									" false: Sleeping bags and beds will NOT take damage and cannot be destroyed"},
 				
-				{"DescHeli", "Whether heli can damage entities which have been deemed indestructible\n" +
+				{"Desc_heli", "Whether heli can damage entities which have been deemed indestructible\n" +
 							 " true: Heli can damage entities (normal behavior)\n" +
 							 " false: Heli cannot damage entities"},
 				
-				{"DescSleeper", "Whether sleepers can be looted\n" +
+				{"Desc_sleeper", "Whether sleepers can be looted\n" +
 								" true: Anyone can loot sleepers\n" +
 								" false: No one can loot sleepers"},
 				
-				{"DescCorpse", "Whether other players' corpses can be looted\n" +
+				{"Desc_corpse", "Whether other players' corpses can be looted\n" +
 							   " true: Players can loot any corpse\n" +
 							   " false: Players can only loot their own corpse(s)"},
 				
-				{"DescSuicide", "Whether players can commit suicide via F1 > \"kill\" command\n" +
+				{"Desc_suicide", "Whether players can commit suicide via F1 > \"kill\" command\n" +
 								" true: Players can commit suicide\n" +
 								" false: Players cannot commit suicide"},
 				
-				{"DescDecay", "Decay modifier (1.0 = 100% decay)"},
-				
-				{"DescHookDamage", "Whether to enable processing of OnEntityTakeDamage hook\n" +
+				{"Desc_hookdamage", "Whether to enable processing of OnEntityTakeDamage hook\n" +
 								   " true: Enable normal TruePVE handling of entity damage\n" +
 								   " false: Disable TruePVE handling of entity damage - external plugin can call HandleDamage hook"},
 				
-				{"DescHookLoot", "Whether to enable processing of OnLoot* hooks\n" +
+				{"Desc_hookloot", "Whether to enable processing of OnLoot* hooks\n" +
 								 " true: Enable normal TruePVE handling of looting\n" +
 								 " false: Disable TruePVE handling of looting - external plugin can call HandleLooting hook"},
 				
-				{"DescTurret", "Whether to allow turrets to damage players\n" +
+				{"Desc_turret", "Whether to allow turrets to damage players\n" +
 							   " true: Turrets can hurt players\n" +
 							   " false: Turrets cannot hurt players"},
 				
-				{"DescFire", "Whether to enable fire damage\n" +
+				{"Desc_fire", "Whether to enable fire damage\n" +
 							   " true: Fire can damage anything\n" +
 							   " false: Fire cannot damage anything"},
 				
-				{"DescHeliLocked", "Whether locked boxes/doors take damage from heli\n" +
+				{"Desc_helilocked", "Whether locked boxes/doors take damage from heli\n" +
 								   " true: Heli can damage/destroy locked doors/boxes\n" +
-								   " false: Heli cannot damage locked doors/boxes"}
+								   " false: Heli cannot damage locked doors/boxes"},
+				
+				{"Desc_killsleepers", "Whether admins can kill sleepers\n" +
+									 " true: Admins can kill sleepers\n" +
+									 " false: Admins cannot kill sleepers"},
+				
+				{"Desc_authdamage", "Whether players can damage entities where building authorized\n" +
+									" true: Players can damage entities where build authorized\n" +
+									" false: Players cannot damage entities"},
+				
+				{"Desc_napalm", "Whether heli napalm can damage entities\n" +
+								" true: Napalm can damage entities\n" +
+								" false: Napalm cannot damage entities"}
 			};
 			lang.RegisterMessages(messages, this);
         }
-		
-		[PluginReference]
-		Plugin PopupNotifications; // TODO implement popups?
-		private bool usePopups = false;
-		
-		[PluginReference]
-		Plugin TwigsDecay;
 		
 		// option values
 		private Dictionary<Option,object> data = new Dictionary<Option,object>();
@@ -133,9 +135,11 @@ namespace Oxide.Plugins
 		// command enum
 		private enum Command { usage, set, get, desc, list, version, def };
 		// option enum
-		private enum Option { barricade, unlocked, sleepingbag, heli, sleeper, corpse, suicide, decay, hookdamage, hookloot, turret, fire, helilocked};
+		private enum Option { barricade, unlocked, sleepingbag, heli, sleeper, corpse, suicide, hookdamage, hookloot, turret, fire, helilocked, killsleepers, authdamage, napalm};
 		// default values array
-		private object[] def = { true, true, false, true, false, false, true, 1.0f, true, true, false, false, false };
+		private object[] def = { true, true, false, true, false, false, true, true, true, false, false, false, false, false, true };
+		// layer mask for finding authorization
+        private readonly int triggerMask = LayerMask.GetMask("Trigger");
 		
 		// load
 		void Loaded()
@@ -157,14 +161,6 @@ namespace Oxide.Plugins
 									   wrapColor("cyan", baseCommand + "." + Command.def.ToString()) + " - " + GetMessage("CmdUsageDef") + "\n" +
 									   wrapColor("cyan", baseCommand + "." + Command.version.ToString()) + " - " + GetMessage("CmdUsageVersion"));
 		}
-		
-		private void OnServerInitialized()
-        {
-        	if(TwigsDecay != null)
-        		PrintWarning("Plugin TwigsDecay detected - decay modifier will have no effect");
-        	// don't use popups yet
-        	//usePopups = (PopupNotifications != null);
-        }
         
         // get message from Lang
         string GetMessage(string key, string userId = null) => lang.GetMessage(key, this, userId);
@@ -258,10 +254,7 @@ namespace Oxide.Plugins
 			Option opt = (Option) Enum.Parse(typeof(Option), arg.Args[0]);
 			object value;
 			try {
-				if(opt == Option.decay)
-					value = Convert.ToSingle(arg.Args[1]);
-				else
-					value = Convert.ToBoolean(arg.Args[1]);
+				value = Convert.ToBoolean(arg.Args[1]);
 			} catch(FormatException e) {
 				SendReply(arg, wrapSize(12, wrapColor("red", String.Format(GetMessage("InvalidParameter"), arg.Args[1]))));
 				return false;
@@ -308,56 +301,15 @@ namespace Oxide.Plugins
 				return false;
 			}
 			Option opt = (Option) Enum.Parse(typeof(Option), arg.Args[0]);
-			switch(opt)
-			{
-				case Option.barricade:
-					showDesc(arg, opt, GetMessage("DescBarricade"));
-					break;
-				case Option.unlocked:
-					showDesc(arg, opt, GetMessage("DescUnlocked"));
-					break;
-				case Option.sleepingbag:
-					showDesc(arg, opt, GetMessage("DescSleepingBag"));
-					break;
-				case Option.heli:
-					showDesc(arg, opt, GetMessage("DescHeli"));
-					break;
-				case Option.sleeper:
-					showDesc(arg, opt, GetMessage("DescSleeper"));
-					break;
-				case Option.corpse:
-					showDesc(arg, opt, GetMessage("DescCorpse"));
-					break;
-				case Option.suicide:
-					showDesc(arg, opt, GetMessage("DescSuicide"));
-					break;
-				case Option.decay:
-					showDesc(arg, opt, GetMessage("DescDecay"));
-					break;
-				case Option.hookdamage:
-					showDesc(arg, opt, GetMessage("DescHookDamage"));
-					break;
-				case Option.hookloot:
-					showDesc(arg, opt, GetMessage("DescHookLoot"));
-					break;
-				case Option.turret:
-					showDesc(arg, opt, GetMessage("DescTurret"));
-					break;
-				case Option.fire:
-					showDesc(arg, opt, GetMessage("DescFire"));
-					break;
-				case Option.helilocked:
-					showDesc(arg, opt, GetMessage("DescHeliLocked"));
-					break;
-			}
+			showDesc(arg, opt);
 			
 			return true;
 		}
 		
 		// prints the description of an Option
-		private void showDesc(ConsoleSystem.Arg arg, Option opt, string str)
+		private void showDesc(ConsoleSystem.Arg arg, Option opt)
 		{
-			SendReply(arg, wrapSize(14, wrapColor("orange", String.Format(GetMessage("OptionDescHeader"), opt.ToString()))) + wrapSize(12, wrapColor("cyan", str)));
+			SendReply(arg, wrapSize(14, wrapColor("orange", String.Format(GetMessage("OptionDescHeader"), opt.ToString()))) + wrapSize(12, wrapColor("cyan", GetMessage("Desc_" + opt.ToString()))));
 		}
 		
 		// warn that server is in pve mode
@@ -377,12 +329,7 @@ namespace Oxide.Plugins
 		private void LoadConfig()
 		{
 			foreach(Option opt in Enum.GetValues(typeof(Option)))
-			{
-				if(opt == Option.decay)
-					data[opt] = Convert.ToSingle(GetConfig(opt, def[(int)opt]));
-				else
-					data[opt] = Convert.ToBoolean(GetConfig(opt, def[(int)opt]));
-			}
+				data[opt] = Convert.ToBoolean(GetConfig(opt, def[(int)opt]));
 			
 			if (!hasConfigChanged) return;
 			SaveConfig();
@@ -443,12 +390,19 @@ namespace Oxide.Plugins
 			}
 			else if (entity is BasePlayer)
 			{
-				// check for fireball
-				if (!getBool(Option.fire) && hitinfo.Initiator != null && hitinfo.Initiator is FireBall)
-					return false;
 				// allow environment damage
 				if(hitinfo.Initiator == null)
 					return true;
+				// check for fireball
+				if (hitinfo.Initiator is FireBall || hitinfo.Initiator.ShortPrefabName == "campfire")
+					return getBool(Option.fire);
+				// allow heli napalm damage
+				if(hitinfo.Initiator.ShortPrefabName == "napalm")
+					return getBool(Option.napalm);
+				// ignore external wall damage
+				if(hitinfo.Initiator.ShortPrefabName == "wall.external.high.stone" ||
+				   hitinfo.Initiator.ShortPrefabName == "wall.external.high.wood")
+					return false;
 				// allow suicide
 				if(hitinfo.damageTypes.Get(DamageType.Suicide) > 0)
 					if(getBool(Option.suicide))
@@ -460,19 +414,24 @@ namespace Oxide.Plugins
 					}
 				// prevent pvp damage
 				if(hitinfo.Initiator is BasePlayer)
-					return false; //CancelDamage(hitinfo);
+				{
+					// allow admins to kill sleepers if option is toggled on
+					if(((BasePlayer)entity).IsSleeping() && isAdmin((BasePlayer)hitinfo.Initiator))
+						return getBool(Option.killsleepers);
+					return false;
+				}
 				// ignore trap damage
 				if(hitinfo.Initiator is BaseTrap)
 					return false;
 				// ignore barricade damage
 				if(hitinfo.Initiator is Barricade)
 					return false;
-				// ignore spike trap damage
-				if(hitinfo.Initiator.LookupShortPrefabName() == "spikes.floor.prefab")
+				// ignore spike trap, campfire, and external wall damage
+				if(hitinfo.Initiator.ShortPrefabName == "spikes.floor")
 					return false;
 				// handle turret damage
-				if(hitinfo.Initiator is AutoTurret && !getBool(Option.turret))
-					return false;
+				if(hitinfo.Initiator is AutoTurret)
+					return getBool(Option.turret);
 			}
 			else if (entity is BaseNPC)
 			{
@@ -481,17 +440,26 @@ namespace Oxide.Plugins
 			}
 			else if (entity is Barricade)
 			{
+				// exclude door barricades and covers
+				if(entity.ShortPrefabName.Contains("door_barricade") || entity.ShortPrefabName.Contains("cover"))
+					return true;
+				// allow heli napalm damage
+				if(hitinfo.Initiator != null && hitinfo.Initiator.ShortPrefabName == "napalm")
+					return getBool(Option.napalm);
 				// check for fireball
-				if (!getBool(Option.fire) && hitinfo.Initiator != null && hitinfo.Initiator is FireBall)
-					return false;
+				if (hitinfo.Initiator != null && hitinfo.Initiator is FireBall)
+					return getBool(Option.fire);
+				// Check for build authorization permission
+				if(getBool(Option.authdamage) && hitinfo.Initiator != null && hitinfo.Initiator is BasePlayer)
+					return checkAuthDamage(entity, hitinfo.Initiator as BasePlayer);
 				// Check for heli initiator
 				if(hitinfo.Initiator is BaseHelicopter ||
 				   hitinfo.Initiator is HelicopterTurret)
 					return getBool(Option.heli);
 				else if(hitinfo.WeaponPrefab != null) // prevent null spam
 				{
-					if(hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli.prefab" ||
-					   hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli_napalm.prefab")
+					if(hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli" ||
+					   hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli_napalm")
 						return getBool(Option.heli);
 				}
 				// if damage not allowed, cancel damage
@@ -499,17 +467,23 @@ namespace Oxide.Plugins
 			}
 			else if (entity is SleepingBag)
 			{
+				// allow heli napalm damage
+				if(hitinfo.Initiator != null && hitinfo.Initiator.ShortPrefabName == "napalm")
+					return getBool(Option.napalm);
 				// check for fireball
-				if (!getBool(Option.fire) && hitinfo.Initiator != null && hitinfo.Initiator is FireBall)
-					return false;
+				if (hitinfo.Initiator != null && hitinfo.Initiator is FireBall)
+					return getBool(Option.fire);
+				// Check for build authorization permission
+				if(getBool(Option.authdamage) && hitinfo.Initiator != null && hitinfo.Initiator is BasePlayer)
+					return checkAuthDamage(entity, hitinfo.Initiator as BasePlayer);
 				// Check for heli initiator
 				if(hitinfo.Initiator is BaseHelicopter ||
 				   hitinfo.Initiator is HelicopterTurret)
 					return getBool(Option.heli);
 				else if(hitinfo.WeaponPrefab != null) // prevent null spam
 				{
-					if(hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli.prefab" ||
-					   hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli_napalm.prefab")
+					if(hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli" ||
+					   hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli_napalm")
 						return getBool(Option.heli);
 				}
 				// if damage not allowed, cancel damage
@@ -517,17 +491,29 @@ namespace Oxide.Plugins
 			}
 			else if(entity is StorageContainer || entity is Door)
 			{
+				// if entity is a barrel or giftbox, allow damage
+				if(entity.ShortPrefabName.Contains("barrel") || entity.ShortPrefabName == "giftbox_loot")
+					return true;
+				// if entity is a trash can, allow damage
+				if(entity.ShortPrefabName == "loot_trash")
+					return true;
+				// allow heli napalm damage
+				if(hitinfo.Initiator != null && hitinfo.Initiator.ShortPrefabName == "napalm")
+					return getBool(Option.napalm);
+				// Check for build authorization permission
+				if(getBool(Option.authdamage) && hitinfo.Initiator != null && hitinfo.Initiator is BasePlayer)
+					return checkAuthDamage(entity, hitinfo.Initiator as BasePlayer);
 				// check misc deployables and prevent damage
-				if(entity.LookupShortPrefabName() == "lantern.deployed.prefab" ||
-				   entity.LookupShortPrefabName() == "ceilinglight.deployed.prefab" ||
-				   entity.LookupShortPrefabName() == "furnace.large.prefab" ||
-				   entity.LookupShortPrefabName() == "furnace.prefab" ||
-				   entity.LookupShortPrefabName() == "refinery_small_deployed.prefab" ||
-				   entity.LookupShortPrefabName() == "waterbarrel.prefab" ||
-				   entity.LookupShortPrefabName() == "jackolantern.angry.prefab" ||
-				   entity.LookupShortPrefabName() == "jackolantern.happy.prefab" ||
-				   entity.LookupShortPrefabName() == "repairbench_deployed.prefab" ||
-				   entity.LookupShortPrefabName() == "researchtable_deployed.prefab")
+				if(entity.ShortPrefabName == "lantern.deployed" ||
+				   entity.ShortPrefabName == "ceilinglight.deployed" ||
+				   entity.ShortPrefabName == "furnace.large" ||
+				   entity.ShortPrefabName == "furnace" ||
+				   entity.ShortPrefabName == "refinery_small_deployed" ||
+				   entity.ShortPrefabName == "waterbarrel" ||
+				   entity.ShortPrefabName == "jackolantern.angry" ||
+				   entity.ShortPrefabName == "jackolantern.happy" ||
+				   entity.ShortPrefabName == "repairbench_deployed" ||
+				   entity.ShortPrefabName == "researchtable_deployed")
 				{
 					// Check for heli initiator
 					if(hitinfo.Initiator is BaseHelicopter ||
@@ -535,46 +521,37 @@ namespace Oxide.Plugins
 						return getBool(Option.heli);
 					else if(hitinfo.WeaponPrefab != null) // prevent null spam
 					{
-						if(hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli.prefab" ||
-						   hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli_napalm.prefab")
+						if(hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli" ||
+						   hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli_napalm")
 							return getBool(Option.heli);
 					}
 					// don't allow damage
 					return false;
 				}
+				
 				// check campfire/gates
-				if(entity.LookupShortPrefabName() == "campfire.prefab" ||
-				   entity.LookupShortPrefabName() == "gates.external.high.stone" ||
-				   entity.LookupShortPrefabName() == "gates.external.high.wood")
+				if(entity.ShortPrefabName == "campfire" ||
+				   entity.ShortPrefabName == "gates.external.high.stone" ||
+				   entity.ShortPrefabName == "gates.external.high.wood")
 				{
+					// allow campfire/gate decay
+					if(hitinfo.damageTypes.Get(DamageType.Decay) > 0)
+						return true;
 					// Check for heli initiator
 					if(hitinfo.Initiator is BaseHelicopter ||
 					   hitinfo.Initiator is HelicopterTurret)
 						return getBool(Option.heli);
 					else if(hitinfo.WeaponPrefab != null) // prevent null spam
 					{
-						if(hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli.prefab" ||
-						   hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli_napalm.prefab")
+						if(hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli" ||
+						   hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli_napalm")
 							return getBool(Option.heli);
-					}
-					// allow campfire decay
-					if(hitinfo.damageTypes.Get(DamageType.Decay) > 0)
-					{
-						if(TwigsDecay != null) return false; // let TwigsDecay handle decay
-						hitinfo.damageTypes.Set(DamageType.Decay, hitinfo.damageTypes.Get(DamageType.Decay) * getFloat(Option.decay));
-						return true;
 					}
 					return false;
 				}
 				// check for fireball
-				if (!getBool(Option.fire) && hitinfo.Initiator != null && hitinfo.Initiator is FireBall)
-					return false;
-				// if entity is a barrel, allow damage
-				if(entity.LookupShortPrefabName().Contains("barrel"))
-					return true;
-				// if entity is a trash can, allow damage
-				if(entity.LookupShortPrefabName() == "loot_trash.prefab")
-					return true;
+				if (hitinfo.Initiator != null && hitinfo.Initiator is FireBall)
+					return getBool(Option.fire);
 				
 				// if damage not allowed, cancel damage
 				if(!getBool(Option.unlocked))
@@ -585,8 +562,8 @@ namespace Oxide.Plugins
 						return getBool(Option.heli);
 					else if(hitinfo.WeaponPrefab != null) // prevent null spam
 					{
-						if(hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli.prefab" ||
-						   hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli_napalm.prefab")
+						if(hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli" ||
+						   hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli_napalm")
 							return getBool(Option.heli);
 					}
 					return false;
@@ -606,11 +583,11 @@ namespace Oxide.Plugins
 						return getBool(Option.heli);
 					else if(hitinfo.WeaponPrefab != null) // prevent null spam
 					{
-						if(hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli.prefab" ||
-						   hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli_napalm.prefab")
+						if(hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli" ||
+						   hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli_napalm")
 							return getBool(Option.heli);
 					}
-					return false; //CancelDamage(hitinfo);
+					return false;
 				}
 			}
 			else if (!(entity is LootContainer) &&
@@ -620,34 +597,38 @@ namespace Oxide.Plugins
 					 !(entity is Door) &&
 					 !(entity is BaseTrap))
 			{
+				// allow heli napalm damage
+				if(hitinfo.Initiator != null && hitinfo.Initiator.ShortPrefabName == "napalm")
+					return getBool(Option.napalm);
 				// check for fireball
-				if (!getBool(Option.fire) && hitinfo.Initiator != null && hitinfo.Initiator is FireBall)
-					return false;
+				if (hitinfo.Initiator != null && hitinfo.Initiator is FireBall)
+					return getBool(Option.fire);
+				// Check for build authorization permission
+				if(getBool(Option.authdamage) && hitinfo.Initiator != null && hitinfo.Initiator is BasePlayer)
+					return checkAuthDamage(entity, hitinfo.Initiator as BasePlayer);
 				// prevent damage except for decay and (maybe) heli
 				if(hitinfo.damageTypes.Get(DamageType.Decay) > 0)
-				{
-					if(TwigsDecay != null) return false; // let TwigsDecay handle decay
-					hitinfo.damageTypes.Set(DamageType.Decay, hitinfo.damageTypes.Get(DamageType.Decay) * getFloat(Option.decay));
 					return true;
-				}
 				if(hitinfo.Initiator is BaseHelicopter ||
 				   hitinfo.Initiator is HelicopterTurret)
 					return getBool(Option.heli);
 				else if(hitinfo.WeaponPrefab != null) // prevent null spam
 				{
-					if(hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli.prefab" ||
-					   hitinfo.WeaponPrefab.LookupShortPrefabName() == "rocket_heli_napalm.prefab")
+					if(hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli" ||
+					   hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli_napalm")
 						return getBool(Option.heli);
 				}
 				
-				return false; //CancelDamage(hitinfo);
+				return false;
 			}
 			else
 			{
+				// allow heli napalm damage
+				if(hitinfo.Initiator != null && hitinfo.Initiator.ShortPrefabName == "napalm")
+					return getBool(Option.napalm);
 				// check for fireball
-				if (!getBool(Option.fire) && hitinfo.Initiator != null && hitinfo.Initiator is FireBall)
-					return false;
-				//
+				if (hitinfo.Initiator != null && hitinfo.Initiator is FireBall)
+					return getBool(Option.fire);
 			}
 			return true;
 		}
@@ -658,6 +639,33 @@ namespace Oxide.Plugins
 			hitinfo.damageTypes = new DamageTypeList();
             hitinfo.DoHitEffects = false;
 			hitinfo.HitMaterial = 0;
+		}
+		
+		// checks if the player is authorized on all cupboards intersecting the entity
+		private bool checkAuthDamage(BaseCombatEntity entity, BasePlayer player)
+		{
+			// check if the player is the owner of the entity
+			if(player.userID == entity.OwnerID)
+				return true; // player is the owner, allow damage
+			
+			// assume no authorization by default
+			bool authed = false;
+			// check for cupboards which overlap the entity
+			var hit = Physics.OverlapBox(entity.transform.position, entity.bounds.extents/2f, entity.transform.rotation, triggerMask);
+			//var hit = Physics.OverlapSphere(entity.transform.position, 1.0f, triggerMask);
+			// loop through cupboards
+			foreach (var ent in hit)
+			{
+				// get cupboard BuildingPrivilidge
+				BuildingPrivlidge privs = ent.GetComponentInParent<BuildingPrivlidge>();
+				// check if the player is authorized on the cupboard
+				if (privs != null)
+					if (!privs.IsAuthed(player))
+						return false; // return false if not authorized on any single cupboard which overlaps this entity
+					else
+						authed = true; // set authed to true to indicate player is authorized on at least one cupboard
+			}
+            return authed;
 		}
 		
 		// wrap a string in a <size> tag with the passed size
@@ -694,7 +702,7 @@ namespace Oxide.Plugins
 		{
 			if(!getBool(Option.hookloot)) // let other mods handle looting and hook to HandleLoot if necessary
 				return null;
-			if(!HandleLoot(player, target))
+			if(!HandleLoot(player, target, false))
 				return (object) false; // non-null allows looting
 			return null;
 		}
@@ -707,15 +715,24 @@ namespace Oxide.Plugins
 			HandleLoot(player, target);
 		}
 		
+		// handle looting entities
+		private void OnLootEntity(BasePlayer player, BaseEntity target)
+		{
+			if(!getBool(Option.hookloot)) // let other mods handle looting and hook to HandleLoot if necessary
+				return;
+			HandleLoot(player, target);
+		}
+		
 		// handle looting players
 		[HookMethod("HandleLoot")]
-		public bool HandleLoot(BasePlayer player, BaseEntity target)
+		public bool HandleLoot(BasePlayer player, BaseEntity target, bool cancel = true)
 		{
 			if(target == null)
 				return true;
-			if(!AllowLoot(player.GetComponent<PlayerLoot>(), target))
+			if(!AllowLoot(player, target))
 			{
-				CancelLooting(player, target);
+				if(cancel)
+					CancelLooting(player, target);
 				return false;
 			}
 			return true;
@@ -724,15 +741,14 @@ namespace Oxide.Plugins
 		// determine whether to allow looting sleepers and other players' corpses
 		// exposed as hook method for other mods to use
 		[HookMethod("AllowLoot")]
-		private bool AllowLoot(PlayerLoot inventory, BaseEntity target)
+		private bool AllowLoot(BasePlayer player, BaseEntity target)
 		{
-			if(isAdmin(inventory.GetComponent<BasePlayer>()))
+			if(isAdmin(player))
 				return true;
-			else if(target is BasePlayer && !getBool(Option.sleeper))
-				return false;
-			else if(target is PlayerCorpse && !getBool(Option.corpse))
-				if(Convert.ToString(inventory.GetComponent<BasePlayer>().userID) != Convert.ToString(((PlayerCorpse)target).playerSteamID))
-					return false;
+			else if(target is BasePlayer && (target as BasePlayer).IsSleeping())
+				return getBool(Option.sleeper);
+			else if(target is LootableCorpse && (Convert.ToString(player.userID) != Convert.ToString((target as LootableCorpse).playerSteamID)))
+				return getBool(Option.corpse);
 			return true;
 		}
 		
@@ -740,7 +756,7 @@ namespace Oxide.Plugins
 		void CancelLooting(BasePlayer player, BaseEntity target)
 		{
 			string message = "";
-			if(target is PlayerCorpse)
+			if(target is LootableCorpse)
 				message = GetMessage("NoLootCorpse");
 			else if(target is BasePlayer)
 				message = GetMessage("NoLootSleeper");
@@ -761,17 +777,11 @@ namespace Oxide.Plugins
 				SendReply(player, message);
 		}
 		
-		// check PopupNotifications plugin
-		bool checkPopup()
-		{
-			return (PopupNotifications != null && usePopups);
-		}
-		
 		// is admin
         private bool isAdmin(BasePlayer player)
         {
         	if (player == null) return false;
-            if (player?.net?.connection == null) return true;
+            if (player?.net?.connection == null) return false;
             return player.net.connection.authLevel > 0;
         }
 	}

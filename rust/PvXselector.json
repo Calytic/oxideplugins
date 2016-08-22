@@ -1,9 +1,9 @@
 {
     "name": "PvX Selector",
-    "description": "A mod to allow PVE and PVP on a single server (WIP)",
+    "description": "Allows PvE\/PvP Gameplay on one server.",
     "author": "Alphawar",
-    "version": "0.6.0",
-    "configuration": false,
+    "version": "0.9.0",
+    "configuration": true,
     "language": "cs",
     "games": [
         "rust"

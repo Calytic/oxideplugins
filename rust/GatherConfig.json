@@ -2,7 +2,7 @@
     "name": "GatherConfig",
     "description": "Change gatherable items and amounts",
     "author": "Nogrod",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "configuration": true,
     "language": "cs",
     "games": [

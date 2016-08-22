@@ -6,8 +6,8 @@ using Oxide.Core;
 namespace Oxide.Plugins
 {
     //Body part scaling from k1lly0u's plugin, with permission (thanks, k1lly0u)
-    //Further code cleanup/improvement with hel pof k1lly0u
-    [Info("Weapon Damage Scaler", "Shady", "1.0.5", ResourceId = 1594)]
+    //Further code cleanup/improvement with help of k1lly0u
+    [Info("Weapon Damage Scaler", "Shady", "1.0.6", ResourceId = 1594)]
     [Description("Scale damage per weapon/ammo type, and per body part.")]
     internal class WeaponDamageScaler : RustPlugin
     {        
@@ -170,7 +170,7 @@ namespace Oxide.Plugins
         void OnExplosiveThrown(BasePlayer player, BaseEntity entity)
         {
             if (entity == null) return;
-            if (entity.LookupShortPrefabName().Contains("explosive.timed"))
+            if (entity.ShortPrefabName.Contains("explosive.timed"))
             {
                 if (!weaponData.Weapons.ContainsKey("explosive.timed")) return;
                 if (weaponData.Weapons["explosive.timed"].GlobalModifier != 1.0f)
@@ -189,9 +189,9 @@ namespace Oxide.Plugins
             if (!explosive) return;
 
             var damageMod = 1.0f;
-            if (entity.LookupShortPrefabName().Contains("rocket_basic") && weaponData.AmmoTypes.ContainsKey("ammo.rocket.basic")) damageMod = weaponData.AmmoTypes["ammo.rocket.basic"];
-            if (entity.LookupShortPrefabName().Contains("rocket_hv") && weaponData.AmmoTypes.ContainsKey("ammo.rocket.hv")) damageMod = weaponData.AmmoTypes["ammo.rocket.hv"];
-            if (entity.LookupShortPrefabName().Contains("rocket_fire") && weaponData.AmmoTypes.ContainsKey("ammo.rocket.fire")) damageMod = weaponData.AmmoTypes["ammo.rocket.fire"];
+            if (entity.ShortPrefabName.Contains("rocket_basic") && weaponData.AmmoTypes.ContainsKey("ammo.rocket.basic")) damageMod = weaponData.AmmoTypes["ammo.rocket.basic"];
+            if (entity.ShortPrefabName.Contains("rocket_hv") && weaponData.AmmoTypes.ContainsKey("ammo.rocket.hv")) damageMod = weaponData.AmmoTypes["ammo.rocket.hv"];
+            if (entity.ShortPrefabName.Contains("rocket_fire") && weaponData.AmmoTypes.ContainsKey("ammo.rocket.fire")) damageMod = weaponData.AmmoTypes["ammo.rocket.fire"];
             if (damageMod != 1.0f)
                 foreach (var damage in explosive.damageTypes)
                     damage.amount *= damageMod;

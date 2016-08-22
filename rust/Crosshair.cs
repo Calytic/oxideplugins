@@ -47,7 +47,7 @@ namespace Oxide.Plugins
                     CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "DestroyUI", new Facepunch.ObjectList(uiName));
             }
             
-            public string AddText(string name, double left, double top, double width, double height, UIColor color, string text, int textsize = 15, string parent = "HUD/Overlay", int alignmode = 0)
+            public string AddText(string name, double left, double top, double width, double height, UIColor color, string text, int textsize = 15, string parent = "Hud.Under", int alignmode = 0)
             {
                 //name = name + RandomString();
                 text = text.Replace("\n", "{NEWLINE}");
@@ -290,7 +290,7 @@ namespace Oxide.Plugins
 
             UIObject ui = new UIObject();
 
-            ui.AddText("Crosshair", 0.475, 0.475, 0.05, 0.05, new UIColor(red, green, blue, alpha), crosshair, size, "HUD/Overlay", 3);
+            ui.AddText("Crosshair", 0.475, 0.475, 0.05, 0.05, new UIColor(red, green, blue, alpha), crosshair, size, "Hud.Under", 3);
 
             ui.Draw(player);
         }
@@ -299,7 +299,7 @@ namespace Oxide.Plugins
         {
             UIObject ui = new UIObject();
             
-            ui.AddText("Crosshair", 0, 0, 0, 0, new UIColor(0, 0, 0, 0), "", 0, "HUD/Overlay", 4);
+            ui.AddText("Crosshair", 0, 0, 0, 0, new UIColor(0, 0, 0, 0), "", 0, "Hud.Under", 4);
 
             ui.Destroy(player);
         }

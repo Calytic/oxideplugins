@@ -1,0 +1,15 @@
+{
+    "name": "ToukDurability",
+    "description": "Allow you to configure the durability loss of items.",
+    "author": "",
+    "version": "1.0.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

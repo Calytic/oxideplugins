@@ -1,0 +1,21 @@
+{
+    "name": "Quests",
+    "description": "Create quests for users to go on to earn rewards, complete with a GUI menu",
+    "author": "k1lly0u",
+    "version": "2.1.57",
+    "configuration": true,
+    "suggest": {
+        "ServerRewards": "*",
+        "Economics": "*",
+        "HumanNPC": "*",
+        "HuntPlugin": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

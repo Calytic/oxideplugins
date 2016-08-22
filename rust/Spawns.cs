@@ -1,256 +1,395 @@
-// Reference: Oxide.Ext.Rust
-
-using System.Collections.Generic;
 using System;
-using System.Data;
-using UnityEngine;
+using System.Collections.Generic;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Oxide.Core;
-
+using Oxide.Core.Configuration;
+using Newtonsoft.Json.Converters;
+using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Spawns Database", "Reneb", "1.1.0")]
+    [Info("Spawns", "Reneb / k1lly0u", "2.0.1", ResourceId = 0)]
     class Spawns : RustPlugin
     {
-        Dictionary<BasePlayer, object> SpawnsData;
-        Dictionary<string, object> SpawnsfileData;
-        private int currentrandom;
-        private System.Random getrandom;
+        #region Fields
+        SpawnsData spawnsData;
+        private DynamicConfigFile data;
+
+        Dictionary<ulong, List<Vector3>> SpawnCreation;
+        Dictionary<string, List<Vector3>> LoadedSpawnfiles;
+
+        #endregion
+
+        #region Oxide Hooks
         void Loaded()
         {
-            SpawnsData = new Dictionary<BasePlayer, object>();
-            getrandom = new System.Random();
-            SpawnsfileData = new Dictionary<string, object>();
+            lang.RegisterMessages(Messages, this);
+            data = Interface.Oxide.DataFileSystem.GetFile("spawns_data");
+            SpawnCreation = new Dictionary<ulong, List<Vector3>>();
+            LoadedSpawnfiles = new Dictionary<string, List<Vector3>>();
         }
         void OnServerInitialized()
         {
+            LoadData();
+            VerifySpawnfiles();
+        }
+        #endregion
+
+        #region Functions
+        void VerifySpawnfiles()
+        {
+            bool hasChanged = false;
+            for (int i = 0; i < spawnsData.Spawnfiles.Count; i++)
+            {
+                if (!Interface.Oxide.DataFileSystem.ExistsDatafile(spawnsData.Spawnfiles[i]))
+                {
+                    spawnsData.Spawnfiles.Remove(spawnsData.Spawnfiles[i]);
+                    hasChanged = true;
+                }
+            }
+            if (hasChanged) SaveData();
+        }
+        int GetRandomNumber(int min, int max)
+        {
+            return UnityEngine.Random.Range(min, max);
+        }
+        object LoadSpawns(string name)
+        {
+            if (!LoadedSpawnfiles.ContainsKey(name))
+            {
+                object success = LoadSpawnFile(name);
+                if (success == null)
+                {
+                    return MSG("noFile");
+                }
+                else LoadedSpawnfiles.Add(name, (List<Vector3>)success);
+            }
+            return null;
+        }
+        #endregion
+
+        #region Hooks
+
+        object GetSpawnsCount(string filename)
+        {
+            object success = LoadSpawns(filename);
+            if (success != null) return (string)success;
+            return LoadedSpawnfiles[filename].Count;
+        }
+        object GetRandomSpawn(string filename)
+        {
+            object success = LoadSpawns(filename);
+            if (success != null) return (string)success;
+            return LoadedSpawnfiles[filename][GetRandomNumber(0, LoadedSpawnfiles[filename].Count)];
+        }
+        object GetRandomSpawnRange(string filename, int min, int max)
+        {
+            object success = LoadSpawns(filename);
+            if (success != null) return (string)success;
+            if (min < 0) min = 0;
+            if (max > LoadedSpawnfiles[filename].Count) max = LoadedSpawnfiles[filename].Count;
+            return LoadedSpawnfiles[filename][GetRandomNumber(min, max)];
+        }
+        object GetSpawn(string filename, int number)
+        {
+            object success = LoadSpawns(filename);
+            if (success != null) return (string)success;
+            if (number < 0) number = 0;
+            if (number > LoadedSpawnfiles[filename].Count) number = LoadedSpawnfiles[filename].Count;
+            return LoadedSpawnfiles[filename][number];
+        }
+        string[] GetSpawnfileNames() => spawnsData.Spawnfiles.ToArray();
+        #endregion
+
+        #region Chat Commands
+        [ChatCommand("spawns")]
+        void cmdSpawns(BasePlayer player, string command, string[] args)
+        {
+            if (!hasAccess(player)) return;
+            if (args == null || args.Length == 0)
+            {
+                SendHelp(player);
+                return;
+            }
+            if (args.Length >= 1)
+            {
+                switch (args[0].ToLower())
+                {
+                    case "new":
+                        if (isCreating(player))
+                        {
+                            SendReply(player, MSG("alreadyCreating", player.UserIDString));
+                            return;
+                        }
+                        SpawnCreation.Add(player.userID, new List<Vector3>());
+                        SendReply(player, MSG("newCreating", player.UserIDString));
+                        return;
+
+                    case "open":
+                        if (args.Length >= 2)
+                        {
+                            if (isCreating(player))
+                            {
+                                SendReply(player, MSG("isCreating", player.UserIDString));
+                                return;
+                            }
+                            var spawns = LoadSpawnFile(args[1]);
+                            if (spawns != null)
+                            {
+                                SpawnCreation.Add(player.userID, (List<Vector3>)spawns);
+                                SendReply(player, string.Format(MSG("opened", player.UserIDString), SpawnCreation[player.userID].Count));
+                                return;
+                            }
+                            else
+                            {
+                                SendReply(player, MSG("invalidFile", player.UserIDString));
+                                return;
+                            }
+                        }
+                        else SendReply(player, MSG("fileName", player.UserIDString));
+                        return;
+
+                    case "add":
+                        if (!isCreating(player))
+                        {
+                            SendReply(player, MSG("notCreating", player.UserIDString));
+                            return;
+                        }
+                        else
+                        {
+                            SpawnCreation[player.userID].Add(player.transform.position);
+                            SendReply(player, string.Format("Added Spawn nÂ°{0}", SpawnCreation[player.userID].Count));
+                        }
+                        return;
+
+                    case "remove":
+                        if (args.Length >= 2)
+                        {
+                            if (!isCreating(player))
+                            {
+                                SendReply(player, MSG("notCreating", player.UserIDString));
+                                return;
+                            }
+                            if (SpawnCreation[player.userID].Count > 0)
+                            {
+                                int number;
+                                if (int.TryParse(args[1], out number))
+                                {
+                                    number = int.Parse(args[1]);
+                                    if (number < SpawnCreation[player.userID].Count)
+                                    {
+                                        SpawnCreation[player.userID].RemoveAt(number - 1);
+                                        SendReply(player, string.Format(MSG("remSuccess", player.UserIDString), number));
+                                        return;
+                                    }
+                                    SendReply(player, MSG("nexistNum", player.UserIDString));
+                                    return;
+                                }
+                                SendReply(player, MSG("noNum", player.UserIDString));
+                                return;
+                            }
+                            SendReply(player, MSG("noSpawnpoints", player.UserIDString));
+                            return;
+                        }
+                        else SendReply(player, "/spawns remove <number>");
+                        return;
+
+                    case "save":
+                        if (args.Length >= 2)
+                        {
+                            if (!isCreating(player))
+                            {
+                                SendReply(player, MSG("noCreate", player.UserIDString));
+                                return;
+                            }
+                            if (SpawnCreation[player.userID].Count > 0)
+                            {
+                                SaveSpawnFile(player, args[1]);
+                                return;
+                            }
+                            SendReply(player, MSG("noSpawnpoints", player.UserIDString));
+                            return;
+                        }
+                        else SendReply(player, "/spawns save <filename>");
+                        return;
+
+                    case "close":
+                        if (!isCreating(player))
+                        {
+                            SendReply(player, MSG("noCreate", player.UserIDString));
+                            return;
+                        }
+                        SpawnCreation.Remove(player.userID);
+                        SendReply(player, MSG("noSave", player.UserIDString));
+                        return;
+
+                    case "show":
+                        if (!isCreating(player))
+                        {
+                            SendReply(player, MSG("notCreating", player.UserIDString));
+                            return;
+                        }
+                        if (SpawnCreation[player.userID].Count > 0)
+                        {
+                            int i = 1;
+                            foreach (var point in SpawnCreation[player.userID])
+                            {
+                                player.SendConsoleCommand("ddraw.text", 10f, Color.green, point + new Vector3(0, 1.5f, 0), $"<size=40>{i}</size>");
+                                player.SendConsoleCommand("ddraw.box", 10f, Color.green, point, 1f);
+                                i++;
+                            }
+                            return;
+                        }
+                        else SendReply(player, MSG("noSp", player.UserIDString));
+                        return;
+
+                    default:
+                        SendHelp(player);
+                        break;
+                }
+            }
+        }
+        void SendHelp(BasePlayer player)
+        {
+            SendReply(player, MSG("newSyn", player.UserIDString));
+            SendReply(player, MSG("openSyn", player.UserIDString));
+            SendReply(player, MSG("addSyn", player.UserIDString));
+            SendReply(player, MSG("remSyn", player.UserIDString));
+            SendReply(player, MSG("saveSyn", player.UserIDString));
+            SendReply(player, MSG("closeSyn", player.UserIDString));
+            SendReply(player, MSG("showSyn", player.UserIDString));
+        }
+        bool isCreating(BasePlayer player)
+        {
+            if (SpawnCreation.ContainsKey(player.userID)) return true;
+            return false;
         }
         bool hasAccess(BasePlayer player)
         {
             if (player.net.connection.authLevel < 1)
             {
-                SendReply(player, "You are not allowed to use this command");
+                SendReply(player, MSG("noAccess", player.UserIDString));
                 return false;
             }
             return true;
         }
-        object GetSpawnsCount(string filename)
-        {
-            if (!(SpawnsfileData.ContainsKey(filename)))
-            {
-                object success = loadSpawnfile(filename);
-                if (success is string)
-                {
-                    return (string)success;
-                }
-            }
-            return ((List<Vector3>)SpawnsfileData[filename]).Count;
-        }
-        int GetRandomNumber(int min, int max)
-        {
-            return getrandom.Next(min, max);
-        }
-        object GetRandomSpawn(string filename)
-        {
-            if (!(SpawnsfileData.ContainsKey(filename)))
-            {
-                object success = loadSpawnfile(filename);
-                if (success is string)
-                {
-                    return (string)success;
-                }
-            }
-            return ((List<Vector3>)SpawnsfileData[filename])[GetRandomNumber(0, ((List<Vector3>)SpawnsfileData[filename]).Count)];
-        }
+        #endregion
 
-        object GetRandomSpawnRange(string filename, int min, int max)
+        #region Data Management
+        void SaveData() => data.WriteObject(spawnsData);
+        void LoadData()
         {
-            if (!(SpawnsfileData.ContainsKey(filename)))
+            try
             {
-                object success = loadSpawnfile(filename);
-                if (success is string)
-                {
-                    return (string)success;
-                }
+                spawnsData = data.ReadObject<SpawnsData>();
             }
-            if (min < 0) min = 0;
-            if (max > ((List<Vector3>)SpawnsfileData[filename]).Count) max = ((List<Vector3>)SpawnsfileData[filename]).Count;
-            return ((List<Vector3>)SpawnsfileData[filename])[GetRandomNumber(min, max)];
+            catch
+            {
+                spawnsData = new SpawnsData();
+            }
         }
-        object GetSpawn(string filename, int number)
+        void SaveSpawnFile(BasePlayer player, string name)
         {
-            if (!(SpawnsfileData.ContainsKey(filename)))
-            {
-                object success = loadSpawnfile(filename);
-                if (success is string)
-                {
-                    return (string)success;
-                }
-            }
-            if (number < 0) number = 0;
-            if (number > ((List<Vector3>)SpawnsfileData[filename]).Count) number = ((List<Vector3>)SpawnsfileData[filename]).Count;
-            return ((List<Vector3>)SpawnsfileData[filename])[number];
-        }
-        object loadSpawnfile(string filename)
-        {
-            if (SpawnsfileData.ContainsKey(filename))
-                SpawnsfileData.Remove(filename);
-            var loadFile = Interface.GetMod().DataFileSystem.GetDatafile(filename);
-            if (loadFile["1"] == null)
-            {
-                return "This file doesn't exist";
-            }
-            SpawnsfileData.Add(filename, new List<Vector3>());
-            foreach (KeyValuePair<string, object> pair in loadFile)
-            {
-                var currentvalue = pair.Value as Dictionary<string, object>;
-                ((List<Vector3>)SpawnsfileData[filename]).Add(new Vector3(Convert.ToInt32(currentvalue["x"]), Convert.ToInt32(currentvalue["y"]), Convert.ToInt32(currentvalue["z"])));
-            }
-            return true;
-        }
-        [ChatCommand("spawns_new")]
-        void cmdSpawnsNew(BasePlayer player, string command, string[] args)
-        {
-            if (!hasAccess(player)) return;
-            if (SpawnsData.ContainsKey(player))
-            {
-                SendReply(player, "You are already creating a spawn file");
-                return;
-            }
-            SpawnsData.Add(player, new List<Vector3>());
-            SendReply(player, "You now creating a new spawn file");
-        }
-        [ChatCommand("spawns_open")]
-        void cmdSpawnOpen(BasePlayer player, string command, string[] args)
-        {
-            if (!hasAccess(player)) return;
-            if (SpawnsData.ContainsKey(player))
-            {
-                SendReply(player, "You must save/close your current spawns first. /spawns_help for more informations");
-                return;
-            }
-            if (args == null || args.Length == 0)
-            {
-                SendReply(player, "/spawns_remove SPAWN_NUMBER");
-                return;
-            }
-            var NewSpawnFile = Interface.GetMod().DataFileSystem.GetDatafile(args[0].ToString());
-            if (NewSpawnFile["1"] == null)
-            {
-                SendReply(player, "This spawnfile is empty or not valid");
-                return;
-            }
-            SpawnsData.Add(player, new List<Vector3>());
-            foreach (KeyValuePair<string, object> pair in NewSpawnFile)
-            {
-                var currentvalue = pair.Value as Dictionary<string, object>;
-                ((List<Vector3>)SpawnsData[player]).Add(new Vector3(Convert.ToInt32(currentvalue["x"]), Convert.ToInt32(currentvalue["y"]), Convert.ToInt32(currentvalue["z"])));
-            }
-            SendReply(player, string.Format("Opened spawnfile with {0} spawns", ((List<Vector3>)SpawnsData[player]).Count.ToString()));
-        }
-        [ChatCommand("spawns_add")]
-        void cmdSpawnAdd(BasePlayer player, string command, string[] args)
-        {
-            if (!hasAccess(player)) return;
-            if (!(SpawnsData.ContainsKey(player)))
-            {
-                SendReply(player, "You must create/open a new Spawn file first /spawns_help for more informations");
-                return;
-            }
-            ((List<Vector3>)SpawnsData[player]).Add(player.transform.position);
-            SendReply(player, string.Format("Added Spawn n°{0}", ((List<Vector3>)SpawnsData[player]).Count));
-        }
-        [ChatCommand("spawns_remove")]
-        void cmdSpawnsRemove(BasePlayer player, string command, string[] args)
-        {
-            if (!hasAccess(player)) return;
-            if (!(SpawnsData.ContainsKey(player)))
-            {
-                SendReply(player, "You must create/open a new Spawn file first /spawns_help for more informations");
-                return;
-            }
-            if (args == null || args.Length == 0)
-            {
-                SendReply(player, "/spawns_remove SPAWN_NUMBER");
-                return;
-            }
-            int result;
-            if (!int.TryParse(args[0], out result))
-            {
-                SendReply(player, "/spawns_remove SPAWN_NUMBER");
-                return;
-            }
-            result = Convert.ToInt32(args[0]);
-            if (((List<Vector3>)SpawnsData[player]).Count == 0)
-            {
-                SendReply(player, "You didn't set any spawns yet");
-                return;
-            }
-            if (result > ((List<Vector3>)SpawnsData[player]).Count)
-            {
-                SendReply(player, "This spawns number doesn't exist");
-                return;
-            }
-            ((List<Vector3>)SpawnsData[player]).RemoveAt(result);
-            SendReply(player, string.Format("Successfully removed Spawn n°{0}", result.ToString()));
-        }
-        [ChatCommand("spawns_save")]
-        void cmdSpawnsSave(BasePlayer player, string command, string[] args)
-        {
-            if (!hasAccess(player)) return;
-            if (!(SpawnsData.ContainsKey(player)))
-            {
-                SendReply(player, "You must create a new Spawn file first /spawns_help for more informations");
-                return;
-            }
-            if (args == null || args.Length == 0)
-            {
-                SendReply(player, "/spawns_save FILENAME");
-                return;
-            }
-            if (((List<Vector3>)SpawnsData[player]).Count == 0)
-            {
-                SendReply(player, "You didn't set any spawns yet");
-                return;
-            }
-            var NewSpawnFile = Interface.GetMod().DataFileSystem.GetDatafile(args[0].ToString());
+            var NewSpawnFile = Interface.Oxide.DataFileSystem.GetFile(name);
             NewSpawnFile.Clear();
+            NewSpawnFile.Settings.Converters = new JsonConverter[] { new StringEnumConverter(), new UnityVector3Converter() };
+            var spawnFile = new Spawnfile();
+
             int i = 1;
-            foreach (Vector3 spawnpoint in (List<Vector3>)SpawnsData[player])
+            foreach (Vector3 spawnpoint in SpawnCreation[player.userID])
             {
-                var spawnpointadd = new Dictionary<string, object>();
-                spawnpointadd.Add("x", Math.Round(spawnpoint.x * 100) / 100);
-                spawnpointadd.Add("y", Math.Round(spawnpoint.y * 100) / 100);
-                spawnpointadd.Add("z", Math.Round(spawnpoint.z * 100) / 100);
-                NewSpawnFile[i.ToString()] = spawnpointadd;
+                spawnFile.spawnPoints.Add(i.ToString(), spawnpoint);
                 i++;
             }
-            Interface.GetMod().DataFileSystem.SaveDatafile(args[0].ToString());
-            SendReply(player, string.Format("{0} spawnpoints saved into {1}", ((List<Vector3>)SpawnsData[player]).Count.ToString(), args[0].ToString()));
-            SpawnsData.Remove(player);
+            NewSpawnFile.WriteObject(spawnFile);
+
+            spawnsData.Spawnfiles.Add(name);
+            SaveData();
+
+            SendReply(player, string.Format(MSG("saved", player.UserIDString), SpawnCreation[player.userID].Count, name));
+            SpawnCreation.Remove(player.userID);
         }
-        [ChatCommand("spawns_close")]
-        void cmdSpawnsClose(BasePlayer player, string command, string[] args)
+        object LoadSpawnFile(string name)
         {
-            if (!hasAccess(player)) return;
-            if (!(SpawnsData.ContainsKey(player)))
+            var sfile = Interface.GetMod().DataFileSystem.GetDatafile(name);
+            sfile.Settings.Converters = new JsonConverter[] { new StringEnumConverter(), new UnityVector3Converter() };
+
+            var spawnFile = new Spawnfile();
+            spawnFile = sfile.ReadObject<Spawnfile>();
+
+            var spawnList = new List<Vector3>();
+            foreach (var pair in spawnFile.spawnPoints)
             {
-                SendReply(player, "You must create a new Spawn file first /spawns_help for more informations");
-                return;
+                spawnList.Add(pair.Value);
             }
-            SpawnsData.Remove(player);
-            SendReply(player, "Spawns file closed without saving");
+            if (spawnList.Count < 1)
+                return null;
+            return spawnList;
         }
-        [ChatCommand("spawns_help")]
-        void cmdSpawnshelp(BasePlayer player, string command, string[] args)
+        class SpawnsData
         {
-            if (!hasAccess(player)) return;
-            SendReply(player, "Start by making a new data with: /spawns_new");
-            SendReply(player, "Add new spawn points where you are standing with /spawns_add");
-            SendReply(player, "Remove a spawn point that you didn't like with /spawns_remove NUMBER");
-            SendReply(player, "Save the spawn points into a file with: /spawns_save FILENAME");
-            SendReply(player, "Use /spawns_open later on to open it back and edit it");
-            SendReply(player, "Use /spawns_close to stop setting points without saving");
+            public List<string> Spawnfiles = new List<string>();
         }
+        class Spawnfile
+        {
+            public Dictionary<string, Vector3> spawnPoints = new Dictionary<string, Vector3>();
+        }
+        private class UnityVector3Converter : JsonConverter
+        {
+            public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+            {
+                var vector = (Vector3)value;
+                writer.WriteValue($"{vector.x} {vector.y} {vector.z}");
+            }
+
+            public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
+            {
+                if (reader.TokenType == JsonToken.String)
+                {
+                    var values = reader.Value.ToString().Trim().Split(' ');
+                    return new Vector3(Convert.ToSingle(values[0]), Convert.ToSingle(values[1]), Convert.ToSingle(values[2]));
+                }
+                var o = JObject.Load(reader);
+                return new Vector3(Convert.ToSingle(o["x"]), Convert.ToSingle(o["y"]), Convert.ToSingle(o["z"]));
+            }
+
+            public override bool CanConvert(Type objectType)
+            {
+                return objectType == typeof(Vector3);
+            }
+        }
+        #endregion
+
+        #region Messaging
+        private string MSG(string key, string ID = null) => lang.GetMessage(key, this, ID);
+        Dictionary<string, string> Messages = new Dictionary<string, string>
+        {
+            {"noFile", "This file doesn't exist" },
+            {"alreadyCreating", "You are already creating a spawn file" },
+            {"newCreating", "You now creating a new spawn file" },
+            {"isCreating", "You must save/close your current spawn file first. Type /spawns for more information" },
+            {"opened", "Opened spawnfile with {0} spawns" },
+            {"invalidFile", "This spawnfile is empty or not valid" },
+            {"fileName", "You must enter a filename" },
+            {"notCreating", "You must create/open a new Spawn file first /spawns for more information" },
+            {"remSuccess", "Successfully removed spawn nÂ°{0}" },
+            {"nexistNum", "This spawn number doesn't exist" },
+            {"noNum", "You must enter a spawn point number" },
+            {"noSpawnpoints", "You haven't set any spawn points yet" },
+            {"noCreate", "You must create a new Spawn file first. Type /spawns for more information" },
+            {"noSave", "Spawn file closed without saving" },
+            {"noSp", "You must add spawnpoints first" },
+            {"newSyn", "/spawns new - Create a new spawn file" },
+            {"openSyn", "/spawns open - Open a existing spawn file for editing" },
+            {"addSyn", "/spawns add - Add a new spawn point" },
+            {"remSyn", "/spawns remove <number> - Remove a spawn point" },
+            {"saveSyn", "/spawns save <filename> - Saves your spawn file" },
+            {"closeSyn", "/spawns close - Cancel spawn file creation" },
+            {"showSyn", "/spawns show - Display a box at each spawnpoint" },
+            {"noAcceess", "You are not allowed to use this command" },
+            {"saved", "{0} spawnpoints saved into {1}" }
+        };
+        #endregion
     }
 }

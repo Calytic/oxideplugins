@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Build", "Reneb & NoGrod", "1.1.5", ResourceId = 715)]
+    [Info("Build", "Reneb & NoGrod", "1.1.6", ResourceId = 715)]
     class Build : RustPlugin
     {
         class BuildPlayer : MonoBehaviour
@@ -88,7 +88,7 @@ namespace Oxide.Plugins
         public static string json = @"[
             {
                 ""name"": ""BuildMsg"",
-                ""parent"": ""HUD/Overlay"",
+                ""parent"": ""Overlay"",
                 ""components"":
                 [
                     {
@@ -218,7 +218,7 @@ namespace Oxide.Plugins
             LoadVariables();
             nameToBlockPrefab = new Dictionary<string, string>();
             VectorUP = new Vector3(0f, 1f, 0f);
-            if (!permission.PermissionExists("builder")) permission.RegisterPermission("builder", this);
+            if (!permission.PermissionExists("build.builder")) permission.RegisterPermission("build.builder", this);
             json = json.Replace("{xmin}", xmin).Replace("{xmax}", xmax).Replace("{ymin}", ymin).Replace("{ymax}", ymax);
         }
 
@@ -462,16 +462,12 @@ namespace Oxide.Plugins
             nameToSockets.Add("assets/prefabs/building/wall.window.bars/wall.window.bars.toptier.prefab", SocketType.Bar);
             nameToSockets.Add("assets/prefabs/building core/wall.low/wall.low.prefab", SocketType.Wall);
             nameToSockets.Add("assets/prefabs/building core/pillar/pillar.prefab", SocketType.Support);
-            //nameToSockets.Add("assets/bundled/prefabs/build/block.halfheight.prefab", SocketType.Block);
-            //nameToSockets.Add("assets/bundled/prefabs/build/block.halfheight.slanted.prefab", SocketType.Block);
             nameToSockets.Add("assets/prefabs/building core/stairs.l/block.stair.lshape.prefab", SocketType.Block);
             nameToSockets.Add("assets/prefabs/building core/stairs.u/block.stair.ushape.prefab", SocketType.Block);
             nameToSockets.Add("assets/prefabs/building/door.hinged/door.hinged.wood.prefab", SocketType.Door);
             nameToSockets.Add("assets/prefabs/building/door.hinged/door.hinged.metal.prefab", SocketType.Door);
             nameToSockets.Add("assets/prefabs/building/door.hinged/door.hinged.toptier.prefab", SocketType.Door);
-
-            // Foundation steps are fucked up, i need to look how this works more
-            //nameToSockets.Add("assets/bundled/prefabs/build/foundation.steps.prefab", SocketType.Floor);
+            nameToSockets.Add("assets/prefabs/building core/foundation.steps/foundation.steps.prefab", SocketType.Floor);
         }
 
         /////////////////////////////////////////////////////
@@ -510,7 +506,7 @@ namespace Oxide.Plugins
         bool hasAccess(BasePlayer player)
         {
             if (player.net.connection.authLevel >= levelRequired) return true;
-            if (permission.UserHasPermission(player.userID.ToString(), "builder")) return true;
+            if (permission.UserHasPermission(player.userID.ToString(), "build.builder")) return true;
 
             SendReply(player, "You are not allowed to use this command");
             return false;

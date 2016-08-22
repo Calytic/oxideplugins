@@ -14,7 +14,7 @@ class rankme:
     def __init__(self):
 
         self.Title = 'Rank-ME'
-        self.Version = V(2, 6, 1)
+        self.Version = V(2, 6, 3)
         self.Author = 'SkinN'
         self.Description = 'Complex ranking system based on player statistics'
         self.ResourceId = 1074
@@ -336,8 +336,8 @@ class rankme:
         self._RemovePlayerFromZones(player)
 
     # -------------------------------------------------------------------------
-    def OnBlueprintReveal(self, item, revealed, player):
-        '''Called when a player attempts to reveal a blueprint'''
+    def OnBlueprintRevealed(self, item, revealed, player):
+        '''Called when a player revealed a blueprint'''
 
         uid = self.playerid(player)
 
@@ -358,7 +358,7 @@ class rankme:
                 self.db[uid]['resources'] += item.amount
 
     # -------------------------------------------------------------------------
-    def OnCollectiblePickup(self, item, player):
+    def OnCollectiblePickup(self, item, player, entity):
         '''
             Called when a player collects an item
         '''
@@ -439,7 +439,7 @@ class rankme:
 
     # -------------------------------------------------------------------------
     # - STRUCTURE HOOKS
-    def OnEntityBuilt(self, planner, component):
+    def GetOwnerPlayer(self, planner, component):
         '''Called when any structure is built (walls, ceilings, stairs, etc.)'''
 
         # Check for a valid player

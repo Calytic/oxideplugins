@@ -2,7 +2,7 @@
     "name": "Hammer Time",
     "description": "Tweak \"Demolish\" and \"Rotate\" time when using the hammer",
     "author": "Shady757",
-    "version": "1.0.6",
+    "version": "1.0.10",
     "configuration": true,
     "language": "cs",
     "games": [

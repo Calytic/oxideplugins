@@ -5,7 +5,7 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("InventoryGuardian", "k1lly0u", "0.2.21", ResourceId = 773)]
+    [Info("InventoryGuardian", "k1lly0u", "0.2.22", ResourceId = 773)]
     class InventoryGuardian : RustPlugin
     {
         #region Fields
@@ -25,6 +25,8 @@ namespace Oxide.Plugins
             RegisterPermisions();
             CheckProtocol();
             SaveLoop();
+            foreach (var player in BasePlayer.activePlayerList)
+                OnPlayerInit(player);
         }
         void OnPlayerInit(BasePlayer player)
         {
@@ -193,7 +195,6 @@ namespace Oxide.Plugins
             iItem.amount = item.amount;
             iItem.mods = new List<SavedItem>();
             iItem.container = container;
-            iItem.bp = item.IsBlueprint();
             iItem.skinid = item.skin;
             iItem.itemid = item.info.itemid;
             iItem.weapon = false;
@@ -265,14 +266,14 @@ namespace Oxide.Plugins
         private Item BuildItem(SavedItem sItem)
         {
             if (sItem.amount < 1) sItem.amount = 1;
-            Item item = ItemManager.CreateByItemID(sItem.itemid, sItem.amount, sItem.bp, sItem.skinid);
+            Item item = ItemManager.CreateByItemID(sItem.itemid, sItem.amount, sItem.skinid);
             if (igData.KeepCondition && item.hasCondition)
                 item.condition = sItem.condition;
             return item;
         }
         private Item BuildWeapon(SavedItem sItem)
         {
-            Item item = ItemManager.CreateByItemID(sItem.itemid, 1, sItem.bp, sItem.skinid);
+            Item item = ItemManager.CreateByItemID(sItem.itemid, 1, sItem.skinid);
             if (igData.KeepCondition && item.hasCondition)
                 item.condition = sItem.condition;
             var weapon = item.GetHeldEntity() as BaseProjectile;
@@ -726,7 +727,6 @@ namespace Oxide.Plugins
         {
             public string shortname;
             public int itemid;
-            public bool bp;
             public string container;
             public float condition;
             public int amount;

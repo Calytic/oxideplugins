@@ -1,0 +1,15 @@
+{
+    "name": "Magazin Booster",
+    "description": "Can change magazines, ammo and conditon for most projectile weapons",
+    "author": "Fujikura",
+    "version": "1.2.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

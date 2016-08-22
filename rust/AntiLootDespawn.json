@@ -1,0 +1,15 @@
+{
+    "name": "AntiLootDespawn",
+    "description": "Stop defenders from despawning their loot",
+    "author": "Bamabo",
+    "version": "1.1.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}
