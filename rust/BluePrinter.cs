@@ -9,13 +9,14 @@ References:
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Oxide.Core;
 using Oxide.Core.Plugins;
 using Oxide.Core.Libraries;
 
 namespace Oxide.Plugins
 {
-    [Info("BluePrinter", "mk_sky", "1.0.5", ResourceId = 1343)]
+    [Info("BluePrinter", "mk_sky", "1.0.6", ResourceId = 1343)]
     [Description("Allows producing blueprints your char knows, needs paper or blueprintparts.")]
     class BluePrinter : RustPlugin
     {
@@ -27,6 +28,8 @@ namespace Oxide.Plugins
         ListDictionary<Rust.Rarity, string> blueprintPartsTypeNeeded;
 
         ListDictionary<Rust.Rarity, int> drawTimes;
+
+        ListDictionary<Rust.Rarity, int> drawTimeModifier;
 
         Dictionary<string, int> blueprintPartsID = new Dictionary<string, int>() {
             { "blueprint_fragment", 1351589500 },
@@ -45,18 +48,22 @@ namespace Oxide.Plugins
 
         bool blueprintPartsUsageAllowed = false;
 
-        bool popupsEnabled = false;
+        bool drawTimeModifierEnabled = false;
 
-        [PluginReference]
-        Plugin PopupNotifications;
+        bool mulitUseBPsAllowed = true;
+
+        //bool popupsEnabled = false;
+        //
+        //[PluginReference]
+        //Plugin PopupNotifications;
         #endregion
 
         void OnServerInitialized()
         {
             ConfigLoader();
 
-            if (!permission.PermissionExists("canuseblueprinter"))
-                permission.RegisterPermission("canuseblueprinter", this);
+            if (!permission.PermissionExists("blueprinter.canuse"))
+                permission.RegisterPermission("blueprinter.canuse", this);
             
             foreach (BasePlayer player in BasePlayer.sleepingPlayerList)
                 if (Config["InDrawing"] != null &&
@@ -73,7 +80,7 @@ namespace Oxide.Plugins
                     TimedBluePrint(player.userID.ToString());
                 else
                     Config["InDrawing", player.userID.ToString()] = "";
-
+            
             SaveConfig();
         }
 
@@ -129,6 +136,17 @@ namespace Oxide.Plugins
 
             Config["DrawTime", "None"] = 0;
             #endregion
+            #region drawtimemodifier
+            Config["DrawTimeModifierMultiuse", "Common"] = 5;
+
+            Config["DrawTimeModifierMultiuse", "Uncommon"] = 15;
+
+            Config["DrawTimeModifierMultiuse", "Rare"] = 30;
+
+            Config["DrawTimeModifierMultiuse", "VeryRare"] = 60;
+
+            Config["DrawTimeModifierMultiuse", "None"] = 0;
+            #endregion
             #region settings
             Config["Settings", "CancelBPWhenDead"] = true;
 
@@ -136,7 +154,11 @@ namespace Oxide.Plugins
 
             Config["Settings", "BlueprintPartsUsageAllowed"] = false;
 
-            Config["Settings", "EnablePopups"] = false;
+            //Config["Settings", "EnablePopups"] = false;
+
+            Config["Settings", "EnableDrawTimeModifier"] = false;
+
+            Config["Settings", "AllowMultiUseBPs"] = true;
             #endregion
             #region localization
             Config["Localization", "NotEnoughPaper"] = "The required ammount of paper to create this blueprint is {0} and you only have {1}.";
@@ -176,17 +198,17 @@ namespace Oxide.Plugins
             Config["ZItemAlias", "blueprint_library"] = "Blueprint Library";
             #endregion
             #region permission
-            if (!permission.PermissionExists("canuseblueprinter"))
-                permission.RegisterPermission("canuseblueprinter", this);
+            if (!permission.PermissionExists("blueprinter.canuse"))
+                permission.RegisterPermission("blueprinter.canuse", this);
 
-            if (!permission.GroupHasPermission("player", "canuseblueprinter"))
-                permission.GrantGroupPermission("player", "canuseblueprinter", this);
+            if (!permission.GroupHasPermission("player", "blueprinter.canuse"))
+                permission.GrantGroupPermission("player", "blueprinter.canuse", this);
 
-            if (!permission.GroupHasPermission("moderator", "canuseblueprinter"))
-                permission.GrantGroupPermission("moderator", "canuseblueprinter", this);
+            if (!permission.GroupHasPermission("moderator", "blueprinter.canuse"))
+                permission.GrantGroupPermission("moderator", "blueprinter.canuse", this);
 
-            if (!permission.GroupHasPermission("admin", "canuseblueprinter"))
-                permission.GrantGroupPermission("admin", "canuseblueprinter", this);
+            if (!permission.GroupHasPermission("admin", "blueprinter.canuse"))
+                permission.GrantGroupPermission("admin", "blueprinter.canuse", this);
             #endregion
 
             SaveConfig();
@@ -278,8 +300,7 @@ namespace Oxide.Plugins
             bool newItems = false;
 
             foreach (ItemDefinition itemDef in ItemManager.itemList)
-                if (ItemManager.FindBlueprint(itemDef) != null &&
-                    !ItemManager.FindBlueprint(itemDef).defaultBlueprint)
+                if (ItemManager.FindBlueprint(itemDef) != null)
                     if (Config["ZItemAlias", itemDef.shortname] != null)
                         itemAlias.Add(itemDef.shortname, Config["ZItemAlias", itemDef.shortname].ToString());
                     else
@@ -317,12 +338,29 @@ namespace Oxide.Plugins
 
             drawTimes.Add(Rust.Rarity.None, Convert.ToInt32(Config["DrawTime", "None"]));
             #endregion
+            #region drawusages
+            drawTimeModifier = new ListDictionary<Rust.Rarity, int>();
+
+            drawTimeModifier.Add(Rust.Rarity.Common, Convert.ToInt32(Config["DrawTimeModifierMultiuse", "Common"]));
+
+            drawTimeModifier.Add(Rust.Rarity.Uncommon, Convert.ToInt32(Config["DrawTimeModifierMultiuse", "Uncommon"]));
+
+            drawTimeModifier.Add(Rust.Rarity.Rare, Convert.ToInt32(Config["DrawTimeModifierMultiuse", "Rare"]));
+
+            drawTimeModifier.Add(Rust.Rarity.VeryRare, Convert.ToInt32(Config["DrawTimeModifierMultiuse", "VeryRare"]));
+
+            drawTimeModifier.Add(Rust.Rarity.None, Convert.ToInt32(Config["DrawTimeModifierMultiuse", "None"]));
+            #endregion
             #region settings
             cancelBPWhenDead = Convert.ToBoolean(Config["Settings", "CancelBPWhenDead"]);
 
             paperUsageAllowed = Convert.ToBoolean(Config["Settings", "PaperUsageAllowed"]);
 
             blueprintPartsUsageAllowed = Convert.ToBoolean(Config["Settings", "BlueprintPartsUsageAllowed"]);
+
+            drawTimeModifierEnabled = Convert.ToBoolean(Config["Settings", "EnableDrawTimeModifier"]);
+
+            mulitUseBPsAllowed = Convert.ToBoolean(Config["Settings", "AllowMultiUseBPs"]);
 
             if (!paperUsageAllowed &&
                 !blueprintPartsUsageAllowed)
@@ -332,15 +370,15 @@ namespace Oxide.Plugins
                 PrintError("Config-Loader reports that neither paperUsage nor blueprintPartsUsage is allowed. PaperUsage will be allowed by default then.");
             }
 
-            if (PopupNotifications == null &&
-                Convert.ToBoolean(Config["Settings", "EnablePopups"]))
-                PrintError("PopupNotifications-Plugin missing, can't enable pop-ups. Get the plugin first: http://oxidemod.org/plugins/popup-notifications.1252/");
-            else if (PopupNotifications != null &&
-                     Convert.ToBoolean(Config["Settings", "EnablePopups"]))
-                popupsEnabled = true;
+            //if (PopupNotifications == null &&
+            //    Convert.ToBoolean(Config["Settings", "EnablePopups"]))
+            //    PrintError("PopupNotifications-Plugin missing, can't enable pop-ups. Get the plugin first: http://oxidemod.org/plugins/popup-notifications.1252/");
+            //else if (PopupNotifications != null &&
+            //         Convert.ToBoolean(Config["Settings", "EnablePopups"]))
+            //    popupsEnabled = true;
             #endregion
 
-            PrintWarning("Blueprinter loaded config.");
+            //Puts("Blueprinter loaded config.");
         }
 
         void ConfigUpdater()
@@ -369,19 +407,65 @@ namespace Oxide.Plugins
 
                         Config["Localization", "NoPermission"] = "You have no permission to use this command.";
 
-                        if (!permission.PermissionExists("canuseblueprinter"))
-                            permission.RegisterPermission("canuseblueprinter", this);
+                        if (!permission.PermissionExists("blueprinter.canuse"))
+                            permission.RegisterPermission("blueprinter.canuse", this);
 
-                        if (!permission.GroupHasPermission("player", "canuseblueprinter"))
-                            permission.GrantGroupPermission("player", "canuseblueprinter", this);
+                        if (!permission.GroupHasPermission("player", "blueprinter.canuse"))
+                            permission.GrantGroupPermission("player", "blueprinter.canuse", this);
 
-                        if (!permission.GroupHasPermission("moderator", "canuseblueprinter"))
-                            permission.GrantGroupPermission("moderator", "canuseblueprinter", this);
+                        if (!permission.GroupHasPermission("moderator", "blueprinter.canuse"))
+                            permission.GrantGroupPermission("moderator", "blueprinter.canuse", this);
 
-                        if (!permission.GroupHasPermission("admin", "canuseblueprinter"))
-                            permission.GrantGroupPermission("admin", "canuseblueprinter", this);
+                        if (!permission.GroupHasPermission("admin", "blueprinter.canuse"))
+                            permission.GrantGroupPermission("admin", "blueprinter.canuse", this);
 
                         Config["Version"] = "1.0.5";
+                        break;
+                    #endregion
+                    #region 1.0.5 => 1.0.6
+                    case "1.0.5":
+                        if (permission.PermissionExists("canuseblueprinter"))
+                        {
+                            string[] playersWithPermission = permission.GetPermissionUsers("canuseblueprinter");
+
+                            foreach (string s in playersWithPermission)
+                                if (permission.UserHasPermission(s.Substring(0, s.IndexOf('(')), "canuseblueprinter"))
+                                {
+                                    permission.RevokeUserPermission(s.Substring(0, s.IndexOf('(')), "canuseblueprinter");
+
+                                    permission.GrantUserPermission(s.Substring(0, s.IndexOf('(')), "blueprinter.canuse", this);
+                                }
+
+                            string[] groupsWithPermission = permission.GetPermissionGroups("canuseblueprinter");
+
+                            foreach (string s in groupsWithPermission)
+                                if (permission.GroupHasPermission(s, "canuseblueprinter"))
+                                {
+                                    permission.RevokeGroupPermission(s, "canuseblueprinter");
+
+                                    permission.GrantGroupPermission(s, "blueprinter.canuse", this);
+                                }
+
+                            permission.RemoveGroup("canuseblueprinter");
+                        }
+
+                        Config["Settings", "EnablePopups"] = null;
+
+                        Config["Settings", "EnableDrawTimeModifier"] = false;
+
+                        Config["Settings", "AllowMultiUseBPs"] = true;
+                        
+                        Config["DrawTimeModifierMultiuse", "Common"] = 5;
+
+                        Config["DrawTimeModifierMultiuse", "Uncommon"] = 15;
+
+                        Config["DrawTimeModifierMultiuse", "Rare"] = 30;
+
+                        Config["DrawTimeModifierMultiuse", "VeryRare"] = 60;
+
+                        Config["DrawTimeModifierMultiuse", "None"] = 0;
+
+                        Config["Version"] = "1.0.6";
                         break;
                     #endregion
                 }
@@ -422,145 +506,167 @@ namespace Oxide.Plugins
         [ChatCommand("bluehelp")]
         void ChatCommandHelp(BasePlayer player)
         {
-            if (!popupsEnabled)
+            //if (!popupsEnabled)
                 SendReply(player, localization["Help"]);
-            else
-                PopupNotifications.Call("CreatePopupNotification", localization["Help"].Replace("\"", "'"), player);
+            //else
+            //    PopupNotifications.Call("CreatePopupNotification", localization["Help"].Replace("\"", "'"), player);
         }
 
         [ChatCommand("blueprinter")]
         void ChatCommandBluePrinter(BasePlayer player, string command, string[] args)
         {
-            if (!permission.UserHasPermission(player.userID.ToString(), "canuseblueprinter"))
+            #region permission check
+            if (!permission.UserHasPermission(player.UserIDString, "blueprinter.canuse"))
             {
-                if (!popupsEnabled)
+                //if (!popupsEnabled)
                     SendReply(player, localization["NoPermission"]);
-                else
-                    PopupNotifications.Call("CreatePopupNotification", localization["NoPermission"].Replace("\"", "'"), player);
+                //else
+                //    PopupNotifications.Call("CreatePopupNotification", localization["NoPermission"].Replace("\"", "'"), player);
 
                 return;
             }
-            
-            if (args.Length > 1) // in case player forgotten to put "" when writing an itemname with a space in it e.g. Pump Jack => "Pump Jack"
+            #endregion
+            #region check if player already is drawing
+            if (Config["InDrawing"] != null &&
+                Config["InDrawing", player.userID.ToString()] != null &&
+                Config["InDrawing", player.userID.ToString()].ToString() != String.Empty)
+            {
+                //if (!popupsEnabled)
+                SendReply(player, localization["AlreadyDrawing"]);
+                //else
+                //    PopupNotifications.Call("CreatePopupNotification", localization["AlreadyDrawing"].Replace("\"", "'"), player);
+
+                return;
+            }
+            #endregion
+            #region check length of arguments + draw usage nums
+            int usageNums = 1;
+
+            if (args.Length >= 2)
+            {
+                if (IsUInt(args[0]) &&
+                    mulitUseBPsAllowed)
+                {
+                    usageNums = Convert.ToInt32(args[0]);
+
+                    args[0] = "";
+                }
+
                 args = new string[1] { String.Join(" ", args).Trim() };
-            else if (args.Length != 1)
+            }
+            else if (args.Length == 0)
             {
                 ChatCommandHelp(player);
 
                 return;
             }
-
-            if (Config["InDrawing"] != null &&
-                Config["InDrawing", player.userID.ToString()] != null &&
-                Config["InDrawing", player.userID.ToString()].ToString() != String.Empty)
-            {
-                if (!popupsEnabled)
-                    SendReply(player, localization["AlreadyDrawing"]);
-                else
-                    PopupNotifications.Call("CreatePopupNotification", localization["AlreadyDrawing"].Replace("\"", "'"), player);
-
-                return;
-            }
-            
-            foreach (ItemDefinition itemDef in ItemManager.itemList)
-                if (itemAlias.Contains(itemDef.shortname) &&
-                    itemAlias[itemDef.shortname].ToLower() == args[0].ToLower() ||
-                    itemDef.displayName.english.ToLower() == args[0].ToLower())
+            #endregion
+            #region the logic ...
+            foreach (ItemBlueprint bp in ItemManager.GetBlueprints())
+                if (itemAlias.Contains(bp.targetItem.shortname) &&
+                    itemAlias[bp.targetItem.shortname].ToLower() == args[0].ToLower() ||
+                    bp.targetItem.displayName.english.ToLower() == args[0].ToLower() ||
+                    bp.targetItem.displayName.translated.ToLower() == args[0].ToLower())
                 {
-                    if (ItemManager.FindBlueprint(itemDef) == null ||
-                        ItemManager.FindBlueprint(itemDef).defaultBlueprint)
+                    if (player.blueprints.CanCraft(bp.targetItem.itemid, 0))
                     {
-                        if (!popupsEnabled)
-                            SendReply(player, localization["NoBP"]);
-                        else
-                            PopupNotifications.Call("CreatePopupNotification", localization["NoBP"].Replace("\"", "'"), player);
-
-                        return;
-                    }
-                    else
-                    {
-                        Item item = ItemManager.CreateByItemID(itemDef.itemid, 1, true);
-
-                        if (player.blueprints.CanCraft(item.info.itemid, 0))
+                        if (paperUsageAllowed &&
+                            player.inventory.FindItemID(106434956) != null &&
+                            player.inventory.FindItemID(106434956).amount >= paperNeeded[bp.rarity] * usageNums || // 106434956 = paper
+                            blueprintPartsUsageAllowed &&
+                            player.inventory.FindItemID(blueprintPartsID[blueprintPartsTypeNeeded[bp.rarity]]) != null &&
+                            player.inventory.FindItemID(blueprintPartsID[blueprintPartsTypeNeeded[bp.rarity]]).amount >= blueprintPartsNeeded[bp.rarity] * usageNums)
                         {
+                            #region what to take from player for the draw (if he has enough already got cleared in the above 'if')
                             if (paperUsageAllowed &&
                                 player.inventory.FindItemID(106434956) != null &&
-                                player.inventory.FindItemID(106434956).amount >= paperNeeded[ItemManager.FindBlueprint(itemDef).rarity] || // 106434956 = paper
-                                blueprintPartsUsageAllowed &&
-                                player.inventory.FindItemID(blueprintPartsID[blueprintPartsTypeNeeded[ItemManager.FindBlueprint(itemDef).rarity]]) != null &&
-                                player.inventory.FindItemID(blueprintPartsID[blueprintPartsTypeNeeded[ItemManager.FindBlueprint(itemDef).rarity]]).amount >= blueprintPartsNeeded[ItemManager.FindBlueprint(itemDef).rarity])
+                                player.inventory.FindItemID(106434956).amount > paperNeeded[bp.rarity] * usageNums)
+                                player.inventory.FindItemID(106434956).amount -= paperNeeded[bp.rarity] * usageNums;
+                            else if (paperUsageAllowed &&
+                                     player.inventory.FindItemID(106434956) != null &&
+                                     player.inventory.FindItemID(106434956).amount == paperNeeded[bp.rarity] * usageNums)
+                                player.inventory.FindItemID(106434956).RemoveFromContainer();
+                            else
                             {
-                                if (paperUsageAllowed &&
-                                    player.inventory.FindItemID(106434956) != null &&
-                                    player.inventory.FindItemID(106434956).amount >= paperNeeded[ItemManager.FindBlueprint(itemDef).rarity])
-                                    player.inventory.FindItemID(106434956).amount -= paperNeeded[ItemManager.FindBlueprint(itemDef).rarity];
+                                if (player.inventory.FindItemID(blueprintPartsID[blueprintPartsTypeNeeded[bp.rarity]]).amount == blueprintPartsNeeded[bp.rarity] * usageNums)
+                                    player.inventory.FindItemID(blueprintPartsID[blueprintPartsTypeNeeded[bp.rarity]]).RemoveFromContainer();
                                 else
-                                {
-                                    if (player.inventory.FindItemID(blueprintPartsID[blueprintPartsTypeNeeded[ItemManager.FindBlueprint(itemDef).rarity]]).amount == blueprintPartsNeeded[ItemManager.FindBlueprint(itemDef).rarity])
-                                        player.inventory.FindItemID(blueprintPartsID[blueprintPartsTypeNeeded[ItemManager.FindBlueprint(itemDef).rarity]]).RemoveFromContainer();
-                                    else
-                                    {
-                                        player.inventory.FindItemID(blueprintPartsID[blueprintPartsTypeNeeded[ItemManager.FindBlueprint(itemDef).rarity]]).amount -= blueprintPartsNeeded[ItemManager.FindBlueprint(itemDef).rarity];
+                                    player.inventory.FindItemID(blueprintPartsID[blueprintPartsTypeNeeded[bp.rarity]]).amount -= blueprintPartsNeeded[bp.rarity] * usageNums;
+                            }
 
-                                        player.inventory.SendUpdatedInventory(PlayerInventory.Type.Main, player.inventory.containerMain);
+                            player.inventory.SendUpdatedInventory(PlayerInventory.Type.Main, player.inventory.containerMain);
 
-                                        player.inventory.SendUpdatedInventory(PlayerInventory.Type.Belt, player.inventory.containerBelt);
-                                    }
-                                }
+                            player.inventory.SendUpdatedInventory(PlayerInventory.Type.Belt, player.inventory.containerBelt);
+                            #endregion
 
-                                if (drawTimes[ItemManager.FindBlueprint(itemDef).rarity] != 0)
-                                {
-                                    if (!popupsEnabled)
-                                        SendReply(player, String.Format(localization["BPIsDrawing"], drawTimes[ItemManager.FindBlueprint(itemDef).rarity].ToString()));
-                                    else
-                                        PopupNotifications.Call("CreatePopupNotification", String.Format(localization["BPIsDrawing"], drawTimes[ItemManager.FindBlueprint(itemDef).rarity].ToString()).Replace("\"", "'"), player);
+                            if (drawTimes[bp.rarity] != 0)
+                            {
+                                #region timed stuff
+                                //if (!popupsEnabled)
+                                    SendReply(player, String.Format(localization["BPIsDrawing"], (drawTimes[bp.rarity] + (drawTimeModifierEnabled ? (usageNums - 1) * drawTimeModifier[bp.rarity] : 0)).ToString()));
+                                //else
+                                //    PopupNotifications.Call("CreatePopupNotification", String.Format(localization["BPIsDrawing"], drawTimes[bp.rarity].ToString()).Replace("\"", "'"), player);
 
-                                    Config["InDrawing", player.userID.ToString()] = item.info.itemid;
+                                Config["InDrawing", player.UserIDString] = bp.targetItem.itemid + "x" + usageNums.ToString();
 
-                                    SaveConfig();
+                                SaveConfig();
 
-                                    Action timed = new Action(() => TimedBluePrint(player.userID.ToString()));
+                                Action timed = new Action(() => TimedBluePrint(player.userID.ToString()));
 
-                                    timer.In(drawTimes[ItemManager.FindBlueprint(itemDef).rarity], timed);
-                                }
-                                else
-                                    player.GiveItem(item);
+                                timer.In(drawTimes[bp.rarity] + (drawTimeModifierEnabled ? (usageNums - 1) * drawTimeModifier[bp.rarity] : 0), timed);
+                                #endregion
                             }
                             else
                             {
-                                if (paperUsageAllowed)
-                                {
-                                    if (!popupsEnabled)
-                                        SendReply(player, String.Format(localization["NotEnoughPaper"], paperNeeded[ItemManager.FindBlueprint(itemDef).rarity].ToString(), player.inventory.FindItemID(106434956) != null ? player.inventory.FindItemID(106434956).amount.ToString() : "0"));
-                                    else
-                                        PopupNotifications.Call("CreatePopupNotification", String.Format(localization["NotEnoughPaper"], paperNeeded[ItemManager.FindBlueprint(itemDef).rarity].ToString(), player.inventory.FindItemID(106434956) != null ? player.inventory.FindItemID(106434956).amount.ToString() : "0").Replace("\"", "'"), player);
-                                }
-                                
-                                if (blueprintPartsUsageAllowed)
-                                {
-                                    if (!popupsEnabled)
-                                        SendReply(player, String.Format(localization["NotEnoughBluePrintParts"], itemAlias[blueprintPartsTypeNeeded[ItemManager.FindBlueprint(itemDef).rarity]], blueprintPartsNeeded[ItemManager.FindBlueprint(itemDef).rarity].ToString(), player.inventory.FindItemID(blueprintPartsID[blueprintPartsTypeNeeded[ItemManager.FindBlueprint(itemDef).rarity]]) != null ? player.inventory.FindItemID(blueprintPartsID[blueprintPartsTypeNeeded[ItemManager.FindBlueprint(itemDef).rarity]]).amount.ToString() : "0"));
-                                    else
-                                        PopupNotifications.Call("CreatePopupNotification", String.Format(localization["NotEnoughBluePrintParts"], itemAlias[blueprintPartsTypeNeeded[ItemManager.FindBlueprint(itemDef).rarity]], blueprintPartsNeeded[ItemManager.FindBlueprint(itemDef).rarity].ToString(), player.inventory.FindItemID(blueprintPartsID[blueprintPartsTypeNeeded[ItemManager.FindBlueprint(itemDef).rarity]]) != null ? player.inventory.FindItemID(blueprintPartsID[blueprintPartsTypeNeeded[ItemManager.FindBlueprint(itemDef).rarity]]).amount.ToString() : "0").Replace("\"", "'"), player);
-                                }
+                                #region untimed stuff
+                                Item item = ItemManager.Create(ItemManager.FindItemDefinition(-1887162396)); //bp base == -1887162396
+
+                                item.blueprintTarget = bp.targetItem.itemid;
+
+                                item.blueprintAmount = usageNums;
+
+                                player.GiveItem(item);
+                                #endregion
                             }
                         }
                         else
-                            if (!popupsEnabled)
-                                SendReply(player, localization["BPNotLearned"]);
-                            else
-                                PopupNotifications.Call("CreatePopupNotification", localization["BPNotLearned"].Replace("\"", "'"), player);
+                        {
+                            #region dude get (more) stuff to draw on
+                            if (paperUsageAllowed)
+                            {
+                                //if (!popupsEnabled)
+                                    SendReply(player, String.Format(localization["NotEnoughPaper"], (paperNeeded[bp.rarity] * usageNums).ToString(), player.inventory.FindItemID(106434956) != null ? player.inventory.FindItemID(106434956).amount.ToString() : "0"));
+                                //else
+                                //    PopupNotifications.Call("CreatePopupNotification", String.Format(localization["NotEnoughPaper"], paperNeeded[bp.rarity].ToString(), player.inventory.FindItemID(106434956) != null ? player.inventory.FindItemID(106434956).amount.ToString() : "0").Replace("\"", "'"), player);
+                            }
 
-                        return;
+                            if (blueprintPartsUsageAllowed)
+                            {
+                                //if (!popupsEnabled)
+                                    SendReply(player, String.Format(localization["NotEnoughBluePrintParts"], itemAlias[blueprintPartsTypeNeeded[bp.rarity]], (blueprintPartsNeeded[bp.rarity] * usageNums).ToString(), player.inventory.FindItemID(blueprintPartsID[blueprintPartsTypeNeeded[bp.rarity]]) != null ? player.inventory.FindItemID(blueprintPartsID[blueprintPartsTypeNeeded[bp.rarity]]).amount.ToString() : "0"));
+                                //else
+                                //    PopupNotifications.Call("CreatePopupNotification", String.Format(localization["NotEnoughBluePrintParts"], itemAlias[blueprintPartsTypeNeeded[bp.rarity]], blueprintPartsNeeded[bp.rarity].ToString(), player.inventory.FindItemID(blueprintPartsID[blueprintPartsTypeNeeded[bp.rarity]]) != null ? player.inventory.FindItemID(blueprintPartsID[blueprintPartsTypeNeeded[bp.rarity]]).amount.ToString() : "0").Replace("\"", "'"), player);
+                            }
+                            #endregion
+                        }
                     }
+                    else
+                        //if (!popupsEnabled)
+                            SendReply(player, localization["BPNotLearned"]);
+                        //else
+                        //    PopupNotifications.Call("CreatePopupNotification", localization["BPNotLearned"].Replace("\"", "'"), player);
+
+                    return;
                 }
 
-            if (!popupsEnabled)
-                SendReply(player, String.Format(localization["ItemNotFound"], args[0]));
-            else
-                PopupNotifications.Call("CreatePopupNotification", String.Format(localization["ItemNotFound"], args[0]).Replace("\"", "'"), player);
-        }
 
+            //if (!popupsEnabled)
+                SendReply(player, String.Format(localization["ItemNotFound"], args[0]));
+            //else
+            //    PopupNotifications.Call("CreatePopupNotification", String.Format(localization["ItemNotFound"], args[0]).Replace("\"", "'"), player);
+            #endregion
+        }
+        
         void OnEntityDeath(BaseCombatEntity entity, HitInfo hitInfo)
         {
             if (hitInfo == null ||
@@ -591,7 +697,11 @@ namespace Oxide.Plugins
                 Config["InDrawing", player.userID.ToString()].ToString() == String.Empty)
                 return;
 
-            Item item = ItemManager.CreateByItemID(Convert.ToInt32(Config["InDrawing", playerID]), 1, true);
+            Item item = ItemManager.Create(ItemManager.FindItemDefinition(-1887162396)); //bp base == -1887162396
+
+            item.blueprintTarget = Convert.ToInt32(Config["InDrawing", playerID].ToString().Substring(0, Config["InDrawing", playerID].ToString().LastIndexOf('x')));
+
+            item.blueprintAmount = Convert.ToInt32(Config["InDrawing", playerID].ToString().Substring(Config["InDrawing", playerID].ToString().IndexOf('x') + 1)); ;
 
             if (player == null)
             {
@@ -617,10 +727,10 @@ namespace Oxide.Plugins
                 return;
             }
             else if (!player.IsSleeping())
-                if (!popupsEnabled)
+                //if (!popupsEnabled)
                     SendReply(player, String.Format(localization["BPDelivery"], itemAlias.Contains(item.info.shortname) && itemAlias[item.info.shortname] != "" ? itemAlias[item.info.shortname] : item.info.displayName.english));
-                else
-                    PopupNotifications.Call("CreatePopupNotification", String.Format(localization["BPDelivery"], itemAlias.Contains(item.info.shortname) && itemAlias[item.info.shortname] != "" ? itemAlias[item.info.shortname] : item.info.displayName.english).Replace("\"", "'"), player);
+                //else
+                //    PopupNotifications.Call("CreatePopupNotification", String.Format(localization["BPDelivery"], itemAlias.Contains(item.info.shortname) && itemAlias[item.info.shortname] != "" ? itemAlias[item.info.shortname] : item.info.displayName.english).Replace("\"", "'"), player);
 
             Config["InDrawing", playerID] = "";
 
@@ -631,16 +741,9 @@ namespace Oxide.Plugins
 
         static bool IsUInt(string s)
         {
-            try
-            {
-                Convert.ToUInt32(s);
-            }
-            catch
-            {
-                return false;
-            }
+            Regex _uint = new Regex("^\\d*$");
 
-            return true;
+            return _uint.Match(s).Success;
         }
     }
 }

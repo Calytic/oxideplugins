@@ -2,11 +2,8 @@
     "name": "BluePrinter",
     "description": "Allows producing blueprints your char knows, needs paper or blueprintparts",
     "author": "mk_sky",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "configuration": true,
-    "suggest": {
-        "PopupNotifications": "*"
-    },
     "language": "cs",
     "games": [
         "rust"

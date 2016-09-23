@@ -2,7 +2,7 @@
     "name": "Admin Panel",
     "description": "A small panel for clickable commands for admins",
     "author": "Austinv900",
-    "version": "1.2.1",
+    "version": "1.2.2",
     "configuration": true,
     "suggest": {
         "Vanish": "*",

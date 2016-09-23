@@ -1,8 +1,8 @@
 {
     "name": "Popup Notifications",
-    "description": "Popup notifications that can be created by admins and other plugins.",
-    "author": "emu",
-    "version": "0.0.8",
+    "description": "Popup notifications that can be created by admins and other plugins",
+    "author": "k1lly0u",
+    "version": "0.1.0",
     "configuration": true,
     "language": "cs",
     "games": [

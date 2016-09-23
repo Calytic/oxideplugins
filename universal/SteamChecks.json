@@ -1,0 +1,15 @@
+{
+    "name": "SteamChecks",
+    "description": "Check Steam servers to grab information about players.",
+    "author": "Spicy",
+    "version": "2.4.14",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "Universal"
+    ],
+    "keywords": [
+        "oxide",
+        "Universal"
+    ]
+}

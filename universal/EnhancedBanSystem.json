@@ -1,0 +1,16 @@
+{
+    "name": "Enhanced Ban System",
+    "description": "Ban by steam or ip, online & offline players, local or webrequest banlist",
+    "author": "Reneb",
+    "version": "4.0.10",
+    "configuration": true,
+    "suggest": {},
+    "language": "cs",
+    "games": [
+        "Universal"
+    ],
+    "keywords": [
+        "oxide",
+        "Universal"
+    ]
+}

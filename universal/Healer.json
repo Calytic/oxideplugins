@@ -1,0 +1,15 @@
+{
+    "name": "Healer",
+    "description": "Allows players with permission to heal themselves or others",
+    "author": "Wulf",
+    "version": "2.2.1",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

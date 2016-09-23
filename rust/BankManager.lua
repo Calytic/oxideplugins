@@ -1,7 +1,7 @@
 PLUGIN.Title        = "Bank Manager"
 PLUGIN.Description  = "Allows players to deposit and withdraw items from a bank."
 PLUGIN.Author       = "InSaNe8472"
-PLUGIN.Version      = V(1,0,8)
+PLUGIN.Version      = V(1,0,9)
 PLUGIN.ResourceID   = 1331
 
 local DataFile_PB = "BankManager_PlayerBank"
@@ -826,7 +826,7 @@ function PLUGIN:OpenPlayerBank(player, target)
 		box:SendMessage("SetDeployedBy", player, UnityEngine.SendMessageOptions.DontRequireReceiver)
 		box.name = "bank:"..playerSteamID
 		Bank[playerSteamID] = box
-		box:Spawn(true)
+		box:Spawn()
 		Shared[playerSteamID] = nil
 		BankUser[_playerSteamID] = nil
 		if playerSteamID ~= _playerSteamID then
@@ -907,7 +907,7 @@ function PLUGIN:OpenClanBank(player, clan, group, call)
 		box.name = "bank:"..playerSteamID
 		ClanBank[playerSteamID] = box
 		ClanName[playerSteamID] = playerClan
-		box:Spawn(true)
+		box:Spawn()
 		ClanUser[playerClan] = player.displayName..":"..playerSteamID
 		local playerData = self:GetPlayerData_CB(playerClan, true)
 		if #playerData.Bank > 0 then
@@ -1303,6 +1303,11 @@ function PLUGIN:CheckGround(player)
 				if self.Config.Settings.Tier ~= "-1" then
 					local Tier = self.Config.Settings.Tier
 					local buildingBlock = hitEntity:GetComponentInParent(global.BuildingBlock._type)
+					if tostring(buildingBlock.name) ~= "assets/prefabs/building core/foundation/foundation.prefab" then
+						local message = FormatMessage(self.Config.Messages.CheckTier, { tier = Tier })
+						self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+						return false
+					end
 					local Grade = tostring(buildingBlock.grade)
 					local _, _Tier = Grade:match("([^:]+):([^:]+)")
 					_Tier = string.sub(_Tier, 2)
@@ -1325,11 +1330,11 @@ function PLUGIN:CheckRadius(player)
 	while players:MoveNext() do
 		if players.Current ~= player then
 			if UnityEngine.Vector3.Distance(players.Current.transform.position, player.transform.position) <= tonumber(self.Config.Settings.Radius) then
-				local Near = tostring(UnityEngine.Vector3.Distance(players.Current.transform.position, player.transform.position)):match("([^.]*).(.*)")
-				local message = FormatMessage(self.Config.Messages.CheckRadius, { range = self.Config.Settings.Radius, current = Near })
-				self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
-				return true
-			end
+			local Near = tostring(UnityEngine.Vector3.Distance(players.Current.transform.position, player.transform.position)):match("([^.]*).(.*)")
+			local message = FormatMessage(self.Config.Messages.CheckRadius, { range = self.Config.Settings.Radius, current = Near })
+			self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+			return true
+		end
 		end
 	end
 	return false

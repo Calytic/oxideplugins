@@ -2,7 +2,7 @@
     "name": "ScreenTimer",
     "description": "Allows you to create a timer on screen for (x) seconds.",
     "author": "DylanSMR",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "configuration": true,
     "language": "cs",
     "games": [

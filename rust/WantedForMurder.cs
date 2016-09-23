@@ -10,7 +10,7 @@ using Oxide.Core.Libraries;
 
 namespace Oxide.Plugins
 {
-	[Info( "Wanted For Murder", "Raptor007", "1.0.3" )]
+	[Info( "Wanted For Murder", "Raptor007", "1.0.7" )]
 	[Description( "Players can punish unwanted PvP." )]
 	
 	class WantedForMurder : RustPlugin
@@ -20,6 +20,22 @@ namespace Oxide.Plugins
 		Dictionary< ulong, ulong > LastKillerOf = new Dictionary< ulong, ulong >();
 		Dictionary< ulong, ulong > LastAttackerOf = new Dictionary< ulong, ulong >();
 		Dictionary< string, string > EN = new Dictionary< string, string >();
+		
+		
+		// Poor man's locking because we can't use System.Threading.
+		
+		volatile bool DataLocked = false;
+		
+		void LockData()
+		{
+			while( DataLocked );
+			DataLocked = true;
+		}
+		
+		void UnlockData()
+		{
+			DataLocked = false;
+		}
 		
 		
 		void ChatToPlayer( BasePlayer player, string key, params object[] args )
@@ -35,28 +51,59 @@ namespace Oxide.Plugins
 		}
 		
 		
-		void SetUnconfiguredDefaults()
+		bool SetUnconfiguredDefaults()
 		{
+			bool changed = false;
+			
 			if( Config[ "AnnounceWhenLoaded" ] == null )
+			{
 				Config[ "AnnounceWhenLoaded" ] = true;
+				changed = true;
+			}
+			if( Config[ "AwakeAutoPunish" ] == null )
+			{
+				Config[ "AwakeAutoPunish" ] = false;
+				changed = true;
+			}
 			if( Config[ "CastleDoctrine" ] == null )
+			{
 				Config[ "CastleDoctrine" ] = true;
+				changed = true;
+			}
 			if( Config[ "RemoveMurdererBags" ] == null )
+			{
 				Config[ "RemoveMurdererBags" ] = true;
+				changed = true;
+			}
 			if( Config[ "Sheriffs" ] == null )
+			{
 				Config[ "Sheriffs" ] = new List<ulong>();
+				changed = true;
+			}
 			if( Config[ "ShowOnWake" ] == null )
+			{
 				Config[ "ShowOnWake" ] = true;
+				changed = true;
+			}
 			if( Config[ "SleepersAutoPunish" ] == null )
+			{
 				Config[ "SleepersAutoPunish" ] = true;
+				changed = true;
+			}
+			
+			return changed;
 		}
 		
 		
 		protected override void LoadDefaultConfig()
 		{
+			LockData();
+			
 			Config.Clear();
 			SetUnconfiguredDefaults();
 			SaveConfig();
+			
+			UnlockData();
 		}
 		
 		
@@ -77,8 +124,15 @@ namespace Oxide.Plugins
 		{
 			if( DataChanged )
 			{
-				DataChanged = false;
-				SaveData();
+				LockData();
+				
+				if( DataChanged )
+				{
+					DataChanged = false;
+					SaveData();
+				}
+				
+				UnlockData();
 			}
 		}
 		
@@ -189,20 +243,30 @@ namespace Oxide.Plugins
 		
 		void OnItemDeployed( Deployer deployer, BaseEntity entity )
 		{
+			LockData();
 			RemoveMurdererSleepingBags();
+			UnlockData();
 		}
 		
 		
 		void OnEntityTakeDamage( BaseCombatEntity entity, HitInfo info )
 		{
-			if( (info != null) && info.Initiator && info.Initiator.name.Contains("player") && entity.name.Contains("player") )
+			if( entity == null )
+				return;
+			
+			if( (info != null) && (info.Initiator != null) && info.Initiator.name.Contains("player") && entity.name.Contains("player") )
 			{
 				var victim = entity as BasePlayer;
 				var killer = info.Initiator as BasePlayer;
 				
+				if( (victim == null) || (killer == null) )
+					return;
+				
 				// Don't track self-harm.
 				if( victim.userID != killer.userID )
 				{
+					LockData();
+					
 					// Don't track kills of murderers, and if Castle Doctrine is enabled, don't allow punishment for wounding home invaders.
 					if( IsMurderer(victim.userID) || (Config.Get<bool>("CastleDoctrine") && killer.CanBuild() && ! victim.CanBuild()) )
 					{
@@ -212,6 +276,8 @@ namespace Oxide.Plugins
 					}
 					else
 						LastAttackerOf[ victim.userID ] = killer.userID;
+					
+					UnlockData();
 				}
 			}
 		}
@@ -219,18 +285,30 @@ namespace Oxide.Plugins
 		
 		void OnEntityDeath( BaseCombatEntity entity, HitInfo info )
 		{
+			if( entity == null )
+				return;
+			
 			if( entity.name.Contains("player") )
 			{
 				var victim = entity as BasePlayer;
-				bool sleep_murder = false;
+				if( victim == null )
+					return;
 				
-				if( (info != null) && info.Initiator && info.Initiator.name.Contains("player") )
+				bool sleep_murder = false;
+				bool locked_data = false;
+				
+				if( (info != null) && (info.Initiator != null) && info.Initiator.name.Contains("player") )
 				{
 					var killer = info.Initiator as BasePlayer;
-				
+					if( killer == null )
+						return;
+					
 					// Don't track suicides.
 					if( victim.userID != killer.userID )
 					{
+						LockData();
+						locked_data = true;
+						
 						// Don't track kills of murderers, and if Castle Doctrine is enabled, don't allow punishment for killing home invaders.
 						if( IsMurderer(victim.userID) || (Config.Get<bool>("CastleDoctrine") && killer.CanBuild() && ! victim.CanBuild()) )
 						{
@@ -245,17 +323,30 @@ namespace Oxide.Plugins
 						}
 					}
 				}
-				else if( LastAttackerOf.ContainsKey(victim.userID) )
+				else
 				{
-					LastKillerOf[ victim.userID ] = LastAttackerOf[ victim.userID ];
-					sleep_murder = victim.IsSleeping();
+					LockData();
+					locked_data = true;
+					
+					if( LastAttackerOf.ContainsKey(victim.userID) )
+					{
+						LastKillerOf[ victim.userID ] = LastAttackerOf[ victim.userID ];
+						sleep_murder = victim.IsSleeping();
+					}
 				}
+				
+				if( ! locked_data )
+					LockData();
 				
 				// Always remove stale attacked-by data when a player dies.
 				LastAttackerOf.Remove( victim.userID );
 				
 				if( Config.Get<bool>("SleepersAutoPunish") && sleep_murder )
 					PunishLastKillerOf( victim.userID );
+				else if( Config.Get<bool>("AwakeAutoPunish") && ! sleep_murder )
+					PunishLastKillerOf( victim.userID );
+				
+				UnlockData();
 			}
 		}
 		
@@ -287,6 +378,8 @@ namespace Oxide.Plugins
 		
 		void OnPlayerSleepEnded( BasePlayer player )
 		{
+			LockData();
+			
 			if( Config.Get<bool>("ShowOnWake") )
 			{
 				if( Config.Get< List<ulong> >("Sheriffs").Contains(player.userID) )
@@ -296,19 +389,25 @@ namespace Oxide.Plugins
 				
 				ShowWantedListTo( player );
 			}
+			
+			UnlockData();
 		}
 		
 		
 		[ChatCommand("wanted")]
 		void WantedCommand( BasePlayer player, string command, string[] args )
 		{
+			LockData();
 			ShowWantedListTo( player );
+			UnlockData();
 		}
 		
 		
 		[ChatCommand("punish")]
 		void PunishCommand( BasePlayer player, string command, string[] args )
 		{
+			LockData();
+			
 			if( IsMurderer(player.userID) )
 			{
 				string victims = GetPlayerNameFromID( Murderers[ player.userID ][ 0 ] );
@@ -353,12 +452,16 @@ namespace Oxide.Plugins
 			}
 			else
 				ChatToPlayer( player, "PunishNotFound" );
+			
+			UnlockData();
 		}
 		
 		
 		[ChatCommand("forgive")]
 		void ForgiveCommand( BasePlayer player, string command, string[] args )
 		{
+			LockData();
+			
 			ulong murderer_id = 0;
 			
 			if( args.Length > 0 && args[ 0 ].Length > 0 )
@@ -408,19 +511,23 @@ namespace Oxide.Plugins
 			}
 			else
 				ChatToPlayer( player, "ForgiveNotFound" );
+			
+			UnlockData();
 		}
 		
 		
 		[ChatCommand("pardon")]
 		void PardonCommand( BasePlayer player, string command, string[] args )
 		{
+			LockData();
+			
 			if( Config.Get< List<ulong> >("Sheriffs").Contains(player.userID) )
 			{
 				ulong murderer_id = 0;
-			
+				
 				if( args.Length > 0 && args[ 0 ].Length > 0 )
 					murderer_id = GetPlayerIDFromName( args[ 0 ] );
-			
+				
 				if( murderer_id != 0 )
 				{
 					string murderer = GetPlayerNameFromID( murderer_id );
@@ -451,11 +558,15 @@ namespace Oxide.Plugins
 			}
 			else
 				ChatToPlayer( player, "PardonForbidden" );
+			
+			UnlockData();
 		}
 		
 		
 		void Loaded()
 		{
+			LockData();
+			
 			EN.Clear();
 			EN[ "Loaded"          ] = "WantedForMurder version {0} loaded.";
 			EN[ "Commands"        ] = "WantedForMurder commands: /wanted /punish /forgive";
@@ -477,13 +588,16 @@ namespace Oxide.Plugins
 			lang.RegisterMessages( EN, this );
 			
 			LoadConfig();
-			SetUnconfiguredDefaults();
+			if( SetUnconfiguredDefaults() )
+				SaveConfig();
 			LoadData();
 			
 			timer.Repeat( 1f, 0, () => { RemoveMurdererSleepingBags(); } );
 			
 			if( Config.Get<bool>("AnnounceWhenLoaded") )
 				timer.Once( 1f, () => { ChatToAll( "Loaded", Version.ToString() ); } );
+			
+			UnlockData();
 		}
 	}
 }

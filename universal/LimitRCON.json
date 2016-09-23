@@ -1,0 +1,15 @@
+{
+    "name": "LimitRCON",
+    "description": "Limits RCON access to specific IP addresses",
+    "author": "Wulf",
+    "version": "0.1.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "Universal"
+    ],
+    "keywords": [
+        "oxide",
+        "Universal"
+    ]
+}

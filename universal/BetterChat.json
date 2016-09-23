@@ -1,0 +1,15 @@
+{
+    "name": "Better Chat",
+    "description": "Customize chat colors, formatting, prefix and more",
+    "author": "LaserHydra",
+    "version": "4.2.8",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

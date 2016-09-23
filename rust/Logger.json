@@ -2,7 +2,7 @@
     "name": "Logger",
     "description": "Configurable logging of chat, commands, and more",
     "author": "Wulf",
-    "version": "1.1.1",
+    "version": "1.2.0",
     "configuration": true,
     "language": "cs",
     "games": [

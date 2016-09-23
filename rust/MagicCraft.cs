@@ -6,16 +6,16 @@ using Oxide.Core;
 using Oxide.Core.Plugins;
 namespace Oxide.Plugins
 {
-    [Info("MagicCraft", "Norn", "0.2.2", ResourceId = 1347)]
+    [Info("MagicCraft", "Norn", "0.2.3", ResourceId = 1347)]
     [Description("An alternative crafting system.")]
     public class MagicCraft : RustPlugin
     {
         int MaxB = 999;
         int MinB = 1;
         int Cooldown = 0;
-        [PluginReference]
-        Plugin PopupNotifications;
         bool MessageType = false;
+        int MAX_INV_SLOTS = 30;
+        string Lang(string key, string id = null, params object[] args) => string.Format(lang.GetMessage(key, this, id), args);
         class StoredData
         {
             public Dictionary<string, CraftInfo> CraftList = new Dictionary<string, CraftInfo>();
@@ -33,7 +33,6 @@ namespace Oxide.Plugins
             public string description;
             public bool Enabled;
             public int Cooldown;
-            public int SkinID;
             public CraftInfo()
             {
             }
@@ -41,30 +40,22 @@ namespace Oxide.Plugins
         StoredData storedData;
         private void ConfigurationCheck()
         {
-            if (Config["RandomizeSkins"] == null) { Config["RandomizeSkins"] = false; }
             try { if (Config.Count() == 0) LoadDefaultConfig(); } catch { Puts("Configuration file seems to be unreadable... Re-generating."); LoadDefaultConfig(); }
-            if (Config["RndSkinsFirstGen"] == null)
-            {
-                Config["RndSkinsFirstGen"] = false;
-                SaveConfig();
-                Puts("Configuration file out of date... updating.");
-            }
         }
         void Loaded()
         {
             if (!permission.PermissionExists("MagicCraft.able")) permission.RegisterPermission("MagicCraft.able", this);
+            lang.RegisterMessages(new Dictionary<string, string>
+            {
+                ["CraftSuccess"] = "You have crafted <color=#66FF66>{0}</color> <color=#66FFFF>{1}</color>\n[Batch Amount: <color=#66FF66>{2}</color>]",
+                ["DifferentSlots"] = "You <color=yellow>only</color> have <color=green>{0}</color> slots left, crafting <color=green>{1}</color> / <color=red>{2}</color> requested.",
+                ["InventoryFull"] = "Your <color=yellow>inventory</color> is <color=red>full</color>!"
+            }, this);
         }
         private void OnServerInitialized()
         {
             storedData = Interface.GetMod().DataFileSystem.ReadObject<StoredData>(this.Title);
             ConfigurationCheck();
-            if (Convert.ToBoolean(Config["MessagesEnabled"]))
-            {
-                if (PopupNotifications && Convert.ToBoolean(Config["UsePopupNotifications"]))
-                {
-                    MessageType = true;
-                }
-            }
             int config_protocol = Convert.ToInt32(Config["Protocol"]);
             if (Config["Protocol"] == null)
             {
@@ -89,8 +80,6 @@ namespace Oxide.Plugins
             Config["Protocol"] = Protocol.network;
             Config["UsePopupNotifications"] = false;
             Config["MessagesEnabled"] = true;
-            Config["RndSkinsFirstGen"] = true;
-            Config["RandomizeSkins"] = false;
             timer.Once(10, () => GenerateItems(true));
             SaveConfig();
         }
@@ -124,7 +113,6 @@ namespace Oxide.Plugins
                         z.MaxBulkCraft = MaxB;
                         z.MinBulkCraft = MinB;
                         z.Cooldown = Cooldown;
-                        if (Convert.ToBoolean(Config["RndSkinsFirstGen"])) { z.SkinID = definition.Value.skins.GetRandom().id; } else { z.SkinID = 0; }
                         z.Enabled = false;
                         storedData.CraftList.Add(definition.Value.shortname.ToString(), z);
                         loaded++;
@@ -135,6 +123,15 @@ namespace Oxide.Plugins
             Puts("Loaded " + loaded.ToString() + " items. (Enabled: " + enabled.ToString() + " | Inactive: " + inactive.ToString() + ").");
             Interface.GetMod().DataFileSystem.WriteObject(this.Title, storedData);
         }
+        public int InventorySlots(BasePlayer player, bool incwear = true, bool incbelt = true)
+        {
+            List<Item> list = new List<Item>();
+            list.AddRange(player.inventory.containerMain.itemList);                     // 24
+            if (incbelt) { list.AddRange(player.inventory.containerBelt.itemList); }    // 6
+            if (incwear) { list.AddRange(player.inventory.containerWear.itemList); }    // 6
+            return list.Count;
+        }
+        public int FreeInventorySlots(BasePlayer player, bool incwear = true, bool incbelt = true) { return MAX_INV_SLOTS - InventorySlots(player, false, true); }
         private Dictionary<string, ItemDefinition> mcITEMS;
         private object OnItemCraft(ItemCraftTask task, BasePlayer crafter)
         {
@@ -145,26 +142,32 @@ namespace Oxide.Plugins
                 {
                     if (entry.Value.shortName == itemname && entry.Value.Enabled)
                     {
+                        if (InventorySlots(crafter, false, true) >= MAX_INV_SLOTS) { task.cancelled = true; RefundIngredients(task.blueprint, task.owner, task.amount); PrintToChatEx(crafter, Lang("InventoryFull", crafter.UserIDString));  return null; }
                         int amount = task.amount;
                         if (amount < entry.Value.MinBulkCraft || amount > entry.Value.MaxBulkCraft) { return null; }
                         ItemDefinition item = GetItem(itemname);
-
-                        int final_amount = task.blueprint.amountToCreate * amount; int skinid = 0;
-                        if (!Convert.ToBoolean(Config["RandomizeSkins"])) { if (entry.Value.SkinID != 0) { skinid = entry.Value.SkinID; } } else { skinid = item.skins.GetRandom().id; }
-                        crafter.inventory.GiveItem(ItemManager.CreateByItemID(item.itemid, final_amount, skinid), null);
+                        int free_slots = FreeInventorySlots(crafter);
+                        if (amount > free_slots && item.stackable == 1)
+                        {
+                            string returnstring = null;
+                            returnstring = Lang("DifferentSlots", crafter.UserIDString, free_slots.ToString(), free_slots.ToString(), amount.ToString());
+                            PrintToChatEx(crafter, returnstring);
+                            int refund_amount = amount - free_slots;
+                            RefundIngredients(task.blueprint, task.owner, refund_amount); // Refunding the amount that wasn't crafted.
+                            amount = free_slots;
+                        }
+                       
+                        int final_amount = task.blueprint.amountToCreate * amount;
+                        if (item.stackable == 1 && final_amount != 1 && task.skinID != 0) // Skin fix attempt
+                        {
+                            for (int amount_interval = 1; amount_interval <= final_amount; amount_interval++) { crafter.inventory.GiveItem(ItemManager.CreateByItemID(item.itemid, 1, task.skinID), null); }
+                        }
+                        else { crafter.inventory.GiveItem(ItemManager.CreateByItemID(item.itemid, final_amount, task.skinID), null); }
                         if (Convert.ToBoolean(Config["MessagesEnabled"]))
                         {
-                            string returnstring = null; string skin_string = null;
-                            if (skinid != 0) { skin_string = "Skin ID: <color=#66FF66>" + skinid.ToString() + "</color>"; } else { skin_string = "<color=red>No skin</color>"; }
-                            if (PopupNotifications && Convert.ToBoolean(Config["UsePopupNotifications"]))
-                            {
-                                returnstring = "You have crafted <color=#66FF66>" + amount.ToString() + "</color> <color=#66FFFF>" + item.displayName.english.ToString() + "</color>\n\n[Batch Amount: <color=#66FF66>" + final_amount.ToString() + "</color>] [" + skin_string + "]";
-                            }
-                            else
-                            {
-                                returnstring = "You have crafted <color=#66FF66>" + amount.ToString() + "</color> <color=#66FFFF>" + item.displayName.english.ToString() + "</color>\n[Batch Amount: <color=#66FF66>" + final_amount.ToString() + "</color>] [" + skin_string + "]";
-                            }
-                            PrintToChatEx(crafter, returnstring, MessageType);
+                            string returnstring = null;
+                            returnstring = Lang("CraftSuccess", crafter.UserIDString, amount.ToString(), item.displayName.english.ToString(), final_amount.ToString());
+                            PrintToChatEx(crafter, returnstring);
                         }
                         return false;
                     }
@@ -172,11 +175,19 @@ namespace Oxide.Plugins
             }
             return null;
         }
-        private void PrintToChatEx(BasePlayer player, string result, bool type = false, string tcolour = "#66FF66")
+        private void RefundIngredients(ItemBlueprint bp, BasePlayer player, int amount = 1)
         {
-            if (!type) { PrintToChat(player, "<color=\"" + tcolour + "\">[" + this.Title.ToString() + "]</color> " + result); }
-            else { PopupNotifications?.Call("CreatePopupNotification", "<color=" + tcolour + ">" + this.Title.ToString() + "</color>\n" + result, player); }
+            using (List<ItemAmount>.Enumerator enumerator = bp.ingredients.GetEnumerator())
+            {
+                while (enumerator.MoveNext())
+                {
+                    ItemAmount current = enumerator.Current;
+                    Item i = ItemManager.CreateByItemID(current.itemid, Convert.ToInt32(current.amount) * amount);
+                    if (!i.MoveToContainer(player.inventory.containerMain)) { i.Drop(player.eyes.position, player.eyes.BodyForward() * 2f); }
+                }
+            }
         }
+        private void PrintToChatEx(BasePlayer player, string result, string tcolour = "#66FF66") { PrintToChat(player, "<color=\"" + tcolour + "\">[" + this.Title.ToString() + "]</color> " + result); }
         private ItemDefinition GetItem(string shortname)
         {
             if (string.IsNullOrEmpty(shortname) || mcITEMS == null) return null;

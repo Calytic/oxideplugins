@@ -1,0 +1,18 @@
+{
+    "name": "Clans",
+    "description": "Universal clans with alliance support",
+    "author": "k1lly0u",
+    "version": "0.1.28",
+    "configuration": true,
+    "require": {
+        "BetterChat": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -18,7 +18,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("SpawnConfig", "Nogrod", "1.0.8")]
+    [Info("SpawnConfig", "Nogrod", "1.0.9")]
     internal class SpawnConfig : RustPlugin
     {
         private const bool Debug = false;
@@ -135,7 +135,11 @@ namespace Oxide.Plugins
                 var data = ToJsonString(spawnGroup);
                 var spawnGroupData = ToObject<SpawnGroupData>(data);
                 foreach (var spawnEntry in spawnGroup.prefabs)
-                    spawnGroupData.Prefabs.Add(new SpawnEntryData {Prefab = spawnEntry.prefab.Get().GetComponent<LootContainer>().PrefabName, Weight = spawnEntry.weight, Mobile = spawnEntry.mobile});
+                {
+                    var baseNetworkable = spawnEntry.prefab?.Get()?.GetComponent<BaseNetworkable>();
+                    if (baseNetworkable == null) continue;
+                    spawnGroupData.Prefabs.Add(new SpawnEntryData { Prefab = baseNetworkable.PrefabName, Weight = spawnEntry.weight, Mobile = spawnEntry.mobile});
+                }
                 var spawnPoints = (BaseSpawnPoint[])SpawnPointsField.GetValue(spawnGroup);
                 foreach (var spawnPoint in spawnPoints)
                 {

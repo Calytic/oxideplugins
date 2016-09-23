@@ -1,0 +1,15 @@
+{
+    "name": "ReportBot",
+    "description": "Forwards server reports to their owners via Steam",
+    "author": "Spicy",
+    "version": "1.0.4",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "Universal"
+    ],
+    "keywords": [
+        "oxide",
+        "Universal"
+    ]
+}

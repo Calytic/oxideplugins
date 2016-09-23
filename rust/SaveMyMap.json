@@ -1,0 +1,15 @@
+{
+    "name": "SaveMyMap",
+    "description": "A save location bridge to support a better map save revision",
+    "author": "Fujikura",
+    "version": "0.3.2",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

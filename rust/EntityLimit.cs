@@ -5,7 +5,7 @@ using System.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("Entity Limit", "PaiN", 0.4, ResourceId = 1947)]
+    [Info("Entity Limit", "PaiN", 0.5, ResourceId = 1947)]
     class EntityLimit : RustPlugin
     {
         static EntityLimit Plugin;
@@ -54,6 +54,7 @@ namespace Oxide.Plugins
                     {
                         info.limit.Add(new Entities()
                         { Count = 1, Name = entity.ShortPrefabName });
+
                     }
                     else
                     {
@@ -63,14 +64,14 @@ namespace Oxide.Plugins
                             if (playerEnt.Count == Cfg.MaxLimits[playerEnt.Name])
                             {
                                 player.ChatMessage(LangMsg("MAX_ENTITIES"));
-                                Item item = ItemManager.CreateByName(entity.ShortPrefabName, 1);
+                                var item = ItemManager.CreateByName(entity.ShortPrefabName.Replace("_", "."), 1);
                                 player.inventory.GiveItem(item, player.inventory.containerBelt);
                                 player.Command(string.Concat(new object[4]
                                 {
-                                  (object) "note.inv ",
-                                  (object) item.info.itemid,
-                                  (object) " ",
-                                  (object) "1"
+                                    (object) "note.inv ",
+                                    (object) item.info.itemid,
+                                    (object) " ",
+                                    (object) "1"
                                 }));
                                 entity.KillMessage();
                                 return;
@@ -175,7 +176,7 @@ namespace Oxide.Plugins
         [ChatCommand("shortname")]
         void cmdShortName(BasePlayer player, string cmd, string[] args)
         {
-            if(!permission.UserHasPermission(player.UserIDString, "entitylimit.admin"))
+            if (!permission.UserHasPermission(player.UserIDString, "entitylimit.admin"))
             {
                 player.ChatMessage(LangMsg("NO_PERMISSION", player.UserIDString));
                 return;
@@ -226,7 +227,7 @@ namespace Oxide.Plugins
                 }
                 PlayerLimit info = data.Limits.Find(x => x.Id == target.userID);
 
-                if(info == null)
+                if (info == null)
                 {
                     player.ChatMessage("This player doesn't have any saved entities");
                     return;

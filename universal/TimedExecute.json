@@ -1,0 +1,15 @@
+{
+    "name": "Timed Execute",
+    "description": "Execute commands every (x) seconds.",
+    "author": "PaiN",
+    "version": "0.6",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "Universal"
+    ],
+    "keywords": [
+        "oxide",
+        "Universal"
+    ]
+}

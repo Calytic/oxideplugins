@@ -11,7 +11,7 @@ using Oxide.Core;
 
 namespace Oxide.Plugins
 {
-    [Info("Factions", "K1lly0u & Absolut", "3.3.6", ResourceId = 1919)]
+    [Info("Factions", "Absolut", "3.4.0", ResourceId = 1919)]
 
     class Factions : RustPlugin
     {
@@ -257,6 +257,7 @@ namespace Oxide.Plugins
             {
                 OnPlayerInit(p);
             }
+            GlobalTime = 0;
             InfoLoop();
             timer.Once(configData.Save_Interval * 60, () => SaveLoop());
             timer.Once(1 * 60, () => ChangeGlobalTime());
@@ -770,6 +771,7 @@ namespace Oxide.Plugins
             var faction = GetPlayerFaction(player);
             if (configData.Use_FactionLeaderByTime)
             {
+                SaveTimeData(player);
                 playerData.playerFactions[player.userID].time = 0;
             }
             if (isleader(player))
@@ -1150,9 +1152,10 @@ namespace Oxide.Plugins
                         }
                     }
                 }
-                //Puts($"{player.displayName} amount of {gatherType} is {item.amount}");
-                //Puts($"Trade: {Enum.GetName(typeof(Trade), playerData.playerFactions[player.userID].trade)}");
-                if (configData.Use_Taxes)
+            }
+            //Puts($"{player.displayName} amount of {gatherType} is {item.amount}");
+            //Puts($"Trade: {Enum.GetName(typeof(Trade), playerData.playerFactions[player.userID].trade)}");
+            if (configData.Use_Taxes)
                 {
                     var faction = GetPlayerFaction(player);
                     if (!factionData.leader.ContainsKey(faction)) return;
@@ -1186,7 +1189,6 @@ namespace Oxide.Plugins
                             return;
                         }
                 }
-            }
         }
 
         object OnItemCraft(ItemCraftTask task, BasePlayer crafter)
@@ -1540,16 +1542,18 @@ namespace Oxide.Plugins
             {
                 if (player != null)
                 {
-                    playerData.playerFactions[player.userID].FactionMemberTime += (GlobalTime - playerData.playerFactions[player.userID].time);
-                    playerData.playerFactions[player.userID].time = GlobalTime;
+                    SaveTimeData(player);
                 }
             }
+            SaveData();
+            timer.Once(300, () => SavePlayerFactionTime());
         }
 
-        private void SaveTimeData()
+        private void SaveTimeData(BasePlayer player)
         {
-            SavePlayerFactionTime();
-            timer.Once(300, () => SaveTimeData());
+            playerData.playerFactions[player.userID].FactionMemberTime += (GlobalTime - playerData.playerFactions[player.userID].time);
+            playerData.playerFactions[player.userID].time = GlobalTime;
+
         }
 
         //private static long GrabCurrentTimestamp()
@@ -1998,7 +2002,19 @@ namespace Oxide.Plugins
                     SendMSG(player, lang.GetMessage("NotAllowed", this));
                     Vector3 newPos = CalculateOutsidePos(player, zoneID);
                     MovePlayerPosition(player, newPos);
+                    return;
                 }
+            if (configData.Use_FactionSafeZones)
+            {
+                if (isAuth(player)) return;
+                if (GetPlayerFaction(player).ToString() == zoneID) return;
+                else
+                {
+                    SendMSG(player, lang.GetMessage("NotAllowedFZone", this));
+                    Vector3 newPos = CalculateOutsidePos(player, zoneID);
+                    MovePlayerPosition(player, newPos);
+                }
+            }
         }
 
         void OnExitZone(string zoneID, BasePlayer player)
@@ -3216,7 +3232,7 @@ namespace Oxide.Plugins
             CuiHelper.AddUi(player, HelpMain);
         }
 
-        private void FactionInfo(BasePlayer player, ushort faction)
+        private void FactionInfo(BasePlayer player, ushort faction, int page)
         {
             CuiHelper.DestroyUi(player, FactionsUIPanel);
             var element = UI.CreateElementContainer(FactionsUIPanel, UIColors["dark"], "0.3 0.3", "0.7 0.9", true);
@@ -3254,7 +3270,7 @@ namespace Oxide.Plugins
             {
                 CreateFactionDetails(ref element, FactionsUIPanel, $"Faction Tax: {f.ChatColor}{f.tax}</color>", i); i++;
             }
-            UI.CreateButton(ref element, FactionsUIPanel, UIColors["buttonbg"], "Go Back", 18, "0.2 0.05", "0.4 0.15", $"UI_CUIFactionSelection");
+            UI.CreateButton(ref element, FactionsUIPanel, UIColors["buttonbg"], "Go Back", 18, "0.2 0.05", "0.4 0.15", $"UI_FactionSelection {page}");
             UI.CreateButton(ref element, FactionsUIPanel, f.UIColor, "Join Faction", 18, "0.6 0.05", "0.8 0.15", $"CUI_FactionSelection {faction}");
             CuiHelper.AddUi(player, element);
         }
@@ -3705,46 +3721,6 @@ namespace Oxide.Plugins
                 offsetX = (0.025f + dimensions.x) * 3;
                 offsetY = (-0.05f - dimensions.y) * (number - 9);
             }
-            //if (number > 47 && number < 60)
-            //{
-            //    offsetX = (0.004f + dimensions.x) * 4;
-            //    offsetY = (-0.0004f - dimensions.y) * (number - 12);
-            //}
-            //if (number > 59 && number < 72)
-            //{
-            //    offsetX = (0.004f + dimensions.x) * 5;
-            //    offsetY = (-0.0004f - dimensions.y) * (number - 60);
-            //}
-            //if (number > 71 && number < 84)
-            //{
-            //    offsetX = (0.004f + dimensions.x) * 6;
-            //    offsetY = (-0.0004f - dimensions.y) * (number - 72);
-            //}
-            //if (number > 83 && number < 96)
-            //{
-            //    offsetX = (0.004f + dimensions.x) * 7;
-            //    offsetY = (-0.0004f - dimensions.y) * (number - 84);
-            //}
-            //if (number > 95 && number < 108)
-            //{
-            //    offsetX = (0.004f + dimensions.x) * 8;
-            //    offsetY = (-0.0004f - dimensions.y) * (number - 96);
-            //}
-            //if (number > 107 && number < 120)
-            //{
-            //    offsetX = (0.004f + dimensions.x) * 9;
-            //    offsetY = (-0.0004f - dimensions.y) * (number - 108);
-            //}
-            //if (number > 119 && number < 132)
-            //{
-            //    offsetX = (0.004f + dimensions.x) * 10;
-            //    offsetY = (-0.0004f - dimensions.y) * (number - 120);
-            //}
-            //if (number > 87 && number < 96)
-            //{
-            //    offsetX = (0.004f + dimensions.x) * 11;
-            //    offsetY = (-0.0004f - dimensions.y) * (number - 132);
-            //}
             Vector2 offset = new Vector2(offsetX, offsetY);
             Vector2 posMin = position + offset;
             Vector2 posMax = posMin + dimensions;
@@ -3790,12 +3766,12 @@ namespace Oxide.Plugins
             return new float[] { posMin.x, posMin.y, posMax.x, posMax.y };
         }
 
-        private void CreateFactionSelectionButton(ref CuiElementContainer container, string panelName, ushort faction, int num)
+        private void CreateFactionSelectionButton(ref CuiElementContainer container, string panelName, ushort faction, int num, int page)
         {
             string name = factionData.Factions[faction].Name;
             string color = factionData.Factions[faction].UIColor;
             string count = $"Player Count: {factionData.Factions[faction].PlayerCount}";
-            string cmd = $"UI_CUI_FactionInfo {faction}";
+            string cmd = $"UI_CUI_FactionInfo {faction} {page}";
             var pos = CalcButtonPos(num);
             UI.CreateButton(ref container, panelName, color, $"{name}\n{count}", 12, $"{pos[0]} {pos[1]}", $"{pos[2]} {pos[3]}", cmd);
         }
@@ -3886,28 +3862,51 @@ namespace Oxide.Plugins
             {"buttongrey", "0.8 0.8 0.8 0.9" }
         };
 
-        void SetFaction(BasePlayer player)
+        void SetFaction(BasePlayer player, int page = 0)
         {
             CuiHelper.DestroyUi(player, FactionsUIPanel);
             var element = UI.CreateElementContainer(FactionsUIPanel, UIColors["dark"], "0.1 0.1", "0.9 0.9", true);
             UI.CreatePanel(ref element, FactionsUIPanel, UIColors["light"], "0.03 0.05", "0.97 0.95", true);
             UI.CreateLabel(ref element, FactionsUIPanel, UIColors["header"], lang.GetMessage("FactionSelectionTitle", this), 100, "0.01 0.01", "0.99 0.99");
-            var i = 0;
+            var count = factionData.Factions.Count();
+            int entriesallowed = 30;
+            int remainingentries = count - (page * entriesallowed);
+            {
+                if (remainingentries > entriesallowed)
+                    UI.CreateButton(ref element, FactionsUIPanel, UIColors["buttonbg"], $"{lang.GetMessage("Next", this)}", 18, "0.87 0.03", "0.97 0.085", $"UI_FactionSelection {page + 1}");
+                if (page > 0)
+                    UI.CreateButton(ref element, FactionsUIPanel, UIColors["buttonred"], $"{lang.GetMessage("Back", this)}", 18, "0.73 0.03", "0.83 0.085", $"UI_FactionSelection {page - 1}");
+
+            }
+            int shownentries = page * entriesallowed;
+            int i = 0;
+            int n = 0;
             if (!configData.Use_FactionsByInvite)
             {
                 foreach (var entry in factionData.Factions)
                 {
-                    CreateFactionSelectionButton(ref element, FactionsUIPanel, entry.Key, i); i++;
+                    i++;
+                    if (i < shownentries + 1) continue;
+                    else if (i <= shownentries + entriesallowed)
+                    {
+                        CreateFactionSelectionButton(ref element, FactionsUIPanel, entry.Key, n, page); n++;
+                    }
                 }
             }
             else if (configData.Use_FactionsByInvite)
             {
                 foreach (var entry in factionData.Factions.Where(kvp => kvp.Value.type == FactionType.FFA))
                 {
-                    CreateFactionSelectionButton(ref element, FactionsUIPanel, entry.Key, i); i++;
+                    i++;
+                    if (i < shownentries + 1) continue;
+                    else if (i <= shownentries + entriesallowed)
+                    {
+
+                        CreateFactionSelectionButton(ref element, FactionsUIPanel, entry.Key, n, page); n++;
+                    }
                 }
             }
-            //UI.CreateButton(ref element, FactionsUIPanel, UIColors["buttonred"], "Do Not Join", 12, "0.8 0.05", "0.87 0.09", "UI_DestroyFS");
+            UI.CreateButton(ref element, FactionsUIPanel, UIColors["buttonred"], lang.GetMessage("NoJoin", this), 12, "0.8 0.05", "0.87 0.09", "UI_DestroyFS");
             CuiHelper.AddUi(player, element);
         }
 
@@ -4179,7 +4178,7 @@ namespace Oxide.Plugins
             }
             if (!FactionMemberCheck(player))
             {
-                CreateCMDButton(ref element, FactionsUIPanel, 0, lang.GetMessage("FactionSelection", this), "UI_CUIFactionSelection", i); i++;
+                CreateCMDButton(ref element, FactionsUIPanel, 0, lang.GetMessage("FactionSelection", this), $"UI_FactionSelection {0}", i); i++;
             }
             CuiHelper.AddUi(player, element);
         }
@@ -4286,7 +4285,7 @@ namespace Oxide.Plugins
             UI.CreateLabel(ref element, FactionsUIPanel, UIColors["header"], lang.GetMessage("FactionManagement", this), 100, "0.01 0.01", "0.99 0.99", TextAnchor.MiddleCenter);
             CreateCMDButton(ref element, FactionsUIPanel, 0, string.Format(lang.GetMessage("CreateFaction", this)), "CUI_NewFaction", i); i++;
             //CreateCMDButton(ref element, FactionsUIPanel, 0, "Edit", "Factions","", "UI_CUI_FactionEditor", i); i++;
-            if (!configData.Use_FactionLeaderByAdmin)
+            if (configData.Use_FactionLeaderByAdmin)
             {
                 CreateCMDButton(ref element, FactionsUIPanel, 0, lang.GetMessage("LeaderManagement", this), "UI_CUI_FactionLeaders", i); i++;
             }
@@ -4606,6 +4605,10 @@ namespace Oxide.Plugins
 
 
 
+            if (configData.Use_FactionSafeZones == true) color = UIColors["green"];
+            else color = UIColors["red"];
+            CreateOptionButton(ref element, FactionsUIPanel, color, lang.GetMessage("FactionSafeZonesTitle", this), $"UI_CUIChangeOption Use_FactionSafeZones FactionSafeZonesInfo FactionSafeZonesTitle {configData.Use_FactionSafeZones}", i); i++;
+
             if (configData.Use_FactionLeaderByRank == true) color = UIColors["green"];
             else color = UIColors["red"];
             CreateOptionButton(ref element, FactionsUIPanel, color, lang.GetMessage("FactionLeaderByRankTitle", this), $"UI_CUIChangeOption UI_Use_FactionLeaderByRank FactionLeaderByRankInfo FactionLeaderByRankTitle {configData.Use_FactionLeaderByRank}", i); i++;
@@ -4621,10 +4624,6 @@ namespace Oxide.Plugins
             if (configData.Use_EconomicsReward == true) color = UIColors["green"];
             else color = UIColors["red"];
             CreateOptionButton(ref element, FactionsUIPanel, color, lang.GetMessage("EconomicsRewardTitle", this), $"UI_CUIChangeOption UI_UseEconomics EconomicsRewardInfo EconomicsRewardTitle {configData.Use_TokensReward}", i); i++;
-
-            if (configData.Use_TokensReward == true) color = UIColors["green"];
-            else color = UIColors["red"];
-            CreateOptionButton(ref element, FactionsUIPanel, color, lang.GetMessage("TokensRewardTitle", this), $"UI_CUIChangeOption UI_UseTokens TokensRewardInfo TokensRewardTitle {configData.Use_TokensReward}", i); i++;
 
             if (configData.Use_ServerRewardsReward == true) color = UIColors["green"];
             else color = UIColors["red"];
@@ -5093,6 +5092,7 @@ namespace Oxide.Plugins
                 configData.Use_FactionLeaderByTime = true;
                 foreach (BasePlayer p in BasePlayer.activePlayerList) InitPlayerTime(p);
                 ChangeGlobalTime();
+                timer.Once(180, () => SavePlayerFactionTime());
             }
             CUIOptions(player);
             SaveConfig(configData);
@@ -5136,6 +5136,22 @@ namespace Oxide.Plugins
                 return;
             if (configData.Use_FactionZones == true) configData.Use_FactionZones = false;
             else configData.Use_FactionZones = true;
+            CUIOptions(player);
+            SaveConfig(configData);
+        }
+
+        [ConsoleCommand("Use_FactionSafeZones")]
+        private void cmdUse_FactionSafeZones(ConsoleSystem.Arg arg)
+        {
+            var player = arg.connection.player as BasePlayer;
+            if (player == null)
+                return;
+            if (configData.Use_FactionSafeZones == true) configData.Use_FactionSafeZones = false;
+            else
+            {
+                configData.Use_FactionSafeZones = true;
+                configData.Use_FactionZones = true;
+            }
             CUIOptions(player);
             SaveConfig(configData);
         }
@@ -5225,18 +5241,6 @@ namespace Oxide.Plugins
                 return;
             if (configData.Use_EconomicsReward == true) configData.Use_EconomicsReward = false;
             else configData.Use_EconomicsReward = true;
-            CUIOptions(player);
-            SaveConfig(configData);
-        }
-
-        [ConsoleCommand("UI_UseTokens")]
-        private void cmdUseTokensConfig(ConsoleSystem.Arg arg)
-        {
-            var player = arg.connection.player as BasePlayer;
-            if (player == null)
-                return;
-            if (configData.Use_TokensReward == true) configData.Use_TokensReward = false;
-            else configData.Use_TokensReward = true;
             CUIOptions(player);
             SaveConfig(configData);
         }
@@ -5566,20 +5570,17 @@ namespace Oxide.Plugins
 
 
 
-        [ConsoleCommand("UI_CUIFactionSelection")]
-        private void cmdCUIFactionSelection(ConsoleSystem.Arg arg)
+        [ConsoleCommand("UI_FactionSelection")]
+        private void cmdUI_FactionSelection(ConsoleSystem.Arg arg)
         {
             var player = arg.connection.player as BasePlayer;
             if (player == null)
                 return;
-            CUIFactionSelection(player);
-        }
-
-        private void CUIFactionSelection(BasePlayer player)
-        {
+            var page = Convert.ToInt16(arg.Args[0]);
             CuiHelper.DestroyUi(player, FactionsUIPanel);
             DestroyFactionMenu(player);
-            SetFaction(player);
+            SetFaction(player, page);
+
         }
 
         [ConsoleCommand("UI_CUIFactionInvite")]
@@ -6604,7 +6605,8 @@ namespace Oxide.Plugins
             if (player == null)
                 return;
             ushort faction = Convert.ToUInt16(arg.Args[0]);
-            FactionInfo(player, faction);
+            var page = Convert.ToInt16(arg.Args[1]);
+            FactionInfo(player, faction, page);
         }
 
         [ConsoleCommand("CUI_FactionSelection")]
@@ -7519,7 +7521,7 @@ namespace Oxide.Plugins
             public int BattleZonesCooldown { get; set; }
             public int RequiredBZParticipants { get; set; }
             public int BZPrepTime { get; set; }
-
+            public bool Use_FactionSafeZones { get; set; }
 
 
             public bool Use_FactionsByInvite { get; set; }
@@ -7682,6 +7684,7 @@ namespace Oxide.Plugins
                 KillLimit = 200,
                 Use_FactionNamesonChat = true,
                 Use_ChatTitles = true,
+                Use_FactionSafeZones = false,
             };
             SaveConfig(config);
         }
@@ -7693,7 +7696,7 @@ namespace Oxide.Plugins
         Dictionary<string, string> messages = new Dictionary<string, string>()
         {
             {"title", "Factions: " },
-            {"FactionsInfo", "This server is running Factions(type /faction or Press 'N'), Server Rewards(type /s) and Quests(type /q)."},
+            {"FactionsInfo", "This server is running Factions(type /faction or Press 'N')."},
             {"FFBuildings", "This is a friendly structure owned by {0}! You must be authorized on a nearby Tool Cupboard to damage it!"},
             {"FFs", "{0} is on your faction!"},
             {"Payment", "You have received {0} {1} for that kill!" },
@@ -7850,6 +7853,7 @@ namespace Oxide.Plugins
             {"OOBRepeater", "{0} seconds remaining..." },
             {"OOBDeath", "{0} left the {1} BattleZone and paid the price." },
             {"SpawnRepeater", "{0} minutes remaining..." },
+            {"NotAllowedFZone", "You are not allowed in this Faction Zone!" },
             {"NotAllowed", "You are not allowed to enter this BattleZone. You have either already entered and died or were not online when it began." },
             {"FactionZoneDestroyed", "The Faction Zone for {0} has been destroyed!" },
             {"BZButtonText","Click to Join\nthe {0}\nBattle Zone" },
@@ -7933,8 +7937,8 @@ namespace Oxide.Plugins
             {"FactionLeaderByAdminInfo", "This setting controls how a Faction Leader is chosen. If this setting is set to âTRUEâ Leaders will only be assigned by the Admin. If âLeader Revolt Challengeâ is set to âTRUEâ Faction Members can obtain leadership by defeating the Leader in a Revolt. There can only be one âLeader Byâ setting at a time and therefore any other Faction Leader Selection Setting will be set to âFALSEâ upon this one being set to âTRUEâ." },
             {"EconomicsRewardTitle", "Economics Rewards Reward Setting" },
             {"EconomicsRewardInfo", "This setting controls the Kill Incentives 'Victory' Reward and Other Faction Kills. Setting this as 'TRUE' makes it so players received an Economics Reward for each kill. On Kill Limit reached, it also gives each player on the winning Faction a reward in the form of Economics. This setting requires the Plugin Economics. The amount of economics given per kill âKillAmountEconomicsâ and for Kill limit âFactionKillsRewardEconomicsâ are configured in the Config File." },
-            {"TokensRewardTitle", "Tokens Reward Setting" },
-            {"TokensRewardInfo", "This setting controls the Kill Incentives 'Victory' Reward and Other Faction Kills. Setting this as 'TRUE' makes it so players received a Token Reward for each kill. On Kill Limit reached, it also gives each player on the winning Faction a reward in the form of Tokens. This setting requires the Plugin Event Manager. The amount of tokens given per kill âKillAmountTokensâ and for Kill limit âFactionKillsRewardTokensâ are configured in the Config File." },
+            {"FactionSafeZonesTitle", "Faction Safe Zone Setting" },
+            {"FactionSafeZonesInfo", "This setting controls whether Faction Zones are restricted to only members of the given Faction. Setting this as 'TRUE' makes it so players in other Factions will be ejected from the given Faction Zone. This setting requires that Faction" },
             {"PromoteLeader", "Promote\n{0}\nas {1}" },
             {"RemoveLeader", "<color=#e60000>Remove</color>\n{0}\nas {1}" },
             {"InvitePlayer", "Invite\n{0}\nto {1}" },
@@ -7948,6 +7952,7 @@ namespace Oxide.Plugins
             {"CreateRallySpawn", "Create\nRally Spawn" },
             {"RemoveFactionSpawn", "Remove\n{1}\nSpawn: {0}" },
             {"RemoveRallySpawn", "Remove\nRally Spawn\n{0}" },
+            {"NoJoin", "Do Not Join" }
         };
         #endregion
     }

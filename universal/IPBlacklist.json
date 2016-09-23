@@ -1,0 +1,15 @@
+{
+    "name": "IPBlacklist",
+    "description": "Blacklist IPs to prevent them from joining your server",
+    "author": "Ankawi",
+    "version": "1.0.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "Universal"
+    ],
+    "keywords": [
+        "oxide",
+        "Universal"
+    ]
+}

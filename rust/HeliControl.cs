@@ -8,20 +8,23 @@ using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("HeliControl", "Shady", "1.0.39", ResourceId = 1348)]
+    [Info("HeliControl", "Shady", "1.0.41", ResourceId = 1348)]
     [Description("Tweak various settings of helicopters. Plugin originally developed by koenrad.")]
     class HeliControl : RustPlugin
     {
         #region Config/Init
         private Dictionary<string, string> englishnameToShortname = new Dictionary<string, string>();       //for finding shortnames
-        StoredData storedData = new StoredData();
-        StoredData2 storedData2 = new StoredData2();
-        StoredData3 storedData3 = new StoredData3();
+        StoredData lootData = new StoredData();
+        StoredData2 weaponsData = new StoredData2();
+        StoredData3 cooldownData = new StoredData3();
+        StoredData4 spawnsData = new StoredData4();
         private float boundary;
         PatrolHelicopterAI HeliInstance = null;
         private List<BaseHelicopter> BaseHelicopters = new List<BaseHelicopter>();
         private HashSet<HelicopterDebris> Gibs = new HashSet<HelicopterDebris>();
         private HashSet<FireBall> FireBalls = new HashSet<FireBall>();
+        private HashSet<BaseHelicopter> forceCalled = new HashSet<BaseHelicopter>();
+        private HashSet<LockedByEntCrate> lockedCrates = new HashSet<LockedByEntCrate>();
         FieldInfo timeBetweenRockets = typeof(PatrolHelicopterAI).GetField("timeBetweenRockets", BindingFlags.NonPublic | BindingFlags.Instance);
         FieldInfo maxRockets = typeof(PatrolHelicopterAI).GetField("maxRockets", BindingFlags.NonPublic | BindingFlags.Instance);
         FieldInfo numRocketsLeft = typeof(PatrolHelicopterAI).GetField("numRocketsLeft", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -45,6 +48,7 @@ namespace Oxide.Plugins
         bool CooldownPlayersCallMultiple => GetConfig("CooldownPlayersCanCallMultiple", false);
         bool CooldownPlayersCanTarget => GetConfig("CooldownPlayersCanCallToTarget", true);
         bool HelicopterCanShootWhileDying => GetConfig("HelicopterCanShootWhileDying", true);
+        bool UseCustomHeliSpawns => GetConfig("UseCustomHeliSpawns", false);
 
         float GlobalDamageMultiplier => GetConfig("GlobalDamageMultiplier", 1.0f);
         float HeliBulletDamageAmount => GetConfig("HeliBulletDamageAmount", 20.0f);
@@ -52,6 +56,8 @@ namespace Oxide.Plugins
         float TailRotorHealth => GetConfig("TailRotorHealth", 375.0f);
         float BaseHealth => GetConfig("BaseHealth", 10000.0f);
         float HeliSpeed => GetConfig("HeliSpeed", 25.0f);
+        float HeliStartSpeed => GetConfig("HeliStartSpeed", 25.0f);
+        float HeliStartLength => GetConfig("HeliStartLength", 0f);
         float HeliAccuracy => GetConfig("HeliAccuracy", 2.0f);
         float TimeBeforeUnlocking => GetConfig("TimeBeforeUnlockingCrates", 0.0f);
         float TurretFireRate => GetConfig("TurretFireRate", 0.125f);
@@ -77,8 +83,13 @@ namespace Oxide.Plugins
         Dictionary<string, object> cds => GetConfig("Cooldowns", new Dictionary<string, object>());
         Dictionary<string, object> limits => GetConfig("Limits", new Dictionary<string, object>());
 
+        private List<ItemDefinition> itemDefinitions;
+
         [PluginReference]
         Plugin NTeleportation;
+
+        [PluginReference]
+        Plugin Vanish;
 
 
         
@@ -89,7 +100,6 @@ namespace Oxide.Plugins
         protected override void LoadDefaultConfig()
         {
             //PrintWarning("Creating a new configuration file.");
-           // Config.Clear();
             Config["DisableHeli"] = DisableHeli;
             Config["DisableDefaultHeliSpawns"] = DisableDefaultHeliSpawns;
             Config["ModifyDamageToHeli"] = ModifyDamageToHeli;
@@ -126,9 +136,12 @@ namespace Oxide.Plugins
             Config["CooldownPlayersCanCallMultiple"] = CooldownPlayersCallMultiple;
             Config["WaterRequiredToExtinguishNapalm"] = WaterRequired;
             Config["CooldownPlayersCanCallToTarget"] = CooldownPlayersCanTarget;
+            Config["UseCustomHeliSpawns"] = UseCustomHeliSpawns;
+            Config["HeliStartSpeed"] = HeliStartSpeed;
+            Config["HeliStartLength"] = HeliStartLength;
             var i = 0;
-            for (i = 1; i <= 10; i++) if (!cds.ContainsKey("Cooldown." + i)) cds.Add("Cooldown." + i, 86400f);
-            for (i = 1; i <= 10; i++) if (!limits.ContainsKey("Limit." + i)) limits.Add("Limit." + i, 5);
+            for (i = 0; i < 10; i++) if (!cds.ContainsKey("Cooldown." + i)) cds.Add("Cooldown." + i, 86400f);
+            for (i = 0; i < 10; i++) if (!limits.ContainsKey("Limit." + i)) limits.Add("Limit." + i, 5);
             Config["Cooldowns"] = cds;
             Config["Limits"] = limits;
             SaveConfig();
@@ -173,6 +186,8 @@ namespace Oxide.Plugins
 
             var perms = new List<String>();
             perms.Add("callheli");
+            perms.Add("callheliself");
+            perms.Add("callhelitarget");
             perms.Add("killheli");
             perms.Add("shortname");
             perms.Add("strafe");
@@ -185,8 +200,8 @@ namespace Oxide.Plugins
             perms.Add("ignorecooldown");
             perms.Add("ignorelimits");
             perms.Add("tpheli");
-          foreach(var perm in cds.Keys) perms.Add(perm);
-
+            perms.Add("helispawn");
+            foreach(var perm in cds.Keys) perms.Add(perm);
             foreach (var limit in limits.Keys) perms.Add(limit);
 
             for (int j = 0; j < perms.Count; j++) permission.RegisterPermission("helicontrol." + perms[j], this);
@@ -197,7 +212,7 @@ namespace Oxide.Plugins
 
 
         /*--------------------------------------------------------------//
-		//			Localization Stuff			                        //
+		//			Localization			                        //
 		//--------------------------------------------------------------*/
 
         private void LoadDefaultMessages()
@@ -228,6 +243,16 @@ namespace Oxide.Plugins
                 {"callheliLimit", "You've used your daily limit of {0} heli calls!" },
                 {"unlockedAllCrates", "Unlocked all Helicopter crates!" },
                 {"teleportedToHeli", "You've been teleported to the ground below the active Helicopter!" },
+                {"removeAddSpawn", "To remove a Spawn, type: /helispawn remove SpawnName\n\nTo add a Spawn, type: /helispawn add SpawnName -- This will add the spawn on your current position." },
+                {"addedSpawn", "Added helicopter spawn {0} with the position of: {1}" },
+                {"spawnExists", "A spawn point with this name already exists!" },
+                {"noSpawnsExist", "No Helicopter spawns have been created!" },
+                {"removedSpawn", "Removed Helicopter spawn point: {0}: {1}" },
+                {"noSpawnFound", "No spawn could be found with that name!" },
+                {"onlyCallSelf", "You can only call a Helicopter on yourself, try: /callheli {0}" },
+                {"spawnCommandLiner", "<color=orange>----</color>Spawns<color=orange>----</color>\n" },
+                {"spawnCommandBottom", "\n<color=orange>----------------</color>" },
+                {"cantCallTargetOrSelf", "You do not have the permission to call a Helicopter on a target! Try: /callheli" },
                 {"itemNotFound", "Item not found!" },
             };
             lang.RegisterMessages(messages, this);
@@ -247,23 +272,22 @@ namespace Oxide.Plugins
             //Initialize the list of english to shortnames
             var startTime = UnityEngine.Time.realtimeSinceStartup;
             englishnameToShortname = new Dictionary<string, string>();
-            var ItemsDefinition = ItemManager.GetItemDefinitions();
-            for(int i = 0; i < ItemsDefinition.Count(); i++)
+            itemDefinitions = ItemManager.GetItemDefinitions();
+            for(int i = 0; i < itemDefinitions.Count; i++)
             {
-                var itemdef = ItemsDefinition[i];
+                var itemdef = itemDefinitions[i];
                 if (itemdef == null) continue;
                 englishnameToShortname.Add(itemdef.displayName.english.ToString().ToLower(), itemdef.shortname.ToString());
             }
-            timer.Every(5f, () => CheckHelicopter());
+            timer.Every(10f, () => CheckHelicopter());
 
 
             var allHelicopters = GameObject.FindObjectsOfType<BaseHelicopter>();
             var allDebris = GameObject.FindObjectsOfType<HelicopterDebris>();
             var allFireballs = GameObject.FindObjectsOfType<FireBall>();
             var events = GameObject.FindObjectsOfType<TriggeredEventPrefab>();
-         
-            var countH = 0;
-            for(int i = 0; i < allHelicopters.Count(); i++)
+            var crates = GameObject.FindObjectsOfType<LockedByEntCrate>();
+            for(int i = 0; i < allHelicopters.Length; i++)
             {
                 var baseHeli = allHelicopters[i];
                 if (!baseHeli.IsAlive() || baseHeli == null) continue;
@@ -272,15 +296,14 @@ namespace Oxide.Plugins
                 BaseHelicopters.Add(baseHeli);
                 HeliInstance = patrolAI;
                 UpdateHelis(baseHeli, false);
-                countH++;
             }
-            for(int i = 0; i < allDebris.Count(); i++)
+            for(int i = 0; i < allDebris.Length; i++)
             {
                 var gib = allDebris[i];
                 if (gib == null) continue;
                 Gibs.Add(gib);
             }
-            for(int i = 0; i < allFireballs.Count(); i++)
+            for(int i = 0; i < allFireballs.Length; i++)
             {
                 var fb = allFireballs[i];
                 if (fb == null) continue;
@@ -288,9 +311,15 @@ namespace Oxide.Plugins
                 if (!name.Contains("napalm") && !name.Contains("oil")) continue;
                 FireBalls.Add(fb);
             }
+            for(int i = 0; i < crates.Length; i++)
+            {
+                var crate = crates[i];
+                if (crate == null) continue;
+                lockedCrates.Add(crate);
+            }
             if(DisableDefaultHeliSpawns)
             {
-                for (int i = 0; i < events.Count(); i++)
+                for (int i = 0; i < events.Length; i++)
                 {
                     var prefab = events[i];
                     var name = prefab?.targetPrefab?.resourcePath ?? "Unknown";
@@ -306,8 +335,9 @@ namespace Oxide.Plugins
             ConVar.PatrolHelicopter.lifetimeMinutes = LifeTimeMinutes;
             //Get the saved drop list
             if (UseCustomLoot) LoadSavedData();
+            LoadHeliSpawns();
             LoadWeaponData();
-            storedData3 = Interface.GetMod()?.DataFileSystem?.ReadObject<StoredData3>("HeliControlCooldowns") ?? null;
+            cooldownData = Interface.GetMod()?.DataFileSystem?.ReadObject<StoredData3>("HeliControlCooldowns") ?? null;
 
             boundary = TerrainMeta.Size.x / 2;
                 init = true;
@@ -322,10 +352,21 @@ namespace Oxide.Plugins
         #endregion
         #region Hooks
 
-        void Unload() => SaveData3();
+        void Unload()
+        {
+            SaveData3();
+            SaveData4();
+        }
 
-        void OnServerSave() => timer.Once(3.5f, () => SaveData3()); //delay saving to avoid potential lag spikes
+        void OnServerSave()
+        {
+            timer.Once(UnityEngine.Random.Range(1f, 4.5f), () =>
+            {
+                SaveData3();
+                SaveData4();
+            }); //delay saving to avoid potential lag spikes
 
+        }
 
 
         /*--------------------------------------------------------------//
@@ -335,9 +376,11 @@ namespace Oxide.Plugins
         {
 
             if (entity == null || !init) return;
-            var heliname = entity?.ShortPrefabName ?? string.Empty;
-            if (string.IsNullOrEmpty(heliname)) return;
-            if (heliname.Contains("napalm") || heliname.Contains("oilfireball") && !heliname.Contains("rocket"))
+            var prefabname = entity?.ShortPrefabName ?? string.Empty;
+            var longprefabname = entity?.PrefabName ?? string.Empty;
+            if (string.IsNullOrEmpty(prefabname) || string.IsNullOrEmpty(longprefabname)) return;
+            if (entity is LockedByEntCrate) lockedCrates.Add(entity?.GetComponent<LockedByEntCrate>() ?? null);
+            if (prefabname.Contains("napalm") || prefabname.Contains("oilfireball") && !prefabname.Contains("rocket"))
             {
                 var fireball = entity?.GetComponent<FireBall>() ?? null;
                 if (fireball == null) return;
@@ -350,7 +393,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            if (heliname == "rocket_heli")
+            if (prefabname == "rocket_heli")
             {
                 var explosion = entity?.GetComponent<TimedExplosive>() ?? null;
                 var dmgTypes = explosion?.damageTypes ?? null;
@@ -364,17 +407,17 @@ namespace Oxide.Plugins
                 }
             }
 
-                if (heliname == "heli_crate")
+                if (prefabname == "heli_crate")
             {
                 //check for config setting, and makes sure there is loot data before changing heli loot
-                if (UseCustomLoot && storedData.HeliInventoryLists != null && storedData.HeliInventoryLists.Count > 0)
+                if (UseCustomLoot && lootData.HeliInventoryLists != null && lootData.HeliInventoryLists.Count > 0)
                 {
                     var heli_crate = entity?.GetComponent<LootContainer>() ?? null;
                     if (heli_crate == null) return;
                     if (heli_crate.inventory == null) return; //possible that the inventory is somehow null? not sure
                     int index;
-                    index = rng.Next(storedData.HeliInventoryLists.Count);
-                    BoxInventory inv = storedData.HeliInventoryLists[index];
+                    index = rng.Next(lootData.HeliInventoryLists.Count);
+                    BoxInventory inv = lootData.HeliInventoryLists[index];
                     for(int i = 0; i < heli_crate.inventory.itemList.Count; i++) //perhaps this is a better method than .Clear()?
                     {
                         var item = heli_crate.inventory.itemList[i];
@@ -408,7 +451,7 @@ namespace Oxide.Plugins
 
             }
 
-            if (heliname.Contains("servergibs_patrolhelicopter"))
+            if (prefabname.Contains("servergibs_patrolhelicopter"))
             {
                 var debris = entity?.GetComponent<HelicopterDebris>() ?? null;
                 if (debris == null) return;
@@ -427,7 +470,7 @@ namespace Oxide.Plugins
             }
 
 
-            if (heliname.Contains("patrolhelicopter") && !heliname.Contains("gibs"))
+            if (prefabname.Contains("patrolhelicopter") && !prefabname.Contains("gibs"))
             {
                 // Disable Helicopters
                 if (DisableHeli)
@@ -443,19 +486,40 @@ namespace Oxide.Plugins
 
                 BaseHelicopters.Add(BaseHeli);
                 UpdateHelis(BaseHeli, true);
+                if (UseCustomHeliSpawns && spawnsData.heliSpawns.Count > 0 && !forceCalled.Contains(BaseHeli))
+                {
+                    var valCount = spawnsData.heliSpawns.Values.Count;
+                    var rng = UnityEngine.Random.Range(0, valCount);
+                    var pos = GetVector3FromString(spawnsData.heliSpawns.Values.ToArray()[rng]);
+                    BaseHeli.transform.position = pos;
+                    AIHeli.transform.position = pos;
+                    BaseHeli.TransformChanged();
+                }
+                if (HeliStartLength > 0 && HeliStartSpeed != HeliSpeed)
+                {
+                    AIHeli.maxSpeed = HeliStartSpeed;
+                    timer.Once(HeliStartLength, () =>
+                    {
+                        if (AIHeli == null || BaseHeli == null || BaseHeli.IsDead()) return;
+                        AIHeli.maxSpeed = HeliSpeed;
+                    });
+                }
             }
         }
 
         object CanBeTargeted(BaseCombatEntity entity, MonoBehaviour monoTurret)
         {
             if (!init || HelicopterCanShootWhileDying) return null;
-            var turret = monoTurret?.GetComponent<HelicopterTurret>() ?? null;
-            var aiHeli = turret?._heliAI ?? null;
+            var aiHeli = monoTurret?.GetComponent<HelicopterTurret>()?._heliAI ?? null;
             if (aiHeli == null) return null;
-
+            var player = entity?.GetComponent<BasePlayer>() ?? null;
+            if (player != null && Vanish != null)
+            {
+                var isVanish = Vanish?.Call<bool>("IsInvisible", player) ?? false;
+                if (isVanish) return null;
+            }
             var heliState = aiHeli?._currentState ?? PatrolHelicopterAI.aiState.IDLE;
             if (heliState == PatrolHelicopterAI.aiState.DEATH) return false;
-
             return null;
         }
 
@@ -463,11 +527,14 @@ namespace Oxide.Plugins
         {
             if (!init) return;
             var name = entity?.ShortPrefabName ?? string.Empty;
+            var crate = entity?.GetComponent<LockedByEntCrate>() ?? null;
+            if (crate != null && lockedCrates.Contains(crate)) lockedCrates.Remove(crate);
             if (name.Contains("patrolhelicopter") && !name.Contains("gib"))
             {
                 var baseHeli = entity?.GetComponent<BaseHelicopter>() ?? null;
                 if (baseHeli == null) return;
                 if (BaseHelicopters.Contains(baseHeli)) BaseHelicopters.Remove(baseHeli);
+                if (forceCalled.Contains(baseHeli)) forceCalled.Remove(baseHeli);
             }
             if (name.Contains("oilfireball") || name.Contains("napalm"))
             {
@@ -507,8 +574,8 @@ namespace Oxide.Plugins
                 var displayName = hitInfo?.Weapon?.GetItem()?.info?.displayName?.english ?? null;
                 float weaponConfig = 0.0f;
                 if (shortName == null) return;
-                storedData2.WeaponList.TryGetValue(shortName, out weaponConfig);
-                if (weaponConfig == 0.0f) storedData2.WeaponList.TryGetValue(displayName, out weaponConfig);
+                weaponsData.WeaponList.TryGetValue(shortName, out weaponConfig);
+                if (weaponConfig == 0.0f) weaponsData.WeaponList.TryGetValue(displayName, out weaponConfig);
                 if (weaponConfig != 0.0f && weaponConfig != 1.0f) hitInfo.damageTypes.ScaleAll(weaponConfig);
                 else if (dmgMod != 1.0 && UseGlobalDamageModifier) hitInfo.damageTypes.ScaleAll(dmgMod);
             }
@@ -567,7 +634,9 @@ namespace Oxide.Plugins
                 var heliAI = entity?.GetComponent<PatrolHelicopterAI>() ?? null;
                 if (heliAI == null) continue;
                 heliAI.SetInitialDestination(coordinates + new Vector3(0.0f, 10f, 0.0f), 0.25f);
+                forceCalled.Add(heliAI.helicopterBase);
                 entity.Spawn();
+                
                 i++;
             }
         }
@@ -579,7 +648,8 @@ namespace Oxide.Plugins
                 var heliAI = heli?.GetComponent<PatrolHelicopterAI>() ?? null;
             if (heliAI == null) return null;
                 heliAI.SetInitialDestination(coordinates + new Vector3(0f, 10f, 0f), 0.25f);
-                heli.Spawn();
+            forceCalled.Add(heliAI.helicopterBase);
+            heli.Spawn();
             return heli;
         }
 
@@ -598,6 +668,7 @@ namespace Oxide.Plugins
                 i++;
             }
         }
+
         private void updateTurrets(PatrolHelicopterAI helicopter)
         {
             if (helicopter == null) return;
@@ -639,20 +710,72 @@ namespace Oxide.Plugins
         /*----------------------------------------------------------------------------------------------------------------------------//
        //												CHAT COMMANDS																  //
        //----------------------------------------------------------------------------------------------------------------------------*/
+
+
+        [ChatCommand("helispawn")]
+        private void cmdHeliSpawns(BasePlayer player, string command, string[] args)
+        {
+            if (!canExecute(player, "helispawn"))
+            {
+                SendNoPerms(player);
+                return;
+            }
+            if (args.Length <= 0)
+            {
+                var msg = string.Empty;
+                foreach (var spawn in spawnsData.heliSpawns) msg += spawn.Key + ": " + spawn.Value + " ";
+                if (!string.IsNullOrEmpty(msg))
+                {
+                   // SendReply(player, "Spawns:");
+                    SendReply(player, GetMessage("spawnCommandLiner") + msg.TrimEnd(' ') + GetMessage("spawnCommandBottom"));
+                }
+                SendReply(player, GetMessage("removeAddSpawn")); //this isn't combined with a new line with the above because there is a strange character limitation per-message, so we send two messages
+                return;
+            }
+            var lowerArg0 = args[0].ToLower();
+            if (lowerArg0 == "add" && args.Length > 1)
+            {
+                if (!spawnsData.heliSpawns.ContainsKey(args[1]))
+                {
+                    var pos = player?.transform?.position ?? Vector3.zero;
+                    if (pos == Vector3.zero) return;
+                    spawnsData.heliSpawns[args[1]] = pos.ToString().Replace("(", "").Replace(")", "");
+                    SendReply(player, string.Format(GetMessage("addedSpawn"), args[1], pos));
+                }
+                else SendReply(player, GetMessage("spawnExists"));
+            }
+            else if (lowerArg0 == "remove" && args.Length > 1)
+            {
+                if (spawnsData.heliSpawns.Keys.Count < 1)
+                {
+                    SendReply(player, GetMessage("noSpawnsExist"));
+                    return;
+                }
+                if (spawnsData.heliSpawns.ContainsKey(args[1]))
+                {
+                    var value = spawnsData.heliSpawns[args[1]];
+                    spawnsData.heliSpawns.Remove(args[1]);
+                    SendReply(player, string.Format(GetMessage("removedSpawn"), args[1], value));
+                }
+                else SendReply(player, GetMessage("noSpawnFound"));
+            }
+            else SendReply(player, string.Format(GetMessage("invalidSyntaxMultiple"), "/helispawn add", "SpawnName", "/helispawn remove", "SpawnName"));
+        }
+
         [ChatCommand("unlockcrates")]
         private void cmdUnlockCrates(BasePlayer player, string command, string[] args)
         {
-            if (!canExecute(player, "unlockcrates")) return;
-            var crates = GameObject.FindObjectsOfType<LockedByEntCrate>();
-            var count = 0;
-            for(int i = 0; i < crates.Count(); i++)
+            if (!canExecute(player, "unlockcrates"))
             {
-                var crate = crates[i];
+                SendNoPerms(player);
+                return;
+            }
+            foreach(var crate in lockedCrates)
+            {
                 if (crate == null) continue;
                 crate.CancelInvoke("Think");
                 crate.SetLocked(false);
-                crate.lockingEnt = (GameObject)null;
-                count++;
+                crate.lockingEnt = null;
             }
             SendReply(player, GetMessage("unlockedAllCrates"));
         }
@@ -660,7 +783,11 @@ namespace Oxide.Plugins
         [ChatCommand("tpheli")]
         private void cmdTeleportHeli(BasePlayer player, string command, string[] args)
         {
-            if (!canExecute(player, "tpheli")) return;
+            if (!canExecute(player, "tpheli"))
+            {
+                SendNoPerms(player);
+                return;
+            }
             if (HeliInstance == null || !HeliInstance.IsAlive())
             {
                 SendReply(player, GetMessage("noHelisFound"));
@@ -688,21 +815,27 @@ namespace Oxide.Plugins
             var cooldownTime = GetLowestCooldown(player);
             var limit = 0;
             var today = DateTime.Now.ToString("d");
+            var now = DateTime.Now;
             limit = GetHighestLimit(player);
-            if (limit <= 0 && !ignoreLimits(player) && !canExecute(player, "callheli")) return;
-            if (!canExecute(player, "callheli", false))
+            if (limit <= 0 && !ignoreLimits(player) && !canExecute(player, "callheli"))
             {
-                if (storedData3.timesCalled.ContainsKey(player.userID) && storedData3.lastCalled.ContainsKey(player.userID) && !ignoreLimits(player) && limit >= 1)
+                SendNoPerms(player);
+                return;
+            }
+            if (!canExecute(player, "callheli"))
+            {
+                if (cooldownData.timesCalled.ContainsKey(player.userID) && cooldownData.lastCalled.ContainsKey(player.userID) && !ignoreLimits(player) && limit >= 1)
                 {
-                    var timesCalled = storedData3.timesCalled[player.userID];
+                    var timesCalled = cooldownData.timesCalled[player.userID];
 
-                    var lastDate = storedData3.lastCalled[player.userID];
-                    if (timesCalled + 1 > limit && today == lastDate)
-                    {
-                        SendReply(player, string.Format(GetMessage("callheliLimit"), limit));
-                        return;
-                    }
-                    else storedData3.timesCalled[player.userID] = 0;
+                    var lastDate = cooldownData.lastCalled[player.userID];
+                        if ((timesCalled + 1) > limit && today == lastDate)
+                        {
+                            SendReply(player, string.Format(GetMessage("callheliLimit"), limit));
+                            return;
+                        }
+                        else if (today != lastDate) cooldownData.timesCalled[player.userID] = 0;
+                 //   else cooldownData.timesCalled[player.userID] = 0;
                 }
                 if (!ignoreCooldown(player) && cooldownTime != 0f)
                 {
@@ -711,45 +844,51 @@ namespace Oxide.Plugins
                         SendReply(player, string.Format(GetMessage("cannotBeCalled"), countAllHeli().ToString()));
                         return;
                     }
+
                     cooldownTime = GetLowestCooldown(player);
 
-
-                    var now = UnityEngine.Time.realtimeSinceStartup;
-                    if (!storedData3.cooldowns.ContainsKey(player.userID)) storedData3.cooldowns.Add(player.userID, now - cooldownTime);
-
-                    var cooldown = now - storedData3.cooldowns[player.userID];
-
-                    var diff = TimeSpan.FromSeconds(cooldown);
-                    var cooldownDiff = TimeSpan.FromSeconds(cooldownTime);
-                    var waitedString = "";
-                    var timeToWait = "";
-                    if (diff.TotalSeconds >= 0.01) waitedString = Math.Floor(diff.TotalSeconds) + "s";
-                    if (diff.TotalMinutes >= 1) waitedString = Math.Floor(diff.TotalMinutes) + "m";
-                    if (diff.TotalHours >= 1) waitedString = Math.Floor(diff.TotalHours) + "h";
-                    if (cooldownDiff.TotalSeconds >= 0.01) timeToWait = Math.Floor(cooldownDiff.TotalSeconds) + "s";
-                    if (cooldownDiff.TotalMinutes > 1) timeToWait = Math.Floor(cooldownDiff.TotalMinutes) + "m";
-                    if (cooldownDiff.TotalHours > 1) timeToWait = Math.Floor(cooldownDiff.TotalHours) + "h";
-                    if (cooldown < cooldownTime)
+                    if (cooldownData.cooldowns.ContainsKey(player.userID))
                     {
-                        SendReply(player, string.Format(GetMessage("callheliCooldown"), waitedString, timeToWait));
-                        return;
+                        DateTime cooldownDT;
+                        if (!DateTime.TryParse(cooldownData.cooldowns[player.userID], out cooldownDT))
+                        {
+                            PrintWarning("An error has happened while trying to parse date time! Report this issue on plugin thread.");
+                            return;
+                        }
+                        var diff = now - cooldownDT;
+                        var cooldownDiff = TimeSpan.FromSeconds(cooldownTime);
+                        var waitedString = string.Empty;
+                        var timeToWait = string.Empty;
+                        if (diff.TotalSeconds > 0) waitedString = Math.Floor(diff.TotalSeconds) + "s";
+                        if (diff.TotalMinutes >= 1) waitedString = Math.Floor(diff.TotalMinutes) + "m";
+                        if (diff.TotalHours >= 1) waitedString = Math.Floor(diff.TotalHours) + "h";
+                        if (string.IsNullOrEmpty(waitedString)) waitedString = "Unknown";
+                        if (cooldownDiff.TotalSeconds >= 0.01) timeToWait = Math.Floor(cooldownDiff.TotalSeconds) + "s";
+                        if (cooldownDiff.TotalMinutes > 1) timeToWait = Math.Floor(cooldownDiff.TotalMinutes) + "m";
+                        if (cooldownDiff.TotalHours > 1) timeToWait = Math.Floor(cooldownDiff.TotalHours) + "h";
+                        if (diff.TotalSeconds < cooldownTime)
+                        {
+                            SendReply(player, string.Format(GetMessage("callheliCooldown"), waitedString, timeToWait));
+                            return;
+                        }
                     }
+                    else cooldownData.cooldowns.Add(player.userID, now.ToString());
                 }
             }
-            if (!canExecute(player, "callheli") && cooldownTime == 0f)
+            if (!canExecute(player, "callheli") && cooldownTime == 0f && limit <= 0) //if they can't execute callheli, they have no cooldown, and limit is 0, they do not have permission to use the command
             {
-                return; //if cooldown time is not 0f, then it means this player is permitted because of cooldown permission
+                SendNoPerms(player);
+                return;
             }
 
-            if (args.Length == 0 || !canExecute(player, "callheli", false) && !CooldownPlayersCanTarget)
+            if (args.Length == 0)
             {
                 callheliCmd(1);
                 SendReply(player, GetMessage("heliCalled"));
-                if (storedData3.cooldowns.ContainsKey(player.userID) && cooldownTime != 0f) storedData3.cooldowns[player.userID] = UnityEngine.Time.realtimeSinceStartup;
-                if (!storedData3.timesCalled.ContainsKey(player.userID)) storedData3.timesCalled.Add(player.userID, 1);
-                else storedData3.timesCalled[player.userID]++;
-                if (!storedData3.lastCalled.ContainsKey(player.userID)) storedData3.lastCalled.Add(player.userID, today);
-                else storedData3.lastCalled[player.userID] = today;
+                cooldownData.cooldowns[player.userID] = DateTime.Now.ToString();
+                cooldownData.lastCalled[player.userID] = today;
+                if (!cooldownData.timesCalled.ContainsKey(player.userID)) cooldownData.timesCalled.Add(player.userID, 1);
+                else cooldownData.timesCalled[player.userID] = cooldownData.timesCalled[player.userID] + 1;
                 return;
             }
             BasePlayer target = null;
@@ -765,21 +904,29 @@ namespace Oxide.Plugins
                     return;
                 }
             }
+            if (target != null && canExecute(player, "callheliself") && !canExecute(player, "callhelitarget") && !canExecute(player, "admin") && target != player)
+            {
+                SendReply(player, string.Format(GetMessage("onlyCallSelf"), player.displayName));
+                return;
+            }
+            if (target != null && !canExecute(player, "callheliself") && !canExecute(player, "callhelitarget") && !canExecute(player, "admin"))
+            {
+                SendReply(player, GetMessage("cantCallTargetOrSelf"));
+                return;
+            }
 
-            int num = 1;
+            var num = 1;
             if (args.Length == 2 && canExecute(player, "callheli"))
             {
-                var result = int.TryParse(args[1], out num);
-                if (!result) num = 1;
+                if (!int.TryParse(args[1], out num)) num = 1;
             }
 
             callheliCmd(num, target);
             SendReply(player, string.Format(GetMessage("helisCalledPlayer"), num, target.displayName));
-            if (storedData3.cooldowns.ContainsKey(player.userID) && cooldownTime != 0f) storedData3.cooldowns[player.userID] = UnityEngine.Time.realtimeSinceStartup;
-            if (!storedData3.timesCalled.ContainsKey(player.userID)) storedData3.timesCalled.Add(player.userID, 1);
-            else storedData3.timesCalled[player.userID]++;
-            if (!storedData3.lastCalled.ContainsKey(player.userID)) storedData3.lastCalled.Add(player.userID, today);
-            else storedData3.lastCalled[player.userID] = today;
+            if (cooldownTime != 0f) cooldownData.cooldowns[player.userID] = DateTime.Now.ToString();
+            if (!cooldownData.timesCalled.ContainsKey(player.userID)) cooldownData.timesCalled.Add(player.userID, 1);
+            else cooldownData.timesCalled[player.userID]++;
+            cooldownData.lastCalled[player.userID] = today;
         }
 
         /*--------------------------------------------------------------//
@@ -788,7 +935,11 @@ namespace Oxide.Plugins
         [ChatCommand("killheli")]
         private void cmdKillHeli(BasePlayer player, string command, string[] args)
         {
-            if (!canExecute(player, "killheli")) return;
+            if (!canExecute(player, "killheli"))
+            {
+                SendNoPerms(player);
+                return;
+            }
             int numKilled = 0;
             if (args.Length == 0) numKilled = killAll();
  
@@ -812,7 +963,11 @@ namespace Oxide.Plugins
         [ChatCommand("updatehelis")]
         private void cmdUpdateHelicopters(BasePlayer player, string command, string[] args)
         {
-            if (!canExecute(player, "update")) return;
+            if (!canExecute(player, "update"))
+            {
+                SendNoPerms(player);
+                return;
+            }
             CheckHelicopter();
             if (countAllHeli() <= 0)
             {
@@ -832,7 +987,11 @@ namespace Oxide.Plugins
         [ChatCommand("strafe")]
         private void cmdStrafeHeli(BasePlayer player, string command, string[] args)
         {
-            if (!canExecute(player, "strafe")) return;
+            if (!canExecute(player, "strafe"))
+            {
+                SendNoPerms(player);
+                return;
+            }
             if (HeliInstance == null || !HeliInstance.IsAlive())
             {
                 SendReply(player, GetMessage("noHelisFound"));
@@ -874,7 +1033,11 @@ namespace Oxide.Plugins
         [ChatCommand("helidest")]
         private void cmdDestChangeHeli(BasePlayer player, string command, string[] args)
         {
-            if (!canExecute(player, "destination")) return;
+            if (!canExecute(player, "destination"))
+            {
+                SendNoPerms(player);
+                return;
+            }
             if (HeliInstance == null || !HeliInstance.IsAlive())
             {
                 SendReply(player, GetMessage("noHelisFound"));
@@ -919,7 +1082,11 @@ namespace Oxide.Plugins
         [ChatCommand("killnapalm")]
         private void cmdKillFB(BasePlayer player, string command, string[] args)
         {
-            if (!canExecute(player, "killnapalm")) return;
+            if (!canExecute(player, "killnapalm"))
+            {
+                SendNoPerms(player);
+                return;
+            }
             SendReply(player, string.Format(GetMessage("entityDestroyed"), killAllFB().ToString(), "fireball"));
         }
 
@@ -931,7 +1098,11 @@ namespace Oxide.Plugins
         [ChatCommand("killgibs")]
         private void cmdKillGibs(BasePlayer player, string command, string[] args)
         {
-            if (!canExecute(player, "killgibs")) return;
+            if (!canExecute(player, "killgibs"))
+            {
+                SendNoPerms(player);
+                return;
+            }
             SendReply(player, string.Format(GetMessage("entityDestroyed"), killAllGibs().ToString(), "helicopter gib"));
         }
 
@@ -942,7 +1113,11 @@ namespace Oxide.Plugins
         [ChatCommand("getshortname")]
         private void cmdGetShortName(BasePlayer player, string command, string[] args)
         {
-            if (!canExecute(player, "shortname")) return;
+            if (!canExecute(player, "shortname"))
+            {
+                SendNoPerms(player);
+                return;
+            }
 
             if (args == null || args.Length == 0)
             {
@@ -976,7 +1151,11 @@ namespace Oxide.Plugins
         private void consoleCallHeli(ConsoleSystem.Arg arg)
         {
             var player = arg?.Player() ?? null;
-            if (player != null && !canExecute(player, "callheli")) return;
+            if (player != null && !canExecute(player, "callheli"))
+            {
+                SendNoPerms(player);
+                return;
+            }
 
             if (arg.Args == null || arg?.Args?.Length <= 0)
             {
@@ -1063,7 +1242,11 @@ namespace Oxide.Plugins
         private void consoleGetShortName(ConsoleSystem.Arg arg)
         {
             var player = arg?.Player() ?? null;
-            if (player != null && !canExecute(player, "shortname")) return;
+            if (player != null && !canExecute(player, "shortname"))
+            {
+                SendNoPerms(player);
+                return;
+            }
             if (arg.Args == null || arg?.Args?.Length <= 0)
             {
                 SendReply(arg, string.Format(GetMessage("invalidSyntax"), "getshortname", "<item name>"));
@@ -1093,7 +1276,11 @@ namespace Oxide.Plugins
         private void consoleKillHeli(ConsoleSystem.Arg arg)
         {
             var player = arg?.Player() ?? null;
-            if (player != null && !canExecute(player, "killheli")) return;
+            if (player != null && !canExecute(player, "killheli"))
+            {
+                SendNoPerms(player);
+                return;
+            }
 
             int numKilled = killAll();
             SendReply(arg, string.Format(GetMessage("entityDestroyed"), numKilled.ToString(), "helicopter"));
@@ -1115,6 +1302,11 @@ namespace Oxide.Plugins
             return BaseHelicopters.Count;
         }
 
+        private void SendNoPerms(BasePlayer player)
+        {
+            SendReply(player, GetMessage("noPerms"));
+        }
+
         //**Borrowed from Nogrod's NTeleportation, with permission**//
         private Vector3 GetGround(Vector3 sourcePos)
         {
@@ -1124,6 +1316,16 @@ namespace Oxide.Plugins
             if (Physics.SphereCast(oldPos, .1f, Vector3.down, out hitinfo, groundLayer))
                 sourcePos.y = hitinfo.point.y;
             return sourcePos;
+        }
+
+        Vector3 GetVector3FromString(string vectorStr)
+        {
+            var vector = Vector3.zero;
+            if (string.IsNullOrEmpty(vectorStr)) return vector;
+            if (vectorStr.Contains("(") && vectorStr.Contains(")")) vectorStr = vectorStr.Replace("(", "").Replace(")", "");
+            var split1 = vectorStr.Split(',');
+            vector = new Vector3(Convert.ToSingle(split1[0]), Convert.ToSingle(split1[1]), Convert.ToSingle(split1[2]));
+            return vector;
         }
 
 
@@ -1173,19 +1375,11 @@ namespace Oxide.Plugins
         /*--------------------------------------------------------------//
 		//		canExecute - check if the player has permission			//
 		//--------------------------------------------------------------*/
-        private bool canExecute(BasePlayer player, string perm, bool sendMsg = true)
+        private bool canExecute(BasePlayer player, string perm)
         {
             var permprefix = "helicontrol." + perm;
-            if (permission.UserHasPermission(player.UserIDString, "helicontrol.admin"))
-            {
-                return true;
-            }
-            if (!permission.UserHasPermission(player.UserIDString, permprefix))
-            {
-                if (sendMsg) SendReply(player, GetMessage("noPerms"));
-                return false;
-            }
-            return true;
+            if (permission.UserHasPermission(player.UserIDString, "helicontrol.admin")) return true;
+            else return permission.UserHasPermission(player.UserIDString, permprefix);
         }
 
         /*--------------------------------------------------------------//
@@ -1201,7 +1395,7 @@ namespace Oxide.Plugins
             name = name.ToLower();
             var allPlayers = BasePlayer.activePlayerList.ToArray();
             // Try to find an exact match first
-            for(int i = 0; i < allPlayers.Count(); i++)
+            for(int i = 0; i < allPlayers.Length; i++)
             {
                 var p = allPlayers[i];
                 if (p.displayName == name)
@@ -1215,7 +1409,7 @@ namespace Oxide.Plugins
             if (player != null)
                 return player;
             // Otherwise try to find a partial match
-            for(int i = 0; i < allPlayers.Count(); i++)
+            for(int i = 0; i < allPlayers.Length; i++)
             {
                 var p = allPlayers[i];
                 if (p.displayName.ToLower().IndexOf(name) >= 0)
@@ -1372,12 +1566,23 @@ namespace Oxide.Plugins
             }
         }
 
+
         class StoredData3
         {
-            public Dictionary<ulong, float> cooldowns = new Dictionary<ulong, float>();
+            public Dictionary<ulong, string> cooldowns = new Dictionary<ulong, string>();
+         //   public Dictionary<ulong, float> cooldowns = new Dictionary<ulong, float>();
             public Dictionary<ulong, int> timesCalled = new Dictionary<ulong, int>();
             public Dictionary<ulong, string> lastCalled = new Dictionary<ulong, string>();
             public StoredData3()
+            {
+            }
+        }
+
+
+        class StoredData4
+        {
+            public Dictionary<string, string> heliSpawns = new Dictionary<string, string>();
+            public StoredData4()
             {
             }
         }
@@ -1447,29 +1652,33 @@ namespace Oxide.Plugins
 		//--------------------------------------------------------------*/
         void LoadSavedData()
         {
-            storedData = Interface.GetMod()?.DataFileSystem?.ReadObject<StoredData>("HeliControlData") ?? null;
-            var count = storedData?.HeliInventoryLists?.Count ?? 0;
+            lootData = Interface.GetMod()?.DataFileSystem?.ReadObject<StoredData>("HeliControlData") ?? null;
+            var count = lootData?.HeliInventoryLists?.Count ?? 0;
             //Create a default data file if there was none:
-            if (storedData == null || storedData.HeliInventoryLists == null || count <= 0)
+            if (lootData == null || lootData.HeliInventoryLists == null || count <= 0)
             {
                 Puts("No Lootdrop Data found,  creating new file...");
-                storedData = new StoredData();
+                lootData = new StoredData();
                 BoxInventory inv;
                 inv = new BoxInventory("rifle.ak", 1);
                 inv.lootBoxContents.Add(new ItemDef("ammo.rifle.hv", 128));
-                storedData.HeliInventoryLists.Add(inv);
+                lootData.HeliInventoryLists.Add(inv);
 
                 inv = new BoxInventory("rifle.bolt", 1);
                 inv.lootBoxContents.Add(new ItemDef("ammo.rifle.hv", 128));
-                storedData.HeliInventoryLists.Add(inv);
+                lootData.HeliInventoryLists.Add(inv);
 
                 inv = new BoxInventory("explosive.timed", 3);
                 inv.lootBoxContents.Add(new ItemDef("ammo.rocket.hv", 3));
-                storedData.HeliInventoryLists.Add(inv);
+                lootData.HeliInventoryLists.Add(inv);
 
                 inv = new BoxInventory("lmg.m249", 1);
                 inv.lootBoxContents.Add(new ItemDef("ammo.rifle", 100));
-                storedData.HeliInventoryLists.Add(inv);
+                lootData.HeliInventoryLists.Add(inv);
+
+                inv = new BoxInventory("rifle.lr300", 1);
+                inv.lootBoxContents.Add(new ItemDef("ammo.rifle", 100));
+                lootData.HeliInventoryLists.Add(inv);
 
                 SaveData();
             }
@@ -1479,16 +1688,15 @@ namespace Oxide.Plugins
 
         void LoadWeaponData()
         {
-            storedData2 = Interface.GetMod()?.DataFileSystem?.ReadObject<StoredData2>("HeliControlWeapons") ?? null;
-            var count = storedData2?.WeaponList?.Count ?? 0;
-            if (storedData2 == null || storedData2.WeaponList == null || count <= 0)
+            weaponsData = Interface.GetMod()?.DataFileSystem?.ReadObject<StoredData2>("HeliControlWeapons") ?? null;
+            var count = weaponsData?.WeaponList?.Count ?? 0;
+            if (weaponsData == null || weaponsData.WeaponList == null || count <= 0)
             {
                 Puts("No weapons data found, creating new file...");
-                storedData2 = new StoredData2();
-                List<ItemDefinition> ItemsDefinition = ItemManager.GetItemDefinitions();
-                for(int i = 0; i < ItemsDefinition.Count(); i++)
+                weaponsData = new StoredData2();
+                for(int i = 0; i < itemDefinitions.Count; i++)
                 {
-                    var itemdef = ItemsDefinition[i];
+                    var itemdef = itemDefinitions[i];
                     if (itemdef == null) continue;
                     var weapon = ItemManager.CreateByItemID(itemdef.itemid, 1)?.GetHeldEntity()?.GetComponent<BaseProjectile>() ?? null;
                     if (weapon == null) continue;
@@ -1498,19 +1706,32 @@ namespace Oxide.Plugins
                     var englishName = itemdef?.displayName?.english ?? string.Empty;
                     if (primaryMag == null || string.IsNullOrEmpty(shortname) || string.IsNullOrEmpty(englishName)) continue;
                     if (primaryMag.capacity < 1) continue;
-                    if (category == "Weapon" && shortname != "rocket.launcher") storedData2.WeaponList.Add(englishName, 1f);
+                    if (category == "Weapon" && shortname != "rocket.launcher") weaponsData.WeaponList.Add(englishName, 1f);
                 }
                 SaveData2();
             }
         }
 
 
-        /*--------------------------------------------------------------//
-        //			  SaveData - used for loot and weapons			    //
-        //--------------------------------------------------------------*/
-        void SaveData() => Interface.GetMod().DataFileSystem.WriteObject("HeliControlData", storedData);
-        void SaveData2() => Interface.GetMod().DataFileSystem.WriteObject("HeliControlWeapons", storedData2);
-        void SaveData3() => Interface.GetMod().DataFileSystem.WriteObject("HeliControlCooldowns", storedData3);
+        void LoadHeliSpawns()
+        {
+            spawnsData = Interface.GetMod()?.DataFileSystem?.ReadObject<StoredData4>("HeliControlSpawns") ?? null;
+            var count = spawnsData?.heliSpawns?.Count ?? 0;
+            if (spawnsData == null || spawnsData.heliSpawns == null || count <= 0)
+            {
+                spawnsData = new StoredData4();
+                SaveData4();
+            }
+        }
+
+
+        /*-------------------------------------------------------------------//
+        //			  SaveData - used for loot, weapons, cooldowns and spawns//
+        //-------------------------------------------------------------------*/
+        void SaveData() => Interface.GetMod().DataFileSystem.WriteObject("HeliControlData", lootData);
+        void SaveData2() => Interface.GetMod().DataFileSystem.WriteObject("HeliControlWeapons", weaponsData);
+        void SaveData3() => Interface.GetMod().DataFileSystem.WriteObject("HeliControlCooldowns", cooldownData);
+        void SaveData4() => Interface.GetMod().DataFileSystem.WriteObject("HeliControlSpawns", spawnsData);
     }
     #endregion
 }

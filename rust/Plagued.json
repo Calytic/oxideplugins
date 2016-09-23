@@ -2,7 +2,7 @@
     "name": "Plagued",
     "description": "A plague has decimated the world's population, avoid others players to stay alive",
     "author": "",
-    "version": "0.3.2",
+    "version": "0.3.3",
     "configuration": true,
     "language": "cs",
     "games": [

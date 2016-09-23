@@ -2,8 +2,11 @@
     "name": "PvX Selector",
     "description": "Allows PvE\/PvP Gameplay on one server.",
     "author": "Alphawar",
-    "version": "0.9.0",
+    "version": "0.9.4",
     "configuration": true,
+    "suggest": {
+        "BetterChat": "*"
+    },
     "language": "cs",
     "games": [
         "rust"

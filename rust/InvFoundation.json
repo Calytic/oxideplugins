@@ -1,0 +1,19 @@
+{
+    "name": "InvFoundation",
+    "description": "Invulnerable foundation",
+    "author": "sami37",
+    "version": "1.1.0",
+    "configuration": true,
+    "suggest": {
+        "BuildingOwners": "*",
+        "EntityOwner": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

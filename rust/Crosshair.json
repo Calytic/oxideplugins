@@ -2,7 +2,7 @@
     "name": "Crosshair",
     "description": "Adds a customizable crosshair to your screen",
     "author": "Kappasaurus",
-    "version": "2.1.4",
+    "version": "2.1.5",
     "configuration": false,
     "language": "cs",
     "games": [

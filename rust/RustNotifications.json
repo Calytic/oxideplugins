@@ -1,0 +1,19 @@
+{
+    "name": "RustNotifications",
+    "description": "Rust plugin to notify when someone connects\/disconnects from the server\/when structures are attacked",
+    "author": "seanbyrne88",
+    "version": "0.7.0",
+    "configuration": true,
+    "require": {
+        "Slack": "*",
+        "Discord": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

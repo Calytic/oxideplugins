@@ -1,0 +1,22 @@
+{
+    "name": "BabelChat",
+    "description": "Translates chat messages to each player's language preference or default language",
+    "author": "Wulf",
+    "version": "0.2.1",
+    "configuration": true,
+    "suggest": {
+        "AntiAds": "*",
+        "BetterChat": "*"
+    },
+    "require": {
+        "Babel": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

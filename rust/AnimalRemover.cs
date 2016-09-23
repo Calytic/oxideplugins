@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("AnimalRemover", "Ankawi", "1.0.0")]
+    [Info("AnimalRemover", "Ankawi", "1.0.1")]
     [Description("Allows you to disable specific animals from spawning on the server")]
     public class AnimalRemover : RustPlugin
     {
@@ -45,9 +45,9 @@ namespace Oxide.Plugins
         void KillAnimals()
         {
             var animalList = GetAnimals();
-            foreach(var g in animalList)
+            foreach (var g in animalList)
             {
-                foreach(var animal in g.Value)
+                foreach (var animal in g.Value)
                 {
                     if ((bool)Config["Disable Bear Spawning"])
                     {
@@ -94,58 +94,51 @@ namespace Oxide.Plugins
                 }
             }
         }
-        //void OnEntitySpawned(BaseNetworkable entity)
-        //{
-        //    var prefab = entity.PrefabName;
-        //    if (prefab == BearPrefab)
-        //    {
-        //        entity.Kill();
-        //        PrintWarning("killed bears");
-        //    }
-
-        //    if ((bool)Config["Disable Bear Spawning"])
-        //    {
-        //        if (entity.PrefabName.Contains(BearPrefab))
-        //        {
-        //            entity.Kill();
-        //        }
-        //    }
-        //    if ((bool)Config["Disable Boar Spawning"])
-        //    {
-        //        if (entity.PrefabName.Contains(BoarPrefab))
-        //        {
-        //            entity.Kill();
-        //        }
-        //    }
-        //    if ((bool)Config["Disable Chicken Spawning"])
-        //    {
-        //        if (entity.PrefabName.Contains(ChickenPrefab))
-        //        {
-        //            entity.Kill();
-        //        }
-        //    }
-        //    if ((bool)Config["Disable Horse Spawning"])
-        //    {
-        //        if (entity.PrefabName.Contains(HorsePrefab))
-        //        {
-        //            entity.Kill();
-        //        }
-        //    }
-        //    if ((bool)Config["Disable Stag Spawning"])
-        //    {
-        //        if (entity.PrefabName.Contains(StagPrefab))
-        //        {
-        //            entity.Kill();
-        //        }
-        //    }
-        //    if ((bool)Config["Disable Wolf Spawning"])
-        //    {
-        //        if (entity.PrefabName.Contains(WolfPrefab))
-        //        {
-        //            entity.Kill();
-        //        }
-        //    }
-        //}
+        void OnEntitySpawned(BaseNetworkable entity)
+        {
+            if ((bool)Config["Disable Bear Spawning"])
+            {
+                if (entity.PrefabName.Contains(BearPrefab))
+                {
+                    entity.Kill();
+                }
+            }
+            if ((bool)Config["Disable Boar Spawning"])
+            {
+                if (entity.PrefabName.Contains(BoarPrefab))
+                {
+                    entity.Kill();
+                }
+            }
+            if ((bool)Config["Disable Chicken Spawning"])
+            {
+                if (entity.PrefabName.Contains(ChickenPrefab))
+                {
+                    entity.Kill();
+                }
+            }
+            if ((bool)Config["Disable Horse Spawning"])
+            {
+                if (entity.PrefabName.Contains(HorsePrefab))
+                {
+                    entity.Kill();
+                }
+            }
+            if ((bool)Config["Disable Stag Spawning"])
+            {
+                if (entity.PrefabName.Contains(StagPrefab))
+                {
+                    entity.Kill();
+                }
+            }
+            if ((bool)Config["Disable Wolf Spawning"])
+            {
+                if (entity.PrefabName.Contains(WolfPrefab))
+                {
+                    entity.Kill();
+                }
+            }
+        }
         void SetConfig(params object[] args)
         {
             List<string> stringArgs = (from arg in args select arg.ToString()).ToList<string>();

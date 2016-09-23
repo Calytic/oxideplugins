@@ -2,7 +2,7 @@
     "name": "Kill Feed",
     "description": "Displays a basic Kill Feed on screen!",
     "author": "Tuntenfisch",
-    "version": "1.14.18",
+    "version": "1.14.22",
     "configuration": true,
     "language": "cs",
     "games": [

@@ -1,0 +1,15 @@
+{
+    "name": "Discord",
+    "description": "A Plugin Library to send messages to Discord",
+    "author": "seanbyrne88",
+    "version": "0.2.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "Universal"
+    ],
+    "keywords": [
+        "oxide",
+        "Universal"
+    ]
+}

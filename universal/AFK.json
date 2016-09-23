@@ -1,0 +1,15 @@
+{
+    "name": "AFK",
+    "description": "Kicks players that are AFK (away from keyboard) for too long",
+    "author": "Wulf",
+    "version": "1.1.5",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "Universal"
+    ],
+    "keywords": [
+        "oxide",
+        "Universal"
+    ]
+}

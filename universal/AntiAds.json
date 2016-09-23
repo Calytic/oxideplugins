@@ -1,0 +1,15 @@
+{
+    "name": "AntiAds",
+    "description": "Blocks advertising not allowed servers and optionally kick or ban",
+    "author": "Wulf",
+    "version": "3.0.1",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "Universal"
+    ],
+    "keywords": [
+        "oxide",
+        "Universal"
+    ]
+}

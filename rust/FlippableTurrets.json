@@ -2,7 +2,7 @@
     "name": "Flippable Turrets",
     "description": "Allows you to flip a turret (attach to a roof)",
     "author": "DylanSMR",
-    "version": "1.0.2",
+    "version": "1.0.4",
     "configuration": false,
     "language": "cs",
     "games": [

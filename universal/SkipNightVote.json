@@ -1,0 +1,15 @@
+{
+    "name": "SkipNightVote",
+    "description": "Allow users to vote to skip night time",
+    "author": "k1lly0u",
+    "version": "0.1.1",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "Universal"
+    ],
+    "keywords": [
+        "oxide",
+        "Universal"
+    ]
+}

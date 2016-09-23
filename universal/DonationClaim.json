@@ -1,0 +1,15 @@
+{
+    "name": "DonationClaim",
+    "description": "Players can claim rewards for automatic PayPal donations",
+    "author": "Wulf",
+    "version": "1.0.1",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "Universal"
+    ],
+    "keywords": [
+        "oxide",
+        "Universal"
+    ]
+}

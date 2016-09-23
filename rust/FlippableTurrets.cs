@@ -9,7 +9,7 @@ using System.Collections.Generic;
 
 namespace Oxide.Plugins
 {
-    [Info("FlippableTurrets", "DylanSMR", "1.0.2", ResourceId = 2055)]
+    [Info("FlippableTurrets", "DylanSMR", "1.0.4", ResourceId = 2055)]
     class FlippableTurrets : RustPlugin
     {
         #region Fields
@@ -45,6 +45,7 @@ namespace Oxide.Plugins
                 {"Unflipped", "You have unflipped that turret successfully"},
                 {"NotUnFlipped", "A error occured upon unflipping the turret. This might be because its already unflipped!"},
                 {"NoPermission", "You do not have permission to preform that command."},
+                {"NoTurret", "There is no turret in front of you to flip/unflip :("}
             };
         #endregion
 
@@ -59,8 +60,15 @@ namespace Oxide.Plugins
                 inputState = serverinput.GetValue(player) as InputState;
                 Ray ray = new Ray(player.eyes.position, Quaternion.Euler(inputState.current.aimAngles) * Vector3.forward);
                 BaseEntity flipObject = FindTurret(ray, 5f);
-                if(flipTurreT(flipObject, player)) SendReply(player, lang.GetMessage("Flipped", this, player.UserIDString));
-                else SendReply(player, lang.GetMessage("NotFlipped", this, player.UserIDString));
+                if(flipObject.ShortPrefabName.Contains("turret")){
+                    if(flipTurreT(flipObject, player)) SendReply(player, lang.GetMessage("Flipped", this, player.UserIDString));
+                    else SendReply(player, lang.GetMessage("NotFlipped", this, player.UserIDString));
+                    return;
+                }
+                else{
+                    SendReply(player, lang.GetMessage("NoTurret", this, player.UserIDString));
+                    return;
+                }
             }
 
             [ChatCommand("unflipturret")]
@@ -73,8 +81,15 @@ namespace Oxide.Plugins
                 inputState = serverinput.GetValue(player) as InputState;
                 Ray ray = new Ray(player.eyes.position, Quaternion.Euler(inputState.current.aimAngles) * Vector3.forward);
                 BaseEntity flipObject = FindTurret(ray, 5f);
-                if(unflipTurreT(flipObject, player)) SendReply(player, lang.GetMessage("Unflipped", this, player.UserIDString));
-                else SendReply(player, lang.GetMessage("NotUnFlipped", this, player.UserIDString));
+                if(flipObject.ShortPrefabName.Contains("turret")){
+                    if(unflipTurreT(flipObject, player)) SendReply(player, lang.GetMessage("Unflipped", this, player.UserIDString));
+                    else SendReply(player, lang.GetMessage("NotUnFlipped", this, player.UserIDString));
+                    return;
+                }
+                else{
+                    SendReply(player, lang.GetMessage("NoTurret", this, player.UserIDString));
+                    return;
+                }
             } 
 
         #endregion

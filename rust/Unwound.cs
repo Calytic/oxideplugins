@@ -10,6 +10,7 @@ References:
 */
 using System;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using Oxide.Core;
 using Oxide.Core.Plugins;
 using Oxide.Core.Libraries;
@@ -18,7 +19,7 @@ using NLua;
 
 namespace Oxide.Plugins
 {
-    [Info("Unwound", "mk_sky", "1.0.8", ResourceId = 1352)]
+    [Info("Unwound", "mk_sky", "1.0.9", ResourceId = 1352)]
     [Description("The sky presents the newest technology in calling the MEDIC!")]
     class Unwound : RustPlugin
     {
@@ -33,16 +34,18 @@ namespace Oxide.Plugins
 
         uint waitTillMedic = 10;
 
-        bool popupsEnabled = false;
+        //bool popupsEnabled = false;
 
         uint chanceTheMedicSavesYou = 100;
 
         bool canCallMedicOncePerWounded = true;
 
         bool economicsEnabled = false;
+
+        bool forceEconomics = false;
         
-        [PluginReference]
-        Plugin PopupNotifications;
+        //[PluginReference]
+        //Plugin PopupNotifications;
 
         [PluginReference]
         Plugin Economics;
@@ -55,11 +58,11 @@ namespace Oxide.Plugins
         {
             ConfigLoader();
 
-            if (!permission.PermissionExists("canuseunwound"))
-                permission.RegisterPermission("canuseunwound", this);
+            if (!permission.PermissionExists("unwound.canuse"))
+                permission.RegisterPermission("unwound.canuse", this);
 
-            if (!permission.GroupHasPermission("admin", "canuseunwound"))
-                permission.GrantGroupPermission("admin", "canuseunwound", this);
+            if (!permission.GroupHasPermission("admin", "unwound.canuse"))
+                permission.GrantGroupPermission("admin", "unwound.canuse", this);
         }
 
         protected override void LoadDefaultConfig()
@@ -88,6 +91,8 @@ namespace Oxide.Plugins
             Config["Localization", "MedicAlreadyCalled"] = "You already called for a medic, just wait for him.";
 
             Config["Localization", "NotEnoughMoney"] = "You don't have enough money, how horrible ... You have {0} and you would need {1} so just wait the full {2} seconds for the medic.";
+
+            Config["Localization", "NotEnoughMoney_ForcedEco"] = "You don't have enough money, how horrible ... You have {0} and you would need {1}, maybe I'll come to your funeral then.";
             #endregion
             #region settings
             Config["Settings", "WaitTillMedic"] = 10;
@@ -96,9 +101,11 @@ namespace Oxide.Plugins
 
             Config["Settings", "CanCallMedicOncePerWounded"] = true;
 
-            Config["Settings", "EnablePopups"] = false;
+            //Config["Settings", "EnablePopups"] = false;
 
             Config["Settings", "EnableEconomics"] = false;
+
+            Config["Settings", "ForceEconomics"] = false;
 
             Config["EcoSettings", "500"] = 0;
 
@@ -140,6 +147,8 @@ namespace Oxide.Plugins
             localization.Add("MedicAlreadyCalled", Config["Localization", "MedicAlreadyCalled"].ToString());
 
             localization.Add("NotEnoughMoney", Config["Localization", "NotEnoughMoney"].ToString());
+
+            localization.Add("NotEnoughMoney_ForcedEco", Config["Localization", "NotEnoughMoney_ForcedEco"].ToString());
             #endregion
             #region settings
             waitTillMedic = Convert.ToUInt32(Config["Settings", "WaitTillMedic"]);
@@ -155,17 +164,19 @@ namespace Oxide.Plugins
 
             canCallMedicOncePerWounded = Convert.ToBoolean(Config["Settings", "CanCallMedicOncePerWounded"]);
 
-            if (PopupNotifications == null &&
-                Convert.ToBoolean(Config["Settings", "EnablePopups"]))
-                PrintError("PopupNotifications-Plugin missing, can't enable pop-ups. Get the plugin first: http://oxidemod.org/plugins/popup-notifications.1252/");
-            else if (PopupNotifications != null &&
-                     Convert.ToBoolean(Config["Settings", "EnablePopups"]))
-                popupsEnabled = true;
+            //if (PopupNotifications == null &&
+            //    Convert.ToBoolean(Config["Settings", "EnablePopups"]))
+            //    PrintError("PopupNotifications-Plugin missing, can't enable pop-ups. Get the plugin first: http://oxidemod.org/plugins/popup-notifications.1252/");
+            //else if (PopupNotifications != null &&
+            //         Convert.ToBoolean(Config["Settings", "EnablePopups"]))
+            //    popupsEnabled = true;
 
             if (Convert.ToBoolean(Config["Settings", "EnableEconomics"]) &&
                 Economics != null)
             {
                 economicsEnabled = true;
+
+                forceEconomics = Convert.ToBoolean(Config["Settings", "ForceEconomics"]);
 
                 ecoSettings = new ListDictionary<uint, uint>();
 
@@ -174,12 +185,14 @@ namespace Oxide.Plugins
                 foreach (KeyValuePair<string, string> s in temp)
                     if (Convert.ToUInt32(s.Value) >= 0)
                         ecoSettings.Add(Convert.ToUInt32(s.Key), Convert.ToUInt32(s.Value));
+
+                ecoSettings.Keys.Reverse();
             }
             else if (Convert.ToBoolean(Config["Settings", "EnableEconomics"]))
                 PrintError("Economics-Plugin missing, can't enable economics. Get the plugin first: http://oxidemod.org/plugins/economics.717/");
             #endregion
 
-            Puts("Unwound loaded config.");
+            //Puts("Unwound loaded config.");
         }
 
         void ConfigUpdater()
@@ -227,6 +240,42 @@ namespace Oxide.Plugins
                         Config["Version"] = "1.0.8";
                     break;
                     #endregion
+                    #region 1.0.8 => 1.0.9
+                    case "1.0.8":
+                        if (permission.PermissionExists("canuseunwound"))
+                        {
+                            string[] playersWithPermission = permission.GetPermissionUsers("canuseunwound");
+
+                            foreach (string s in playersWithPermission)
+                                if (permission.UserHasPermission(s.Substring(0, s.IndexOf('(')), "canuseunwound"))
+                                {
+                                    permission.RevokeUserPermission(s.Substring(0, s.IndexOf('(')), "canuseunwound");
+
+                                    permission.GrantUserPermission(s.Substring(0, s.IndexOf('(')), "unwound.canuse", this);
+                                }
+
+                            string[] groupsWithPermission = permission.GetPermissionGroups("canuseunwound");
+
+                            foreach (string s in groupsWithPermission)
+                                if (permission.GroupHasPermission(s, "canuseunwound"))
+                                {
+                                    permission.RevokeGroupPermission(s, "canuseunwound");
+
+                                    permission.GrantGroupPermission(s, "unwound.canuse", this);
+                                }
+
+                            permission.RemoveGroup("canuseunwound");
+                        }
+
+                        Config["Localization", "NotEnoughMoney_ForcedEco"] = "You don't have enough money, how horrible ... You have {0} and you would need {1}, maybe I'll come to your funeral then.";
+
+                        Config["Settings", "EnablePopups"] = null;
+
+                        Config["Settings", "ForceEconomics"] = false;
+
+                        Config["Version"] = "1.0.9";
+                    break;
+                    #endregion
                 }
 
             SaveConfig();
@@ -265,21 +314,21 @@ namespace Oxide.Plugins
         [ChatCommand("aid")]
         void ChatCommandAid(BasePlayer player, string command, string[] args)
         {
-            if (!permission.UserHasPermission(player.userID.ToString(), "canuseunwound"))
+            if (!permission.UserHasPermission(player.userID.ToString(), "unwound.canuse"))
             {
-                if (!popupsEnabled)
+                //if (!popupsEnabled)
                     SendReply(player, localization["PermissionMissing"]);
-                else
-                    PopupNotifications.Call("CreatePopupNotification", localization["PermissionMissing"], player);
+                //else
+                //    PopupNotifications.Call("CreatePopupNotification", localization["PermissionMissing"], player);
 
                 return;
             }
             else if (!player.IsWounded())
             {
-                if (!popupsEnabled)
+                //if (!popupsEnabled)
                     SendReply(player, localization["NotWounded"]);
-                else
-                    PopupNotifications.Call("CreatePopupNotification", localization["NotWounded"], player);
+                //else
+                //    PopupNotifications.Call("CreatePopupNotification", localization["NotWounded"], player);
             
                 return;
             }
@@ -292,28 +341,61 @@ namespace Oxide.Plugins
                 args[0] == "0" ||
                 args.Length > 0 &&
                 IsUInt(args[0]) &&
-                !ecoSettings.Contains(Convert.ToUInt32(args[0])))
+                !ecoSettings.Contains(Convert.ToUInt32(args[0])) &&
+                !economicsEnabled &&
+                args[0] != "?")
                 args = new string[0];
 
-            if (waitTillMedic > 0)
+            double playerMoney = 0.0;
+
+            if (args.Length == 0 &&
+                economicsEnabled &&
+                forceEconomics ||
+                args.Length == 1 &&
+                args[0] == "?" &&
+                economicsEnabled)
+            {
+                playerMoney = (double)Economics.Call("GetPlayerMoney", player.userID);
+
+                uint test = 0;
+
+                for (int i = 0; i < ecoSettings.Count; i++)
+                    if (playerMoney >= ecoSettings.GetByIndex(i).Key &&
+                        test < ecoSettings.GetByIndex(i).Key)
+                        test = ecoSettings.GetByIndex(i).Key;
+                    else if (i + 1 == ecoSettings.Count &&
+                             test == 0 &&
+                             forceEconomics)
+                        test = ecoSettings.GetByIndex(0).Key;
+
+                if (forceEconomics ||
+                    test != 0)
+                    args = new string[1] { test.ToString() };
+                else if (args.Length == 1 &&
+                         args[0] == "?")
+                    args = new string[0];
+            }
+            
+            if (waitTillMedic > 0 ||
+                Economics != null &&
+                economicsEnabled &&
+                forceEconomics)
             {
                 if (Economics != null &&
                     economicsEnabled &&
                     args.Length >= 1 &&
                     IsUInt(args[0]))
                 {
-                    double playerMoney = (double)Economics.Call("GetPlayerMoney", player.userID);
-
                     if (playerMoney >= Convert.ToDouble(args[0]))
                     {
                         Economics.Call("Withdraw", player.userID, Convert.ToDouble(args[0]));
 
                         if (ecoSettings[Convert.ToUInt32(args[0])] > 0)
                         {
-                            if (!popupsEnabled)
+                            //if (!popupsEnabled)
                                 SendReply(player, String.Format(localization["TheMedicIsComing"], ecoSettings[Convert.ToUInt32(args[0])].ToString()));
-                            else
-                                PopupNotifications.Call("CreatePopupNotification", String.Format(localization["TheMedicIsComing"], ecoSettings[Convert.ToUInt32(args[0])].ToString()), player);
+                            //else
+                            //    PopupNotifications.Call("CreatePopupNotification", String.Format(localization["TheMedicIsComing"], ecoSettings[Convert.ToUInt32(args[0])].ToString()), player);
 
                             Action timed = new Action(() => TimedMedic(player.userID));
 
@@ -328,50 +410,57 @@ namespace Oxide.Plugins
                                 switch (Oxide.Core.Random.Range(0, 1))
                                 {
                                     case 0:
-                                        if (!popupsEnabled)
+                                        //if (!popupsEnabled)
                                             SendReply(player, localization["MedicToLate"]);
-                                        else
-                                            PopupNotifications.Call("CreatePopupNotification", localization["MedicToLate"], player);
+                                        //else
+                                        //    PopupNotifications.Call("CreatePopupNotification", localization["MedicToLate"], player);
                                         break;
                                     case 1:
-                                        if (!popupsEnabled)
+                                        //if (!popupsEnabled)
                                             SendReply(player, localization["MedicIncompetent"]);
-                                        else
-                                            PopupNotifications.Call("CreatePopupNotification", localization["MedicIncompetent"], player);
+                                        //else
+                                        //    PopupNotifications.Call("CreatePopupNotification", localization["MedicIncompetent"], player);
                                         break;
                                 }
 
                                 return;
                             }
 
-                            player.SetPlayerFlag(BasePlayer.PlayerFlags.Wounded, false);
-
-                            player.CancelInvoke("WoundingEnd");
+                            player.StopWounded();
 
                             player.ChangeHealth(player.StartHealth());
 
                             player.metabolism.bleeding.value = 0f;
 
-                            if (!popupsEnabled)
+                            //if (!popupsEnabled)
                                 SendReply(player, localization["Survived"]);
-                            else
-                                PopupNotifications.Call("CreatePopupNotification", localization["Survived"], player);
+                            //else
+                            //    PopupNotifications.Call("CreatePopupNotification", localization["Survived"], player);
                         }
                     }
                     else
                     {
-                        if (!popupsEnabled)
-                            SendReply(player, String.Format(localization["NotEnoughMoney"], playerMoney.ToString("0"), args[0], waitTillMedic.ToString()));
+                        //if (!popupsEnabled)
+                            SendReply(player, String.Format((forceEconomics ? localization["NotEnoughMoney_ForcedEco"] : localization["NotEnoughMoney"]), playerMoney.ToString("0"), args[0], waitTillMedic.ToString()));
+                        //else
+                        //    PopupNotifications.Call("CreatePopupNotification", String.Format((forceEconomics ? localization["NotEnoughMoney_ForcedEco"] : localization["NotEnoughMoney"]), playerMoney.ToString("0"), args[0], waitTillMedic.ToString()), player);
+
+                        if (!forceEconomics)
+                        {
+                            Action timed = new Action(() => TimedMedic(player.userID));
+
+                            timer.In(waitTillMedic, timed);
+                        }
                         else
-                            PopupNotifications.Call("CreatePopupNotification", String.Format(localization["NotEnoughMoney"], playerMoney.ToString("0"), args[0], waitTillMedic.ToString()), player);
+                            called.Remove(player.userID);
                     }
                 }
-                else
+                else if (!forceEconomics)
                 {
-                    if (!popupsEnabled)
+                    //if (!popupsEnabled)
                         SendReply(player, String.Format(localization["TheMedicIsComing"], waitTillMedic.ToString()));
-                    else
-                        PopupNotifications.Call("CreatePopupNotification", String.Format(localization["TheMedicIsComing"], waitTillMedic.ToString()), player);
+                    //else
+                    //    PopupNotifications.Call("CreatePopupNotification", String.Format(localization["TheMedicIsComing"], waitTillMedic.ToString()), player);
 
                     Action timed = new Action(() => TimedMedic(player.userID));
 
@@ -385,34 +474,32 @@ namespace Oxide.Plugins
                     switch (Oxide.Core.Random.Range(0, 1))
                     {
                         case 0:
-                            if (!popupsEnabled)
+                            //if (!popupsEnabled)
                                 SendReply(player, localization["MedicToLate"]);
-                            else
-                                PopupNotifications.Call("CreatePopupNotification", localization["MedicToLate"], player);
+                            //else
+                            //    PopupNotifications.Call("CreatePopupNotification", localization["MedicToLate"], player);
                             break;
                         case 1:
-                            if (!popupsEnabled)
+                            //if (!popupsEnabled)
                                 SendReply(player, localization["MedicIncompetent"]);
-                            else
-                                PopupNotifications.Call("CreatePopupNotification", localization["MedicIncompetent"], player);
+                            //else
+                            //    PopupNotifications.Call("CreatePopupNotification", localization["MedicIncompetent"], player);
                             break;
                     }
 
                     return;
                 }
 
-                player.SetPlayerFlag(BasePlayer.PlayerFlags.Wounded, false);
-
-                player.CancelInvoke("WoundingEnd");
+                player.StopWounded();
 
                 player.ChangeHealth(player.StartHealth());
 
                 player.metabolism.bleeding.value = 0f;
 
-                if (!popupsEnabled)
+                //if (!popupsEnabled)
                     SendReply(player, localization["Survived"]);
-                else
-                    PopupNotifications.Call("CreatePopupNotification", localization["Survived"], player);
+                //else
+                //    PopupNotifications.Call("CreatePopupNotification", localization["Survived"], player);
             }
         }
 
@@ -435,10 +522,10 @@ namespace Oxide.Plugins
             }
             else if (!player.IsWounded())
             {
-                if (!popupsEnabled)
+                //if (!popupsEnabled)
                     SendReply(player, localization["DontTrollTheMedic"]);
-                else
-                    PopupNotifications.Call("CreatePopupNotification", localization["DontTrollTheMedic"], player);
+                //else
+                //    PopupNotifications.Call("CreatePopupNotification", localization["DontTrollTheMedic"], player);
 
                 return;
             }
@@ -449,34 +536,34 @@ namespace Oxide.Plugins
                 switch (Oxide.Core.Random.Range(0, 1))
                 {
                     case 0:
-                        if (!popupsEnabled)
+                        //if (!popupsEnabled)
                             SendReply(player, localization["MedicToLate"]);
-                        else
-                            PopupNotifications.Call("CreatePopupNotification", localization["MedicToLate"], player);
+                        //else
+                        //    PopupNotifications.Call("CreatePopupNotification", localization["MedicToLate"], player);
                         break;
                     case 1:
-                        if (!popupsEnabled)
+                        //if (!popupsEnabled)
                             SendReply(player, localization["MedicIncompetent"]);
-                        else
-                            PopupNotifications.Call("CreatePopupNotification", localization["MedicIncompetent"], player);
+                        //else
+                        //    PopupNotifications.Call("CreatePopupNotification", localization["MedicIncompetent"], player);
                         break;
                 }
 
                 return;
             }
 
-            player.SetPlayerFlag(BasePlayer.PlayerFlags.Wounded, false);
+            called.Remove(player.userID);
 
-            player.CancelInvoke("WoundingEnd");
+            player.StopWounded();
 
             player.ChangeHealth(player.StartHealth());
 
             player.metabolism.bleeding.value = 0f;
 
-            if (!popupsEnabled)
+            //if (!popupsEnabled)
                 SendReply(player, localization["Survived"]);
-            else
-                PopupNotifications.Call("CreatePopupNotification", localization["Survived"], player);
+            //else
+            //    PopupNotifications.Call("CreatePopupNotification", localization["Survived"], player);
         }
 
         void OnEntityTakeDamage(BaseCombatEntity entity, HitInfo hitInfo)
@@ -501,7 +588,7 @@ namespace Oxide.Plugins
                     hitInfo.WeaponPrefab.ToString().Contains("explosive"))
                     explosion = (hitInfo.WeaponPrefab.GetEntity() as TimedExplosive);
                 
-                if (entity.LookupShortPrefabName().ToString().Contains("player") &&
+                if (entity.ShortPrefabName.ToString().Contains("player") &&
                     (
                      explosion == null ||
                      explosion.explosionRadius >= player.Distance(entity.GetEntity())
@@ -521,10 +608,10 @@ namespace Oxide.Plugins
                         { }
 
                     if (player.health <= totalDamage)
-                        if (!popupsEnabled)
+                        //if (!popupsEnabled)
                             SendReply(player, localization["AboutToDie"]);
-                        else
-                            PopupNotifications.Call("CreatePopupNotification", localization["AboutToDie"], player);
+                        //else
+                        //    PopupNotifications.Call("CreatePopupNotification", localization["AboutToDie"], player);
                 }
             }
         }
@@ -533,10 +620,10 @@ namespace Oxide.Plugins
         {
             if (called.Contains(player.userID))
             {
-                if (!popupsEnabled)
+                //if (!popupsEnabled)
                     SendReply(player, localization["MedicAlreadyCalled"]);
-                else
-                    PopupNotifications.Call("CreatePopupNotification", localization["MedicAlreadyCalled"], player);
+                //else
+                //    PopupNotifications.Call("CreatePopupNotification", localization["MedicAlreadyCalled"], player);
 
                 return false;
             }
@@ -576,16 +663,9 @@ namespace Oxide.Plugins
 
         static bool IsUInt(string s)
         {
-            try
-            {
-                Convert.ToUInt32(s);
-            }
-            catch
-            {
-                return false;
-            }
+            Regex _uint = new Regex("^\\d*$");
 
-            return true;
+            return _uint.Match(s).Success;
         }
     }
 }

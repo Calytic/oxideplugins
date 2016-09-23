@@ -1,0 +1,15 @@
+{
+    "name": "Ping",
+    "description": "Ping command and automatic kicking of players with high pings",
+    "author": "Wulf",
+    "version": "1.6.1",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "Universal"
+    ],
+    "keywords": [
+        "oxide",
+        "Universal"
+    ]
+}

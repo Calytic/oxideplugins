@@ -3,39 +3,31 @@ using System;
 using System.Reflection;
 using System.Data;
 using UnityEngine;
+using System.Linq;
 using Oxide.Core;
 using Oxide.Core.Configuration;
 using Oxide.Core.Logging;
 using Oxide.Core.Plugins;
+using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("Finder", "Reneb", "2.0.6", ResourceId = 692)]
+    [Info("Finder", "Reneb", "3.0.1", ResourceId = 692)]
     class Finder : RustPlugin
     {
         //////////////////////////////////////////////////////////////////////////////////////////
         ///// Plugin References
         //////////////////////////////////////////////////////////////////////////////////////////
         [PluginReference]
-        Plugin DeadPlayersList;
-        //////////////////////////////////////////////////////////////////////////////////////////
-        ///// cached Fields
-        //////////////////////////////////////////////////////////////////////////////////////////
+        Plugin PlayerDatabase;
 
-        Dictionary<BasePlayer, Dictionary<string, Dictionary<string, object>>> cachedFind = new Dictionary<BasePlayer, Dictionary<string, Dictionary<string, object>>>();
+        Dictionary<ulong, PlayerFinder> cachedFinder = new Dictionary<ulong, PlayerFinder>();
 
-        //////////////////////////////////////////////////////////////////////////////////////////
-        ///// Fields
-        //////////////////////////////////////////////////////////////////////////////////////////
-        FieldInfo lastPositionValue;
+        static string findPermission = "finder.find";
+        static int findAuthlevel = 1;
 
-        //////////////////////////////////////////////////////////////////////////////////////////
-        ///// Configuration
-        //////////////////////////////////////////////////////////////////////////////////////////
 
-        static string noAccess = "You are not allowed to use this command";
-
-        private bool Changed;
+        protected override void LoadDefaultConfig() { }
 
         private void CheckCfg<T>(string Key, ref T var)
         {
@@ -47,407 +39,366 @@ namespace Oxide.Plugins
 
         void Init()
         {
-            CheckCfg<string>("Messages: noAccess", ref noAccess);
+            CheckCfg<int>("auth level permission", ref findAuthlevel);
+            CheckCfg<string>("oxide Permission", ref findPermission);
 
             SaveConfig();
-
         }
-
-        void LoadDefaultConfig() { }
-
-        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        /// Oxide Hooks
-        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
         void Loaded()
         {
-            lastPositionValue = typeof(BasePlayer).GetField("lastPositionValue", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
-        }
-        void OnServerInitialized()
-        {
-            InitializeTable();
-        }
-
-        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        /// Player Finder
-        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-        object FindPlayer(string arg)
-        {
-            var findplayers = FindPlayers(arg);
-            if (findplayers.Count == 0)
+            lang.RegisterMessages(new Dictionary<string, string>
             {
-                return "No players found";
+                {"You don't have the permission to use this command","You don't have the permission to use this command" },
+                {"ListCommands","/find player PLAYERNAME/STEAMID\n\r/find cupboard PLAYERNAME/STEAMID\n\r/find bag PLAYERNAME/STEAMID\n\r/find building PLAYERNAME/STEAMID\n\r/find item ITEMNAME MINAMOUNT\n\r/find tp FINDID" },
+                {"Multiple players found:\n\r","Multiple players found:\n\r" },
+                {"No matching players found.","No matching players found." },
+                {"You need to select a target player.","You need to select a target player." },
+                {"This player doesn't have a position","This player doesn't have a position" },
+                {"This player doesn't have any cupboard privileges","This player doesn't have any cupboard privileges" },
+                {"You didn't find anything yet","You didn't find anything yet" },
+                {"You need to select a target findid.","You need to select a target findid." },
+                {"This id is out of range.","This id is out of range." },
+                {"You are using the console, you can't tp!","You are using the console, you can't tp!" },
+                {"This player hasn't built anything yet","This player hasn't built anything yet" },
+                {"usage: /find item ITEMNAME MINAMOUNT.","usage: /find item ITEMNAME MINAMOUNT." },
+                {"You didn't use a valid item name.","You didn't use a valid item name." }
+            }, this);
+        }
+
+        bool hasPermission(BasePlayer player, string perm, int authLevel)
+        {
+            var lvl = player?.net?.connection?.authLevel;
+            if (lvl == null || lvl >= authLevel) { return true; }
+
+            return permission.UserHasPermission(player.userID.ToString(), perm);
+        }
+
+        string GetMsg(string key, BasePlayer player = null)
+        {
+            return lang.GetMessage(key, this, player == null ? null : player.userID.ToString());
+        }
+
+        class FindData
+        {
+            string Name;
+            public Vector3 Pos;
+            string TypeName;
+
+            public FindData(string TypeName, Vector3 Pos, string Name)
+            {
+                this.Name = Name;
+                this.TypeName = TypeName;
+                this.Pos = Pos;
             }
-            if (findplayers.Count == 1)
+
+            public override string ToString()
             {
-                foreach (KeyValuePair<string, Dictionary<string, object>> pair in findplayers)
+                return string.Format("{0} - {1}{2}", TypeName, Pos.ToString(), Name == string.Empty ? string.Empty : (" - " + Name));
+            }
+
+        }
+
+        class PlayerFinder
+        {
+            string Name;
+            string Id;
+            bool Online;
+
+            public List<FindData> Data = new List<FindData>();
+
+            public PlayerFinder(string Name, string Id, bool Online)
+            {
+                this.Name = Name;
+                this.Id = Id;
+                this.Online = Online;
+            }
+
+            public void AddFind(string TypeName, Vector3 Pos, string Name)
+            {
+                Data.Add(new FindData(TypeName, Pos, Name));
+            }
+
+            public override string ToString()
+            {
+                return string.Format("{0} {1} - {2}", Id, Name, Online ? "Connected" : "Offline");
+            }
+        }
+
+        PlayerFinder GetPlayerInfo(ulong userID)
+        {
+            var steamid = userID.ToString();
+            var player = covalence.Players.GetPlayer(steamid);
+            if(player != null)
+            {
+                return new PlayerFinder(player.Name, player.Id, player.IsConnected);
+            }
+
+            if(PlayerDatabase != null)
+            {
+                var name = (string)PlayerDatabase?.Call("GetPlayerData", steamid, "name");
+                if(name != null)
                 {
-                    return pair.Value;
+                    return new PlayerFinder(name, steamid, false);
                 }
             }
-            return findplayers;
+
+            return new PlayerFinder("Unknown", steamid, false);
         }
 
-        Dictionary<string, Dictionary<string, object>> FindPlayers(string arg)
+        private object FindPosition(ulong userID)
         {
-            var listPlayers = new Dictionary<string, Dictionary<string, object>>();
-
-            ulong steamid = 0L;
-            ulong.TryParse(arg, out steamid);
-            string lowerarg = arg.ToLower();
-            foreach (BasePlayer player in Resources.FindObjectsOfTypeAll<BasePlayer>())
+            var p = BasePlayer.activePlayerList.Find((BasePlayer x) => x.userID == userID);
+            if(p == null)
             {
-                if (steamid != 0L)
-                    if (player.userID == steamid)
+                p = BasePlayer.sleepingPlayerList.Find((BasePlayer x) => x.userID == userID);
+                if (p == null)
+                    return null;
+            }
+            return p.transform.position;
+        }
+
+
+        private object FindPlayerID(string arg, BasePlayer source = null)
+        {
+            ulong userID = 0L;
+            if (arg.Length == 17 && ulong.TryParse(arg, out userID))
+                return userID;
+
+            var players = covalence.Players.FindPlayers(arg).ToList();
+            if(players.Count > 1)
+            {
+                var returnstring = GetMsg("Multiple players found:\n\r", source);
+                foreach(var p in players)
+                {
+                    returnstring += string.Format("{0} - {1}\n\r", p.Id, p.Name);
+                }
+                return returnstring;
+            }
+            if(players.Count == 1)
+            {
+                return ulong.Parse(players[0].Id);
+            }
+
+            if (PlayerDatabase != null)
+            {
+                string success = PlayerDatabase.Call("FindPlayer", arg) as string;
+                if (success.Length == 17 && ulong.TryParse(success, out userID))
+                {
+                    return userID;
+                }
+                else
+                    return success;
+            }
+
+            return GetMsg("No matching players found.", source);
+        }
+
+        string Find(BasePlayer player, string[] args)
+        {
+            string returnstring = string.Empty;
+
+            if(!hasPermission(player, findPermission, findAuthlevel))
+            {
+                return GetMsg("You don't have the permission to use this command.", player);
+            }
+
+            if(args == null || args.Length == 0)
+            {
+                return GetMsg("ListCommands", player);
+            }
+            var puserid = player == null ? 0L : player.userID;
+            switch(args[0].ToLower())
+            {
+                case "player":
+                case "bag":
+                case "cupboard":
+                case "building":
+                    if(args.Length == 1)
                     {
-                        listPlayers.Clear();
-                        listPlayers.Add(steamid.ToString(), GetFinderDataFromPlayer(player));
-                        return listPlayers;
+                        return GetMsg("You need to select a target player.", player);
                     }
-                if (player.displayName == null) continue;
-                string lowername = player.displayName.ToLower();
-                if (lowername.Contains(lowerarg))
-                {
-                    listPlayers.Add(player.userID.ToString(), GetFinderDataFromPlayer(player));
-                }
-            }
-            if (DeadPlayersList != null)
-            {
-                var deadplayers = DeadPlayersList.Call("GetPlayerList") as Dictionary<string, string>;
-                foreach (KeyValuePair<string, string> pair in deadplayers)
-                {
-                    if (steamid != 0L)
-                        if (pair.Key == arg)
+                    var f = FindPlayerID(args[1], player);
+                    if(!(f is ulong))
+                    {
+                        return f.ToString();
+                    }
+                    ulong targetID = (ulong)f;
+                    var d = GetPlayerInfo(targetID);
+                    returnstring = d.ToString() + ":\n\r";
+                    switch (args[0].ToLower())
+                    {
+                        case "player":
+                            var p = FindPosition(targetID);
+                            if(p == null)
+                            {
+                                returnstring += GetMsg("This player doesn't have a position", player);
+                            }
+                            else 
+                                d.AddFind("Position", (Vector3)p, string.Empty);
+                            break;
+                        case "bag":
+                            var bs = SleepingBag.FindForPlayer(targetID, true).ToList();
+                            if (bs.Count == 0)
+                            {
+                                returnstring += GetMsg("This player doesn't have any bags", player);
+                            }
+                            foreach(var b in bs)
+                            {
+                                d.AddFind(b.ShortPrefabName, b.transform.position, b.niceName);
+                            }
+                            break;
+                        case "cupboard":
+                            var cs = Resources.FindObjectsOfTypeAll<BuildingPrivlidge>().Where(x => x.authorizedPlayers.Any((ProtoBuf.PlayerNameID z) => z.userid == targetID)).ToList();
+                            if(cs.Count== 0)
+                            {
+                                returnstring += GetMsg("This player doesn't have any cupboard privileges", player);
+                            }
+                            foreach(var c in cs)
+                            {
+                                d.AddFind("Tool Cupboard", c.transform.position, string.Empty);
+                            }
+                            break;
+                        case "building":
+                            var bb = Resources.FindObjectsOfTypeAll<BuildingBlock>().Where(x => x.OwnerID == targetID).ToList();
+                            if (bb.Count == 0)
+                            {
+                                returnstring += GetMsg("This player hasn't built anything yet", player);
+                            }
+                            var dic = new Dictionary<uint, Dictionary<string, object>>();
+                            foreach(var b in bb)
+                            {
+                                if(!dic.ContainsKey(b.buildingID))
+                                {
+                                    dic.Add(b.buildingID, new Dictionary<string, object>
+                                    {
+                                        {"pos", b.transform.position },
+                                        {"num", 0 }
+                                    });
+                                }
+                                dic[b.buildingID]["num"] = (int)dic[b.buildingID]["num"] + 1;
+                            }
+                            foreach (var c in dic)
+                            {
+                                d.AddFind("Building", (Vector3)c.Value["pos"], c.Value["num"].ToString());
+                            }
+                            break;
+                        default:
+                            break;
+                    }
+                    for (int i = 0; i < d.Data.Count; i++)
+                    {
+                        returnstring += i.ToString() + " - " + d.Data[i].ToString() + "\n\r";
+                    }
+                    if (cachedFinder.ContainsKey(puserid))
+                    {
+                        cachedFinder[puserid].Data.Clear();
+                        cachedFinder[puserid] = null;
+                        cachedFinder.Remove(puserid);
+                    }
+                    cachedFinder.Add(puserid, d);
+                    break;
+                case "item":
+                    if(args.Length < 3)
+                    {
+                        return GetMsg("usage: /find item ITEMNAME MINAMOUNT.", player);
+                    }
+                    var pu = GetPlayerInfo(puserid);
+                    var itemname = args[1].ToLower();
+                    var itemamount = 0;
+                    if(!(int.TryParse(args[2], out itemamount)))
+                    {
+                        return GetMsg("usage: /find item ITEMNAME MINAMOUNT.", player);
+                    }
+                    ItemDefinition item = null;
+                    for(int i = 0; i < ItemManager.itemList.Count; i++)
+                    {
+                        if(ItemManager.itemList[i].displayName.english.ToLower() == itemname)
                         {
-                            listPlayers.Clear();
-                            listPlayers.Add(pair.Key.ToString(), GetFinderDataFromDeadPlayers(pair.Key));
-                            return listPlayers;
+                            item = ItemManager.itemList[i];
+                            break;
                         }
-                    string lowername = pair.Value.ToLower();
-                    if (lowername.Contains(lowerarg))
-                    {
-                        listPlayers.Add(pair.Key.ToString(), GetFinderDataFromDeadPlayers(pair.Key));
                     }
-                }
-            }
-
-            return listPlayers;
-        }
-        Dictionary<string, object> GetFinderDataFromDeadPlayers(string userid)
-        {
-            var playerData = new Dictionary<string, object>();
-
-            playerData.Add("userid", userid);
-            playerData.Add("name", (string)DeadPlayersList.Call("GetPlayerName", userid));
-            playerData.Add("pos", (Vector3)DeadPlayersList.Call("GetPlayerDeathPosition", userid));
-            playerData.Add("state", "Dead");
-            playerData.Add("status", "Disconnected");
-
-            return playerData;
-        }
-        Dictionary<string, object> GetFinderDataFromPlayer(BasePlayer player)
-        {
-            var playerData = new Dictionary<string, object>();
-
-            playerData.Add("userid", player.userID.ToString());
-            playerData.Add("name", player.displayName);
-            playerData.Add("pos", player.transform.position);
-            playerData.Add("state", player.IsDead() ? "Dead" : player.IsSleeping() ? "Sleeping" : player.IsSpectating() ? "Spectating" : "Alive");
-            playerData.Add("status", player.IsConnected() ? "Connected" : "Disconnected");
-
-            return playerData;
-        }
-
-        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        /// Teleport Functions & Data
-        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        void ResetFind(BasePlayer player)
-        {
-            if (cachedFind.ContainsKey(player))
-                cachedFind.Remove(player);
-            cachedFind.Add(player, new Dictionary<string, Dictionary<string, object>>());
-        }
-        void AddFind(BasePlayer player, int count, Dictionary<string, object> data)
-        {
-            cachedFind[player].Add(count.ToString(), data);
-        }
-        object GetFind(BasePlayer player, string count)
-        {
-            if (!cachedFind.ContainsKey(player)) return "You didn't search for something yet";
-            if (cachedFind[player].Count == 0) return "You didn't find anything";
-            if (!cachedFind[player].ContainsKey(count)) return "This FindID is not valid";
-            return cachedFind[player][count];
-        }
-        void ForcePlayerPosition(BasePlayer player, Vector3 destination)
-        {
-            player.MovePosition(destination);
-        }
-
-        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        /// Building Privilege Search
-        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        Dictionary<string, object> GetBuildingPrivilegeData(BuildingPrivlidge bp)
-        {
-            var bpdata = new Dictionary<string, object>();
-
-            bpdata.Add("pos", bp.transform.position);
-
-            return bpdata;
-        }
-        List<Dictionary<string, object>> FindPrivileges(string userid)
-        {
-            var privileges = new List<Dictionary<string, object>>();
-            ulong ulongid = ulong.Parse(userid);
-            foreach (BuildingPrivlidge bp in Resources.FindObjectsOfTypeAll<BuildingPrivlidge>())
-            {
-                foreach (ProtoBuf.PlayerNameID pni in bp.authorizedPlayers)
-                {
-                    if (pni.userid == ulongid)
+                    if(item == null)
                     {
-                        privileges.Add(GetBuildingPrivilegeData(bp));
+                        return GetMsg("You didn't use a valid item name.", player);
                     }
-                }
-            }
+                    foreach (StorageContainer sc in Resources.FindObjectsOfTypeAll<StorageContainer>())
+                    {
+                        ItemContainer inventory = sc.inventory;
+                        if (inventory == null) continue;
+                        int amount = inventory.GetAmount(item.itemid, false);
+                        if (amount < itemamount) continue;
+                        pu.AddFind("Box", sc.transform.position, amount.ToString());
+                    }
+                    foreach (BasePlayer bp in Resources.FindObjectsOfTypeAll<BasePlayer>())
+                    {
+                        PlayerInventory inventory = player.inventory;
+                        if (inventory == null) continue;
+                        int amount = inventory.GetAmount(item.itemid);
+                        if (amount < itemamount) continue;
+                        Dictionary<string, object> scdata = new Dictionary<string, object>();
+                        pu.AddFind(string.Format("{0} {1}", player.userID.ToString(), player.displayName), bp.transform.position, amount.ToString());
+                    }
+                    for (int i = 0; i < pu.Data.Count; i++)
+                    {
+                        returnstring += i.ToString() + " - " + pu.Data[i].ToString() + "\n\r";
+                    }
+                    if (cachedFinder.ContainsKey(puserid))
+                    {
+                        cachedFinder[puserid].Data.Clear();
+                        cachedFinder[puserid] = null;
+                        cachedFinder.Remove(puserid);
+                    }
+                    cachedFinder.Add(puserid, pu);
+                    break;
+                case "tp":
+                    if(player == null)
+                    {
+                        return GetMsg("You are using the console, you can't tp!", player);
+                    }
+                    if (!cachedFinder.ContainsKey(puserid))
+                    {
+                        return GetMsg("You didn't find anything yet", player);
+                    }
+                    if (args.Length == 1)
+                    {
+                        return GetMsg("You need to select a target findid.", player);
+                    }
+                    var fp = cachedFinder[puserid];
+                    var id = 0;
+                    int.TryParse(args[1], out id);
+                    if(id >= fp.Data.Count)
+                    {
+                        return GetMsg("This id is out of range.", player);
+                    }
 
-            return privileges;
+                    var data = cachedFinder[puserid].Data[id];
+                    player.MovePosition(data.Pos);
+                    player.ClientRPCPlayer(null, player, "ForcePositionTo", data.Pos);
+                    returnstring += data.ToString();
+                    break;
+                default:
+                    returnstring += GetMsg("ListCommands", player);
+                    break;
+            }
+           
+
+
+            return returnstring;
         }
 
-        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        /// Sleeping Bag Search
-        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        Dictionary<string, object> GetSleepingBagData(SleepingBag bag)
-        {
-            var bagdata = new Dictionary<string, object>();
-
-            bagdata.Add("name", bag.niceName);
-            bagdata.Add("pos", bag.transform.position);
-
-            return bagdata;
-        }
-        List<Dictionary<string, object>> FindSleepingBags(string userid)
-        {
-            var bags = new List<Dictionary<string, object>>();
-            ulong ulongid = ulong.Parse(userid);
-            foreach (SleepingBag bag in SleepingBag.FindForPlayer(ulongid, true))
-            {
-                bags.Add(GetSleepingBagData(bag));
-            }
-
-            return bags;
-        }
-
-        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        /// Item Search
-        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        Dictionary<string, string> displaynameToShortname = new Dictionary<string, string>();
-
-        private void InitializeTable()
-        {
-            displaynameToShortname.Clear();
-            List<ItemDefinition> ItemsDefinition = ItemManager.GetItemDefinitions() as List<ItemDefinition>;
-            foreach (ItemDefinition itemdef in ItemsDefinition)
-            {
-                displaynameToShortname.Add(itemdef.displayName.english.ToString().ToLower(), itemdef.shortname.ToString());
-            }
-        }
-
-        List<Dictionary<string, object>> FindItems(ItemDefinition itemdef, int minamount)
-        {
-            var containers = new List<Dictionary<string, object>>();
-            foreach (StorageContainer sc in Resources.FindObjectsOfTypeAll<StorageContainer>())
-            {
-                ItemContainer inventory = sc.inventory;
-                if (inventory == null) continue;
-                int amount = inventory.GetAmount(itemdef.itemid, false);
-                if (amount < minamount) continue;
-                Dictionary<string, object> scdata = new Dictionary<string, object>();
-                scdata.Add("in", "Storage Box");
-                scdata.Add("pos", sc.transform.position);
-                scdata.Add("amount", amount.ToString());
-                containers.Add(scdata);
-            }
-
-            foreach (BasePlayer player in Resources.FindObjectsOfTypeAll<BasePlayer>())
-            {
-                PlayerInventory inventory = player.inventory;
-                if (inventory == null) continue;
-                int amount = inventory.GetAmount(itemdef.itemid);
-                if (amount < minamount) continue;
-                Dictionary<string, object> scdata = new Dictionary<string, object>();
-                scdata.Add("in", string.Format("{0} {1}", player.userID.ToString(), player.displayName));
-                scdata.Add("pos", player.transform.position);
-                scdata.Add("amount", amount.ToString());
-                containers.Add(scdata);
-            }
-            return containers;
-        }
-
-
-        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        /// Chat Command
-        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         [ChatCommand("find")]
         void cmdChatFind(BasePlayer player, string command, string[] args)
         {
-            if (player.net.connection.authLevel < 1)
-            {
-                SendReply(player, noAccess);
-                return;
-            }
-            if (args.Length < 2 || args == null)
-            {
-                SendReply(player, "======== FINDER =======");
-                SendReply(player, "/find player NAME/SteamID");
-                SendReply(player, "/find bag NAME/SteamID");
-                SendReply(player, "/find privilege NAME/SteamID");
-                SendReply(player, "/find tp FINDID");
-                return;
-            }
-            int count = 0;
-            switch (args[0].ToLower())
-            {
-                case "players":
-                case "player":
-                    ResetFind(player);
-                    Dictionary<string, Dictionary<string, object>> success = FindPlayers(args[1]);
-                    if (success.Count == 0)
-                    {
-                        SendReply(player, string.Format("No players found with: {0}", args[1]));
-                        return;
-                    }
+            SendReply(player, Find(player, args));
+        }
 
-                    foreach (KeyValuePair<string, Dictionary<string, object>> pair in success)
-                    {
-                        AddFind(player, count, pair.Value);
-                        SendReply(player, string.Format("{0} - {1} - {2} - {3} - {4}", count.ToString(), pair.Key, (string)pair.Value["name"], (string)pair.Value["state"], (string)pair.Value["status"]));
-                        count++;
-                    }
-                    break;
-                case "info":
-                    object finddatarr = GetFind(player, args[1]);
-                    if (finddatarr is string)
-                    {
-                        SendReply(player, (string)finddatarr);
-                        return;
-                    }
-                    var findDatar = finddatarr as Dictionary<string, object>;
-                    foreach (KeyValuePair<string, object> pair in findDatar)
-                    {
-                        SendReply(player, string.Format("{0} - {1}", pair.Key, pair.Value.ToString()));
-                    }
-                    break;
-                case "tp":
-                    object finddatar = GetFind(player, args[1]);
-                    if (finddatar is string)
-                    {
-                        SendReply(player, (string)finddatar);
-                        return;
-                    }
-                    var findData = finddatar as Dictionary<string, object>;
-                    if (!findData.ContainsKey("pos"))
-                    {
-                        SendReply(player, "Couldn't find the position for this data");
-                        return;
-                    }
-                    ForcePlayerPosition(player, (Vector3)findData["pos"]);
-                    foreach (KeyValuePair<string, object> pair in findData)
-                    {
-                        SendReply(player, string.Format("{0} - {1}", pair.Key, pair.Value.ToString()));
-                    }
-                    break;
-                case "item":
-                    if (args.Length < 3)
-                    {
-                        SendReply(player, "/find item ITEMNAME MINNUMBER");
-                        return;
-                    }
-                    int minnum = 0;
-                    if (!int.TryParse(args[2], out minnum))
-                    {
-                        SendReply(player, "/find item ITEMNAME MINNUMBER");
-                        return;
-                    }
-                    ResetFind(player);
-                    string itemname = args[1].ToLower();
-                    if (displaynameToShortname.ContainsKey(itemname))
-                        itemname = displaynameToShortname[itemname];
-                    ItemDefinition definition = ItemManager.FindItemDefinition(itemname);
-                    if (definition == null)
-                    {
-                        SendReply(player, "This item doesn't exist");
-                        return;
-                    }
-                    List<Dictionary<string, object>> containers = FindItems(definition, minnum);
-                    foreach (Dictionary<string, object> container in containers)
-                    {
-                        AddFind(player, count, container);
-                        SendReply(player, string.Format("{0} - {1} - Amount: {2} - In: {3}", count.ToString(), container["pos"].ToString(), container["amount"], container["in"]));
-                        count++;
-                    }
-                    break;
-                default:
-                    object successs = FindPlayer(args[1]);
-                    if (successs is string)
-                    {
-                        SendReply(player, (string)successs);
-                        return;
-                    }
-                    if (successs is Dictionary<string, Dictionary<string, object>>)
-                    {
-                        SendReply(player, "Multiple players found, use the SteamID or use a fuller name");
-                        foreach (KeyValuePair<string, Dictionary<string, object>> pair in (Dictionary<string, Dictionary<string, object>>)successs)
-                        {
-                            SendReply(player, string.Format("{0} - {1} - {2} - {3}", pair.Key, (string)pair.Value["name"], (string)pair.Value["state"], (string)pair.Value["status"]));
-                        }
-                        return;
-                    }
-                    ResetFind(player);
-                    switch (args[0].ToLower())
-                    {
-                        case "sleepingbag":
-                        case "bag":
-                            List<Dictionary<string, object>> bags = FindSleepingBags((string)((Dictionary<string, object>)successs)["userid"]);
-                            if (bags.Count == 0)
-                            {
-                                SendReply(player, "No sleeping bags found for this player");
-                                return;
-                            }
-                            foreach (Dictionary<string, object> bag in bags)
-                            {
-                                AddFind(player, count, bag);
-                                SendReply(player, string.Format("{0} - {1} - {2}", count.ToString(), bag["name"].ToString(), bag["pos"].ToString()));
-                                count++;
-                            }
-                            break;
-                        case "privilege":
-                        case "cupboard":
-                        case "toolcupboard":
-
-                            List<Dictionary<string, object>> privileges = FindPrivileges((string)((Dictionary<string, object>)successs)["userid"]);
-                            if (privileges.Count == 0)
-                            {
-                                SendReply(player, "No tool cupboard privileges found for this player");
-                                return;
-                            }
-                            foreach (Dictionary<string, object> priv in privileges)
-                            {
-                                AddFind(player, count, priv);
-                                SendReply(player, string.Format("{0} - {1}", count.ToString(), priv["pos"].ToString()));
-                                count++;
-                            }
-                            break;
-
-                        default:
-
-
-                            break;
-
-
-                    }
-
-                    break;
-            }
+        [ConsoleCommand("finder.find")]
+        void cmdConsoleFind(ConsoleSystem.Arg arg)
+        {
+            var player = arg.Player();
+            arg.ReplyWith(Find(player, arg.Args));
         }
     }
 }

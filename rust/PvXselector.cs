@@ -5,21 +5,28 @@ using Oxide.Game.Rust.Cui;
 using Rust;
 using System;                      //DateTime
 using System.Collections.Generic;  //Required for Whilelist
-using System.Data;
-using System.Globalization;
+//using System.Data;
+//using System.Globalization;
 using System.Linq;
-using System.Reflection;
+//using System.Reflection;
 using UnityEngine;
 using Oxide.Core.Configuration;
-
-
+//using ConVar;
+//using Facepunch;
+//using Network;
+//using ProtoBuf;
+//using System.Runtime.CompilerServices;
+//using Oxide.Core.Libraries.Covalence;
+//using System.Text.RegularExpressions;
+//using Oxide.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("PvXSelector", "Alphawar", "0.9.0", ResourceId = 1817)]
+    [Info("PvXSelector", "Alphawar", "0.9.4", ResourceId = 1817)]
     [Description("Player vs X Selector")]
     class PvXselector : RustPlugin
     {
+
         #region Data/PlayerJoin/ServerInit
         //Loaded goes first
         PlayerDataStorage playerData;
@@ -31,23 +38,30 @@ namespace Oxide.Plugins
 
         private Hash<ulong, PlayerInfo> InfoCache = new Hash<ulong, PlayerInfo>();
         private List<ulong> SleeperCache = new List<ulong>();
-        private List<ulong> AdminBuildMode = new List<ulong>();
+        private List<BasePlayer> AdminPlayerMode = new List<BasePlayer>();
+        private List<BasePlayer> activeAdmins = new List<BasePlayer>();
+        private List<ulong> antiChatSpam = new List<ulong>();
         public List<ulong> IgnoreXPFunction = new List<ulong>();
         private Dictionary<ulong, List<string>> OpenUI = new Dictionary<ulong, List<string>>();
 
-        class PlayerDataStorage{
+        class PlayerDataStorage
+        {
             public Hash<ulong, PlayerInfo> Info = new Hash<ulong, PlayerInfo>();
             public List<ulong> sleepers = new List<ulong>();
         }
-        class TicketDataStorage{
+        class TicketDataStorage
+        {
             public Dictionary<int, ulong> Link = new Dictionary<int, ulong>();
             public Dictionary<ulong, Ticket> Info = new Dictionary<ulong, Ticket>();
-            public Dictionary<ulong,string> Notification = new Dictionary<ulong,string>();
+            public Dictionary<ulong, string> Notification = new Dictionary<ulong, string>();
         }
-        class TicketLogStorage{
-            public Dictionary<int, LogData> Log = new Dictionary<int, LogData>();}
+        class TicketLogStorage
+        {
+            public Dictionary<int, LogData> Log = new Dictionary<int, LogData>();
+        }
 
-        class PlayerInfo{
+        class PlayerInfo
+        {
             public string username;
             public double timeStamp;
             public string mode;
@@ -57,30 +71,44 @@ namespace Oxide.Plugins
             public float xpSpent;
             public float xpUnSpent;
         }
-        class Ticket{
+        class Ticket
+        {
             public int TicketNumber;
             public string username;
             public string requested;
             public string reason;
-            public double timeStamp;
+            public string timeStamp;
         }
-        class LogData{
+        class LogData
+        {
             public ulong UserId;
             public ulong AdminId;
             public string requested;
             public string reason;
             public bool Accepted;
-            public double createdTimeStamp;
-            public double ClosedTimeStamp;
+            public string createdTimeStamp;
+            public string ClosedTimeStamp;
         }
 
-        void OnServerInitialized(){
+        void OnServerInitialized()
+        {
             LoadData();
             InfoCache = playerData.Info;
             checkPlayersRegistered();
-            foreach (BasePlayer _player in BasePlayer.activePlayerList){
-                createIndicator(_player);
-                storePlayerLevel(_player);
+            RegisterGroups();
+            foreach (BasePlayer _player in BasePlayer.activePlayerList)
+            {
+                if (!isNPC(_player))
+                {
+                    createPvXIndicator(_player);
+                    storePlayerLevel(_player);
+                    if (hasPerm(_player, "admin"))
+                    {
+                        activeAdmins.Add(_player);
+                        createAdminIndicator(_player);
+                    }
+                    updatePlayerChatTag(_player);
+                }
             }
         }
         void Loaded()
@@ -96,9 +124,11 @@ namespace Oxide.Plugins
         }
         void Unloaded()
         {
-            foreach (var _player in BasePlayer.activePlayerList){
+            foreach (var _player in BasePlayer.activePlayerList)
+            {
                 storePlayerLevel(_player);
-                DestroyUI(_player);}
+                DestroyAllUI(_player);
+            }
             SaveAll();
         }
 
@@ -158,36 +188,49 @@ namespace Oxide.Plugins
         void OnPlayerInit(BasePlayer _player)
         {
             if (_player == null) return;
-            if (_player.HasPlayerFlag(BasePlayer.PlayerFlags.ReceivingSnapshot)){
+            if (_player.HasPlayerFlag(BasePlayer.PlayerFlags.ReceivingSnapshot))
+            {
                 timer.Once(2, () => OnPlayerInit(_player));
-                return;}
-            if (!InfoCache.ContainsKey(_player.userID)){
-                InfoCache.Add(_player.userID, new PlayerInfo {
-                    username = _player.displayName,
-                    mode = "NA", ticket = false,
-                    timeStamp = GetTimeStamp(),
-                    pvpLevel = 0,
-                    pveLevel = 0,
-                    xpSpent = _player.xp.SpentXp,
-                    xpUnSpent = _player.xp.UnspentXp
-                });
+                return;
+            }
+            if (hasPerm(_player, "admin"))
+            {
+                activeAdmins.Add(_player);
+                createAdminIndicator(_player);
+            }
+            if (!InfoCache.ContainsKey(_player.userID))
+            {
+                addPlayer(_player);
+                updatePlayerChatTag(_player);
                 storePlayerLevel(_player);
                 saveCacheData();
-                createIndicator(_player);
+                createPvXIndicator(_player);
                 SelectorOverlay(_player);
-                return;}
+                return;
+            }
+            updatePlayerChatTag(_player);
             storePlayerLevel(_player);
-            if (SleeperCache.Contains(_player.userID)){
+            if (SleeperCache.Contains(_player.userID))
+            {
                 pvxUpdateXPDataFile(_player);
                 SleeperCache.Remove(_player.userID);
-                saveCacheData();}
-            createIndicator(_player);
+                saveCacheData();
+            }
+            createPvXIndicator(_player);
             if (InfoCache[_player.userID].mode != "NA") return;
             else if (ticketData.Notification.ContainsKey(_player.userID)) LangMSG(_player, "TickClosLogin", ticketData.Notification[_player.userID]);
             else SelectorOverlay(_player);
         }
+        void OnPlayerDisconnected(BasePlayer _player)
+        {
+            if (hasPerm(_player, "admin"))
+            {
+                activeAdmins.Remove(_player);
+            }
+        }
 
-        static string UIMain = "UIIndicator";
+        static string pvxPlayerUI = "pvxPlayerModeUI";
+        static string pvxAdminUI = "pvxAdminTicketCountUI";
         static string UIPanel = "UIPanel";
         static string UIEntry = "UIEntry";
         #endregion
@@ -267,23 +310,32 @@ namespace Oxide.Plugins
             return (T)Convert.ChangeType(Config.Get(stringArgs.ToArray()), typeof(T));
         }
 
-        bool hasPerm(BasePlayer _player, string perm, string reason = null){ //something
+        bool hasPerm(BasePlayer _player, string perm, string reason = null)
+        {
             string regPerm = Title.ToLower() + "." + perm; //pvxselector.admin
             if (permission.UserHasPermission(_player.UserIDString, regPerm)) return true;
             if (reason != "null")
                 SendReply(_player, reason);
-            return false;}
+            return false;
+        }
 
-        void permissionHandle(){
+        void permissionHandle()
+        {
             string[] Permissionarray = { "admin", "wipe" };
-            foreach (string i in Permissionarray){
+            foreach (string i in Permissionarray)
+            {
                 string regPerm = Title.ToLower() + "." + i;
                 Puts("Checking if " + regPerm + " is registered.");
-                if (!permission.PermissionExists(regPerm)){
+                if (!permission.PermissionExists(regPerm))
+                {
                     permission.RegisterPermission(regPerm, this);
-                    Puts(regPerm + " is registered.");}
-                else{
-                    Puts(regPerm + " is already registered.");}}
+                    Puts(regPerm + " is registered.");
+                }
+                else
+                {
+                    Puts(regPerm + " is already registered.");
+                }
+            }
         }
         #endregion
 
@@ -367,21 +419,26 @@ namespace Oxide.Plugins
             }
         }
 
-        private void DestroyUI(BasePlayer player)
+        private void DestroyAllUI(BasePlayer player)
         {
-            CuiHelper.DestroyUi(player, UIMain);
-            DestroyEntries(player);
+            CuiHelper.DestroyUi(player, pvxPlayerUI);
+            CuiHelper.DestroyUi(player, pvxAdminUI);
+            //DestroyEntries(player);
         }
-        private void DestroyEntries(BasePlayer player)
+        private void DestroyUI(BasePlayer player, string _ui)
         {
-            CuiHelper.DestroyUi(player, UIPanel);
-            if (OpenUI.ContainsKey(player.userID))
-            {
-                foreach (var entry in OpenUI[player.userID])
-                    CuiHelper.DestroyUi(player, entry);
-                OpenUI.Remove(player.userID);
-            }
+            CuiHelper.DestroyUi(player, _ui);
         }
+        //private void DestroyEntries(BasePlayer player)
+        //{
+        //    CuiHelper.DestroyUi(player, UIPanel);
+        //    if (OpenUI.ContainsKey(player.userID))
+        //    {
+        //        foreach (var entry in OpenUI[player.userID])
+        //            CuiHelper.DestroyUi(player, entry);
+        //        OpenUI.Remove(player.userID);
+        //    }
+        //}
         private void AddUIString(BasePlayer player, string name)
         {
             if (!OpenUI.ContainsKey(player.userID))
@@ -392,10 +449,13 @@ namespace Oxide.Plugins
         private Dictionary<string, string> UIColors = new Dictionary<string, string>
         {
             {"dark", "0.1 0.1 0.1 0.98" },
+            {"darkSoft", "0.1 0.1 0.1 0.20" },
             {"light", "0.7 0.7 0.7 0.3" },
             {"grey1", "0.6 0.6 0.6 1.0" },
             {"Red", "0.90 0.2 0.2 0.8" },
+            {"Green", "0.2 0.7 0.2 1.0" },
             {"Yellow", "0.90 0.90 0.2 0.8" },
+            {"YellowSoft", "0.90 0.90 0.2 0.2" },
             {"Black", "0.0 0.0 0.0 1.00" },
             {"White", "1.0 1.0 1.0 1.00" },
             {"buttonbg", "0.2 0.2 0.2 0.7" },
@@ -408,17 +468,21 @@ namespace Oxide.Plugins
         #endregion
 
         #region GUIs
-        private void SelectorOverlay(BasePlayer player){
+        private void SelectorOverlay(BasePlayer player)
+        {
             var elements = new CuiElementContainer();
 
-            var mainName = elements.Add(new CuiPanel{
+            var mainName = elements.Add(new CuiPanel
+            {
                 Image ={
                     Color = "0.1 0.1 0.1 1"},
                 RectTransform ={
                     AnchorMin = "0.1 0.15",
                     AnchorMax = "0.4 0.25"},
-                CursorEnabled = true}, "Overlay", "RulesGUI");
-            var PVP = new CuiButton{
+                CursorEnabled = true
+            }, "Hud", "SelOverLay");
+            var PVP = new CuiButton
+            {
                 Button ={
                     Command = "PvXSelection pvp",
                     Close = mainName,
@@ -429,8 +493,10 @@ namespace Oxide.Plugins
                 Text ={
                     Text = "PvP",
                     FontSize = 22,
-                    Align = TextAnchor.MiddleCenter}};
-            var PVE = new CuiButton{
+                    Align = TextAnchor.MiddleCenter}
+            };
+            var PVE = new CuiButton
+            {
                 Button ={
                     Command = "PvXSelection pve",
                     Close = mainName,
@@ -441,45 +507,98 @@ namespace Oxide.Plugins
                 Text ={
                     Text = "PvE",
                     FontSize = 22,
-                    Align = TextAnchor.MiddleCenter}};
+                    Align = TextAnchor.MiddleCenter}
+            };
             elements.Add(PVP, mainName);
             elements.Add(PVE, mainName);
-            CuiHelper.AddUi(player, elements);}
+            CuiHelper.AddUi(player, elements);
+        }
 
-        private void createIndicator(BasePlayer _player){
-            var indicatorContainer = QUI.CreateElementContainer(UIMain,
-                UIColors["dark"],
-                "0.47 0.09",
-                "0.53 0.14");
+        private void createPvXIndicator(BasePlayer _player)
+        {
+            var indicatorContainer = QUI.CreateElementContainer(pvxPlayerUI,
+                UIColors["darkSoft"],
+                "0.48 0.11",
+                "0.52 0.14");
             if (InfoCache[_player.userID].mode == "NA")
-                indicatorContainer = QUI.CreateElementContainer(UIMain,
+                indicatorContainer = QUI.CreateElementContainer(pvxPlayerUI,
                     UIColors["Red"],
-                    "0.47 0.09",
-                    "0.53 0.14");
+                    "0.48 0.11",
+                    "0.52 0.14");
             else if (ticketData.Info.ContainsKey(_player.userID))
-                indicatorContainer = QUI.CreateElementContainer(UIMain,
-                    UIColors["Yellow"],
-                    "0.47 0.09",
-                    "0.53 0.14");
-            QUI.CreateLabel(ref indicatorContainer,
-                UIMain,
-                "White",
-                InfoCache[_player.userID].mode,
-                25,
-                "0.1 0.1",
-                "0.90 0.99");
-            QUI.CreateLabel(ref indicatorContainer,
-                UIMain,
-                "Black",
-                InfoCache[_player.userID].mode,
-                25,
-                "0.1 0.1",
-                "0.90 0.99");
-            CuiHelper.AddUi(_player, indicatorContainer);}
+                indicatorContainer = QUI.CreateElementContainer(pvxPlayerUI,
+                    UIColors["YellowSoft"],
+                    "0.48 0.11",
+                    "0.52 0.14");
+            if (AdminPlayerMode.Contains(_player))
+            {
+                QUI.CreateLabel(ref indicatorContainer,
+                    pvxPlayerUI,
+                    UIColors["Green"],
+                    InfoCache[_player.userID].mode,
+                    15,
+                    "0.1 0.1",
+                    "0.90 0.99");
+            }
+            else
+            {
+                QUI.CreateLabel(ref indicatorContainer,
+                    pvxPlayerUI,
+                    "White",
+                    InfoCache[_player.userID].mode,
+                    15,
+                    "0.1 0.1",
+                    "0.90 0.99");
+            }
+            CuiHelper.AddUi(_player, indicatorContainer);
+        }
+        private void updatePvXIndicator(BasePlayer _player)
+        {
+            CuiHelper.DestroyUi(_player, pvxPlayerUI);
+            createPvXIndicator(_player);
+        }
 
-        private void updateIndicator(BasePlayer _player){
-            CuiHelper.DestroyUi(_player, UIMain);
-            createIndicator(_player);}
+        private void createAdminIndicator(BasePlayer _player)
+        {
+            if (!hasPerm(_player, "admin")) return;
+            var adminCountContainer = QUI.CreateElementContainer(
+                pvxAdminUI,
+                UIColors["dark"],
+                "0.166 0.055",
+                "0.34 0.0955");
+            QUI.CreateLabel(ref adminCountContainer,
+                pvxAdminUI,
+                "White",
+                "PvX Tickets",
+                10,
+                "0.0 0.1",
+                "0.3 0.90");
+            QUI.CreateLabel(ref adminCountContainer,
+                pvxAdminUI,
+                "White",
+                string.Format("Open: {0}", ticketData.Info.Count.ToString()),
+                10,
+                "0.301 0.1",
+                "0.65 0.90");
+            QUI.CreateLabel(ref adminCountContainer,
+                pvxAdminUI,
+                "White",
+                string.Format("Closed: {0}", ticketLog.Log.Count.ToString()),
+                10,
+                "0.651 0.1",
+                "1 0.90");
+            CuiHelper.AddUi(_player, adminCountContainer);
+        }
+        private void UpdateAdminIndicator()
+        {
+            if (activeAdmins == null) return;
+            else if (activeAdmins.Count < 1) return;
+            foreach (BasePlayer _player in activeAdmins)
+            {
+                CuiHelper.DestroyUi(_player, pvxAdminUI);
+                createAdminIndicator(_player);
+            }
+        }
 
         private void createButton(BasePlayer _player)
         { }
@@ -519,12 +638,14 @@ namespace Oxide.Plugins
         Dictionary<string, string> messages = new Dictionary<string, string>()
         {
             {"xx", "xxx" },
-            {"AdmBuilRem", "You have deactivated Admin Build Mode" },
-            {"AdmBuilAdd", "You are now in Admin Build mode" },
+            {"notAllwPickup", "You can't pick this item as owner is: {0}" },
+            {"AdmModeRem", "You have deactivated Admin Mode" },
+            {"AdmModeAdd", "You are now in Admin mode" },
             {"lvlRedxpSav", "Your Level was reduced, Lost xp has been saved." },
             {"lvlIncrxpRes", "Your Level has been increased, Lost xp Restored." },
             {"numbonly", "Incorrect format: Included letter in ticketID" },
             {"TickCrea", "You have created a ticket" },
+            {"TickCanc", "You have Canceled your ticket" },
             {"TickAcep", "Your Ticket has been accepted" },
             {"TickDecl", "Your Ticket has been declined" },
             {"TickAcepAdm", "Your Ticket accepted the ticket" },
@@ -540,30 +661,32 @@ namespace Oxide.Plugins
             {"TickDate", "Ticket Created: {0}" },
             {"TickCnt", "Open Tickets: {0}" },
             {"TickNotAvail", "Ticket#:{0} Does not exist" },
+            {"ComndList", "PvX Command List:" },
             {"CompTickCnt", "Closed Tickets: {0}" },
             {"IncoForm", "Incorrect format" },
             {"IncoFormPleaUse", "Incorrect format Please Use:" },
-            {"TicketDefaultReason", "Change Requested Via GUI" },
+            {"TicketDefaultReason", "Change Requested Via Chat" },
             {"NoTicket", "There are no tickets to display" },
             {"AlreadySubmitted", "You have already requested to change, Please conctact your admin" },
             {"PvETarget", "You are attacking a PvE player" },
-            {"PvEPlayer", "You are a PvE player" },
             {"NoActTick", "You do not have an active ticket" },
             {"RSNChan", "You have changed your tickets reason." },
             {"PvEStructure", "That structure belongs to a PvE player" },
             {"NoXPModeNA", "You will not earn XP until you have selected PvE/PvP" },
             {"NoSaveLvLNA", "Your levl is not saved unless you select PvE or PvP" },
+            {"TargisGod", "You are attacking a god" },
+            {"YouisGod", "You are attacking a god" },
             {"MissPerm", "You do not have the required permision" }
         };
         #endregion
 
         #region Ticket Functions
-        void createTicket(BasePlayer _player, string selection){
+        void createTicket(BasePlayer _player, string selection)
+        {
             int _TicketNumber = GetNewID();
             string _username = _player.displayName;
             string _requested = selection;
             string _reason = lang.GetMessage("TicketDefaultReason", this, _player.UserIDString);
-            double _timeStamp = GetTimeStamp();
             ticketData.Link.Add(_TicketNumber, _player.userID);
             ticketData.Info.Add(_player.userID, new Ticket
             {
@@ -571,22 +694,29 @@ namespace Oxide.Plugins
                 TicketNumber = _TicketNumber,
                 reason = _reason,
                 requested = _requested,
-                timeStamp = _timeStamp
+                timeStamp = DateTimeStamp()
             });
             LangMSG(_player, "TickCrea");
             InfoCache[_player.userID].ticket = true;
             SaveAll();
-            updateIndicator(_player);
+            UpdateAdminIndicator();
+            updatePvXIndicator(_player);
         }
-        void cancelTicket(BasePlayer _player){
+        void cancelTicket(BasePlayer _player)
+        {
+            if (playerData.Info[_player.userID].ticket == false) return;
             int _ticketNumber = ticketData.Info[_player.userID].TicketNumber;
             ticketData.Link.Remove(_ticketNumber);
             ticketData.Info.Remove(_player.userID);
             InfoCache[_player.userID].ticket = false;
             SaveAll();
+            LangMSG(_player, "TickCanc");
+            updatePvXIndicator(_player);
+            UpdateAdminIndicator();
             return;
         }
-        void ticketAccept(BasePlayer _admin, int _ticketID){
+        void ticketAccept(BasePlayer _admin, int _ticketID)
+        {
             BasePlayer _ticketOwner = basePlayerByID(ticketData.Link[_ticketID]);
             int _unspentxp = _ticketOwner.UnspentXp;
             ulong _UserID = _ticketOwner.userID;
@@ -597,7 +727,7 @@ namespace Oxide.Plugins
             ticketLog.Log.Add(_logID, new LogData
             {
                 Accepted = true,
-                ClosedTimeStamp = GetTimeStamp(),
+                ClosedTimeStamp = DateTimeStamp(),
                 AdminId = _admin.userID,
                 createdTimeStamp = ticketData.Info[_UserID].timeStamp,
                 reason = ticketData.Info[_UserID].reason,
@@ -611,16 +741,19 @@ namespace Oxide.Plugins
                 PvPLevelHandle(_ticketOwner, _unspentxp);
             ticketData.Info.Remove(_UserID);
             ticketData.Link.Remove(_ticketID);
+            updatePlayerChatTag(_ticketOwner);
+            UpdateAdminIndicator();
             SaveAll();
             if (_ticketOwner.IsConnected())
             {
                 LangMSG(_ticketOwner, "TickAcep");
-                updateIndicator(_ticketOwner);
+                updatePvXIndicator(_ticketOwner);
             }
             else ticketData.Notification.Add(_ticketOwner.userID, "Accepted");
             IgnoreXPFunction.Remove(_UserID);
         }
-        void ticketDecline(BasePlayer _admin, int _ticketID){
+        void ticketDecline(BasePlayer _admin, int _ticketID)
+        {
             BasePlayer _ticketOwner = basePlayerByID(ticketData.Link[_ticketID]);
             ulong _UserID = _ticketOwner.userID;
             int _logID = NewLogID();
@@ -628,7 +761,7 @@ namespace Oxide.Plugins
             ticketLog.Log.Add(_logID, new LogData
             {
                 Accepted = false,
-                ClosedTimeStamp = GetTimeStamp(),
+                ClosedTimeStamp = DateTimeStamp(),
                 AdminId = _admin.userID,
                 createdTimeStamp = ticketData.Info[_UserID].timeStamp,
                 reason = ticketData.Info[_UserID].reason,
@@ -638,28 +771,35 @@ namespace Oxide.Plugins
             playerData.Info[_UserID].ticket = false;
             ticketData.Info.Remove(_UserID);
             ticketData.Link.Remove(_ticketID);
+            UpdateAdminIndicator();
             SaveAll();
             if (_ticketOwner.IsConnected())
             {
                 LangMSG(_ticketOwner, "TickDecl");
-                updateIndicator(_ticketOwner);
+                updatePvXIndicator(_ticketOwner);
             }
             else ticketData.Notification.Add(_ticketOwner.userID, "Declined");
         }
-        void ticketCount(BasePlayer _player){
+        void ticketCount(BasePlayer _player)
+        {
             LangMSG(_player, "TickCnt", ticketData.Link.Count);
             LangMSG(_player, "CompTickCnt", ticketLog.Log.Count);
         }
-        void listTickets(BasePlayer _player){
-            if (ticketData.Link.Count > 0){
-                foreach (var ticket in ticketData.Info){
+        void listTickets(BasePlayer _player)
+        {
+            if (ticketData.Link.Count > 0)
+            {
+                foreach (var ticket in ticketData.Info)
+                {
                     ulong _key = ticket.Key;
                     PutsPlayerHandleLang(_player, "TickList", ticketData.Info[_key].TicketNumber, ticketData.Info[_key].username);
                 }
             }
         }
-        void displayTicket(BasePlayer _player, int _ticketID){
-            if (ticketData.Link.ContainsKey(_ticketID)){
+        void displayTicket(BasePlayer _player, int _ticketID)
+        {
+            if (ticketData.Link.ContainsKey(_ticketID))
+            {
                 ulong _key = ticketData.Link[_ticketID];
                 //DateTime _date = DateTime.FromOADate(ticketData.Info[_key].timeStamp);
                 LangMSG(_player, "TickDet");
@@ -668,165 +808,270 @@ namespace Oxide.Plugins
                 LangMSG(_player, "TickStmID", _key);
                 LangMSG(_player, "TickSelc", ticketData.Info[_key].requested);
                 LangMSG(_player, "TickRsn", ticketData.Info[_key].reason);
-                LangMSG(_player, "TickDate", "Broken Function");}
+                LangMSG(_player, "TickDate", ticketData.Info[_key].timeStamp);
+            }
             else LangMSG(_player, "TickNotAvail", _ticketID);
         }
-        bool playerHasTicket(BasePlayer _player){
+        bool playerHasTicket(BasePlayer _player)
+        {
             if (InfoCache[_player.userID].ticket == true) return true;
-            else return false;}
-        int GetNewID(){
-            for (int _i = 1; _i <= 500; _i++){
-                if (ticketData.Link.ContainsKey(_i)){}//Place Debug code in future
-                else{
-                    Puts("Key {0} doesnt exist, Returning ticket number", _i); //debug
-                    return _i;}}
-            return 0;}
-        int NewLogID(){
-            for (int _i = 1; _i <= 500; _i++){
-                if (ticketLog.Log.ContainsKey(_i)){}
-                else{
-                    Puts("Key {0} doesnt exist, Returning ticket number", _i); //debug
-                    return _i;}}
-            return 0;}
+            else return false;
+        }
+        int GetNewID()
+        {
+            for (int _i = 1; _i <= 500; _i++)
+            {
+                if (ticketData.Link.ContainsKey(_i)) { }//Place Debug code in future
+                else
+                {
+                    //Puts("Key {0} doesnt exist, Returning ticket number", _i); //debug
+                    return _i;
+                }
+            }
+            return 0;
+        }
+        int NewLogID()
+        {
+            for (int _i = 1; _i <= 500; _i++)
+            {
+                if (ticketLog.Log.ContainsKey(_i)) { }
+                else
+                {
+                    //Puts("Key {0} doesnt exist, Returning ticket number", _i); //debug
+                    return _i;
+                }
+            }
+            return 0;
+        }
         #endregion
 
-        //NRE Error on one function V
         #region XP Functions
         Dictionary<string, object> XPMultiplier;
 
-        void XPpermHandle(string perm){
-                string regPerm = Title.ToLower() + "." + perm;
-                Puts("Checking if " + regPerm + " is registered.");
-                if (!permission.PermissionExists(regPerm))
-                {
-                    permission.RegisterPermission(regPerm, this);
-                    Puts(regPerm + " is registered.");
-                }
-                else
-                {
-                    Puts(regPerm + " is already registered.");
-                }
+        void XPpermHandle(string perm)
+        {
+            string regPerm = Title.ToLower() + "." + perm;
+            Puts("Checking if " + regPerm + " is registered.");
+            if (!permission.PermissionExists(regPerm))
+            {
+                permission.RegisterPermission(regPerm, this);
+                Puts(regPerm + " is registered.");
+            }
+            else
+            {
+                Puts(regPerm + " is already registered.");
+            }
         }
-        float XPMultPerm(BasePlayer _player){
+        float XPMultPerm(BasePlayer _player)
+        {
             float multiplier = 1f;
             foreach (var m in XPMultiplier)
                 if (hasPerm(_player, m.Key) && Convert.ToSingle(m.Value) > multiplier)
                     multiplier = Convert.ToSingle(m.Value);
-            return multiplier;}
+            return multiplier;
+        }
 
-        object OnXpEarn(ulong _userID, float _xpValue, string source){
-            if (_userID == 0) {
-                int _i = 0;
-                while (_i < 15) { Puts("OnXpEarn UserID = 0");
-                    _i++; }}
+        private object GetPlayerLevel(ulong _ID)
+        {
+            var agent = BasePlayer.FindXpAgent(_ID);
+            if (agent != null)
+            {
+                return Math.Floor(agent.CurrentLevel);
+            }
+            return null;
+        }
+
+        object OnXpEarn(ulong _userID, float _xpValue, string source)
+        {
+            if (_userID == 0) return _xpValue;
+            if (isNPC(_userID)) return _xpValue;
+            if (isGod(_userID)) return null;
+            if (isplayerNA(_userID)) return 0f;
             BasePlayer _player = basePlayerByID(_userID);
-            if (isplayerNA(_player)){
-                LangMSG(_player, "NoXPModeNA");
-                return 0f;}
-            if ((_player.ExperienceLevel < PvECap) && (InfoCache[_userID].mode == "pve"))
-                return _xpValue * XPMultPerm(_player);
-            else if ((_player.ExperienceLevel < PvPCap) && (InfoCache[_userID].mode == "pvp"))
-                return _xpValue * XPMultPerm(_player);
-            else return 0f;}
-        void OnXpLevelUp(ulong _userID, int _level){
-            if (IgnoreXPFunction.Contains(_userID))return;
+            if (_player == null) return _xpValue;
+            var agent = GetPlayerLevel(_userID);
+            if (agent != null)
+            {
+                int _lvl = Convert.ToInt16(agent);
+                if (((isPvP(_userID)) && (_lvl < PvPCap)) || ((isPvE(_userID)) && (_lvl < PvECap)))
+                {
+                    return _xpValue * XPMultPerm(_player);
+                }
+                else
+                {
+                    return 0f;
+                }
+            }
+            else
+            {
+                return 0f;
+            }
+        }
+        void OnXpLevelUp(ulong _userID, int _level)
+        {
+            if (IgnoreXPFunction.Contains(_userID)) return;
             BasePlayer _player = basePlayerByID(_userID);
-            if (isplayerNA(_player)){LangMSG(_player, "NoSaveLvLNA");return;}
+            if (isplayerNA(_player)) { LangMSG(_player, "NoSaveLvLNA"); return; }
             int _currentLevel = Convert.ToInt32(_player.xp.CurrentLevel);
-            if ((_level <= PvECap) && (InfoCache[_userID].pveLevel < _level)){
-                InfoCache[_userID].pveLevel = _currentLevel;}
-            if ((_level <= PvPCap) && (InfoCache[_userID].pvpLevel < _level)){
-                InfoCache[_userID].pvpLevel = _currentLevel;}
+            if ((_level <= PvECap) && (InfoCache[_userID].pveLevel < _level))
+            {
+                InfoCache[_userID].pveLevel = _currentLevel;
+            }
+            if ((_level <= PvPCap) && (InfoCache[_userID].pvpLevel < _level))
+            {
+                InfoCache[_userID].pvpLevel = _currentLevel;
+            }
             saveCacheData();
         }
-        void OnXpSpent(ulong _userID, int _amount, string item){
+        void OnXpSpent(ulong _userID, int _amount, string item)
+        {
             if (IgnoreXPFunction.Contains(_userID)) return;
             InfoCache[_userID].xpUnSpent = InfoCache[_userID].xpUnSpent - _amount;
             InfoCache[_userID].xpSpent = InfoCache[_userID].xpSpent + _amount;
             saveCacheData();
         }
-        void OnXpEarned(ulong _userID, float _amount, string source){
+        void OnXpEarned(ulong _userID, float _amount, string source)
+        {
             if (IgnoreXPFunction.Contains(_userID)) return;
-            if (_amount == 0f)return;
+            //if (_userID== 76561198006265515)
+            //{
+            //    source=="cheat"
+            //}
+            if (_amount == 0f) return;
             InfoCache[_userID].xpUnSpent = InfoCache[_userID].xpUnSpent + _amount;
             saveCacheData();
         }
 
-        void setPlayerLevel(ulong _userID, int _level){//need to change, issue is xp added when dropping levels
+        void setPlayerLevel(ulong _userID, int _level)
+        {//need to change, issue is xp added when dropping levels
             BasePlayer _player = basePlayerByID(_userID);
             float Unspentxp = InfoCache[_userID].xpUnSpent;
+            disablePvXLogger(_userID);
             _player.xp.Reset();
             _player.xp.Add(Rust.Xp.Definitions.Cheat, Rust.Xp.Config.LevelToXp(_level));
-            if (_player.xp.UnspentXp > Unspentxp){
-                _player.xp.SpendXp((Convert.ToInt32(_player.xp.UnspentXp - Unspentxp)), string.Empty);}
-            else if (_player.xp.UnspentXp < Unspentxp){
+            if (_player.xp.UnspentXp > Unspentxp)
+            {
+                _player.xp.SpendXp((Convert.ToInt32(_player.xp.UnspentXp - Unspentxp)), string.Empty);
+            }
+            else if (_player.xp.UnspentXp < Unspentxp)
+            {
                 float addXp = Unspentxp - _player.xp.UnspentXp;
-                _player.xp.Add(Rust.Xp.Definitions.Cheat, addXp);}
+                _player.xp.Add(Rust.Xp.Definitions.Cheat, addXp);
+            }
+            enablePvXLogger(_userID);
             saveCacheData();
         }
-        void storePlayerLevel(BasePlayer _player){
+        void storePlayerLevel(BasePlayer _player)
+        {
             int _currentLevel = Convert.ToInt32(_player.xp.CurrentLevel);
-            if ((_currentLevel <= PvECap) && (InfoCache[_player.userID].pveLevel < _currentLevel)){
-                InfoCache[_player.userID].pveLevel = _currentLevel; }
+            if ((_currentLevel <= PvECap) && (InfoCache[_player.userID].pveLevel < _currentLevel))
+            {
+                InfoCache[_player.userID].pveLevel = _currentLevel;
+            }
             else InfoCache[_player.userID].pveLevel = InfoCache[_player.userID].pveLevel;
-            if ((_currentLevel <= PvPCap) && (InfoCache[_player.userID].pvpLevel < _currentLevel)){
-                InfoCache[_player.userID].pvpLevel = _currentLevel;}
+            if ((_currentLevel <= PvPCap) && (InfoCache[_player.userID].pvpLevel < _currentLevel))
+            {
+                InfoCache[_player.userID].pvpLevel = _currentLevel;
+            }
             else InfoCache[_player.userID].pvpLevel = InfoCache[_player.userID].pvpLevel;
         }
-        void PvELevelHandle(BasePlayer _player) {
-            if (_player.xp.CurrentLevel > PvECap){
+        void PvELevelHandle(BasePlayer _player)
+        {
+            if (_player.xp.CurrentLevel > PvECap)
+            {
                 setPlayerLevel(_player.userID, PvECap);
-                LangMSG(_player, "lvlRedxpSav");}
-            else if (InfoCache[_player.userID].pveLevel > _player.xp.CurrentLevel){
+                LangMSG(_player, "lvlRedxpSav");
+            }
+            else if (InfoCache[_player.userID].pveLevel > _player.xp.CurrentLevel)
+            {
                 setPlayerLevel(_player.userID, Convert.ToInt16(InfoCache[_player.userID].pveLevel));
-                LangMSG(_player, "lvlIncrxpRes");}
+                LangMSG(_player, "lvlIncrxpRes");
+            }
         }//Completed
-        void PvPLevelHandle(BasePlayer _player, int _unspentxp){
-            if (_player.xp.CurrentLevel > PvPCap) {
+        void PvPLevelHandle(BasePlayer _player, int _unspentxp)
+        {
+            if (_player.xp.CurrentLevel > PvPCap)
+            {
                 setPlayerLevel(_player.userID, PvPCap);
-                LangMSG(_player, "lvlRedxpSav");}
-            else if (InfoCache[_player.userID].pvpLevel > _player.xp.CurrentLevel) {
+                LangMSG(_player, "lvlRedxpSav");
+            }
+            else if (InfoCache[_player.userID].pvpLevel > _player.xp.CurrentLevel)
+            {
                 setPlayerLevel(_player.userID, InfoCache[_player.userID].pvpLevel);
-                LangMSG(_player, "lvlIncrxpRes");}
+                LangMSG(_player, "lvlIncrxpRes");
+            }
         }//completed
         #endregion
 
-        //Needs Testing V
         #region Looting Functions
-        private object CanLootPlayer(BasePlayer _target, BasePlayer _looter){
+        ItemContainer.CanAcceptResult CanAcceptItem(ItemContainer container, Item item)
+        {
+            if (container.playerOwner != null)
+            {
+                BasePlayer _player = container.playerOwner;
+                List<Item.OwnerFraction> _itemOwners = item.owners;
+                if (_itemOwners == null) return ItemContainer.CanAcceptResult.CanAccept;
+                if (_itemOwners.Count < 1) return ItemContainer.CanAcceptResult.CanAccept;
+                ulong _ownerID = _itemOwners[0].userid;
+                if (_ownerID == 0) return ItemContainer.CanAcceptResult.CanAccept;
+                if (isNPC(_ownerID)) return ItemContainer.CanAcceptResult.CanAccept;
+                if (SameOnlyCheck(container.playerOwner.userID, _ownerID)) return ItemContainer.CanAcceptResult.CanAccept;
+                else
+                {
+                    LangMSG(container.playerOwner, "notAllwPickup", InfoCache[_ownerID].mode);
+                    return ItemContainer.CanAcceptResult.CannotAccept;
+                }
+            }
+            else return ItemContainer.CanAcceptResult.CanAccept;
+        }
+        private object CanLootPlayer(BasePlayer _target, BasePlayer _looter)
+        {
             if (isNPC(_target)) return canLootNPC(_looter);
+            if (isGod(_target)) return null;
             if (areInEvent(_looter, _target)) return null;
-            return PvPOnlyCheck(_looter, _target) ? null : (object)false;}//Needs Testing
-        private void OnLootPlayer(BasePlayer _looter, BasePlayer _target){
-            if (isNPC(_target)){npcLootHandle(_looter);return;};
+            return PvPOnlyCheck(_looter, _target) ? null : (object)false;
+        }
+        private void OnLootPlayer(BasePlayer _looter, BasePlayer _target)
+        {
+            if (isNPC(_target)) { npcLootHandle(_looter); return; };
             if (areInEvent(_looter, _target)) return;
             if (PvPOnlyCheck(_looter, _target)) return;
-            else NextTick(_looter.EndLooting);}//Needs Testing
-        private void OnLootEntity(BasePlayer _looter, BaseEntity _target){
-            if (_target is BaseCorpse){
+            else NextTick(_looter.EndLooting);
+        }
+        private void OnLootEntity(BasePlayer _looter, BaseEntity _target)
+        {
+            if (_target is BaseCorpse)
+            {
                 var corpse = _target?.GetComponent<PlayerCorpse>() ?? null;
-                if (corpse != null){
+                if (corpse != null)
+                {
                     if (isNPC(corpse)) { npcLootHandle(_looter); return; }
                     ulong _corpseID = corpse.playerSteamID;
                     if (_corpseID == _looter.userID) return;
                     BasePlayer _corpseBP = basePlayerByID(_corpseID);
-                    if (areInEvent(_looter, _corpseBP)) return;
-                    else if (PvPOnlyCheck(_looter, _corpseBP)) return;
-                    else NextTick(_looter.EndLooting);}}
-            else if (_target is StorageContainer){
+                    if (_corpseBP != null)
+                        if (areInEvent(_looter, _corpseBP)) return;
+                        else if (PvPOnlyCheck(_looter.userID, _corpseID)) return;
+                        else NextTick(_looter.EndLooting);
+                }
+            }
+            else if (_target is StorageContainer)
+            {
                 StorageContainer _container = (StorageContainer)_target;
                 if (_container.OwnerID == 0) return;
                 BasePlayer _containerBP = basePlayerByID(_container.OwnerID);
                 if (_container.OwnerID == _looter.userID) return;
-                if (isInEvent(_looter)) return;
-                if (SameOnlyCheck(_looter, _containerBP))return;
-                else NextTick(_looter.EndLooting);}
+                if (_containerBP != null)
+                    if (areInEvent(_looter, _containerBP)) return;
+                if (SameOnlyCheck(_looter.userID, _container.OwnerID)) return;
+                else NextTick(_looter.EndLooting);
+            }
             else return;
-        }//Needs Testing, Corpse added
+        }
         #endregion
 
         #region Building Functions
-        private List<Type> BuildEntityList = new List<Type>() {
+        private List<object> BuildEntityList = new List<object>() {
             typeof(AutoTurret),typeof(Barricade),typeof(BaseCombatEntity),
             typeof(BaseOven),typeof(BearTrap),typeof(BuildingBlock),
             typeof(BuildingPrivlidge),typeof(CeilingLight),typeof(Door),
@@ -835,17 +1080,18 @@ namespace Oxide.Plugins
             typeof(SimpleBuildingBlock),typeof(SleepingBag),typeof(StabilityEntity),
             typeof(StorageContainer),typeof(SurvivalFishTrap),typeof(WaterCatcher),
             typeof(WaterPurifier)};
+        private List<object> BaseEntityList = new List<object>() {
+            typeof(BaseOven),typeof(BuildingBlock),typeof(BuildingPrivlidge),
+            typeof(CeilingLight),typeof(Door),typeof(LiquidContainer),
+            typeof(RepairBench),typeof(ResearchTable),typeof(Signage),
+            typeof(SimpleBuildingBlock),typeof(SleepingBag),typeof(StabilityEntity),
+            typeof(StorageContainer),typeof(SurvivalFishTrap),typeof(WaterCatcher),
+            typeof(WaterPurifier)};
+        private List<object> CombatEntityList = new List<object>() {
+            typeof(AutoTurret),typeof(Barricade),typeof(BearTrap),typeof(Landmine),
+            typeof(ReactiveTarget),typeof(BaseCombatEntity)};
 
-        void adminBuild(BasePlayer _player)
-        {
-            if (AdminBuildMode.Contains(_player.userID)){
-                LangMSG(_player, "AdmBuilRem");
-                AdminBuildMode.Remove(_player.userID);
-                return;
-            }
-            else AdminBuildMode.Add(_player.userID);
-            LangMSG(_player, "AdmBuilAdd");
-        }
+
 
         void OnEntitySpawned(BaseNetworkable _entity)
         {
@@ -853,27 +1099,85 @@ namespace Oxide.Plugins
             {
                 BaseEntity _base = (BaseEntity)_entity;
                 if (_base.OwnerID == 0) return;
-                else if (AdminBuildMode.Contains(_base.OwnerID))
-                    _base.OwnerID = 0;}
+                else if (AdminPlayerMode.Contains(basePlayerByID(_base.OwnerID)))
+                    _base.OwnerID = 0;
+            }
         }
+
         #endregion
 
         #region Compatibility Functions
+
+        [PluginReference]
+        private Plugin BetterChat;
+        void RegisterGroups()
+        {
+            if (!BetterChat) return;
+            if (!GroupExists("PvP"))
+            {
+                NewGroup("PvP");
+                SetGroupTitle("PvP");
+                SetGroupColor("PvP");
+            }
+            if (!GroupExists("PvE"))
+            {
+                NewGroup("PvE");
+                SetGroupTitle("PvE");
+                SetGroupColor("PvE");
+            }
+        }
+
+        void updatePlayerChatTag(BasePlayer _player)
+        {
+            if (!BetterChat) return;
+            ulong _userID = _player.userID;
+            string _userIDs = _player.UserIDString;
+            string _mode = InfoCache[_userID].mode;
+            if (_mode == "pvp")
+            {
+                if (!(UserInGroup(_userIDs, "PvP"))) AddToGroup(_userIDs, "PvP");
+                if (UserInGroup(_userIDs, "PvE")) RemoveFromGroup(_userIDs, "PvE");
+            }
+            else if (_mode == "pve")
+            {
+                if (!(UserInGroup(_userIDs, "PvE"))) AddToGroup(_userIDs, "PvE");
+                if (UserInGroup(_userIDs, "PvP")) RemoveFromGroup(_userIDs, "PvP");
+            }
+            else if (_mode == "NA")
+            {
+                if (UserInGroup(_userIDs, "PvE")) RemoveFromGroup(_userIDs, "PvE");
+                if (UserInGroup(_userIDs, "PvP")) RemoveFromGroup(_userIDs, "PvP");
+            }
+        }
+
+        private bool GroupExists(string name) => (bool)BetterChat?.Call("API_GroupExists", (name.ToLower()));
+        private bool NewGroup(string name) => (bool)BetterChat?.Call("API_AddGroup", (name.ToLower()));
+        private bool UserInGroup(string ID, string name) => (bool)BetterChat?.Call("API_IsUserInGroup", ID, (name.ToLower()));
+        private bool AddToGroup(string ID, string name) => (bool)BetterChat?.Call("API_AddUserToGroup", ID, (name.ToLower()));
+        private bool RemoveFromGroup(string ID, string name) => (bool)BetterChat?.Call("API_RemoveUserFromGroup", ID, (name.ToLower()));
+        private object SetGroupTitle(string name) => BetterChat?.Call("API_SetGroupSetting", (name.ToLower()), "title", $"[{name}]");
+        private object SetGroupColor(string name) => BetterChat?.Call("API_SetGroupSetting", (name.ToLower()), "titlecolor", "orange");
+
         [PluginReference]
         private Plugin HumanNPC;
-
-        bool isNPC(ulong _test){
-            if (HumanNPC = null) return false;
+        bool isNPC(ulong _test)
+        {
+            if (HumanNPC == null) return false;
             else if (_test < 76560000000000000L) return true;
-            else return false;}
-        bool isNPC(BasePlayer _test){
-            if (HumanNPC = null) return false;
+            else return false;
+        }
+        bool isNPC(BasePlayer _test)
+        {
+            if (HumanNPC == null) return false;
             else if (_test.userID < 76560000000000000L) return true;
-            else return false;}
-        bool isNPC(PlayerCorpse _test){
-            if (HumanNPC = null) return false;
+            else return false;
+        }
+        bool isNPC(PlayerCorpse _test)
+        {
+            if (HumanNPC == null) return false;
             else if (_test.playerSteamID < 76560000000000000L) return true;
-            else return false;}
+            else return false;
+        }
 
         void npcDamageHandle(BasePlayer _NPC, HitInfo _hitInfo)
         {
@@ -883,11 +1187,13 @@ namespace Oxide.Plugins
             if ((InfoCache[_attacker.userID].mode == "pve") && (PvEDamageNPC == true)) return;
             else NullifyDamage(_hitInfo);
         }
-        void npcAttackHandle(BasePlayer _target, HitInfo _hitInfo){
+        void npcAttackHandle(BasePlayer _target, HitInfo _hitInfo)
+        {
             if (isNPC(_target)) return;
-            if ((InfoCache[_target.userID].mode == "pvp")&&(NPCDamagePvP==true)) return;
+            if ((InfoCache[_target.userID].mode == "pvp") && (NPCDamagePvP == true)) return;
             if ((InfoCache[_target.userID].mode == "pve") && (NPCDamagePvE == true)) return;
-            else NullifyDamage(_hitInfo);}
+            else NullifyDamage(_hitInfo);
+        }
 
         bool canLootNPC(BasePlayer _player)
         {
@@ -907,7 +1213,6 @@ namespace Oxide.Plugins
 
         [PluginReference]
         private Plugin EventManager;
-
         bool isInEvent(BasePlayer _player1)
         {
             if (EventManager == null) return false;
@@ -921,103 +1226,260 @@ namespace Oxide.Plugins
             if (EventManager == null) return false;
             bool _var1 = (bool)EventManager?.Call("isPlaying", _player1);
             bool _var2 = (bool)EventManager?.Call("isPlaying", _player2);
-            if (_var1 == true && _var1==_var2) return true;
+            if (_var1 == true && _var1 == _var2) return true;
             return false;
         }
+
+
+        [PluginReference]
+        private Plugin Godmode;
+        private bool checkIsGod(string _player) => (bool)Godmode?.Call("IsGod", _player);
+
+        private bool isGod(ulong _player)
+        {
+            if (Godmode == null) return false;
+            return checkIsGod(_player.ToString());
+        }
+        private bool isGod(BasePlayer _player)
+        {
+            if (Godmode == null) return false;
+            if (_player == null) return false;
+            return checkIsGod(_player.UserIDString);
+        }
+
 
         #endregion
 
         #region Door Functions
-        void OnDoorOpened(Door _door, BasePlayer _player){
+        void OnDoorOpened(Door _door, BasePlayer _player)
+        {
             if (_door == null) return;
             if (_door.OwnerID == 0) return;
-            BasePlayer _owner = basePlayerByID(_door.OwnerID);
-            if (!(SameOnlyCheck(_player, _owner))){
+            if (!(SameOnlyCheck(_player.userID, _door.OwnerID)))
+            {
                 _door.SetFlag(BaseEntity.Flags.Open, false);
-                _door.SendNetworkUpdateImmediate();}
+                _door.SendNetworkUpdateImmediate();
+            }
         }
         #endregion
 
         #region PvX Check/Find Functions
-        private bool PvPOnlyCheck(BasePlayer _player1, BasePlayer _player2){
+        private bool PvPOnlyCheck(BasePlayer _player1, BasePlayer _player2)
+        {
             if (InfoCache[_player1.userID].mode == "NA") return false;
             if (InfoCache[_player2.userID].mode == "NA") return false;
             if ((InfoCache[_player1.userID].mode == "pvp") && (InfoCache[_player2.userID].mode == "pvp"))
                 return true;
-            return false;}
-        private bool PvEOnlyCheck(BasePlayer _player1, BasePlayer _player2){
+            return false;
+        }
+        private bool PvPOnlyCheck(ulong _player1, ulong _player2)
+        {
+            if (!InfoCache.ContainsKey(_player1)) return false;
+            if (!InfoCache.ContainsKey(_player2)) return false;
+            if (InfoCache[_player1].mode == "NA") return false;
+            if (InfoCache[_player2].mode == "NA") return false;
+            if ((InfoCache[_player1].mode == "pvp") && (InfoCache[_player2].mode == "pvp")) return true;
+            return false;
+        }
+        private bool PvEOnlyCheck(BasePlayer _player1, BasePlayer _player2)
+        {
             if (InfoCache[_player1.userID].mode == "NA") return false;
             if (InfoCache[_player2.userID].mode == "NA") return false;
             if ((InfoCache[_player1.userID].mode == "pve") && (InfoCache[_player2.userID].mode == "pve"))
                 return true;
-            return false;}
-        private bool SameOnlyCheck(BasePlayer _player1, BasePlayer _player2){
+            return false;
+        }
+        private bool PvEOnlyCheck(ulong _player1, ulong _player2)
+        {
+            if (!InfoCache.ContainsKey(_player1)) return false;
+            if (!InfoCache.ContainsKey(_player2)) return false;
+            if (InfoCache[_player1].mode == "NA") return false;
+            if (InfoCache[_player2].mode == "NA") return false;
+            if ((InfoCache[_player1].mode == "pve") && (InfoCache[_player2].mode == "pve")) return true;
+            return false;
+        }
+        private bool SameOnlyCheck(BasePlayer _player1, BasePlayer _player2)
+        {
             if (InfoCache[_player1.userID].mode == "NA") return false;
             if (InfoCache[_player2.userID].mode == "NA") return false;
             if (InfoCache[_player1.userID].mode == InfoCache[_player2.userID].mode) return true;
-            return false;}
-
-        bool isplayerNA(BasePlayer _player){
-            if (InfoCache[_player.userID].mode == "NA") return true;
-            else return false;}
-        void checkPlayersRegistered(){
-            foreach (BasePlayer _player in BasePlayer.activePlayerList)
-                if (!(InfoCache.ContainsKey(_player.userID))){
-                    InfoCache.Add(_player.userID, new PlayerInfo{
-                        username = _player.displayName,
-                        mode = "NA",
-                        ticket = false,
-                        timeStamp = GetTimeStamp(),
-                        pvpLevel = 0,
-                        pveLevel = 0,
-                        xpSpent = _player.xp.SpentXp,
-                        xpUnSpent = _player.xp.UnspentXp});
-                    SelectorOverlay(_player);
-                    saveCacheData();}
-            foreach (BasePlayer _player in BasePlayer.sleepingPlayerList)
-                if (!(InfoCache.ContainsKey(_player.userID))){
-                    InfoCache.Add(_player.userID, new PlayerInfo{
-                        username = _player.displayName,
-                        mode = "NA",
-                        ticket = false,
-                        timeStamp = GetTimeStamp(),
-                        pvpLevel = 0,
-                        pveLevel = 0,
-                        xpSpent = 0,
-                        xpUnSpent = 0});
-                    SleeperCache.Add(_player.userID);
-                    saveCacheData();}
+            return false;
+        }
+        private bool SameOnlyCheck(ulong _player1, ulong _player2)
+        {
+            if (!InfoCache.ContainsKey(_player1)) return false;
+            if (!InfoCache.ContainsKey(_player2)) return false;
+            if (InfoCache[_player1].mode == "NA") return false;
+            if (InfoCache[_player2].mode == "NA") return false;
+            if (InfoCache[_player1].mode == InfoCache[_player2].mode) return true;
+            return false;
         }
 
-        bool IsDigitsOnly(string str){
-            foreach (char c in str){
-                if (!char.IsDigit(c)){
+        bool isplayerNA(BasePlayer _player)
+        {
+            ulong _playerID = _player.userID;
+            if (!InfoCache.ContainsKey(_playerID))
+            {
+                if (_player == null) return true;
+                addPlayer(_player);
+                return true;
+            }
+            if (InfoCache[_playerID].mode == "NA") return true;
+            else return false;
+        }
+        bool isplayerNA(ulong _playerID)
+        {
+            if (!InfoCache.ContainsKey(_playerID))
+            {
+                BasePlayer _player = basePlayerByID(_playerID);
+                if (_player == null) return true;
+                addPlayer(_player);
+                return true;
+            }
+            if (InfoCache[_playerID].mode == "NA") return true;
+            else return false;
+        }
+        bool isPvP(ulong _playerID)
+        {
+            if (_playerID == 0 || isNPC(_playerID)) return false;
+            BasePlayer _player = basePlayerByID(_playerID);
+            if (_player == null) return false;
+            if (!InfoCache.ContainsKey(_playerID))
+            {
+                addPlayer(_player);
+                return false;
+            }
+            if (InfoCache[_playerID].mode == "pvp") return true;
+            else return false;
+        }
+        bool isPvP(BasePlayer _player)
+        {
+            ulong _playerID = _player.userID;
+            if (_playerID == 0 || isNPC(_playerID)) return false;
+            if (_player == null) return false;
+            if (!InfoCache.ContainsKey(_playerID))
+            {
+                addPlayer(_player);
+                return false;
+            }
+            if (InfoCache[_playerID].mode == "pvp") return true;
+            else return false;
+        }
+        bool isPvE(ulong _playerID)
+        {
+            if (_playerID == 0 || isNPC(_playerID)) return false;
+            BasePlayer _player = basePlayerByID(_playerID);
+            if (_player == null) return false;
+            if (!InfoCache.ContainsKey(_playerID))
+            {
+                addPlayer(_player);
+                return false;
+            }
+            if (InfoCache[_playerID].mode == "pve") return true;
+            else return false;
+        }
+        bool isPvE(BasePlayer _player)
+        {
+            ulong _playerID = _player.userID;
+            if (_playerID == 0 || isNPC(_playerID)) return false;
+            if (_player == null) return false;
+            if (!InfoCache.ContainsKey(_playerID))
+            {
+                addPlayer(_player);
+                return false;
+            }
+            if (InfoCache[_playerID].mode == "pve") return true;
+            else return false;
+        }
+
+        void checkPlayersRegistered()
+        {
+            foreach (BasePlayer _player in BasePlayer.activePlayerList)
+                if (!(InfoCache.ContainsKey(_player.userID)))
+                    addPlayer(_player);
+
+            foreach (BasePlayer _player in BasePlayer.sleepingPlayerList)
+                if (!(InfoCache.ContainsKey(_player.userID)))
+                    addSleeper(_player);
+        }
+        void addPlayer(BasePlayer _player)
+        {
+            if (isNPC(_player.userID)) return;
+            InfoCache.Add(_player.userID, new PlayerInfo
+            {
+                username = _player.displayName,
+                mode = "NA",
+                ticket = false,
+                timeStamp = GetTimeStamp(),
+                pvpLevel = 0,
+                pveLevel = 0,
+                xpSpent = _player.xp.SpentXp,
+                xpUnSpent = _player.xp.UnspentXp
+            });
+            SelectorOverlay(_player);
+            storePlayerLevel(_player);
+            saveCacheData();
+        }
+        void addSleeper(BasePlayer _player)
+        {
+            if (isNPC(_player.userID)) return;
+            InfoCache.Add(_player.userID, new PlayerInfo
+            {
+                username = _player.displayName,
+                mode = "NA",
+                ticket = false,
+                timeStamp = GetTimeStamp(),
+                pvpLevel = 0,
+                pveLevel = 0,
+                xpSpent = 0,
+                xpUnSpent = 0
+            });
+            SleeperCache.Add(_player.userID);
+            saveCacheData();
+        }
+
+        bool IsDigitsOnly(string str)
+        {
+            foreach (char c in str)
+            {
+                if (!char.IsDigit(c))
+                {
                     Puts("Character Detected Returning false");
-                    return false;}}
+                    return false;
+                }
+            }
             Puts("Detected no Characters Returning true");
             return true;
         }
-        BasePlayer basePlayerByID(ulong _ID){
+        BasePlayer basePlayerByID(ulong _ID)
+        {
             BasePlayer _player = BasePlayer.FindByID(_ID);
             if (_player == null) _player = BasePlayer.FindSleeping(_ID);
-            return _player;}
+            return _player;
+        }
         #endregion
 
         #region Hooks
-        public void pvxUpdateXPDataFile(BasePlayer _player){
+        public void pvxUpdateXPDataFile(BasePlayer _player)
+        {
             InfoCache[_player.userID].xpUnSpent = _player.xp.UnspentXp;
             InfoCache[_player.userID].xpSpent = _player.xp.SpentXp;
-            storePlayerLevel(_player);}
-        public void disablePvXLogger(ulong _userID){
-            IgnoreXPFunction.Add(_userID);}
-        public void enablePvXLogger(ulong _userID){
+            storePlayerLevel(_player);
+        }
+        public void disablePvXLogger(ulong _userID)
+        {
+            IgnoreXPFunction.Add(_userID);
+        }
+        public void enablePvXLogger(ulong _userID)
+        {
             IgnoreXPFunction.Remove(_userID);
         }
-        public void enablePvXLoggerAndResetUserData(ulong _userID){
+        public void enablePvXLoggerAndResetUserData(ulong _userID)
+        {
             IgnoreXPFunction.Remove(_userID);
             BasePlayer _player = basePlayerByID(_userID);
-            InfoCache[_player.userID].xpUnSpent = _player.xp.UnspentXp;
-            InfoCache[_player.userID].xpSpent = _player.xp.SpentXp;
+            InfoCache[_userID].xpUnSpent = _player.xp.UnspentXp;
+            InfoCache[_userID].xpSpent = _player.xp.SpentXp;
             storePlayerLevel(_player);
         }
 
@@ -1025,220 +1487,346 @@ namespace Oxide.Plugins
 
         #region Chat/Console Handles
         [ChatCommand("pvx")]
-        void PvXCmd(BasePlayer _player, string cmd, string[] args){
-            if ((args == null || args.Length == 0)) return;
-
-            switch (args[0].ToLower()){
+        void PvXCmd(BasePlayer _player, string cmd, string[] args)
+        {
+            if ((args == null) || (args.Length == 0))
+            {
+                LangMSG(_player, "ComndList");
+                ChatMessageHandle(_player, "/pvx select, /pvx change, /pvx ticket /pvx gui");
+                if (hasPerm(_player, "admin")) ChatMessageHandle(_player, "/pvx select, /pvx admin");
+            }
+            switch (args[0].ToLower())
+            {
                 case "admin": //meed to transfer accept/dec;ome/list function
                     adminFunction(_player, args);
                     return;
-
                 case "change": //Completed
                     changeFunction(_player);
                     return;
-
                 case "debug":
                     debugFunction();
                     return;
-
                 case "developer":
                     developerFunction();
                     return;
-
                 case "help":
-                    helpFunction();
+                    helpFunction(_player);
                     return;
-
-                case "select": //Completed
+                case "select":
                     selectFunction(_player, args);
                     return;
-
-                case "ticket": //Ticket blablablabla
+                case "ticket":
                     ticketFunction(_player, args);
                     return;
-
                 case "gui":
-                    SelectorOverlay(_player);
+                    guiFunction(_player, args);
                     return;
-
                 default:
-                    return;}
+                    LangMSG(_player, "ComndList");
+                    ChatMessageHandle(_player, "/pvx select, /pvx change, /pvx ticket /pvx gui");
+                    if (hasPerm(_player, "admin")) ChatMessageHandle(_player, "/pvx select, /pvx admin");
+                    return;
+            }
         }
 
         [ConsoleCommand("PvXSelection")]
-        void PvXSelection(ConsoleSystem.Arg arg){
+        void PvXSelection(ConsoleSystem.Arg arg)
+        {
             if ((arg.Args.Length == 0) || (arg.Args.Length == 2)) return;
             BasePlayer _player = (BasePlayer)arg.connection.player;
             string cmdValue = arg.Args[0];
-            if (playerData.Info[_player.userID].mode == "NA"){
+            if (playerData.Info[_player.userID].mode == "NA")
+            {
                 InfoCache[_player.userID].mode = cmdValue;
                 saveCacheData();
-                updateIndicator(_player);
-                ChatMessageHandle(_player, "Selected: {0}", cmdValue);}
-            else if (playerData.Info[_player.userID].mode != cmdValue.ToLower()){
+                updatePvXIndicator(_player);
+                ChatMessageHandle(_player, "Selected: {0}", cmdValue);
+            }
+            else if (playerData.Info[_player.userID].mode != cmdValue.ToLower())
+            {
                 createTicket(_player, cmdValue.ToLower());
                 SaveAll();
-                updateIndicator(_player);
-                ChatMessageHandle(_player, "Ticket Created");}}
+                updatePvXIndicator(_player);
+                ChatMessageHandle(_player, "Ticket Created");
+            }
+        }
 
         [ChatCommand("pvxhide")]
-        void test1(BasePlayer _player, string cmd, string[] args){
-            DestroyUI(_player);}
+        void test1(BasePlayer _player, string cmd, string[] args)
+        {
+            DestroyAllUI(_player);
+        }
         [ChatCommand("pvxshow")]
-        void test(BasePlayer _player, string cmd, string[] args){
-            createIndicator(_player);}
+        void test(BasePlayer _player, string cmd, string[] args)
+        {
+            createPvXIndicator(_player);
+            createAdminIndicator(_player);
+        }
         #endregion
 
         #region Chat Functions
-        void adminFunction(BasePlayer _player, string[] args){
-            string _cmd = args[1].ToLower(); // admin, accept, 1
-            if (!(hasPerm(_player, "admin", "MissPerm"))) return;
-            if (args.Length < 2 || args.Length > 3){
+        void adminFunction(BasePlayer _player, string[] args)
+        {
+            if (args.Length < 2 || args.Length > 3)
+            {
                 LangMSG(_player, "IncoFormPleaUse");
                 ChatMessageHandle(_player, "/pvx admin [list/accept/decline/display]");
-                return;}
+                return;
+            }
+            string _cmd = args[1].ToLower(); // admin, accept, 1
+            if (!(hasPerm(_player, "admin", "MissPerm"))) return;
             if (_cmd == "count") ticketCount(_player);
             if (_cmd == "list") listTickets(_player);
-            if (_cmd == "build") adminBuild(_player);
-            if ((_cmd == "display") && (args.Length == 3)){
+            if (_cmd == "mode") adminMode(_player);
+            if ((_cmd == "display") && (args.Length == 3))
+            {
                 if (IsDigitsOnly(args[2]))
-                    displayTicket(_player, Convert.ToInt32(args[2]));}
-            if ((_cmd == "accept") && (args.Length == 3)){
+                    displayTicket(_player, Convert.ToInt32(args[2]));
+            }
+            if ((_cmd == "accept") && (args.Length == 3))
+            {
                 if ((IsDigitsOnly(args[2])) && (ticketData.Link.ContainsKey(Convert.ToInt32(args[2]))))
                     ticketAccept(_player, Convert.ToInt32(args[2]));
                 else if (!(ticketData.Link.ContainsKey(Convert.ToInt32(args[2]))))
                     LangMSG(_player, "TickNotAvail", args[2]);
-                else{
+                else
+                {
                     LangMSG(_player, "IncoFormPleaUse");
-                    ChatMessageHandle(_player, "/pvx admin accept #");}}
-            if ((_cmd == "decline") && (args.Length == 3)){
+                    ChatMessageHandle(_player, "/pvx admin accept #");
+                }
+            }
+            if ((_cmd == "decline") && (args.Length == 3))
+            {
                 if ((IsDigitsOnly(args[2])) && (ticketData.Link.ContainsKey(Convert.ToInt32(args[2]))))
                     ticketDecline(_player, Convert.ToInt32(args[2]));
                 else if (!(ticketData.Link.ContainsKey(Convert.ToInt32(args[2]))))
                     LangMSG(_player, "TickNotAvail", args[2]);
-                else{
+                else
+                {
                     LangMSG(_player, "IncoFormPleaUse");
-                    ChatMessageHandle(_player, "/pvx admin decline #");}}}
+                    ChatMessageHandle(_player, "/pvx admin decline #");
+                }
+            }
+        }
 
-        void changeFunction(BasePlayer _player){
+        void changeFunction(BasePlayer _player)
+        {
             storePlayerLevel(_player);
-            if (playerHasTicket(_player) == true){
-                ChatMessageHandle(_player, "AlreadySubmitted"); return;}
-            else if (isplayerNA(_player)){
+            if (playerHasTicket(_player) == true)
+            {
+                ChatMessageHandle(_player, "AlreadySubmitted"); return;
+            }
+            else if (isplayerNA(_player))
+            {
                 LangMSG(_player, "IncoFormPleaUse");
                 ChatMessageHandle(_player, "/pvx select [pvp/pve]");
-                return;}
-            else if (InfoCache[_player.userID].mode == "pvp") createTicket(_player, "pve");
-            else if (InfoCache[_player.userID].mode == "pve") createTicket(_player, "pvp");
+                return;
+            }
+            else if (isPvP(_player)) createTicket(_player, "pve");
+            else if (isPvE(_player)) createTicket(_player, "pvp");
             else PutsPlayerHandle(_player, "Error: 27Q1 - Please inform Dev");
-            return;}
+            return;
+        }
 
-        void selectFunction(BasePlayer _player, string[] args){
-            if ((args.Length != 2) && (args[1] != "pve") && (args[1] != "pvp")){
+        void selectFunction(BasePlayer _player, string[] args)
+        {
+            if ((args.Length != 2) && (args[1] != "pve") && (args[1] != "pvp"))
+            {
                 LangMSG(_player, "IncoFormPleaUse");
-                ChatMessageHandle(_player, "/pvx select [pvp/pve]");}
-            else if (InfoCache[_player.userID].mode == "NA"){
+                ChatMessageHandle(_player, "/pvx select [pvp/pve]");
+            }
+            else if (InfoCache[_player.userID].mode == "NA")
+            {
                 InfoCache[_player.userID].mode = args[1].ToLower();
                 saveCacheData();
-                updateIndicator(_player);}}
+                updatePvXIndicator(_player);
+            }
+        }
 
-        void ticketFunction(BasePlayer _player, string[] args){
-            if (args.Length < 2 || args.Length > 3){
+        void ticketFunction(BasePlayer _player, string[] args)
+        {
+            if (args.Length < 2 || args.Length > 3)
+            {
                 LangMSG(_player, "IncoFormPleaUse");
                 ChatMessageHandle(_player, "/pvx ticket cancel");
                 ChatMessageHandle(_player, "/pvx ticket reason ''reason on ticket''");
-                return;}
+                return;
+            }
             string _cmd = args[1].ToLower();
-            if (InfoCache[_player.userID].ticket == false){
+            if (InfoCache[_player.userID].ticket == false)
+            {
                 LangMSG(_player, "NoActTick");
-                return;}
-            if (_cmd == "cancel"){
-                cancelTicket(_player);}
-            if ((_cmd == "reason") && (args.Length == 3)){
+                return;
+            }
+            if (_cmd == "cancel")
+            {
+                cancelTicket(_player);
+            }
+            if ((_cmd == "reason") && (args.Length == 3))
+            {
                 ticketData.Info[_player.userID].reason = args[2];
                 LangMSG(_player, "RSNChan");
                 ChatMessageHandle(_player, args[2]);
                 SaveAll();
-                return;}}
+                return;
+            }
+        }
+
+        void guiFunction(BasePlayer _player, string[] args)
+        {
+            if (args.Length == 1)
+            {
+                LangMSG(_player, "ComndList");
+                ChatMessageHandle(_player, "/pvx gui pvx on/off");
+                if (hasPerm(_player, "admin")) ChatMessageHandle(_player, "/pvx gui admin on/off");
+                return;
+            }
+            if (!(args.Length == 3)) return;
+            if ((args[1].ToLower() == "admin") && (hasPerm(_player, "admin")))
+            {
+                if (args[2].ToLower() == "on") createAdminIndicator(_player);
+                else if (args[2].ToLower() == "off") DestroyUI(_player, pvxAdminUI);
+                return;
+            }
+            else if (args[1].ToLower() == "pvx")
+            {
+                if (args[2].ToLower() == "on") createPvXIndicator(_player);
+                else if (args[2].ToLower() == "off") DestroyUI(_player, pvxPlayerUI);
+                return;
+            }
+            return;
+        }
+
+        void debugFunction()
+        { }
+        void developerFunction()
+        { }
+        void helpFunction(BasePlayer _player)
+        {
+            ChatMessageHandle(_player, "Plugin: PvX");
+            ChatMessageHandle(_player, "Version {0}", Version);
+            ChatMessageHandle(_player, "Mod Developer: Alphawar");
+        }
         #endregion
 
-        //////////////////////////////////////////////////////////////////////////////////////
-        // Functions /////////////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////
+        //void OnEntityEnter(TriggerBase trigger, BaseEntity entity)
+        //{
+        //    if(trigger is BuildPrivilegeTrigger)
+        //        trigger.
+        //    Puts("OnEntityEnter works!");
+        //}
+        //void OnEntityLeave(TriggerBase trigger, BaseEntity entity)
+        //{
+        //    Puts("OnEntityLeave works!");
+        //}
 
+        void adminMode(BasePlayer _player)
+        {
+            if (AdminPlayerMode.Contains(_player))
+            {
+                LangMSG(_player, "AdmModeRem");
+                AdminPlayerMode.Remove(_player);
+                updatePvXIndicator(_player);
+                return;
+            }
+            else AdminPlayerMode.Add(_player);
+            LangMSG(_player, "AdmModeAdd");
+            updatePvXIndicator(_player);
+        }
+        bool isInAdminMode(BasePlayer _player)
+        {
+            if (AdminPlayerMode.Contains(_player)) return true;
+            return false;
+        }
+        void OnItemRemovedFromContainer(ItemContainer container, Item item)
+        {
+            //Puts("Container is type {0}", container.GetType());
+            //Puts("Container is type {0}", container.entityOwner);
+            //Puts("Container is type {0}", container.playerOwner);
+            if (container.entityOwner != null) return;
+            if (container.playerOwner != null)
+            {
+                BasePlayer _player = container.playerOwner;
+                if (isInAdminMode(_player)) item.ClearOwners();
+            }
+        }
         void OnEntityTakeDamage(BaseCombatEntity entity, HitInfo hitinfo)
         {
-            bool _result;
+            object _n = entity.GetType();
             if (entity is BasePlayer && hitinfo.Initiator is BasePlayer)
             {
-                BasePlayer victim = (BasePlayer)entity;
-                BasePlayer attacker = (BasePlayer)hitinfo.Initiator;
-                if (isNPC(victim)){npcDamageHandle(victim, hitinfo);return;}
-                if (isNPC(attacker)) { npcAttackHandle(victim, hitinfo);return;}
-                if (attacker == victim) return;
-                if (areInEvent(attacker, victim)) return;
-                if (!(InfoCache.ContainsKey(attacker.userID)))
+                BasePlayer _victim = (BasePlayer)entity;
+                BasePlayer _attacker = (BasePlayer)hitinfo.Initiator;
+                if (isNPC(_victim)) { npcDamageHandle(_victim, hitinfo); return; }
+                if (isNPC(_attacker)) { npcAttackHandle(_victim, hitinfo); return; }
+                if (_attacker == _victim) return;
+                if (isGod(_victim)) return;
+                if (isGod(_attacker)) return;
+                if (areInEvent(_attacker, _victim)) return;
+                if (PvPOnlyCheck(_victim.userID, _attacker.userID)) return;
+                if (InfoCache[_victim.userID].mode == "pve")
                 {
-                    string[] test = { "gui" };
-                    PvXCmd(attacker, "PvXCmd", test);
-                    NullifyDamage(hitinfo);
-                    return;
-                }
-                if (!(InfoCache.ContainsKey(victim.userID)))
-                {
-                    string[] test = { "gui" };
-                    PvXCmd(victim, "PvXCmd", test);
-                    NullifyDamage(hitinfo);
-                    return;
-                }
-                _result = Damageplayer(attacker, victim);
-                if (_result == true) return;
-                if (InfoCache[victim.userID].mode == "pve")
-                {
-                    LangMSG(attacker, lang.GetMessage("PvETarget", this, attacker.UserIDString));
-                    victim.EndLooting();
+                    if (!antiChatSpam.Contains(_attacker.userID))
+                    {
+                        antiChatSpam.Add(_attacker.userID);
+                        timer.Once(2f, () => antiChatSpam.Remove(_attacker.userID));
+                        LangMSG(_attacker, lang.GetMessage("PvETarget", this, _attacker.UserIDString));
+                    }
+                    _victim.EndLooting();
                 }
                 NullifyDamage(hitinfo);
             }
-            else if (((entity is BuildingBlock) || (entity is Door) || (entity is StorageContainer)) && (hitinfo.Initiator is BasePlayer))
+            else if ((BaseEntityList.Contains(_n)) && (hitinfo.Initiator is BasePlayer))
             {
-                BasePlayer attacker = (BasePlayer)hitinfo.Initiator;
+                BasePlayer _attacker = (BasePlayer)hitinfo.Initiator;
                 BaseEntity _target = entity;
                 if (entity.OwnerID == 0) return;
-                if (isNPC(attacker)) { NullifyDamage(hitinfo); return; }
-                if (isInEvent(attacker)) return;
-                if (!(InfoCache.ContainsKey(attacker.userID)))
+                if (isNPC(_attacker)) { NullifyDamage(hitinfo); return; }
+                if (isInEvent(_attacker)) return;
+                if (_target.OwnerID == _attacker.userID) return;
+                if (isGod(_target.OwnerID))
                 {
-                    string[] test = { "gui" };
-                    PvXCmd(attacker, "PvXCmd", test);
                     NullifyDamage(hitinfo);
+                    LangMSG(_attacker, "TargisGod");
                     return;
                 }
-                if (_target.OwnerID == attacker.userID) return;
-                _result = DamageEntity(attacker, _target);
-                if (_result == true) return;
-                if (InfoCache[attacker.userID].mode == "pve") LangMSG(attacker, lang.GetMessage("PvEStructure", this, attacker.UserIDString));
-                if (InfoCache[attacker.userID].mode == "pve") LangMSG(attacker, lang.GetMessage("PvEPlayer", this, attacker.UserIDString));
+                if (isGod(_attacker))
+                {
+                    NullifyDamage(hitinfo);
+                    LangMSG(_attacker, "YouisGod");
+                    return;
+                }
+                if (PvPOnlyCheck(_target.OwnerID, _attacker.userID)) return;
+                if (!antiChatSpam.Contains(_attacker.userID))
+                {
+                    antiChatSpam.Add(_attacker.userID);
+                    timer.Once(2f, () => antiChatSpam.Remove(_attacker.userID));
+                    LangMSG(_attacker, lang.GetMessage("PvETarget", this, _attacker.UserIDString));
+                }
+                NullifyDamage(hitinfo);
+            }
+            else if ((CombatEntityList.Contains(_n)) && (hitinfo.Initiator is BasePlayer))
+            {
+                BasePlayer _attacker = (BasePlayer)hitinfo.Initiator;
+                BaseEntity _target = entity;
+                if (entity.OwnerID == 0) return;
+                if (isNPC(_attacker)) { NullifyDamage(hitinfo); return; }
+                if (isInEvent(_attacker)) return;
+                if (_target.OwnerID == _attacker.userID) return;
+                if (isGod(_target.OwnerID)) return;
+                if (isGod(_attacker)) return;
+                if (PvPOnlyCheck(_target.OwnerID, _attacker.userID)) return;
+                if (!antiChatSpam.Contains(_attacker.userID))
+                {
+                    antiChatSpam.Add(_attacker.userID);
+                    timer.Once(2f, () => antiChatSpam.Remove(_attacker.userID));
+                    LangMSG(_attacker, lang.GetMessage("PvETarget", this, _attacker.UserIDString));
+                }
                 NullifyDamage(hitinfo);
             }
             else return;
         }
-        bool Damageplayer(BasePlayer attacker, BasePlayer victim)
-        {
-            bool testvar1, testvar2;
-            if (InfoCache[attacker.userID].mode == "pvp") testvar1 = true; else testvar1 = false;
-            if (InfoCache[victim.userID].mode == "pvp") testvar2 = true; else testvar2 = false;
-            if ((testvar1 == true) && (testvar2 == true)) return true;
-            else return false;
-        }
-        bool DamageEntity(BasePlayer attacker, BaseEntity _entity)
-        {
-            bool testvar1, testvar2;
-            if (InfoCache[attacker.userID].mode == "pvp") testvar1 = true; else testvar1 = false;
-            if (InfoCache[_entity.OwnerID].mode == "pvp") testvar2 = true; else testvar2 = false;
-            if ((testvar1 == true) && (testvar2 == true)) return true;
-            else return false;
-        }
+
         void PvXFunction(BasePlayer _player, string[] args)
         {
 
@@ -1253,28 +1841,33 @@ namespace Oxide.Plugins
         void ModifyDamage(HitInfo hitinfo)
         { }
 
-        double GetTimeStamp(){
-            return (DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;}
+        string DateTimeStamp()
+        {
+            return DateTime.Now.ToString("HH:mm dd-MM-yyyy");
+        }
+        double GetTimeStamp()
+        {
+            return (DateTime.Now.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
+        }
 
 
         //////////////////////////////////////////////////////////////////////////////////////
         // Debug /////////////////////////////////////////////////////////////////////////////
         //////////////////////////////////////////////////////////////////////////////////////
 
-        void debugFunction()
-        { }
-        void developerFunction()
-        { }
-        void helpFunction()
-        {
-            BroadcastMessageHandle("PvX Version {0}", Version);
-        }
-        
         int DebugLevel = 0;
-        void DebugMessage(int _minDebuglvl, string _msg){
-            if (DebugLevel >= _minDebuglvl){
+        void DebugMessage(int _minDebuglvl, string _msg)
+        {
+            if (DebugLevel >= _minDebuglvl)
+            {
                 Puts(_msg);
-                if (DebugLevel == 3 && _minDebuglvl == 1){
-                    PrintToChat(_msg);}}}
+                if (DebugLevel == 3 && _minDebuglvl == 1)
+                {
+                    PrintToChat(_msg);
+                }
+            }
+        }
     }
 }
+
+// config color + opacity

@@ -1,0 +1,15 @@
+{
+    "name": "Trade",
+    "description": "Allows players to trade items safely at a distance",
+    "author": "Calytic",
+    "version": "1.0.5",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

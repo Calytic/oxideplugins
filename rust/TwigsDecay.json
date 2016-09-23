@@ -2,7 +2,7 @@
     "name": "TwigsDecay",
     "description": "Steadily decays buildings made of twigs. Works for other tiers, too, if configured to do so.",
     "author": "Nogrod",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "configuration": true,
     "language": "cs",
     "games": [

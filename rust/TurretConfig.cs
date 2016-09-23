@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,7 +10,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("TurretConfig", "Calytic", "0.1.8", ResourceId = 1418)]
+    [Info("TurretConfig", "Calytic", "1.0.1", ResourceId = 1418)]
     [Description("Change turret damage, accuracy, bullet speed, health, targeting, etc")]
     class TurretConfig : RustPlugin
     {
@@ -25,16 +26,22 @@ namespace Oxide.Plugins
         private List<object> animals;
         private bool animalOverride;
         private bool sleepOverride;
-
-        private float bulletDamage;
-        private float bulletSpeed;
-        private string ammoType;
-        private float sightRange;
-
         private bool useGlobalDamageModifier;
         private float globalDamageModifier;
-        private float health;
-        private float aimCone;
+
+        private float defaultBulletDamage;
+        private float defaultBulletSpeed;
+        private string defaultAmmoType;
+        private float defaultSightRange;
+        private float defaultHealth;
+        private float defaultAimCone;
+
+        private Dictionary<string, object> bulletDamages;
+        private Dictionary<string, object> bulletSpeeds;
+        private Dictionary<string, object> ammoTypes;
+        private Dictionary<string, object> sightRanges;
+        private Dictionary<string, object> healths;
+        private Dictionary<string, object> aimCones;
 
         private bool infiniteAmmo;
 
@@ -44,29 +51,85 @@ namespace Oxide.Plugins
         [PluginReference]
         Plugin Skills;
 
-        void Init()
+        void Loaded()
         {
+            LoadMessages();
             LoadData();
 
             turretPrefabId = StringPool.Get(turretPrefab);
 
             permission.RegisterPermission("turretconfig.infiniteammo", this);
 
-            bulletDamage = GetConfig("bulletDamage", 10f);
-            bulletSpeed = GetConfig("bulletSpeed", 10f);
-            ammoType = GetConfig("ammoType", "ammo.rifle");
-            adminOverride = GetConfig("adminOverride", true);
-            animalOverride = GetConfig("animalOverride", false);
-            sleepOverride = GetConfig("sleepOverride", false);
-            animals = GetConfig<List<object>>("animals", GetPassiveAnimals());
+            adminOverride = GetConfig("Settings", "adminOverride", true);
+            animalOverride = GetConfig("Settings", "animalOverride", false);
+            sleepOverride = GetConfig("Settings", "sleepOverride", false);
+            animals = GetConfig<List<object>>("Settings", "animals", GetPassiveAnimals());
 
-            useGlobalDamageModifier = GetConfig("useGlobalDamageModifier", false);
-            globalDamageModifier = GetConfig("globalDamageModifier", 1f);
-            health = GetConfig("health", 750f);
-            aimCone = GetConfig("aimCone", 5f);
-            sightRange = GetConfig("sightRange", 30f);
+            useGlobalDamageModifier = GetConfig("Settings", "useGlobalDamageModifier", false);
+            globalDamageModifier = GetConfig("Settings", "globalDamageModifier", 1f);
+            defaultHealth = GetConfig("Settings", "defaultHealth", 1000f);
+            defaultAimCone = GetConfig("Settings", "defaultAimCone", 5f);
+            defaultSightRange = GetConfig("Settings", "defaultSightRange", 30f);
+            defaultBulletDamage = GetConfig("Settings", "defaultBulletDamage", 10f);
+            defaultBulletSpeed = GetConfig("Settings", "defaultBulletSpeed", 10f);
+            defaultAmmoType = GetConfig("Settings", "defaultAmmoType", "ammo.rifle");
 
-            infiniteAmmo = GetConfig("infiniteAmmo", false);
+            bulletDamages = GetConfig("Settings", "bulletDamages", GetDefaultBulletDamages());
+            bulletSpeeds = GetConfig("Settings", "bulletSpeeds", GetDefaultBulletSpeeds());
+            ammoTypes = GetConfig("Settings", "ammoTypes", GetDefaultAmmoTypes());
+            sightRanges = GetConfig("Settings", "sightRanges", GetDefaultSightRanges());
+            healths = GetConfig("Settings", "health", GetDefaultHealth());
+            aimCones = GetConfig("Settings", "aimCones", GetDefaultAimCones());
+
+            infiniteAmmo = GetConfig("Settings", "infiniteAmmo", false);
+
+            foreach (KeyValuePair<string, object> kvp in bulletDamages)
+            {
+                if (!permission.PermissionExists(kvp.Key))
+                {
+                    permission.RegisterPermission(kvp.Key, this);
+                }
+            }
+
+            foreach (KeyValuePair<string, object> kvp in bulletSpeeds)
+            {
+                if (!permission.PermissionExists(kvp.Key))
+                {
+                    permission.RegisterPermission(kvp.Key, this);
+                }
+            }
+
+            foreach (KeyValuePair<string, object> kvp in ammoTypes)
+            {
+                if (!permission.PermissionExists(kvp.Key))
+                {
+                    permission.RegisterPermission(kvp.Key, this);
+                }
+            }
+
+            foreach (KeyValuePair<string, object> kvp in sightRanges)
+            {
+                if (!permission.PermissionExists(kvp.Key))
+                {
+                    permission.RegisterPermission(kvp.Key, this);
+                }
+            }
+
+            foreach (KeyValuePair<string, object> kvp in healths)
+            {
+                if (!permission.PermissionExists(kvp.Key))
+                {
+                    permission.RegisterPermission(kvp.Key, this);
+                }
+            }
+
+            foreach (KeyValuePair<string, object> kvp in aimCones)
+            {
+                if (!permission.PermissionExists(kvp.Key))
+                {
+                    permission.RegisterPermission(kvp.Key, this);
+                }
+            }
 
             LoadTurrets();
         }
@@ -78,7 +141,7 @@ namespace Oxide.Plugins
             {
                 if (arg.connection.authLevel < 1)
                 {
-                    SendReply(arg, "You are not allowed to use this command");
+                    SendReply(arg, GetMsg("Denied: Permission", arg.connection.userid.ToString()));
                     return;
                 }
             }
@@ -107,19 +170,89 @@ namespace Oxide.Plugins
             PrintWarning("Creating new configuration");
             Config.Clear();
 
-            Config["bulletDamage"] = 10f;
-            Config["bulletSpeed"] = 200f;
-            Config["ammoType"] = "ammo.rifle";
-            Config["sightRange"] = 30f;
-            Config["adminOverride"] = true;
-            Config["sleepOverride"] = false;
-            Config["animalOverride"] = true;
-            Config["useGlobalDamageModifier"] = false;
-            Config["globalDamageModifier"] = 1f;
-            Config["health"] = 750f;
-            Config["aimCone"] = 5f;
-            Config["animals"] = GetPassiveAnimals();
-            Config["infiniteAmmo"] = false;
+            Config["Settings", "defaultBulletDamage"] = 10f;
+            Config["Settings", "defaultBulletSpeed"] = 200f;
+            Config["Settings", "defaultAmmoType"] = "ammo.rifle";
+            Config["Settings", "defaultSightRange"] = 30f;
+            Config["Settings", "defaultHealth"] = 1000;
+            Config["Settings", "defaultAimCone"] = 5f;
+
+            Config["Settings", "adminOverride"] = true;
+            Config["Settings", "sleepOverride"] = false;
+            Config["Settings", "animalOverride"] = true;
+            Config["Settings", "useGlobalDamageModifier"] = false;
+            Config["Settings", "globalDamageModifier"] = 1f;
+
+            Config["Settings", "animals"] = GetPassiveAnimals();
+            Config["Settings", "infiniteAmmo"] = false;
+
+            Config["Settings", "bulletDamages"] = GetDefaultBulletDamages();
+            Config["Settings", "bulletSpeeds"] = GetDefaultBulletSpeeds();
+            Config["Settings", "ammoTypes"] = GetDefaultAmmoTypes();
+            Config["Settings", "sightRanges"] = GetDefaultSightRanges();
+            Config["Settings", "health"] = GetDefaultHealth();
+            Config["Settings", "aimCones"] = GetDefaultAimCones();
+        }
+
+        void LoadMessages()
+        {
+            lang.RegisterMessages(new Dictionary<string, string>
+            {
+                {"Denied: Permission", "You lack permission to do that"},
+            }, this);
+        }
+
+        private List<object> GetPassiveAnimals()
+        {
+            return new List<object>
+            {
+                "stag",
+                "boar",
+                "chicken",
+                "horse",
+            };
+        }
+
+        private Dictionary<string, object> GetDefaultBulletDamages()
+        {
+            return new Dictionary<string, object>() {
+                {"turretconfig.default", 10f},
+            };
+        }
+
+        private Dictionary<string, object> GetDefaultBulletSpeeds()
+        {
+            return new Dictionary<string, object>() {
+                {"turretconfig.default", 200f},
+            };
+        }
+
+        private Dictionary<string, object> GetDefaultSightRanges()
+        {
+            return new Dictionary<string, object>() {
+                {"turretconfig.default", 30f},
+            };
+        }
+
+        private Dictionary<string, object> GetDefaultAmmoTypes()
+        {
+            return new Dictionary<string, object>() {
+                {"turretconfig.default", "ammo.rifle"},
+            };
+        }
+
+        private Dictionary<string, object> GetDefaultHealth()
+        {
+            return new Dictionary<string, object>() {
+                {"turretconfig.default", 1000f},
+            };
+        }
+
+        private Dictionary<string, object> GetDefaultAimCones()
+        {
+            return new Dictionary<string, object>() {
+                {"turretconfig.default", 5f},
+            };
         }
 
         void LoadData()
@@ -145,16 +278,6 @@ namespace Oxide.Plugins
 
             PrintWarning("Upgrading Configuration File");
             SaveConfig();
-        }
-
-        private T GetConfig<T>(string name, T defaultValue)
-        {
-            if (Config[name] == null)
-            {
-                return defaultValue;
-            }
-
-            return (T)Convert.ChangeType(Config[name], typeof(T));
         }
 
         void OnLootEntity(BasePlayer looter, BaseEntity target)
@@ -199,6 +322,20 @@ namespace Oxide.Plugins
 
         private object CanBeTargeted(BaseCombatEntity target, MonoBehaviour turret)
         {
+            if(target is BasePlayer) {
+                var isInvisible = Vanish?.Call("IsInvisible", target);
+                if (isInvisible != null && (bool)isInvisible)
+                {
+                    return null;
+                }
+
+                var isStealthed = Skills?.Call("isStealthed", target);
+                if (isStealthed != null && (bool)isStealthed)
+                {
+                    return null;
+                }
+            }
+
             if (!(turret is AutoTurret))
             {
                 return null;
@@ -224,20 +361,6 @@ namespace Oxide.Plugins
 
             BasePlayer targetPlayer = target.ToPlayer();
 
-            if(targetPlayer.IsAlive() && !targetPlayer.IsSleeping()) {
-                var isInvisible = Vanish?.Call("IsInvisible", target);
-                if (isInvisible != null && (bool)isInvisible)
-                {
-                    return null;
-                }
-
-                var isStealthed = Skills?.Call("isStealthed", target);
-                if (isStealthed != null && (bool)isStealthed)
-                {
-                    return false;
-                }
-            }
-
             if (adminOverride && targetPlayer.IsConnected() && targetPlayer.net.connection.authLevel > 0)
             {
                 return false;
@@ -260,30 +383,131 @@ namespace Oxide.Plugins
             }
         }
 
+        float GetBulletDamage(string userID)
+        {
+            if (!string.IsNullOrEmpty(userID) && userID != "0")
+            {
+                foreach (KeyValuePair<string, object> kvp in bulletDamages)
+                {
+                    if (permission.UserHasPermission(userID, kvp.Key))
+                    {
+                        return Convert.ToSingle(kvp.Value);
+                    }
+                }
+            }
+
+            return defaultBulletDamage;
+        }
+
+        float GetHealth(string userID)
+        {
+            if (!string.IsNullOrEmpty(userID) && userID != "0")
+            {
+                foreach (KeyValuePair<string, object> kvp in healths)
+                {
+                    if (permission.UserHasPermission(userID, kvp.Key))
+                    {
+                        return Convert.ToSingle(kvp.Value);
+                    }
+                }
+            }
+
+            return defaultHealth;
+        }
+
+        float GetBulletSpeed(string userID)
+        {
+            if (!string.IsNullOrEmpty(userID) && userID != "0")
+            {
+                foreach (KeyValuePair<string, object> kvp in bulletSpeeds)
+                {
+                    if (permission.UserHasPermission(userID, kvp.Key))
+                    {
+                        return Convert.ToSingle(kvp.Value);
+                    }
+                }
+            }
+
+            return defaultBulletSpeed;
+        }
+
+        float GetSightRange(string userID)
+        {
+            if (!string.IsNullOrEmpty(userID) && userID != "0")
+            {
+                foreach (KeyValuePair<string, object> kvp in sightRanges)
+                {
+                    if (permission.UserHasPermission(userID, kvp.Key))
+                    {
+                        return Convert.ToSingle(kvp.Value);
+                    }
+                }
+            }
+
+            return defaultSightRange;
+        }
+
+        float GetAimCone(string userID)
+        {
+            if (!string.IsNullOrEmpty(userID) && userID != "0")
+            {
+                foreach (KeyValuePair<string, object> kvp in aimCones)
+                {
+                    if (permission.UserHasPermission(userID, kvp.Key))
+                    {
+                        return Convert.ToSingle(kvp.Value);
+                    }
+                }
+            }
+
+            return defaultAimCone;
+        }
+
+        string GetAmmoType(string userID)
+        {
+            if (!string.IsNullOrEmpty(userID) && userID != "0")
+            {
+                foreach (KeyValuePair<string, object> kvp in ammoTypes)
+                {
+                    if (permission.UserHasPermission(userID, kvp.Key))
+                    {
+                        return kvp.Value.ToString();
+                    }
+                }
+            }
+
+            return defaultAmmoType;
+        }
+
         private void UpdateTurret(AutoTurret turret, bool justCreated = false)
         {
             CheckAmmo(turret);
 
-            bulletDamageField.SetValue(turret, bulletDamage);
+            string userID = turret.OwnerID.ToString();
+
+            float turretHealth = GetHealth(userID);
+            string ammoType = GetAmmoType(userID);
+
+            bulletDamageField.SetValue(turret, GetBulletDamage(userID));
             if (justCreated)
             {
-                healthField.SetValue(turret, health);
+                healthField.SetValue(turret, turretHealth);
             }
-            maxHealthField.SetValue(turret, health);
+            maxHealthField.SetValue(turret, turretHealth);
 
             if (justCreated)
             {
-                turret.InitializeHealth(health, health);
+                turret.InitializeHealth(turretHealth, turretHealth);
             }
             else
             {
-                turret.InitializeHealth(turret.health, health);
+                turret.InitializeHealth(turret.health, turretHealth);
             }
             
-            turret.bulletSpeed = bulletSpeed;
-            turret.sightRange = sightRange;
-            turret.startHealth = health;
-            turret.aimCone = aimCone;
+            turret.bulletSpeed = GetBulletSpeed(userID);
+            turret.sightRange = GetSightRange(userID);
+            turret.startHealth = turretHealth;
+            turret.aimCone = GetAimCone(userID);
 
             var def = ItemManager.FindItemDefinition(ammoType);
             if (def is ItemDefinition)
@@ -323,15 +547,29 @@ namespace Oxide.Plugins
             }
         }
 
-        private List<object> GetPassiveAnimals()
+        private T GetConfig<T>(string name, T defaultValue)
         {
-            return new List<object>
+            if (Config[name] == null)
             {
-                "stag",
-                "boar",
-                "chicken",
-                "horse",
-            };
+                return defaultValue;
+            }
+
+            return (T)Convert.ChangeType(Config[name], typeof(T));
+        }
+
+        private T GetConfig<T>(string name, string name2, T defaultValue)
+        {
+            if (Config[name, name2] == null)
+            {
+                return defaultValue;
+            }
+
+            return (T)Convert.ChangeType(Config[name, name2], typeof(T));
+        }
+
+        string GetMsg(string key, string userID = null)
+        {
+            return lang.GetMessage(key, this, userID);
         }
     }
 }

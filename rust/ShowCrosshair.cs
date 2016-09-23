@@ -6,13 +6,15 @@ using System;
 
 namespace Oxide.Plugins
 {
-    [Info("ShowCrosshair", "Marat", "1.0.5", ResourceId = 2057)]
+    [Info("ShowCrosshair", "Marat", "1.0.7", ResourceId = 2057)]
 	[Description("Shows a crosshair on the screen.")]
 
     class ShowCrosshair : RustPlugin
     { 
-	    List<ulong> Toggle = new List<ulong>();
-		bool HasEnabled(BasePlayer player) => Toggle.Contains(player.userID);
+	    List<ulong> Cross = new List<ulong>();
+		List<ulong> Menu = new List<ulong>();
+		bool EnableCross(BasePlayer player) => Cross.Contains(player.userID);
+		bool EnableMenu(BasePlayer player) => Menu.Contains(player.userID);
 
 		#region Initialization
 		
@@ -21,14 +23,13 @@ namespace Oxide.Plugins
 		private string background = "http://i.imgur.com/mD8K49U.png";
 		private string background2 = "http://i.imgur.com/mYV1bFs.png";
 
-        void Loaded()
+        private void Loaded()
         {
 			LoadConfiguration();
             LoadDefaultMessages();
             permission.RegisterPermission(permShowCrosshair, this);
             cmd.AddChatCommand(command, this, "cmdChatCrosshair");
 			cmd.AddChatCommand(commandmenu, this, "cmdChatShowMenu");
-			cmd.AddConsoleCommand($"global.{command}", this, "cmdConsoleCrosshair");
         }
 		
 		#endregion
@@ -44,6 +45,7 @@ namespace Oxide.Plugins
 		private bool usePermissions = false;
 		private bool ShowOnLogin = false;
 		private bool EnableSound = true;
+		private bool ShowMessage = true;
 		private bool KeyBindSet = true;
 		private string SoundOpen = "assets/bundled/prefabs/fx/build/promote_metal.prefab";
 		private string SoundDisable = "assets/prefabs/locks/keypad/effects/lock.code.lock.prefab";
@@ -51,7 +53,6 @@ namespace Oxide.Plugins
 		private string SoundToggle = "assets/prefabs/misc/xmas/presents/effects/unwrap.prefab";
 		private string commandmenu = "showmenu";
 		private string command = "crosshair";
-		private string keybindClose = "";
 		private string keybind = "f5";
 		private string colorClose = "0 0 0 0.7";
 		private string colorBackground = "0 0 0 0.7";
@@ -71,7 +72,7 @@ namespace Oxide.Plugins
 			command = GetConfigValue("Options", "Command", command);
 			commandmenu = GetConfigValue("Options", "CommandMenu", commandmenu);
 			keybind = GetConfigValue("Options", "KeyBindMenu", keybind);
-			keybindClose = GetConfigValue("Options", "KeyBindClose", keybindClose);
+            ShowMessage = GetConfigValue("Options", "ShowMessage", ShowMessage);
 			KeyBindSet = GetConfigValue("Options", "KeyBindSet", KeyBindSet);
 			ShowOnLogin = GetConfigValue("Options", "ShowOnLogin", ShowOnLogin);
 			EnableSound = GetConfigValue("Options", "EnableSound", EnableSound);
@@ -117,24 +118,12 @@ namespace Oxide.Plugins
             configChanged = true;
             return (T)Convert.ChangeType(value, typeof(T));
         }
-        private void SetConfigValue<T>(string category, string setting, T newValue)
-        {
-            var data = Config[category] as Dictionary<string, object>;
-            object value;
-            if (data != null && data.TryGetValue(setting, out value))
-            {
-                value = newValue;
-                data[setting] = value;
-                configChanged = true;
-            }
-            SaveConfig();
-        }
 		
 		#endregion
 		
 		#region Localization
 		
-		void LoadDefaultMessages()
+		private void LoadDefaultMessages()
         {
             lang.RegisterMessages(new Dictionary<string, string>
             {
@@ -171,14 +160,14 @@ namespace Oxide.Plugins
 		#region Commands
 		
 		/////Crosshair/////
-		void cmdChatCrosshair(BasePlayer player)
+		private void cmdChatCrosshair(BasePlayer player)
 		{
 			if (usePermissions && !IsAllowed(player.UserIDString, permShowCrosshair))
             {
                 Reply(player, Lang("NoPermission", player.UserIDString));
                 return;
             }
-			if (HasEnabled(player))
+			if (EnableCross(player))
 			{
                 DisabledCrosshair(player);
 			}
@@ -187,20 +176,15 @@ namespace Oxide.Plugins
                 EnabledCrosshair(player);
 			}
         }
-		void cmdConsoleCrosshair(ConsoleSystem.Arg arg)
-	    {
-		    var player = arg.Player();
-		    cmdChatCrosshair(player);
-	    }
 		////ShowMenu////
-		void cmdChatShowMenu(BasePlayer player)
+		private void cmdChatShowMenu(BasePlayer player)
 		{
 			if (usePermissions && !IsAllowed(player.UserIDString, permShowCrosshair))
             {
                 Reply(player, Lang("NoPermission", player.UserIDString));
                 return;
             }
-			if (HasEnabled(player))
+			if (EnableMenu(player))
 			{
                 DisabledMenu(player);
 			}
@@ -229,72 +213,72 @@ namespace Oxide.Plugins
         {
 			var player = arg.Player();
 			DestroyCrosshair(player);
-		    ShowCrosshair1(player);
+		    Crosshair1(player);
 			if(EnableSound)Effect.server.Run(SoundSelect, player.transform.position, Vector3.zero, null, false);
-			Reply(player, Lang("crosshair1", player.UserIDString));
+			if(ShowMessage)Reply(player, Lang("crosshair1", player.UserIDString));
         }
         [ConsoleCommand("command2")]
         void cmdConsoleCommand2(ConsoleSystem.Arg arg)
         {
 			var player = arg.Player();
 			DestroyCrosshair(player);
-		    ShowCrosshair2(player);
+		    Crosshair2(player);
 			if(EnableSound)Effect.server.Run(SoundSelect, player.transform.position, Vector3.zero, null, false);
-			Reply(player, Lang("crosshair2", player.UserIDString));
+			if(ShowMessage)Reply(player, Lang("crosshair2", player.UserIDString));
         }
         [ConsoleCommand("command3")]
         void cmdConsoleCommand3(ConsoleSystem.Arg arg)
         {
 		    var player = arg.Player();
 			DestroyCrosshair(player);
-		    ShowCrosshair3(player);
+		    Crosshair3(player);
 			if(EnableSound)Effect.server.Run(SoundSelect, player.transform.position, Vector3.zero, null, false);
-			Reply(player, Lang("crosshair3", player.UserIDString));
+			if(ShowMessage)Reply(player, Lang("crosshair3", player.UserIDString));
         }
         [ConsoleCommand("command4")]
         void cmdConsoleCommand4(ConsoleSystem.Arg arg)
 		{
 		    var player = arg.Player();
 			DestroyCrosshair(player);
-		    ShowCrosshair4(player);
+		    Crosshair4(player);
 			if(EnableSound)Effect.server.Run(SoundSelect, player.transform.position, Vector3.zero, null, false);
-			Reply(player, Lang("crosshair4", player.UserIDString));
+			if(ShowMessage)Reply(player, Lang("crosshair4", player.UserIDString));
 	    }
 		[ConsoleCommand("command5")]
         void cmdConsoleCommand5(ConsoleSystem.Arg arg)
         {
 			var player = arg.Player();
 			DestroyCrosshair(player);
-		    ShowCrosshair5(player);
+		    Crosshair5(player);
 			if(EnableSound)Effect.server.Run(SoundSelect, player.transform.position, Vector3.zero, null, false);
-			Reply(player, Lang("crosshair5", player.UserIDString));
+			if(ShowMessage)Reply(player, Lang("crosshair5", player.UserIDString));
         }
         [ConsoleCommand("command6")]
         void cmdConsoleCommand6(ConsoleSystem.Arg arg)
         {
 			var player = arg.Player();
 			DestroyCrosshair(player);
-		    ShowCrosshair6(player);
+		    Crosshair6(player);
 			if(EnableSound)Effect.server.Run(SoundSelect, player.transform.position, Vector3.zero, null, false);
-			Reply(player, Lang("crosshair6", player.UserIDString));
+			if(ShowMessage)Reply(player, Lang("crosshair6", player.UserIDString));
         }
         [ConsoleCommand("command7")]
         void cmdConsoleCommand7(ConsoleSystem.Arg arg)
         {
 		    var player = arg.Player();
 			DestroyCrosshair(player);
-		    ShowCrosshair7(player);
+		    Crosshair7(player);
 			if(EnableSound)Effect.server.Run(SoundSelect, player.transform.position, Vector3.zero, null, false);
-			Reply(player, Lang("crosshair7", player.UserIDString));
+			if(ShowMessage)Reply(player, Lang("crosshair7", player.UserIDString));
         }
         [ConsoleCommand("command8")]
         void cmdConsoleCommand8(ConsoleSystem.Arg arg)
 		{
 		    var player = arg.Player();
 			DestroyCrosshair(player);
-		    ShowCrosshair8(player);
+		    Crosshair8(player);
 			if(EnableSound)Effect.server.Run(SoundSelect, player.transform.position, Vector3.zero, null, false);
-			Reply(player, Lang("crosshair8", player.UserIDString));
+			if(ShowMessage)Reply(player, Lang("crosshair8", player.UserIDString));
 	    }
 		[ConsoleCommand("commandNext")]
         void cmdConsoleCommandNext(ConsoleSystem.Arg arg)
@@ -318,58 +302,61 @@ namespace Oxide.Plugins
 		    var player = arg.Player();
 			DestroyCrosshair(player);
 			if(EnableSound)Effect.server.Run(SoundDisable, player.transform.position, Vector3.zero, null, false);
-			Reply(player, Lang("Disabled", player.UserIDString));
+			if(ShowMessage)Reply(player, Lang("Disabled", player.UserIDString));
 	    }
 		
 		#endregion
 		
 		#region Hooks
 		
-        void OnPlayerInit(BasePlayer player)
+		private void OnPlayerInit(BasePlayer player)
         {
+			if (player.HasPlayerFlag(BasePlayer.PlayerFlags.ReceivingSnapshot))
+			{
+				timer.Once(2, () => OnPlayerInit(player));
+				return;
+			}
             if (usePermissions && !IsAllowed(player.UserIDString, permShowCrosshair))
             {
                 return;
             }
 			if (ShowOnLogin)
 		    {
-				player.SendConsoleCommand($"global.{command}");
+				EnabledCrosshair(player);
 		    }
 			if (KeyBindSet)
             {
                 player.Command("bind " + keybind + " \"ShowMenu\"");
-				player.Command("bind " + keybindClose + " \"CloseMenu\"");
             }
 	    }
-		void OnPlayerDisconnected(BasePlayer player)
+		private void OnPlayerDisconnected(BasePlayer player)
 	    {
-			if (Toggle.Contains(player.userID))
+			if (Menu.Contains(player.userID))
             {
 			    if (KeyBindSet)
                 {
 			        player.SendConsoleCommand("bind " + keybind + " \"\"");
-			        player.SendConsoleCommand("bind " + keybindClose + " \"\"");
 			    }
-                Toggle.Remove(player.userID);
+                Menu.Remove(player.userID);
 			    DestroyAll(player);
 			    return;
 			}
 	    }
-		void Unload()
+		private void Unload()
         {
             foreach (BasePlayer player in BasePlayer.activePlayerList)
             {
-                Toggle.Remove(player.userID);
+                Menu.Remove(player.userID);
 				DestroyAll(player);
 				return;
             }
         }
-		void DestroyAll(BasePlayer player)
+		private void DestroyAll(BasePlayer player)
 	    {
 			DestroyGUImenu(player);
 		    DestroyCrosshair(player);
 	    }
-		void DestroyCrosshair(BasePlayer player)
+		private void DestroyCrosshair(BasePlayer player)
 	    {
 		    CuiHelper.DestroyUi(player, "image1");
 			CuiHelper.DestroyUi(player, "image2");
@@ -380,44 +367,42 @@ namespace Oxide.Plugins
 			CuiHelper.DestroyUi(player, "image7");
 			CuiHelper.DestroyUi(player, "image8");
 	    }
-		void DestroyGUImenu(BasePlayer player)
+		private void DestroyGUImenu(BasePlayer player)
 		{
 			CuiHelper.DestroyUi(player, "GUImenu");
 			CuiHelper.DestroyUi(player, "GUImenu2");
 		}
-		void EnabledCrosshair(BasePlayer player)
+		private void EnabledCrosshair(BasePlayer player)
         {
-            if (!Toggle.Contains(player.userID))
+            if (!Cross.Contains(player.userID))
             {
-                Toggle.Add(player.userID);
+                Cross.Add(player.userID);
 				DestroyCrosshair(player);
-				ShowCrosshair1(player);
-                Reply(player, Lang("Enabled", player.UserIDString));
+				player.SendConsoleCommand("command1");
             }
         }
-        void DisabledCrosshair(BasePlayer player)
+        private void DisabledCrosshair(BasePlayer player)
         {
-            if (Toggle.Contains(player.userID))
+            if (Cross.Contains(player.userID))
             {
-                Toggle.Remove(player.userID);
-			    DestroyCrosshair(player);
-                Reply(player, Lang("Disabled", player.UserIDString));
+                Cross.Remove(player.userID);
+			    player.SendConsoleCommand("commandDisable");
             }
         }
-		void EnabledMenu(BasePlayer player)
+		private void EnabledMenu(BasePlayer player)
         {
-            if (!Toggle.Contains(player.userID))
+            if (!Menu.Contains(player.userID))
             {
-                Toggle.Add(player.userID);
+                Menu.Add(player.userID);
 				DestroyGUImenu(player);
 		        ShowMenu(player, null);
             }
         }
-        void DisabledMenu(BasePlayer player)
+        private void DisabledMenu(BasePlayer player)
         {
-            if (Toggle.Contains(player.userID))
+            if (Menu.Contains(player.userID))
             {
-                Toggle.Remove(player.userID);
+                Menu.Remove(player.userID);
 			    DestroyGUImenu(player);
             }
         }
@@ -426,13 +411,13 @@ namespace Oxide.Plugins
 		
 		#region Crosshair
 		
-	    void ShowCrosshair1(BasePlayer player)
+	    private void Crosshair1(BasePlayer player)
         {
 		    var elements = new CuiElementContainer();
             elements.Add(new CuiElement
             {
                 Name = "image1",
-				Parent = "Hud",
+				Parent = "Hud.Under",
                 Components =
                 {
                     new CuiRawImageComponent 
@@ -450,13 +435,13 @@ namespace Oxide.Plugins
             });
 			CuiHelper.AddUi(player, elements);
 		}
-		void ShowCrosshair2(BasePlayer player)
+		private void Crosshair2(BasePlayer player)
         {
 		    var elements = new CuiElementContainer();
 			elements.Add(new CuiElement
             {
                 Name = "image2",
-				Parent = "Hud",
+				Parent = "Hud.Under",
                 Components =
                 {
                     new CuiRawImageComponent 
@@ -474,13 +459,13 @@ namespace Oxide.Plugins
             });
 			CuiHelper.AddUi(player, elements);
 		}
-		void ShowCrosshair3(BasePlayer player)
+		private void Crosshair3(BasePlayer player)
         {
 		    var elements = new CuiElementContainer();
 			elements.Add(new CuiElement
             {
                 Name = "image3",
-				Parent = "Hud",
+				Parent = "Hud.Under",
                 Components =
                 {
                     new CuiRawImageComponent 
@@ -498,13 +483,13 @@ namespace Oxide.Plugins
             });
 			CuiHelper.AddUi(player, elements);
 		}
-		void ShowCrosshair4(BasePlayer player)
+		private void Crosshair4(BasePlayer player)
         {
 		    var elements = new CuiElementContainer();
 			elements.Add(new CuiElement
             {
                 Name = "image4",
-				Parent = "Hud",
+				Parent = "Hud.Under",
                 Components =
                 {
                     new CuiRawImageComponent 
@@ -522,13 +507,13 @@ namespace Oxide.Plugins
             });
 			CuiHelper.AddUi(player, elements);
 		}
-		void ShowCrosshair5(BasePlayer player)
+		private void Crosshair5(BasePlayer player)
         {
 		    var elements = new CuiElementContainer();
             elements.Add(new CuiElement
             {
                 Name = "image5",
-				Parent = "Hud",
+				Parent = "Hud.Under",
                 Components =
                 {
                     new CuiRawImageComponent 
@@ -546,13 +531,13 @@ namespace Oxide.Plugins
             });
 			CuiHelper.AddUi(player, elements);
 		}
-		void ShowCrosshair6(BasePlayer player)
+		private void Crosshair6(BasePlayer player)
         {
 		    var elements = new CuiElementContainer();
 			elements.Add(new CuiElement
             {
                 Name = "image6",
-				Parent = "Hud",
+				Parent = "Hud.Under",
                 Components =
                 {
                     new CuiRawImageComponent 
@@ -570,13 +555,13 @@ namespace Oxide.Plugins
             });
 			CuiHelper.AddUi(player, elements);
 		}
-		void ShowCrosshair7(BasePlayer player)
+		private void Crosshair7(BasePlayer player)
         {
 		    var elements = new CuiElementContainer();
 			elements.Add(new CuiElement
             {
                 Name = "image7",
-				Parent = "Hud",
+				Parent = "Hud.Under",
                 Components =
                 {
                     new CuiRawImageComponent 
@@ -594,13 +579,13 @@ namespace Oxide.Plugins
             });
 			CuiHelper.AddUi(player, elements);
 		}
-		void ShowCrosshair8(BasePlayer player)
+		private void Crosshair8(BasePlayer player)
         {
 		    var elements = new CuiElementContainer();
 			elements.Add(new CuiElement
             {
                 Name = "image8",
-				Parent = "Hud",
+				Parent = "Hud.Under",
                 Components =
                 {
                     new CuiRawImageComponent 
@@ -625,7 +610,7 @@ namespace Oxide.Plugins
 		
 		/////////////////Menu1/////////////////////
 		
-		void ShowMenu(BasePlayer player, string text)
+		private void ShowMenu(BasePlayer player, string text)
         {
 			var elements = new CuiElementContainer();
             var menu = elements.Add(new CuiPanel
@@ -1003,7 +988,7 @@ namespace Oxide.Plugins
 		
 		/////////////////Menu2/////////////////////
 		
-		void NextMenu(BasePlayer player, string text)
+		private void NextMenu(BasePlayer player, string text)
         {
 			var elements = new CuiElementContainer();
             var menu = elements.Add(new CuiPanel
@@ -1179,7 +1164,7 @@ namespace Oxide.Plugins
                     Text =
                     {
                         Text = "<color=#0055ff>B</color><color=#1a66ff>a</color><color=#1a66ff>c</color><color=#0055ff>k</color>",
-		   /////rus/////Text = "<color=#0055ff>Ð</color><color=#1a66ff>Ð°</color><color=#3377ff>Ð·</color><color=#1a66ff>Ð°</color><color=#0055ff>Ñ</color>",
+		   /////rus/////Text = "<color=#0055ff>Ð</color><color=#1a66ff>Ð°</color><color=#3377ff>Ð·</color><color=#1a66ff>Ð°</color><color=#0055ff>Ð´</color>",
                         FontSize = 18,
 						FadeIn = 0.6f,
                         Align = TextAnchor.MiddleCenter

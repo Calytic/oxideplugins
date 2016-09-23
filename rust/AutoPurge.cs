@@ -8,7 +8,7 @@ using Newtonsoft.Json.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("AutoPurge", "Fujikura/Norn", "1.3.1", ResourceId = 1566)]
+    [Info("AutoPurge", "Fujikura/Norn", "1.4.4", ResourceId = 1566)]
     [Description("Remove entities if the owner becomes inactive.")]
     public class AutoPurge : RustPlugin
     {
@@ -20,9 +20,8 @@ namespace Oxide.Plugins
 		
 		private bool Changed = false;
 		StoredData playerConnections = new StoredData();
-		Timer mainTimer = null;
 		static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
-        static readonly double MaxUnixSeconds = (DateTime.MaxValue - UnixEpoch).TotalSeconds;
+		static readonly double MaxUnixSeconds = (DateTime.MaxValue - UnixEpoch).TotalSeconds;
 		private List<ulong> groupModerator = new List<ulong>();
 		private List<ulong> groupOwner = new List<ulong>();
 		private string logFile = "oxide/logs/AutoPurgeLog.txt";
@@ -122,10 +121,9 @@ namespace Oxide.Plugins
         
 		class PlayerInfo
         {
-            public ulong UserID;
 			public string DisplayName;
             public int LastTime;
-			public string ClanTag;
+			public string LastDateTime;
             public PlayerInfo(){}
         }
 
@@ -138,42 +136,26 @@ namespace Oxide.Plugins
 		
 		#region Connection
 		
-		private void InitPlayer(BasePlayer player)
+		private void UpdatePlayer(BasePlayer player)
         {
-            if (player == null || !player.isConnected) return;
+            if (player == null) return;
             PlayerInfo p = null;
             if (!playerConnections.PlayerInfo.TryGetValue(player.userID, out p))
             {
                 var info = new PlayerInfo(); 
-                info.UserID = player.userID;
 				info.DisplayName = player.displayName;
                 info.LastTime = UnixTimeStampUTC();
-                if(Clans && Clans?.Call("GetClanOf", player) != null)
-					info.ClanTag = (string)Clans?.Call("GetClanOf", player);
-				playerConnections.PlayerInfo.Add(info.UserID, info);
+				info.LastDateTime = DateTime.Now.ToString();
+				playerConnections.PlayerInfo.Add(player.userID, info);
                 return;
             }
             else
             {
                 p.LastTime = UnixTimeStampUTC();
+				p.LastDateTime = DateTime.Now.ToString();
 				p.DisplayName = player.displayName;
-				if(Clans && Clans?.Call("GetClanOf", player) != null)
-					p.ClanTag = (string)Clans?.Call("GetClanOf", player);
             }
             return;
-        }
-		
-		private void SaveConnectionData(BasePlayer player)
-        {
-            if (DataExists(player))
-            {
-                playerConnections.PlayerInfo[player.userID].LastTime = UnixTimeStampUTC();
-            }
-            else
-            {
-                InitPlayer(player);
-                SaveConnectionData(player);
-            }
         }
 		
 		#endregion Connection
@@ -187,7 +169,7 @@ namespace Oxide.Plugins
             unixTimeStamp = (Int32)(zuluTime.Subtract(unixEpoch)).TotalSeconds;
             return unixTimeStamp;
         }
-
+        
 		private static DateTime UnixTimeStampToDateTime(double unixTimeStamp)
         {
             return unixTimeStamp > MaxUnixSeconds
@@ -195,13 +177,6 @@ namespace Oxide.Plugins
                : UnixEpoch.AddSeconds(unixTimeStamp);
         }
 
-		private DateTime LastSeen(BasePlayer player)
-        {
-            DateTime date = System.DateTime.Now;
-            if (DataExistsFromID(player.userID)) date = UnixTimeStampToDateTime(playerConnections.PlayerInfo[player.userID].LastTime);
-            return date;
-        }
-		
 		private bool DataExistsFromID(ulong steamid)
         {
             if (playerConnections.PlayerInfo.ContainsKey(steamid)) { return true; }
@@ -217,79 +192,34 @@ namespace Oxide.Plugins
 
 		private bool CheckActiveClanMember(string tag)
 		{
-			foreach( var pair in playerConnections.PlayerInfo)
-				if(pair.Value.ClanTag == tag)
-					if (UnixTimeStampUTC() - playerConnections.PlayerInfo[pair.Value.UserID].LastTime < inactiveAfter)
+			JObject clan = (JObject)Clans.Call("GetClan", tag);
+			if (clan == null) return false;
+			foreach( var member in clan["members"])
+				if (DataExistsFromID(Convert.ToUInt64(member)))
+					if (UnixTimeStampUTC() - playerConnections.PlayerInfo[Convert.ToUInt64(member)].LastTime < inactiveAfter)
 						return true;
-			
 			return false;
 		}
 
 		private bool CheckActiveFriends(ulong id)
 		{
 			foreach( var pair in playerConnections.PlayerInfo)
-				if((bool)Friends?.CallHook("AreFriends", pair.Value.UserID, id))
-					if (UnixTimeStampUTC() - playerConnections.PlayerInfo[pair.Value.UserID].LastTime < inactiveAfter)
+				if((bool)Friends?.CallHook("AreFriends", pair.Key, id))
+					if (UnixTimeStampUTC() - playerConnections.PlayerInfo[pair.Key].LastTime < inactiveAfter)
 						return true;
 			return false;
 		}
 		
-		private void ClanChanges(string tag)
-		{
-			JObject clan = new JObject();
-			JArray members = new JArray();
-			
-			if(Clans?.Call("GetClan", tag) != null)
-				clan = (JObject)Clans?.Call("GetClan", tag);
-			else
-				return;
-
-			members = (JArray) clan["members"];
-			if (members.Count == 0) return;
-			for  (var i = 0; i < members.Count; ++i)
-			{
-				if (DataExistsFromID(Convert.ToUInt64(members[i])))
-				{
-					playerConnections.PlayerInfo[Convert.ToUInt64(members[i])].ClanTag = tag;
-				}
-				else
-				{
-					var player = rust.FindPlayerById(Convert.ToUInt64(members[i]));
-					if (player != null)
-						InitPlayer(player);
-				}
-			}
-		}
-		
-		private void OnClanUpdate(string tag)
-		{
-			ClanChanges(tag);
-		}
-		
-		private void OnClanCreate(string tag)
-		{
-			ClanChanges(tag);
-		}
-
-		private void OnClanDestroy(string tag)
-		{
-			foreach ( var pair in playerConnections.PlayerInfo)
-				if (playerConnections.PlayerInfo[pair.Key].ClanTag == tag)
-					playerConnections.PlayerInfo[pair.Key].ClanTag = null;
-		}
-		
-		
-
 		#region serverhooks
 		
 		private void OnPlayerInit(BasePlayer player)
         {
-            InitPlayer(player);
+            UpdatePlayer(player);
         }
 		
-		private void OnPlayerDisconnected(BasePlayer player, string reason)
+		private void OnPlayerDisconnected(BasePlayer player)
         {
-            SaveConnectionData(player);
+            UpdatePlayer(player);
         }
 		
 		private void OnServerSave()
@@ -301,7 +231,6 @@ namespace Oxide.Plugins
         {
             SaveData();
         }
-		
 		
 		private void Unload()
         {
@@ -319,11 +248,14 @@ namespace Oxide.Plugins
 			if (!permission.PermissionExists(excludePermission)) permission.RegisterPermission(excludePermission, this);
 			playerConnections = Interface.GetMod().DataFileSystem.ReadObject<StoredData>(this.Title);
 			foreach (BasePlayer player in BasePlayer.activePlayerList)
-				InitPlayer(player);
+				UpdatePlayer(player);
 			StoredData cleanedConnections = new StoredData();			
 			foreach( var pair in playerConnections.PlayerInfo)
+			{
 				if(UnixTimeStampUTC()-pair.Value.LastTime < removeRecordAfterDays * 86400)
 					cleanedConnections.PlayerInfo.Add(pair.Key, pair.Value);
+				//cleanedConnections.PlayerInfo[pair.Key].LastDateTime = UnixTimeStampToDateTime(pair.Value.LastTime).ToString();
+			}
 			playerConnections = cleanedConnections;
 			SaveData();
 			cleanedConnections = null;
@@ -338,15 +270,9 @@ namespace Oxide.Plugins
 				TimeSpan ts = TimeSpan.FromSeconds(timerJob);
 				if (timerEnabled)
 				{
-					if (ts.Hours != 0)
-					{
-						Puts("Purge will be executed every: " + ts.Hours.ToString() + " hours, players become inactive after: "+its.Days.ToString()+" days.");
-					}
-					else
-					{
-						Puts("Purge will be executed every: " + ts.Minutes.ToString() + " minutes, players become inactive after: "+its.Minutes.ToString()+" minutes.");
-					}
-					mainTimer = timer.Repeat(timerJob, 0, () => {MainTimer();});
+					Puts($"Purge will be executed every: {ts.TotalHours.ToString("0")} hours ({ts.Days.ToString("0")}D | {ts.Hours.ToString("0")}H | {ts.Minutes.ToString("0")}M | {ts.Seconds.ToString("0")}S)");
+					Puts($"Players become inactive after: {its.TotalDays.ToString("0")} days ({its.Days.ToString("0")}D | {its.Hours.ToString("0")}H | {its.Minutes.ToString("0")}M | {its.Seconds.ToString("0")}S)");
+					timer.Every(timerJob, () => MainTimer(false));
 				}
 				else
 					Puts("Timer function disabled by config. Purge needs to be started by command 'autopurge.run'");
@@ -368,7 +294,6 @@ namespace Oxide.Plugins
 				if (testMode) PrintWarning("Running in TestMode. Nothing will be purged");
 				if (purgeOnStart)
 					MainTimer(true);
-
 			});
 		}
 
@@ -389,7 +314,7 @@ namespace Oxide.Plugins
 			if (owner == 0) return;
 			
 			int count = 0;
-            foreach(var entity in BaseNetworkable.serverEntities.All().Where(p => (p as BaseEntity).OwnerID == owner).ToList())
+            foreach(var entity in BaseNetworkable.serverEntities.Where(p => (p as BaseEntity).OwnerID == owner).ToList())
 			{
 				entity.Kill();
 				count++;
@@ -407,8 +332,13 @@ namespace Oxide.Plugins
 			MainTimer();
         }
 
-        void MainTimer(bool freshStart = false)
+		void MainTimer(bool freshStart = false)
         {
+			if (freshStart)
+			{
+				if (useClansIO && !clansEnabled) return;
+				if (useFriendsApi && !friendsEnabled) return;
+			}
 			if (showMessages && !freshStart)
 			{
 				if(showMessagesAdminOnly)
@@ -429,10 +359,12 @@ namespace Oxide.Plugins
 			List<ulong> ONLINE_PLAYERS = new List<ulong>();
 			List<ulong> EXCLUDE_BY_PERM = new List<ulong>();	
 			foreach (BasePlayer onliner in BasePlayer.activePlayerList)
+			{
 				ONLINE_PLAYERS.Add(onliner.userID);
+				UpdatePlayer(onliner);
+			}
 			
-			var entities = BaseNetworkable.serverEntities.All().Where(p => (p as BaseEntity).OwnerID != 0).ToList();
-			//var entities = BaseNetworkable.serverEntities.All().ToList();
+			var entities = BaseNetworkable.serverEntities.Where(p => (p as BaseEntity).OwnerID != 0).ToList();
 			Puts("Included entity count on this run: "+entities.Count);
 			foreach (var entity in entities)
             {
@@ -444,13 +376,27 @@ namespace Oxide.Plugins
                 {
                     if (UnixTimeStampUTC() - playerConnections.PlayerInfo[owner].LastTime >= inactiveAfter)
 					{ 
+						if (UNIQUE_HITS.Contains(owner))
+						{
+							if (!testMode)
+								entity.Kill();
+							count++;
+							continue;
+						}
+							
+						// PermCheck begin
+						if (permission.UserHasPermission(owner.ToString(), excludePermission))
+						{
+							EXCLUDE_BY_PERM.Add(owner);
+							continue;
+						}
+						// PermCheck end
 						// Clancheck begin
 						if(clansEnabled)
-							if (playerConnections.PlayerInfo[owner].ClanTag != null && !CLANCHECK_NEGATIVE.Contains(owner))
-								if (CheckActiveClanMember(playerConnections.PlayerInfo[owner].ClanTag))
+							if (Clans.Call("GetClanOf", owner) != null && !CLANCHECK_NEGATIVE.Contains(owner))
+								if (CheckActiveClanMember((string)Clans.Call("GetClanOf", owner)))
 								{
 									EXCLUDE_BY_CLAN.Add(owner);
-									//Debug.Log("Exclude by Clan");
 									continue;
 								}
 								else
@@ -462,19 +408,11 @@ namespace Oxide.Plugins
 								if(CheckActiveFriends(owner))
 								{
 									EXCLUDE_BY_FRIEND.Add(owner);
-									//Debug.Log("Exclude by Friend");
 									continue;
 								}
 								else
 									FRIENDCHECK_NEGATIVE.Add(owner);
 						// FriendCheck end
-						// PermCheck begin
-							if (permission.UserHasPermission(owner.ToString(), excludePermission))
-							{
-								EXCLUDE_BY_PERM.Add(owner);
-								continue;
-							}
-						// PermCheck end
 						if (!testMode)
 						{
 							entity.Kill();

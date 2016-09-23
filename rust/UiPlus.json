@@ -2,9 +2,9 @@
     "name": "UiPlus",
     "description": "Adds customizable UI elements containing; active players, maximum slots, sleeping players, and time.",
     "author": "",
-    "version": "1.0.0",
+    "version": "1.1.2",
     "configuration": true,
-    "language": "cs",
+    "language": "cs\r\n",
     "games": [
         "rust"
     ],

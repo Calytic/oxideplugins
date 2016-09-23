@@ -1,0 +1,15 @@
+{
+    "name": "AbsolutCombat",
+    "description": "A Fully Customizable Combat Mod. Create Gear and Weapon Sets that can be unlocked.",
+    "author": "{Midgard}Altimus Maximus",
+    "version": "1.0.1",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

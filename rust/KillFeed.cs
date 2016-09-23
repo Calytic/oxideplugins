@@ -12,7 +12,7 @@ using System.IO;
 
 namespace Oxide.Plugins
 {
-    [Info("Kill Feed", "Tuntenfisch", "1.14.18", ResourceId = 1433)]
+    [Info("Kill Feed", "Tuntenfisch", "1.14.22", ResourceId = 1433)]
     [Description("Displays a basic Kill Feed on screen!")]
     public class KillFeed : RustPlugin
     {
@@ -65,7 +65,6 @@ namespace Oxide.Plugins
         CuiElementContainer[] entries;
 
         List<string> entryLog;
-        List<Key> keys;
         #endregion
 
         #region Hooks
@@ -170,51 +169,6 @@ namespace Oxide.Plugins
         }
 
         /// <summary>
-        /// Handels UI hiding if the player loots an entity.
-        /// </summary>
-        /// <param name="inventory"> The entity who is looting.</param>
-        void OnLootEntity(BasePlayer player)
-        {
-            Player p;
-            if (_players.TryGetValue(player.userID, out p))
-            {
-                DestroyUI(ConvertToSingleContainer(entries), p);
-
-                p.isLooting = true;
-            }
-        }
-
-        /// <summary>
-        /// Handels UI hiding if the player loots an item.
-        /// </summary>
-        /// <param name="inventory"> The inventory of the player who is looting.</param>
-        void OnLootItem(BasePlayer player)
-        {
-            Player p;
-            if (_players.TryGetValue(player.userID, out p))
-            {
-                DestroyUI(ConvertToSingleContainer(entries), p);
-
-                p.isLooting = true;
-            }
-        }
-
-        /// <summary>
-        /// Handels UI hiding if the player loots a player.
-        /// </summary>
-        /// <param name="entity"> The entity who is looting.</param>
-        void OnLootPlayer(BasePlayer player)
-        {
-            Player p;
-            if (_players.TryGetValue(player.userID, out p))
-            {
-                DestroyUI(ConvertToSingleContainer(entries), p);
-
-                p.isLooting = true;
-            }
-        }
-
-        /// <summary>
         /// The entry point for a new Kill Feed entry. Only encompasses players being wounded.
         /// </summary>
         /// <remarks> 
@@ -234,12 +188,6 @@ namespace Oxide.Plugins
 
             if (entryData.weaponInfo == null) return;
 
-            // makes sure that whether a player is looting or not is kept track of properly
-            Player p;
-            if (_players.TryGetValue(player.userID, out p) && p.isLooting)
-            {
-                p.isLooting = false;
-            }
             OnWoundedOrDeath(entryData);
         }
 
@@ -255,7 +203,7 @@ namespace Oxide.Plugins
             if (info == null) return;
 
             if (!enableAnimals && (info.Initiator is BaseNPC || entity is BaseNPC)) return;                     // if animals are off and either the initator or the entity is an animal, return
-            if (!displayPlayerDeaths && (entity.ToPlayer() != null)) return;
+            if (!displayPlayerDeaths && entity.ToPlayer() != null) return;
 
             if (!(entity is BaseNPC) && !(entity is BaseHelicopter) && entity.ToPlayer() == null) return;       // if the entity isn't an animal, patrolhelicopter or player, return
             if ((info.Initiator is BaseNPC || info.Initiator is BaseHelicopter) && entity is BaseNPC) return;   // if the initator is either an animal or a patrolhelicopter and the entity is an animal, return
@@ -267,15 +215,6 @@ namespace Oxide.Plugins
 
             if (entryData.weaponInfo == null) return;
 
-            // makes sure that whether a player is looting or not is kept track of properly
-            if (entity.ToPlayer() != null)
-            {
-                Player p;
-                if (_players.TryGetValue(entity.ToPlayer().userID, out p) && p.isLooting)
-                {
-                    p.isLooting = false;
-                }
-            }
             OnWoundedOrDeath(entryData);
         }
         #endregion
@@ -346,43 +285,6 @@ namespace Oxide.Plugins
                 }
             }
         }
-
-        /// <summary>
-        /// Console command that keeps track of inventories being opened or closed and destroyes or adds the UI accordingly.
-        /// </summary>
-        /// <param name="arg"> Used for getting the userid of the player who entered the command.</param>
-        [ConsoleCommand("killfeed.action")]
-        void ConsoleCommand(ConsoleSystem.Arg arg)
-        {
-            if (arg == null || arg.connection == null) return;
-            if (!arg.HasArgs(2)) return;
-
-            Player p;
-            if (_players.TryGetValue(arg.connection.userid, out p))
-            {
-                if (p.isLooting && arg.Args.Contains("add"))
-                {
-                    if (!p.lastAction.Equals(arg.Args[0]) && arg.Args.Contains("destroy"))
-                    {
-                        p.lastAction = arg.Args[0];
-                        return;
-                    }
-                    p.lastAction = arg.Args[0];
-
-                    p.isLooting = false;
-
-                    AddUI(ConvertToSingleContainer(entries), p);
-                }
-                else if (!p.isLooting && arg.Args.Contains("destroy"))
-                {
-                    p.lastAction = arg.Args[0];
-
-                    DestroyUI(ConvertToSingleContainer(entries), p);
-
-                    p.isLooting = true;
-                }
-            }
-        }
         #endregion
 
         #region Config
@@ -409,19 +311,18 @@ namespace Oxide.Plugins
                 { "formatting",                 new ConfigValue("{initiator}          {hitBone}{weapon}{distance}          {hitEntity}",    "2. Kill Feed", "2.1 formatting") },
                 { "numberOfEntries",            new ConfigValue(3,                                                                          "2. Kill Feed", "2.2 number of entries") },
                 { "destroyAfter",               new ConfigValue(30.0f,                                                                      "2. Kill Feed", "2.3 destroy after") },
-                { "ActionOnKeyUse",             new ConfigValue(GetDefaultKeys(),                                                           "2. Kill Feed", "2.4 Action-On-Key-Use") },
-                { "width",                      new ConfigValue(0.3f,                                                                       "2. Kill Feed", "2.5 Dimensions", "2.5.1 width") },
-                { "iconHalfHeight",             new ConfigValue(0.5f,                                                                       "2. Kill Feed", "2.5 Dimensions", "2.5.2 icon half-height") },
-                { "x",                          new ConfigValue(0.175f,                                                                     "2. Kill Feed", "2.6 Position", "2.6.1 x") },
-                { "y",                          new ConfigValue(0.95f,                                                                      "2. Kill Feed", "2.6 Position", "2.6.2 y") },
-                { "horizontal",                 new ConfigValue(0.0f,                                                                       "2. Kill Feed", "2.7 Spacing", "2.7.1 horizontal") },
-                { "vertical",                   new ConfigValue(-0.005f,                                                                    "2. Kill Feed", "2.7 Spacing", "2.7.2 vertical") },
-                { "in",                         new ConfigValue(0.0f,                                                                       "2. Kill Feed", "2.8 Fade", "2.8.1 in") },
-                { "out",                        new ConfigValue(0.0f,                                                                       "2. Kill Feed", "2.8 Fade", "2.8.2 out") },
-                { "initiator",                  new ConfigValue("#336699",                                                                  "2. Kill Feed", "2.9 Colors", "2.9.1 inititator") },
-                { "info",                       new ConfigValue("#b38600",                                                                  "2. Kill Feed", "2.9 Colors", "2.9.2 info") },
-                { "hitEntity",                  new ConfigValue("#800000",                                                                  "2. Kill Feed", "2.9 Colors", "2.9.3 hit entity") },
-                { "npc",                        new ConfigValue("#267326",                                                                  "2. Kill Feed", "2.9 Colors", "2.9.4 npc") },
+                { "width",                      new ConfigValue(0.3f,                                                                       "2. Kill Feed", "2.4 Dimensions", "2.4.1 width") },
+                { "iconHalfHeight",             new ConfigValue(0.5f,                                                                       "2. Kill Feed", "2.4 Dimensions", "2.4.2 icon half-height") },
+                { "x",                          new ConfigValue(0.175f,                                                                     "2. Kill Feed", "2.5 Position", "2.5.1 x") },
+                { "y",                          new ConfigValue(0.95f,                                                                      "2. Kill Feed", "2.5 Position", "2.5.2 y") },
+                { "horizontal",                 new ConfigValue(0.0f,                                                                       "2. Kill Feed", "2.6 Spacing", "2.6.1 horizontal") },
+                { "vertical",                   new ConfigValue(-0.005f,                                                                    "2. Kill Feed", "2.6 Spacing", "2.6.2 vertical") },
+                { "in",                         new ConfigValue(0.0f,                                                                       "2. Kill Feed", "2.7 Fade", "2.7.1 in") },
+                { "out",                        new ConfigValue(0.0f,                                                                       "2. Kill Feed", "2.7 Fade", "2.7.2 out") },
+                { "initiator",                  new ConfigValue("#336699",                                                                  "2. Kill Feed", "2.8 Colors", "2.8.1 inititator") },
+                { "info",                       new ConfigValue("#b38600",                                                                  "2. Kill Feed", "2.8 Colors", "2.8.2 info") },
+                { "hitEntity",                  new ConfigValue("#800000",                                                                  "2. Kill Feed", "2.8 Colors", "2.8.3 hit entity") },
+                { "npc",                        new ConfigValue("#267326",                                                                  "2. Kill Feed", "2.8 Colors", "2.8.4 npc") },
 
                 { "fileDirectory",              new ConfigValue("http://vignette1.wikia.nocookie.net/play-rust/images/",                    "3. Data", "3.1 file directory") },
                 { "Files",                      new ConfigValue(GetDefaultFiles(),                                                          "3. Data", "3.2 Files") },
@@ -430,32 +331,6 @@ namespace Oxide.Plugins
                 { "BoneNames",                  new ConfigValue(GetDefaultBoneNames(),                                                      "3. Data", "3.5 Bone Names") },
                 { "AllowedSpecialCharacters",   new ConfigValue(GetDefaultAllowedSpecialCharacters(),                                       "3. Data", "3.6 Allowed Special Characters") },
             };
-
-            private static List<Key> GetDefaultKeys()
-            {
-                List<Key> keys = new List<Key>()
-                {
-                    new Key
-                    {
-                        key = "tab",
-                        action = "inventory.toggle;killfeed.action 0 add destroy",
-                        defaultAction = "inventory.toggle",
-                    },
-                    new Key
-                    {
-                        key = "q",
-                        action = "inventory.togglecrafting;killfeed.action 1 add destroy",
-                        defaultAction = "inventory.togglecrafting",
-                    },
-                    new Key
-                    {
-                        key = "escape",
-                        action = "killfeed.action 2 add",
-                        defaultAction = ""
-                    }
-                };
-                return keys;
-            }
 
             private static Dictionary<string, string> GetDefaultFiles()
             {
@@ -469,7 +344,7 @@ namespace Oxide.Plugins
                     { "bone.club", "1/19/Bone_Club_icon.png" },
                     { "bow.hunting", "2/25/Hunting_Bow_icon.png" },
                     { "crossbow", "2/23/Crossbow_icon.png" },
-                    { "explosive.satchel", "http://i.imgur.com/z4P1a22.png" },
+                    { "explosive.satchel", "0/0b/Satchel_Charge_icon.png" },
                     { "explosive.timed", "6/6c/Timed_Explosive_Charge_icon.png" },
                     { "flamethrower", "5/55/Flame_Thrower_icon.png" },
                     { "gates.external.high.stone", "8/85/High_External_Stone_Gate_icon.png" },
@@ -492,6 +367,7 @@ namespace Oxide.Plugins
                     { "pistol.semiauto", "6/6b/Semi-Automatic_Pistol_icon.png" },
                     { "rifle.ak", "d/d1/Assault_Rifle_icon.png" },
                     { "rifle.bolt", "5/55/Bolt_Action_Rifle_icon.png" },
+                    { "rifle.lr300", "d/d9/LR-300_Assault_Rifle_icon.png" },
                     { "rifle.semiauto", "8/8d/Semi-Automatic_Rifle_icon.png" },
                     { "rock", "f/ff/Rock_icon.png" },
                     { "rocket.launcher", "0/06/Rocket_Launcher_icon.png" },
@@ -499,7 +375,7 @@ namespace Oxide.Plugins
                     { "salvaged.sword", "7/77/Salvaged_Sword_icon.png" },
                     { "shotgun.pump", "6/60/Pump_Shotgun_icon.png" },
                     { "shotgun.waterpipe", "1/1b/Waterpipe_Shotgun_icon.png" },
-                    { "shotgun.double", "http://i.imgur.com/tfyKbCy.png" },
+                    { "shotgun.double", "3/3f/Double_Barrel_Shotgun_icon.png" },
                     { "smg.2", "9/95/Custom_SMG_icon.png" },
                     { "smg.thompson", "4/4e/Thompson_icon.png" },
                     { "spear.stone", "0/0a/Stone_Spear_icon.png" },
@@ -874,7 +750,6 @@ namespace Oxide.Plugins
             iconHalfWidth = iconHalfHeight * _screenAspectRatio / (width / _height);
 
             destroyAfter = GetConfig<float>(ref saveConfig, DefaultConfig.values["destroyAfter"]);
-            keys = GetConfig<List<Key>>(ref saveConfig, DefaultConfig.values["ActionOnKeyUse"]);
 
             float x = GetConfig<float>(ref saveConfig, DefaultConfig.values["x"]);
             float y = GetConfig<float>(ref saveConfig, DefaultConfig.values["y"]);
@@ -1192,9 +1067,6 @@ namespace Oxide.Plugins
         {
             public bool enabled { get; set; } = true;
 
-            public bool isLooting { get; set; }
-            public bool isVisible { get; set; }
-
             public string username { get; private set; }
             public string lastAction { get; set; }
 
@@ -1242,11 +1114,6 @@ namespace Oxide.Plugins
         {
             if (_players == null) return;
 
-            foreach (Key key in keys)
-            {
-                ConsoleNetwork.SendClientCommand(player.net.connection, "bind" + " " + key.key + " " + key.action);
-            }
-
             string username = FormatUsername(player.displayName);
 
             _players[player.userID] = new Player(player.net.connection, username);
@@ -1259,11 +1126,6 @@ namespace Oxide.Plugins
         void RemovePlayer(BasePlayer player)
         {
             if (_players == null) return;
-
-            foreach (Key key in keys)
-            {
-                ConsoleNetwork.SendClientCommand(player.net.connection, "bind" + " " + key.key + " " + key.defaultAction);
-            }
 
             _players.Remove(player.userID);
         }
@@ -1626,7 +1488,7 @@ namespace Oxide.Plugins
 
                         case DamageType.Radiation:
                         case DamageType.RadiationExposure:
-                            if (string.IsNullOrEmpty(weapon)) weapon = "radiaton";
+                            if (string.IsNullOrEmpty(weapon)) weapon = "radiation";
                             selfInflicted = true;
                             break;
 
@@ -1961,15 +1823,9 @@ namespace Oxide.Plugins
         /// <seealso cref="Player.DelayedDestroyUI(float)"/>
         static void AddUI(CuiElementContainer elements, Player player)
         {
-            if (player.isVisible) return;
-
             if (player.connection == null || !player.enabled) return;
 
-            if (player.isLooting) return;
-
             CommunityEntity.ServerInstance.ClientRPCEx(new SendInfo(player.connection), null, "AddUI", new Facepunch.ObjectList(elements.ToJson()));
-
-            player.isVisible = true;
         }
 
         /// <summary>
@@ -1991,18 +1847,12 @@ namespace Oxide.Plugins
         /// <param name="player"> The player that should have his UI elements destroyed.</param>
         static void DestroyUI(CuiElementContainer elements, Player player)
         {
-            if (!player.isVisible) return;
-
             if (player.connection == null || !player.enabled) return;
-
-            if (player.isLooting) return;
 
             foreach (CuiElement element in elements)
             {
                 CommunityEntity.ServerInstance.ClientRPCEx(new SendInfo(player.connection), null, "DestroyUI", new Facepunch.ObjectList(element.Name));
             }
-
-            player.isVisible = false;
         }
 
         /// <summary>

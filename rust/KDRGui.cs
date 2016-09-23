@@ -1,13 +1,12 @@
 using System.Collections.Generic;
 using Newtonsoft.Json;
-using UnityEngine;
 using Oxide.Core;
 using System.Linq;
 using System;
 
 namespace Oxide.Plugins
 {
-    [Info("KDRGui", "Ankawi/LaserHydra", "1.0.3")]
+    [Info("KDRGui", "Ankawi/LaserHydra", "1.0.4")]
     [Description("GUI that portrays kills, deaths, player name, and K/D Ratio")]
     class KDRGui : RustPlugin
     {
@@ -261,13 +260,18 @@ namespace Oxide.Plugins
         {
             PlayerData.TryLoad(player);
         }
-        void LoadSleeperData()
+        //void LoadSleeperData()
+        //{
+        //    var sleepers = BasePlayer.sleepingPlayerList;
+        //    foreach(var sleeper in sleepers)
+        //    {
+        //        PlayerData.TryLoad(sleeper);
+        //        Puts("Loaded sleeper data");
+        //    }
+        //}
+        void OnPlayerDisconnected(BasePlayer player)
         {
-            var sleepers = BasePlayer.sleepingPlayerList;
-            foreach(var sleeper in sleepers.ToArray())
-            {
-                PlayerData.TryLoad(sleeper);
-            }
+            PlayerData.TryLoad(player);
         }
 
         void Unloaded()
@@ -311,29 +315,34 @@ namespace Oxide.Plugins
         }
         void OnEntityDeath(BaseCombatEntity entity, HitInfo info)
         {
-            if (info?.HitBone == null) return;
-
-            if (entity == null || info.Initiator == null) return;
-
-            if (info?.Initiator?.ToPlayer() == null && (entity?.name?.Contains("autospawn") ?? false))
-                return;
-            if (entity.ToPlayer() != null)
+            try
             {
-                if (entity.ToPlayer().IsWounded())
-                    info = TryGetLastWounded(entity.ToPlayer().userID, info);
+                if (entity == info.Initiator) return;
+                if (entity == null || info.Initiator == null) return;
+
+                if (info?.Initiator?.ToPlayer() == null && (entity?.name?.Contains("autospawn") ?? false))
+                    return;
+                if (entity.ToPlayer() != null)
+                {
+                    if (entity.ToPlayer().IsWounded())
+                    {
+                        info = TryGetLastWounded(entity.ToPlayer().userID, info);
+                    }
+                }
+                if (entity != null && entity is BasePlayer && info?.Initiator != null && info.Initiator is BasePlayer)
+                {
+                    PlayerData victimData = PlayerData.Find((BasePlayer)entity);
+                    PlayerData attackerData = PlayerData.Find((BasePlayer)info.Initiator);
+
+                    victimData.deaths++;
+                    attackerData.kills++;
+
+                    victimData.Save();
+                    attackerData.Save();
+                }
             }
-
-            if (entity == info.Initiator) return;
-            if (entity != null && entity is BasePlayer && info?.Initiator != null && info.Initiator is BasePlayer)
-            {
-                PlayerData victimData = PlayerData.Find((BasePlayer)entity);
-                PlayerData attackerData = PlayerData.Find((BasePlayer)info.Initiator);
-
-                victimData.deaths++;
-                attackerData.kills++;
-
-                victimData.Save();
-                attackerData.Save();
+            catch (Exception ex)
+            {              
             }
         }
         #endregion

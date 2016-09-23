@@ -1,8 +1,8 @@
 {
     "name": "Factions",
     "description": "A Faction system with Leaders, Taxes, Trades, Ranks, Kill Rewards, and MORE!",
-    "author": "",
-    "version": "3.3.6",
+    "author": "{Midgard}Altimus Maximus",
+    "version": "3.4.0",
     "configuration": true,
     "suggest": {
         "Economics": "*",

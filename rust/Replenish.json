@@ -2,7 +2,7 @@
     "name": "Replenish",
     "description": "Easily reset\/replenish loot in storage boxes and containers after a certain amount of time.",
     "author": "Skrallex",
-    "version": "1.2.1",
+    "version": "1.2.2",
     "configuration": true,
     "language": "cs",
     "games": [

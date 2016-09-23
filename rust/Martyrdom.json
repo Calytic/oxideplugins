@@ -2,7 +2,7 @@
     "name": "Martyrdom",
     "description": "Drop a grenade\/beancan grenade\/timed explosive on death",
     "author": "k1lly0u",
-    "version": "0.1.2",
+    "version": "0.2.0",
     "configuration": true,
     "language": "cs",
     "games": [

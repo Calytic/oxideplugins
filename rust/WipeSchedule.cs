@@ -4,7 +4,7 @@ using System.Globalization;
 
 namespace Oxide.Plugins
 {
-    [Info("WipeSchedule", "k1lly0u", "2.0.1", ResourceId = 1451)]
+    [Info("WipeSchedule", "k1lly0u", "2.0.2", ResourceId = 1451)]
     class WipeSchedule : RustPlugin
     {
         #region Fields
@@ -40,33 +40,30 @@ namespace Oxide.Plugins
         void Unload() => announceTimer.Destroy();
         #endregion
 
-        #region Functions
+        #region Functions        
+        private DateTime ParseTime(string time) => DateTime.ParseExact(time, configData.DateFormat, CultureInfo.InvariantCulture);
         private void UpdateWipeDates()
         {
-            NextWipeDate = DateTime.Parse(configData.LastWipe, CultureInfo.CreateSpecificCulture(configData.RegionalDateType));
+            NextWipeDate = ParseTime(configData.LastWipe);
             NextWipeDate = NextWipeDate.AddDays(configData.DaysBetweenWipes);
-            NextWipeDateXP = DateTime.Parse(configData.LastXPWipe, CultureInfo.CreateSpecificCulture(configData.RegionalDateType));
+            NextWipeDateXP = ParseTime(configData.LastXPWipe);
             NextWipeDateXP = NextWipeDateXP.AddDays(configData.DaysBetweenXPWipes);
         }
         private void LoadWipeDates()
         {
-            NextWipeDate = DateTime.Parse(configData.NextWipe, CultureInfo.CreateSpecificCulture(configData.RegionalDateType));
-            NextWipeDateXP = DateTime.Parse(configData.NextXPWipe, CultureInfo.CreateSpecificCulture(configData.RegionalDateType));
+            NextWipeDate = ParseTime(configData.LastWipe);
+            NextWipeDateXP = ParseTime(configData.LastXPWipe);
         }
-        private string NextWipeDays(DateTime WipeDate, DateTime LastWipevar)
+        private string NextWipeDays(DateTime WipeDate)
         {
-            var TimeNow = DateTime.Parse(DateTime.Now.ToString(configData.DateFormat), CultureInfo.CreateSpecificCulture(configData.RegionalDateType));
-            TimeSpan t = WipeDate.Subtract(TimeNow);
-
-            string TimeLeft = string.Format(string.Format("{0:D2} Days",t.Days));
-
-            return TimeLeft;
+            TimeSpan t = WipeDate.Subtract(DateTime.Now);
+            return string.Format(string.Format("{0:D2} Days",t.Days));
         }
         private void BroadcastWipe()
         {
-            PrintToChat(string.Format(MSG("lastMapWipe", null), configData.LastWipe, NextWipeDays(NextWipeDate, DateTime.Parse(configData.LastWipe))));
+            PrintToChat(string.Format(MSG("lastMapWipe", null), configData.LastWipe, NextWipeDays(NextWipeDate)));
             if (configData.ShowXPWipeSchedule)
-                PrintToChat(string.Format(MSG("lastXPWipe", null), configData.LastWipe, NextWipeDays(NextWipeDateXP, DateTime.Parse(configData.LastXPWipe))));
+                PrintToChat(string.Format(MSG("lastXPWipe", null), configData.LastWipe, NextWipeDays(NextWipeDateXP)));
         }
         #endregion
 
@@ -74,9 +71,9 @@ namespace Oxide.Plugins
         [ChatCommand("nextwipe")]
         private void cmdNextWipe(BasePlayer player, string command, string[] args)
         {
-            SendReply(player, string.Format(MSG("lastMapWipe", player.UserIDString), configData.LastWipe, NextWipeDays(NextWipeDate, DateTime.Parse(configData.LastWipe))));
+            SendReply(player, string.Format(MSG("lastMapWipe", player.UserIDString), configData.LastWipe, NextWipeDays(NextWipeDate)));
             if (configData.ShowXPWipeSchedule)
-                SendReply(player, string.Format(MSG("lastXPWipe", player.UserIDString), configData.LastXPWipe, NextWipeDays(NextWipeDateXP, DateTime.Parse(configData.LastXPWipe))));
+                SendReply(player, string.Format(MSG("lastXPWipe", player.UserIDString), configData.LastXPWipe, NextWipeDays(NextWipeDateXP)));
         }
         [ChatCommand("setwipe")]
         private void cmdSetWipe(BasePlayer player, string command, string[] args)
@@ -96,7 +93,7 @@ namespace Oxide.Plugins
                 {
                     case "map":
                         {
-                            configData.LastWipe = DateTime.Now.Date.ToString("MM/dd/yyyy");
+                            configData.LastWipe = DateTime.Now.Date.ToString(configData.DateFormat);
                             SaveConfig(configData);
                             UpdateWipeDates();
                             SendReply(player, string.Format(MSG("savedWipeMap", player.UserIDString), configData.LastWipe));
@@ -104,7 +101,7 @@ namespace Oxide.Plugins
                         return;
                     case "xp":
                         {
-                            configData.LastXPWipe = DateTime.Now.Date.ToString("MM/dd/yyyy");
+                            configData.LastXPWipe = DateTime.Now.Date.ToString(configData.DateFormat);
                             SaveConfig(configData);
                             UpdateWipeDates();
                             SendReply(player, string.Format(MSG("savedWipeXP", player.UserIDString), configData.LastXPWipe));
@@ -123,7 +120,7 @@ namespace Oxide.Plugins
                             DateTime time;
                             if (DateTime.TryParse(args[1], out time))
                             {
-                                configData.LastWipe = time.ToString("MM/dd/yyyy");
+                                configData.LastWipe = time.ToString(configData.DateFormat);
                                 SaveConfig(configData);
                                 UpdateWipeDates();
                                 SendReply(player, string.Format(MSG("savedWipeMap", player.UserIDString), configData.LastWipe));
@@ -135,7 +132,7 @@ namespace Oxide.Plugins
                             DateTime time;
                             if (DateTime.TryParse(args[1], out time))
                             {
-                                configData.LastXPWipe = time.ToString("MM/dd/yyyy");
+                                configData.LastXPWipe = time.ToString(configData.DateFormat);
                                 SaveConfig(configData);
                                 UpdateWipeDates();
                                 SendReply(player, string.Format(MSG("savedWipeXP", player.UserIDString), configData.LastXPWipe));
@@ -166,7 +163,7 @@ namespace Oxide.Plugins
                     {
                         case "map":
                             {
-                                configData.LastWipe = DateTime.Now.Date.ToString("MM/dd/yyyy");
+                                configData.LastWipe = DateTime.Now.Date.ToString(configData.DateFormat);
                                 SaveConfig(configData);
                                 UpdateWipeDates();
                                 SendReply(arg, string.Format(MSG("savedWipeMap", null), configData.LastWipe));
@@ -174,7 +171,7 @@ namespace Oxide.Plugins
                             return;
                         case "xp":
                             {
-                                configData.LastXPWipe = DateTime.Now.Date.ToString("MM/dd/yyyy");
+                                configData.LastXPWipe = DateTime.Now.Date.ToString(configData.DateFormat);
                                 SaveConfig(configData);
                                 UpdateWipeDates();
                                 SendReply(arg, string.Format(MSG("savedWipeXP", null), configData.LastXPWipe));
@@ -205,7 +202,7 @@ namespace Oxide.Plugins
                             DateTime time;
                             if (DateTime.TryParse(args[1], out time))
                             {
-                                configData.NextWipe = time.ToString("MM/dd/yyyy");
+                                configData.NextWipe = time.ToString(configData.DateFormat);
                                 SaveConfig(configData);
                                 LoadWipeDates();
                                 SendReply(player, string.Format(MSG("savedNextWipeMap", player.UserIDString), configData.NextWipe));
@@ -217,7 +214,7 @@ namespace Oxide.Plugins
                             DateTime time;
                             if (DateTime.TryParse(args[1], out time))
                             {
-                                configData.NextXPWipe = time.ToString("MM/dd/yyyy");
+                                configData.NextXPWipe = time.ToString(configData.DateFormat);
                                 SaveConfig(configData);
                                 LoadWipeDates();
                                 SendReply(player, string.Format(MSG("savedNextWipeXP", player.UserIDString), configData.NextXPWipe));
@@ -250,7 +247,7 @@ namespace Oxide.Plugins
                         case "map":                           
                             if (DateTime.TryParse(arg.Args[1], out time))
                             {
-                                configData.NextWipe = time.ToString("MM/dd/yyyy");
+                                configData.NextWipe = time.ToString(configData.DateFormat);
                                 SaveConfig(configData);
                                 LoadWipeDates();
                                 SendReply(arg, string.Format(MSG("savedNextWipeMap"), configData.NextWipe));
@@ -259,7 +256,7 @@ namespace Oxide.Plugins
                         case "xp":
                             if (DateTime.TryParse(arg.Args[1], out time))
                             {
-                                configData.NextXPWipe = time.ToString("MM/dd/yyyy");
+                                configData.NextXPWipe = time.ToString(configData.DateFormat);
                                 SaveConfig(configData);
                                 LoadWipeDates();
                                 SendReply(arg, string.Format(MSG("savedNextWipeXP"), configData.NextXPWipe));
@@ -277,7 +274,6 @@ namespace Oxide.Plugins
         private ConfigData configData;
         class ConfigData
         {
-            public string RegionalDateType { get; set; }
             public string DateFormat { get; set; }
             public int DaysBetweenWipes { get; set; }
             public int DaysBetweenXPWipes { get; set; }
@@ -293,7 +289,15 @@ namespace Oxide.Plugins
         }
         private void LoadVariables()
         {
-            LoadConfigVariables();
+            LoadConfigVariables();            
+            if (string.IsNullOrEmpty(configData.LastWipe))
+                configData.LastWipe = DateTime.Now.ToString(configData.DateFormat);
+            if (string.IsNullOrEmpty(configData.LastXPWipe))
+                configData.LastXPWipe = DateTime.Now.ToString(configData.DateFormat);
+            if (string.IsNullOrEmpty(configData.NextWipe))
+                configData.NextWipe = DateTime.Now.ToString(configData.DateFormat);
+            if (string.IsNullOrEmpty(configData.NextXPWipe))
+                configData.NextXPWipe = DateTime.Now.ToString(configData.DateFormat);
             SaveConfig();
         }
         protected override void LoadDefaultConfig()
@@ -306,12 +310,11 @@ namespace Oxide.Plugins
                 DateFormat = "MM/dd/yyyy",
                 DaysBetweenWipes = 14,
                 DaysBetweenXPWipes = 14,
-                LastWipe = DateTime.Now.Date.ToString("MM/dd/yyyy"),
-                LastXPWipe = DateTime.Now.Date.ToString("MM/dd/yyyy"),
+                LastWipe = "",
+                LastXPWipe = "",
                 UseManualNextWipe = false,
-                NextWipe = DateTime.Now.Date.ToString("MM/dd/yyyy"),
-                NextXPWipe = DateTime.Now.Date.ToString("MM/dd/yyyy"),
-                RegionalDateType = "en-US",
+                NextWipe = "",
+                NextXPWipe = "",
                 ShowXPWipeSchedule = true
         };
             SaveConfig(config);

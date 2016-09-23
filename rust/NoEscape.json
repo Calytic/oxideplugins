@@ -1,8 +1,8 @@
 {
     "name": "NoEscape",
-    "description": "Prevent teleportation (and remover tool) while raid\/combat is occuring",
+    "description": "Prevent teleportation (and more) while in raid or combat",
     "author": "Calytic",
-    "version": "0.3.4",
+    "version": "0.3.81",
     "configuration": true,
     "suggest": {
         "Clans": "*",
@@ -11,7 +11,11 @@
         "m-Teleportation": "*",
         "MagicTeleportation": "*",
         "NTeleportation": "*",
-        "BuildingGrades": "*"
+        "BuildingGrades": "*",
+        "ZoneManager": "*",
+        "Trade": "*",
+        "Recycle": "*",
+        "Bank": "*"
     },
     "language": "cs",
     "games": [

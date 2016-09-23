@@ -6,7 +6,7 @@ using Rust;
 namespace Oxide.Plugins
 {
 
-    [Info("Building Protector", "Onyx", "1.2.0", ResourceId=1200)]
+    [Info("Building Protector", "Onyx", "1.2.1", ResourceId=1200)]
     class BuildingProtector : RustPlugin
     {
 
@@ -70,7 +70,6 @@ namespace Oxide.Plugins
         {
             Log("Created a new default configuration file.");
             Config.Clear();
-            LoadVariables();
         }
 
         void Loaded()
@@ -231,20 +230,26 @@ namespace Oxide.Plugins
 
         void OnEntityTakeDamage(BaseCombatEntity entity, HitInfo info)
         {
-            var block = entity as BuildingBlock;
-            if (!block) return;
-            if (protectAllBuildingBlocks)
-                info.damageTypes = new DamageTypeList();
-
-            if (info.damageTypes.Total() != 0f) return;
-
-            var player = info.Initiator as BasePlayer;
-            if (player && informPlayer && onlinePlayers[player].LastInformTime + informInterval < GetTimestamp())
+            if (!(entity is LootContainer) && !(entity is BaseHelicopter)
+                && !(entity is BaseNPC) && !(entity is BasePlayer))
             {
-                onlinePlayers[player].LastInformTime = GetTimestamp();
-				String startHour = protector.startRaid.Hour + "h " + protector.startRaid.Minute + "m " + protector.startRaid.Second + "s";
-				String endHour = protector.endRaid.Hour + "h " + protector.endRaid.Minute + "m " + protector.endRaid.Second + "s";
-                SendChatMessage(player, informMessage, startHour, endHour);
+                if (protectAllBuildingBlocks)
+                {
+                    info.damageTypes = new DamageTypeList();
+                    info.DoHitEffects = false;
+                    info.HitMaterial = 0;
+                }
+
+                if (info.damageTypes.Total() != 0f) return;
+
+                var player = info.Initiator as BasePlayer;
+                if (player && informPlayer && onlinePlayers[player].LastInformTime + informInterval < GetTimestamp())
+                {
+                    onlinePlayers[player].LastInformTime = GetTimestamp();
+				    String startHour = protector.startRaid.Hour + "h " + protector.startRaid.Minute + "m " + protector.startRaid.Second + "s";
+				    String endHour = protector.endRaid.Hour + "h " + protector.endRaid.Minute + "m " + protector.endRaid.Second + "s";
+                    SendChatMessage(player, informMessage, startHour, endHour);
+                }
             }
         }
 

@@ -2,7 +2,7 @@
     "name": "ReplaceOnBroken",
     "description": "Replaces the active broken item with a not broken item if in inventory",
     "author": "Wulf",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "configuration": false,
     "language": "cs",
     "games": [

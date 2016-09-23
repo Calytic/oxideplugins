@@ -2,11 +2,12 @@
     "name": "Rewards",
     "description": "Reward players for killing animals, players, entities, and activity using Economics\/ServerRewards",
     "author": "",
-    "version": "1.2.7",
+    "version": "1.3.5",
     "configuration": true,
     "suggest": {
         "Friends": "*",
-        "Clans": "*"
+        "Clans": "*",
+        "HumanNPC": "*"
     },
     "require": {
         "Economics": "*",

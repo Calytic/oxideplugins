@@ -9,7 +9,7 @@ using System.Collections.Generic;
 
 namespace Oxide.Plugins
 {
-    [Info("ReplaceOnBroken", "Wulf/lukespragg", "2.0.0", ResourceId = 1173)]
+    [Info("ReplaceOnBroken", "Wulf/lukespragg", "2.1.0", ResourceId = 1173)]
     [Description("Replaces the active broken item with a not broken item if in inventory")]
 
     class ReplaceOnBroken : RustPlugin
@@ -19,23 +19,20 @@ namespace Oxide.Plugins
         #region Initialization
 
         const string permAllow = "replaceonbroken.allow";
-
-        void Init()
-        {
-            LoadDefaultConfig();
-            permission.RegisterPermission(permAllow, this);
-        }
-
-        #endregion
-
-        #region Configuration
-
+        bool usePermissions;
         List<object> exclusions;
 
         protected override void LoadDefaultConfig()
         {
             Config["ItemExclusions"] = exclusions = GetConfig("ItemExclusions", new List<object> { "item.shortname", "otheritem.name" });
+            Config["UsePermissions"] = usePermissions = GetConfig("UsePermissions", true);
             SaveConfig();
+        }
+
+        void Init()
+        {
+            LoadDefaultConfig();
+            permission.RegisterPermission(permAllow, this);
         }
 
         #endregion
@@ -48,8 +45,10 @@ namespace Oxide.Plugins
             if (!(oldItem.condition <= amount)) return;
             if (exclusions.Contains(oldItem.info.shortname)) return;
 
-            var player = oldItem.parent.playerOwner;
-            if (!permission.UserHasPermission(player.UserIDString, permAllow)) return;
+            var player = oldItem.parent?.playerOwner;
+            if (player == null) return;
+
+            if (usePermissions && !permission.UserHasPermission(player.UserIDString, permAllow)) return;
 
             var main = player.inventory.containerMain;
             foreach (var newItem in main.itemList)

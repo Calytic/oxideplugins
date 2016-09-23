@@ -1,0 +1,15 @@
+{
+    "name": "Insults",
+    "description": "Insult yourself or another player.",
+    "author": "Spicy",
+    "version": "1.0.1",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "Universal"
+    ],
+    "keywords": [
+        "oxide",
+        "Universal"
+    ]
+}

@@ -2,7 +2,7 @@
     "name": "Block Remover",
     "description": "Allows admins to count and remove building blocks outside of cupboard range",
     "author": "Nogrod",
-    "version": "0.4.0",
+    "version": "0.4.1",
     "configuration": false,
     "language": "cs",
     "games": [

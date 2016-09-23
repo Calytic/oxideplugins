@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Build", "Reneb & NoGrod", "1.1.6", ResourceId = 715)]
+    [Info("Build", "Reneb & NoGrod", "1.1.7", ResourceId = 715)]
     class Build : RustPlugin
     {
         class BuildPlayer : MonoBehaviour
@@ -581,7 +581,7 @@ namespace Oxide.Plugins
             }
             newBaseEntity.SendMessage("SetDeployedBy", player, UnityEngine.SendMessageOptions.DontRequireReceiver);
             newBaseEntity.SendMessage("InitializeItem", newItem, UnityEngine.SendMessageOptions.DontRequireReceiver);
-            newBaseEntity.Spawn(true);
+            newBaseEntity.Spawn();
         }
 
         /////////////////////////////////////////////////////
@@ -601,7 +601,7 @@ namespace Oxide.Plugins
             block.transform.rotation = angles;
             block.gameObject.SetActive(true);
             block.blockDefinition = PrefabAttribute.server.Find<Construction>(block.prefabID);
-            block.Spawn(true);
+            block.Spawn();
             block.SetGrade(grade);
             if (health <= 0f)
                 block.health = block.MaxHealth();
@@ -617,14 +617,14 @@ namespace Oxide.Plugins
         private static void SpawnResource(string prefab, Vector3 pos, Quaternion angles)
         {
             BaseEntity entity = GameManager.server.CreateEntity(prefab, pos, angles, true);
-            entity?.Spawn(true);
+            entity?.Spawn();
         }
 
         private static void SpawnAnimal(string prefab, Vector3 pos, Quaternion angles)
         {
             var createdPrefab = GameManager.server.CreateEntity(prefab, pos, angles, true);
             BaseEntity entity = createdPrefab?.GetComponent<BaseEntity>();
-            entity?.Spawn(true);
+            entity?.Spawn();
         }
 
         /////////////////////////////////////////////////////

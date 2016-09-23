@@ -18,7 +18,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("LootConfig", "Nogrod", "1.0.13")]
+    [Info("LootConfig", "Nogrod", "1.0.14")]
     internal class LootConfig : RustPlugin
     {
         private const int VersionConfig = 7;
@@ -162,10 +162,16 @@ namespace Oxide.Plugins
             foreach (var spawnGroup in spawnGroups)
             {
                 Dictionary<string, LootContainer> spawnGroupData;
-                if (!spawnGroupsData.TryGetValue(GetSpawnGroupKey(spawnGroup, monuments, indexes), out spawnGroupData))
-                    spawnGroupsData[GetSpawnGroupKey(spawnGroup, monuments, indexes)] = spawnGroupData = new Dictionary<string, LootContainer>();
+                var spawnGroupKey = GetSpawnGroupKey(spawnGroup, monuments, indexes);
+                if (spawnGroup.prefabs == null) continue;
+                if (!spawnGroupsData.TryGetValue(spawnGroupKey, out spawnGroupData))
+                    spawnGroupsData[spawnGroupKey] = spawnGroupData = new Dictionary<string, LootContainer>();
                 foreach (var entry in spawnGroup.prefabs)
-                    spawnGroupData[entry.prefab.Get().GetComponent<LootContainer>().PrefabName] = entry.prefab.Get().GetComponent<LootContainer>();
+                {
+                    var lootContainer = entry.prefab?.Get()?.GetComponent<LootContainer>();
+                    if (lootContainer == null) continue;
+                    spawnGroupData[lootContainer.PrefabName] = lootContainer;
+                }
             }
             var containerData = new Dictionary<string, LootContainer>();
             var allPrefabs = GameManifest.Get().pooledStrings.ToList().ConvertAll(p => p.str).Where(p => _findLoot.IsMatch(p)).ToArray();
@@ -275,7 +281,7 @@ namespace Oxide.Plugins
             Puts("LootContainer: {0} LootSpawn: {1} ItemModReveal: {2}", lootContainers.Length, lootSpawnsOld.Length, itemModReveals.Length);
 #endif
             var spawnGroups = (List<SpawnGroup>)SpawnGroupsField.GetValue(SpawnHandler.Instance);
-            var spawnGroupsEnabled = !spawnGroups.Any(spawnGroup => spawnGroup.prefabs.Any(entry => GameManager.server.FindPrefab(entry.prefab.Get().GetComponent<LootContainer>().PrefabName) == entry.prefab.Get()));
+            var spawnGroupsEnabled = !spawnGroups.Any(spawnGroup => spawnGroup.prefabs.Any(entry => GameManager.server.FindPrefab(entry.prefab.Get().GetComponent<BaseNetworkable>().PrefabName) == entry.prefab.Get()));
             var lootSpawns = new Dictionary<string, LootSpawn>();
             var indexes = GetSpawnGroupIndexes(spawnGroups, monuments);
             foreach (var lootContainer in lootContainers)
@@ -386,6 +392,7 @@ namespace Oxide.Plugins
 
         private void UpdateLootContainer(Dictionary<string, LootContainerData> containerData, LootContainer container, Dictionary<string, LootSpawn> lootSpawns)
         {
+            if (container == null) return;
             LootContainerData containerConfig;
             if (containerData == null || !containerData.TryGetValue(container.PrefabName, out containerConfig))
             {

@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-	[Info("ExplodingBarrels", "ignignokt84", "0.2.3", ResourceId = 1902)]
+	[Info("ExplodingBarrels", "ignignokt84", "0.2.4", ResourceId = 1902)]
 	class ExplodingBarrels : RustPlugin
 	{
 		// list of barrels containing explosives
@@ -237,7 +237,7 @@ namespace Oxide.Plugins
 		// Check all existing barrels for rockets
 		void checkAllBarrels()
 		{
-			foreach (LootContainer container in BaseNetworkable.serverEntities.entityList.Values.OfType<LootContainer>())
+			foreach (LootContainer container in GameObject.FindObjectsOfType<LootContainer>())
 				OnEntitySpawned(container);
 		}
 		

@@ -5,7 +5,7 @@ using Oxide.Core;
 using UnityEngine;
 
 namespace Oxide.Plugins {
-    [Info("Replenish", "Skrallex", "1.2.1", ResourceId = 1956)]
+    [Info("Replenish", "Skrallex", "1.2.2", ResourceId = 1956)]
     [Description("Easily replenish chests")]
     class Replenish : RustPlugin {
     	List<ReplenishableContainer> containers = new List<ReplenishableContainer>();
@@ -261,7 +261,7 @@ namespace Oxide.Plugins {
         	}
         	if(args.Length == 1) {
         		if(!Int32.TryParse(args[0], out timer)) {
-        			ReplyFormatted(player, "InvalidTimer");
+        			ReplyPlayer(player, "InvalidTimer");
         			return;
         		}
         	}
@@ -281,7 +281,7 @@ namespace Oxide.Plugins {
         	}
         	if(args.Length == 1) {
         		if(!Int32.TryParse(args[0], out timer)) {
-        			ReplyFormatted(player, "InvalidTimer");
+        			ReplyPlayer(player, "InvalidTimer");
         			return;
         		}
         	}
@@ -316,6 +316,10 @@ namespace Oxide.Plugins {
 				ReplyPlayer(player, "NoPermission");
 				return;
 			}
+            if(args.Length == 1) {
+                RemoveByID(player, args[0]);
+                return;
+            }
 			Remove(player, false);
 		}
 
@@ -348,6 +352,17 @@ namespace Oxide.Plugins {
 			}
 			rPlayer.removing = true;
 		}
+
+        void RemoveByID(BasePlayer player, string id) {
+            foreach(ReplenishableContainer container in containers) {
+                if(container.uid.ToString() == id) {
+                    ReplyFormatted(player, String.Format(Lang("BoxRemoved"), container.type, container.uid));
+                    containers.Remove(container);
+                    return;
+                }
+            }
+            ReplyPlayer(player, "NotReplenishing");
+        }
 
 		[ChatCommand("replenish_test")]
 		void chatCmdReplenishTest(BasePlayer player, string cmd, string[] args) {
@@ -457,7 +472,7 @@ namespace Oxide.Plugins {
         			if(rPlayer.removing) {
         				return true;
         			}
-        		} 
+        		}
         	}
         	return false;
         }

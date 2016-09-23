@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Plagued", "Wernesgruner", "0.3.2")]
+    [Info("Plagued", "Wernesgruner", "0.3.3")]
     [Description("Everyone is infected.")]
 
     class Plagued : RustPlugin
@@ -25,6 +25,7 @@ namespace Oxide.Plugins
         private static int maxKin = 2;
         private static int maxKinChanges = 3;
         private static int playerLayer;
+        private static bool disableSleeperAffinity = false;
 
         private readonly FieldInfo serverinput = typeof(BasePlayer).GetField("serverInput", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
 
@@ -38,6 +39,7 @@ namespace Oxide.Plugins
         protected override void LoadDefaultConfig()
         {
             PrintWarning("Creating a new configuration file (Plagued Mod)");
+
             Config.Clear();
             Config["plagueRange"] = 20;
             Config["plagueIncreaseRate"] = 5;
@@ -47,6 +49,7 @@ namespace Oxide.Plugins
             Config["affinityDecRate"] = 1;
             Config["maxKin"] = 2;
             Config["maxKinChanges"] = 3;
+            Config["disableSleeperAffinity"] = false;
 
             SaveConfig();
         }
@@ -77,6 +80,7 @@ namespace Oxide.Plugins
             affinityDecRate = (int) Config["affinityDecRate"];
             maxKin = (int) Config["maxKin"];
             maxKinChanges = (int) Config["maxKinChanges"];
+            disableSleeperAffinity = (bool) Config["disableSleeperAffinity"];
         }
 
         void OnPlayerInit(BasePlayer player)
@@ -613,6 +617,7 @@ namespace Oxide.Plugins
             {
                 if (associate == null) return null;
                 if (player.userID == associate.userID) return null;
+                if (disableSleeperAffinity && !BasePlayer.activePlayerList.Contains(associate)) return null;
 
                 Association association = null;
 

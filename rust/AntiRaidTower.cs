@@ -1,12 +1,13 @@
 using System;
+using System.Collections.Generic;
 using Oxide.Core.Plugins;
 using Rust;
 using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("AntiRaidTower", "Calytic @ RustServers.IO", "0.2.1", ResourceId = 1211)]
-    [Description("High jump instant death/No wounded teleport")]
+    [Info("AntiRaidTower", "Calytic @ RustServers.IO", "0.2.2", ResourceId = 1211)]
+    [Description("Building/deployable height limit, high jump instant death, no wounded teleport")]
     class AntiRaidTower : RustPlugin
     {
         int FallKill;
@@ -14,30 +15,41 @@ namespace Oxide.Plugins
         bool DeployableBlockHeight;
         int BuildingMaxHeight;
         int DeployableMaxHeight;
-        string BlockHeightMessage;
 
         void OnServerInitialized()
         {
+            permission.RegisterPermission("antiraidtower.blockheightbypass", this);
+            permission.RegisterPermission("antiraidtower.deployheightbypass", this);
+            permission.RegisterPermission("antiraidtower.fallkillbypass", this);
+            permission.RegisterPermission("antiraidtower.woundedbypass", this);
+            LoadMessages();
             LoadData();
 
-            FallKill = GetConfig("FallKill", 200);
+            FallKill = GetConfig("FallKill", 215);
             BuildingBlockHeight = GetConfig("BuildingBlockHeight", true);
             DeployableBlockHeight = GetConfig("DeployableBlockHeight", true);
-            BlockHeightMessage = GetConfig("BlockHeightMessage", "Too far from ground: {0}");
             BuildingMaxHeight = GetConfig("BuildingMaxHeight", 50);
             DeployableMaxHeight = GetConfig("DeployableMaxHeight", 50);
         }
 
         protected override void LoadDefaultConfig()
         {
-            Config["FallKill"] = 200;
+            Config["FallKill"] = 215;
             Config["BuildingBlockHeight"] = true;
             Config["BuildingMaxHeight"] = 50;
             Config["DeployableBlockHeight"] = true;
             Config["DeployableMaxHeight"] = 50;
 
-            Config["BlockHeightMessage"] = "Too far from ground: {0}m";
             Config["VERSION"] = Version.ToString();
+        }
+
+        void LoadMessages()
+        {
+            lang.RegisterMessages(new Dictionary<string, string>
+            {
+                {"Denied: Height", "Too far from ground: {0}m"},
+                {"Denied: Wounded", "You may not teleport while wounded"},
+            }, this);
         }
 
         void LoadData()
@@ -71,9 +83,18 @@ namespace Oxide.Plugins
 
         private void OnEntityTakeDamage(BaseCombatEntity entity, HitInfo hitinfo)
         {
+            if (FallKill == 0)
+            {
+                return;
+            }
+
             if (entity is BasePlayer)
             {
                 var player = (BasePlayer)entity;
+                if (permission.UserHasPermission(player.UserIDString, "antiraidtower.fallkillbypass"))
+                {
+                    return;
+                }
                 if (player.IsConnected() && player.net.connection.authLevel > 0)
                 {
                     return;
@@ -93,7 +114,11 @@ namespace Oxide.Plugins
 
         object CanTeleport(BasePlayer player)
         {
-            if (player.IsWounded()) { return "You may not teleport while wounded"; }
+            if (permission.UserHasPermission(player.UserIDString, "antiraidtower.woundedbypass"))
+            {
+                return null;
+            }
+            if (player.IsWounded()) { return GetMsg("Denied: Wounded", player.UserIDString); }
             return null;
         }
 
@@ -104,16 +129,25 @@ namespace Oxide.Plugins
 
         void OnEntityBuilt(Planner planner, GameObject gameObject)
         {
-            if (planner.GetOwnerPlayer() == null) return;
+            var player = planner.GetOwnerPlayer();
+            if (player == null) return;
             if (!BuildingBlockHeight && !DeployableBlockHeight) return;
 
             var MaxHeight = 0;
             var entity = gameObject.GetComponent<BaseCombatEntity>();
             if(entity is BuildingBlock) {
+                if (permission.UserHasPermission(player.UserIDString, "antiraidtower.blockheightbypass"))
+                {
+                    return;
+                }
                 MaxHeight = BuildingMaxHeight;
             }
             else
             {
+                if (permission.UserHasPermission(player.UserIDString, "antiraidtower.deployheightbypass"))
+                {
+                    return;
+                }
                 MaxHeight = DeployableMaxHeight;
             }
 
@@ -122,7 +156,7 @@ namespace Oxide.Plugins
             {
                 if (hitInfo.distance > MaxHeight)
                 {
-                    SendReply(planner.GetOwnerPlayer(), BlockHeightMessage, Math.Round(hitInfo.distance,0));
+                    SendReply(player, GetMsg("Denied: Height", player.UserIDString), Math.Round(hitInfo.distance, 0));
                     entity.Kill(BaseNetworkable.DestroyMode.Gib);
                 }
             }
@@ -136,6 +170,11 @@ namespace Oxide.Plugins
             }
 
             return (T)Convert.ChangeType(Config[name], typeof(T));
+        }
+
+        string GetMsg(string key, string userID = null)
+        {
+            return lang.GetMessage(key, this, userID);
         }
     }
 }

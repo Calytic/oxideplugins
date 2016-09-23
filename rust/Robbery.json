@@ -1,13 +1,17 @@
 {
     "name": "Robbery",
-    "description": "Players can steal Economics money from other players",
+    "description": "Players can steal money, points, and\/or items from other players",
     "author": "Wulf",
-    "version": "2.4.1",
+    "version": "3.1.1",
     "configuration": true,
     "suggest": {
+        "Clans": "*",
         "Economics": "*",
-        "ServerRewards": "*",
         "EventManager": "*",
+        "Factions": "*",
+        "Friends": "*",
+        "ServerRewards": "*",
+        "UEconomics": "*",
         "ZoneManager": "*"
     },
     "language": "cs",

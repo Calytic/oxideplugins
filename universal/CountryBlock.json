@@ -1,0 +1,15 @@
+{
+    "name": "CountryBlock",
+    "description": "Block or allow players only from configured countries",
+    "author": "Wulf",
+    "version": "1.2.3",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "Universal"
+    ],
+    "keywords": [
+        "oxide",
+        "Universal"
+    ]
+}

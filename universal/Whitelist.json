@@ -1,0 +1,15 @@
+{
+    "name": "Whitelist",
+    "description": "Restricts server access to whitelisted players and Steam group members",
+    "author": "Wulf",
+    "version": "3.1.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "Universal"
+    ],
+    "keywords": [
+        "oxide",
+        "Universal"
+    ]
+}

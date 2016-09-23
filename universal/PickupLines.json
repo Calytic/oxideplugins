@@ -1,0 +1,15 @@
+{
+    "name": "PickupLines",
+    "description": "Send lovely pickup lines to yourself or other players.",
+    "author": "Spicy",
+    "version": "1.0.1",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "Universal"
+    ],
+    "keywords": [
+        "oxide",
+        "Universal"
+    ]
+}

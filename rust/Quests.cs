@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Oxide.Core;
 using Oxide.Core.Configuration;
+using Oxide.Core.Libraries.Covalence;
 using Oxide.Game.Rust.Cui;
 using Oxide.Core.Plugins;
 using UnityEngine;
@@ -11,7 +12,7 @@ using Rust.Xp;
 
 namespace Oxide.Plugins
 {
-    [Info("Quests", "k1lly0u", "2.1.57", ResourceId = 1084)]
+    [Info("Quests", "k1lly0u", "2.1.6", ResourceId = 1084)]
     public class Quests : RustPlugin
     {
         #region Fields
@@ -22,6 +23,7 @@ namespace Oxide.Plugins
         [PluginReference] Plugin EventManager;
         [PluginReference] Plugin HuntPlugin;
         [PluginReference] Plugin PlayerChallenges;
+        [PluginReference] Plugin BetterChat;
 
         ConfigData configData;
 
@@ -412,10 +414,32 @@ namespace Oxide.Plugins
         #endregion    
         object OnPlayerChat(ConsoleSystem.Arg arg)
         {
+            if (BetterChat) return null;
+
             var player = arg.connection.player as BasePlayer;
             if (player == null)
                 return null;
 
+            if (ActiveEditors.ContainsKey(player.userID) || ActiveCreations.ContainsKey(player.userID) || AddVendor.ContainsKey(player.userID))
+            {
+                QuestChat(player,arg.Args);
+                return false;
+            }
+            return null;
+        }
+        object OnBetterChat(IPlayer iplayer, string message)
+        {
+            var player = iplayer.Object as BasePlayer;
+            if (player == null) return message;
+            if (ActiveEditors.ContainsKey(player.userID) || ActiveCreations.ContainsKey(player.userID) || AddVendor.ContainsKey(player.userID))
+            {
+                QuestChat(player, message.Split(' '));
+                return true;
+            }
+            return message;
+        }
+        void QuestChat(BasePlayer player, string[] arg)
+        {
             bool isEditing = false;
             bool isCreating = false;
             QuestCreator Creator = new QuestCreator();
@@ -432,28 +456,28 @@ namespace Oxide.Plugins
                 isCreating = true;
                 Creator = ActiveCreations[player.userID];
                 Quest = Creator.entry;
-            }  
-            if (AddVendor.ContainsKey(player.userID) && string.Join(" ", arg.Args).Contains("exit"))
+            }
+            if (AddVendor.ContainsKey(player.userID) && string.Join(" ", arg).Contains("exit"))
             {
                 ExitQuest(player, true);
-                return true;
-            }        
-            
-            if (!isEditing && !isCreating)
-                return null;
+                return;
+            }
 
-            var args = string.Join(" ", arg.Args);
+            if (!isEditing && !isCreating)
+                return;
+
+            var args = string.Join(" ", arg);
             if (args.Contains("exit"))
             {
                 ExitQuest(player, isCreating);
-                return true;
+                return;
             }
 
             if (args.Contains("quest item"))
             {
                 var item = GetItem(player);
                 if (item != null)
-                {   
+                {
                     if (Creator.type != QuestType.Delivery)
                     {
                         Quest.Rewards.Add(item);
@@ -462,20 +486,20 @@ namespace Oxide.Plugins
                             CreationHelp(player, 7);
                         else if (isEditing)
                         {
-                            SaveRewardsEdit(player)
-;                           CreationHelp(player, 10);
+                            SaveRewardsEdit(player);
+                            CreationHelp(player, 10);
                         }
                     }
                     else
                     {
-                        Creator.deliveryInfo.Reward = item;                        
+                        Creator.deliveryInfo.Reward = item;
                         DeliveryHelp(player, 4);
                     }
                 }
                 else SendMSG(player, $"{LA("noAItem", player.UserIDString)}'quest item'", LA("QC", player.UserIDString));
-                
-                return true;
-            }            
+
+                return;
+            }
 
             switch (Creator.partNum)
             {
@@ -485,7 +509,7 @@ namespace Oxide.Plugins
                         if (type.Value.ContainsKey(args))
                         {
                             SendMSG(player, LA("nameExists", player.UserIDString), LA("QC", player.UserIDString));
-                            return true;
+                            return;
                         }
                     }
                     Quest.QuestName = args;
@@ -494,14 +518,14 @@ namespace Oxide.Plugins
                     if (isCreating)
                         CreationHelp(player, 1);
                     else CreationHelp(player, 6);
-                    return true;                
+                    return;
                 case 2:
                     {
                         int amount;
-                        if (!int.TryParse(arg.Args[0], out amount))
+                        if (!int.TryParse(arg[0], out amount))
                         {
                             SendMSG(player, LA("objAmount", player.UserIDString), LA("QC", player.UserIDString));
-                            return true;
+                            return;
                         }
                         Quest.AmountRequired = amount;
                         SendMSG(player, args, LA("OA", player.UserIDString));
@@ -510,7 +534,7 @@ namespace Oxide.Plugins
                             CreationHelp(player, 3);
                         else CreationHelp(player, 6);
                     }
-                    return true;
+                    return;
                 case 3:
                     {
                         if (Creator.type == QuestType.Delivery)
@@ -518,7 +542,7 @@ namespace Oxide.Plugins
                             Creator.deliveryInfo.Description = args;
                             SendMSG(player, args, LA("Desc", player.UserIDString));
                             DeliveryHelp(player, 6);
-                            return true;
+                            return;
                         }
                         Quest.Description = args;
                         SendMSG(player, args, LA("Desc", player.UserIDString));
@@ -527,19 +551,19 @@ namespace Oxide.Plugins
                             CreationHelp(player, 4);
                         else CreationHelp(player, 6);
                     }
-                    return true;                
+                    return;
                 case 5:
                     {
                         if (Creator.type == QuestType.Delivery)
                         {
                             float amount;
-                            if (!float.TryParse(arg.Args[0], out amount))
+                            if (!float.TryParse(arg[0], out amount))
                             {
                                 SendMSG(player, LA("noRM", player.UserIDString), LA("QC", player.UserIDString));
-                                return true;
+                                return;
                             }
-                            Creator.deliveryInfo.Multiplier = amount;                            
-                            
+                            Creator.deliveryInfo.Multiplier = amount;
+
                             SendMSG(player, args, LA("RM", player.UserIDString));
                             Creator.partNum++;
                             DeliveryHelp(player, 5);
@@ -547,10 +571,10 @@ namespace Oxide.Plugins
                         else
                         {
                             int amount;
-                            if (!int.TryParse(arg.Args[0], out amount))
+                            if (!int.TryParse(arg[0], out amount))
                             {
                                 SendMSG(player, LA("noRA", player.UserIDString), LA("QC", player.UserIDString));
-                                return true;
+                                return;
                             }
                             Creator.item.Amount = amount;
                             Quest.Rewards.Add(Creator.item);
@@ -564,25 +588,24 @@ namespace Oxide.Plugins
                                 SaveRewardsEdit(player);
                             }
                         }
-                        return true;
+                        return;
                     }
                 case 6:
                     {
                         int amount;
-                        if (!int.TryParse(arg.Args[0], out amount))
+                        if (!int.TryParse(arg[0], out amount))
                         {
                             SendMSG(player, LA("noCD", player.UserIDString), LA("QC", player.UserIDString));
-                            return true;
+                            return;
                         }
                         Creator.entry.Cooldown = amount;
                         SendMSG(player, args, LA("CD1", player.UserIDString));
                         CreationHelp(player, 6);
                     }
-                    return true;
+                    return;
                 default:
                     break;
-            }
-            return null;            
+            }            
         }
         #endregion
 

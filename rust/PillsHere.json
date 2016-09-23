@@ -1,8 +1,8 @@
 {
-    "name": "Pills Here",
-    "description": "Heal by anti-rad pills",
-    "author": "",
-    "version": "2.0.0.1",
+    "name": "PillsHere",
+    "description": "Recovers health, hunger, and thirst by set amounts from using rad pills",
+    "author": "Wulf",
+    "version": "3.0.0",
     "configuration": true,
     "language": "cs",
     "games": [

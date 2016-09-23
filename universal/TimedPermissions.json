@@ -1,0 +1,15 @@
+{
+    "name": "Timed Permissions",
+    "description": "Allows you to grant permissions or groups for a specific time",
+    "author": "LaserHydra",
+    "version": "1.2.6",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "Universal"
+    ],
+    "keywords": [
+        "oxide",
+        "Universal"
+    ]
+}

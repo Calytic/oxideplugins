@@ -2,7 +2,7 @@
     "name": "Quests",
     "description": "Create quests for users to go on to earn rewards, complete with a GUI menu",
     "author": "k1lly0u",
-    "version": "2.1.57",
+    "version": "2.1.6",
     "configuration": true,
     "suggest": {
         "ServerRewards": "*",

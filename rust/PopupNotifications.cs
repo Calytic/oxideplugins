@@ -1,94 +1,72 @@
-using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Text.RegularExpressions;
-
+using System.Linq;
+using Oxide.Game.Rust.Cui;
 using Oxide.Core.Plugins;
 using UnityEngine;
-using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("Popup Notifications", "emu", "0.0.8", ResourceId = 1252)]
+    [Info("Popup Notifications", "emu / k1lly0u", "0.1.0", ResourceId = 1252)]
     public class PopupNotifications : RustPlugin
     {
-		#region Config
-		private static float defaultShowDuration = 8f;
-		private static int maxShownMessages = 5;
-		private static bool scrollDown = true;
-		private static Vector2 position = new Vector2(0.8f, 0.78f);
-		private static Vector2 dimensions = new Vector2(0.19f, 0.1f);
-		private static float spacing = 0.01f;
-		private static float transparency = 0.7f;
-		private static float fadeOutTime = 1f;
-		
-        protected override void LoadDefaultConfig()
+        private static Vector2 position;
+        private static Vector2 dimensions;
+        private static ConfigData config;
+        
+        #region Oxide Hooks
+        void OnServerInitialized()
         {
-            PrintWarning("Creating a new configuration file.");
-            Config.Clear();
-            Config["DefaultShowDuration"] = defaultShowDuration;
-            Config["MaxShownMessages"] = maxShownMessages;
-            Config["ScrollDown"] = scrollDown;
-            Config["PositionX"] = position.x;
-            Config["PositionY"] = position.y;
-            Config["Width"] = dimensions.x;
-            Config["Height"] = dimensions.y;
-            Config["Spacing"] = spacing;
-            Config["Transparency"] = transparency;
-            Config["FadeTime"] = fadeOutTime;
+            lang.RegisterMessages(Messages, this);
+            LoadVariables();
+            config = configData;
+            position = new Vector2(configData.PositionX, configData.PositionY);
+            dimensions = new Vector2(configData.Width, configData.Height);
+        }
+        #endregion       
+
+        #region Config        
+        private ConfigData configData;
+        class ConfigData
+        {
+            public float ShowDuration { get; set; }
+            public int MaxShownMessages { get; set; }
+            public bool ScrollDown { get; set; }
+            public float PositionX { get; set; }
+            public float PositionY { get; set; }
+            public float Width { get; set; }
+            public float Height { get; set; }
+            public float Spacing { get; set; }
+            public float Transparency { get; set; }
+            public float FadeTime { get; set; }
+        }
+        private void LoadVariables()
+        {
+            LoadConfigVariables();
             SaveConfig();
         }
-		
-		private void LoadConfig()
-		{
-			defaultShowDuration = GetConfig<float>("DefaultShowDuration", defaultShowDuration);
-			maxShownMessages = GetConfig<int>("MaxShownMessages", maxShownMessages);
-			scrollDown = GetConfig<bool>("ScrollDown", scrollDown);
-			float x = GetConfig<float>("PositionX", position.x);
-			float y = GetConfig<float>("PositionY", position.y);
-			position = new Vector2(x, y);
-			float w = GetConfig<float>("Width", dimensions.x);
-			float h = GetConfig<float>("Height", dimensions.y);
-			dimensions = new Vector2(w, h);
-			spacing = GetConfig<float>("Spacing", spacing);
-			transparency = GetConfig<float>("Transparency", transparency);
-			fadeOutTime = GetConfig<float>("FadeTime", fadeOutTime);
-		}
-		
-        T GetConfig<T>(string key, T defaultValue) {
-            try {
-                var val = Config[key];
-                if (val == null)
-                    return defaultValue;
-                if (val is List<object>) {
-                    var t = typeof(T).GetGenericArguments()[0];
-                    if (t == typeof(String)) {
-                        var cval = new List<string>();
-                        foreach (var v in val as List<object>)
-                            cval.Add((string)v);
-                        val = cval;
-                    } else if (t == typeof(int)) {
-                        var cval = new List<int>();
-                        foreach (var v in val as List<object>)
-                            cval.Add(Convert.ToInt32(v));
-                        val = cval;
-                    }
-                } else if (val is Dictionary<string, object>) {
-                    var t = typeof(T).GetGenericArguments()[1];
-                    if (t == typeof(int)) {
-                        var cval = new Dictionary<string,int>();
-                        foreach (var v in val as Dictionary<string, object>)
-                            cval.Add(Convert.ToString(v.Key), Convert.ToInt32(v.Value));
-                        val = cval;
-                    }
-                }
-                return (T)Convert.ChangeType(val, typeof(T));
-            } catch (Exception ex) {
-                return defaultValue;
-            }
+        protected override void LoadDefaultConfig()
+        {
+            var config = new ConfigData
+            {
+                ShowDuration = 8f,
+                FadeTime = 1f,
+                Height = 0.1f,
+                MaxShownMessages = 8,
+                PositionX = 0.8f,
+                PositionY = 0.78f,
+                ScrollDown = true,
+                Spacing = 0.01f,
+                Transparency = 0.7f,
+                Width = 0.19f
+            };
+            SaveConfig(config);
         }
-		#endregion
-		
+        private void LoadConfigVariables() => configData = Config.ReadObject<ConfigData>();
+        void SaveConfig(ConfigData config) => Config.WriteObject(config, true);
+        #endregion
+
+        #region Commands
         [ChatCommand("popupmsg")]
         private void SendPopupMessage(BasePlayer player, string command, string[] args)
         {
@@ -101,14 +79,17 @@ namespace Oxide.Plugins
 			}
 			else if(args.Length == 2)
 			{
-				BasePlayer target = GetPlayerByName(args[0]);
-				if(target != null)
-					CreatePopupOnPlayer(args[1], target);
-				else
-					player.ChatMessage("No players found with that name.");
+				var target = GetPlayerByName(args[0]);
+                if (target is string)
+                {
+                    SendReply(player, (string)target);
+                    return;
+                }
+				if(target as BasePlayer != null)
+					CreatePopupOnPlayer(args[1], target as BasePlayer);				
 			}
 			else
-				player.ChatMessage("Usage: /popupmsg \"Your message here.\" OR /popupmsg \"player name\" \"You message here.\"");
+				SendReply(player,msg("Usage: /popupmsg \"Your message here.\" OR /popupmsg \"player name\" \"You message here.\"", player.UserIDString));
 		}
 		
         [ConsoleCommand("popupmsg.global")]
@@ -127,78 +108,72 @@ namespace Oxide.Plugins
 				if(float.TryParse(arg.Args[1], out duration))
 					CreateGlobalPopup(arg.Args[0], duration);
 				else
-					Puts("Invalid duration");
+					Puts(msg("Invalid duration"));
 					
 			}
 			else
-				Puts("Usage: popupmsg.global \"Your message here.\" duration");
+				Puts(msg("Usage: popupmsg.global \"Your message here.\" duration"));
         }
-		
+
         [ConsoleCommand("popupmsg.toplayer")]
         private void ConPopupMessageToPlayer(ConsoleSystem.Arg arg)
         {
-			if(!arg.isAdmin)
-				return;
-		
-			BasePlayer player;
-		
-			if(arg.Args.Length == 2)
-			{
-				player = GetPlayerByName(arg.Args[1]);
-				
-				if(player != null)
-					CreatePopupOnPlayer(arg.Args[0], player);
-				else
-					Puts("Couldn't send popup notification to player");
-			}
-			else if(arg.Args.Length == 3)
-			{
-				player = GetPlayerByName(arg.Args[1]);
-				
-				if(player != null)
-				{
-					float duration;
-					if(float.TryParse(arg.Args[2], out duration))
-						CreatePopupOnPlayer(arg.Args[0], player, duration);
-					else
-						Puts("Invalid duration");
-				}
-				else
-					Puts("Couldn't send popup notification to player");
-					
-			}
-			else
-				Puts("Usage: popupmsg.toplayer \"Your message here.\" \"Player name\" duration");
+            if (!arg.isAdmin)
+                return;
+
+            if (arg.Args.Length >= 1)
+            {
+                var player = GetPlayerByName(arg.Args[1]);
+                if (player is string)
+                {
+                    SendReply(arg, (string)player);
+                    return;
+                }
+                if (arg.Args.Length == 2)
+                {
+                    if (player as BasePlayer != null && (player as BasePlayer).isConnected)
+                        CreatePopupOnPlayer(arg.Args[0], player as BasePlayer);
+                    else
+                        Puts(msg("Couldn't send popup notification to player"));
+                }
+                else if (arg.Args.Length == 3)
+                {
+
+                    if (player as BasePlayer != null && (player as BasePlayer).isConnected)
+                    {
+                        float duration;
+                        if (float.TryParse(arg.Args[2], out duration))
+                            CreatePopupOnPlayer(arg.Args[0], player as BasePlayer, duration);
+                        else
+                            Puts(msg("Invalid duration"));
+                    }
+                    else
+                        Puts(msg("Couldn't send popup notification to player"));
+
+                }
+                else
+                    Puts(msg("Usage: popupmsg.toplayer \"Your message here.\" \"Player name\" <duration>"));
+            }
         }
 		
-		private BasePlayer GetPlayerByName(string name)
+		private object GetPlayerByName(string name)
 		{
-			string currentName;
-			string lastName;
-			BasePlayer foundPlayer = null;
-			name = name.ToLower();
-		
-			foreach(BasePlayer player in BasePlayer.activePlayerList)
-			{
-				currentName = player.displayName.ToLower();
-				
-				if(currentName.Contains(name))
-				{
-					if(foundPlayer != null)
-					{
-						lastName = foundPlayer.displayName;
-						if(currentName.Replace(name, "").Length < lastName.Replace(name, "").Length)
-						{
-							foundPlayer = player;
-						}
-					}
-					
-					foundPlayer = player;
-				}
-			}
-		
-			return foundPlayer;
-		}
+            var players = covalence.Players.FindPlayers(name);
+            if (players != null)
+            {
+                if (players.ToList().Count == 0)
+                    return msg("No players found with that name");
+                else if (players.ToList().Count > 1)
+                    return msg("Multiple players found with that name");
+                else if (players.ToArray()[0].Object is BasePlayer)
+                {
+                    if (!(players.ToArray()[0].Object as BasePlayer).isConnected)
+                        return string.Format(msg("{0} is not online"), players.ToArray()[0].Name);
+                    return players.ToArray()[0].Object as BasePlayer;
+                }            
+            }
+            return msg("Unable to find a valid player");
+        }
 		
         [ConsoleCommand("popupmsg.close")]
         private void CloseCommand(ConsoleSystem.Arg arg)
@@ -211,15 +186,17 @@ namespace Oxide.Plugins
 				int slot;
 				bool valid = int.TryParse(arg.Args[0], out slot);
 				
-				if(valid && slot >= 0 && slot <= maxShownMessages)
+				if(valid && slot >= 0 && slot <= configData.MaxShownMessages)
 				{
 					Notifier.GetPlayerNotifier(arg.Player()).DestroyNotification(slot);
 				}
 			}
         }
+        #endregion
 
-		[HookMethod("CreatePopupNotification")]
-		void CreatePopupNotification(string message, BasePlayer player = null, double duration = 0)
+        #region API
+        [HookMethod("CreatePopupNotification")]
+		void CreatePopupNotification(string message, BasePlayer player = null, float duration = 0f)
 		{
 			if(player != null)
 			{
@@ -230,9 +207,9 @@ namespace Oxide.Plugins
 				CreateGlobalPopup(message, (float)duration);
 			}
 		}
-		
-		
-		private void CreatePopupOnPlayer(string message, BasePlayer player, float duration = 0f)
+        #endregion
+
+        private void CreatePopupOnPlayer(string message, BasePlayer player, float duration = 0f)
 		{
 			Notifier.GetPlayerNotifier(player).CreateNotification(message, duration);
 		}
@@ -248,7 +225,7 @@ namespace Oxide.Plugins
 		class Notifier : MonoBehaviour
 		{
 			private List<string> msgQueue = new List<string>();
-			private List<int> usedSlots = new List<int>();
+			private Dictionary<int, string> usedSlots = new Dictionary<int, string>();
 			
 			private BasePlayer player;
 			
@@ -269,9 +246,9 @@ namespace Oxide.Plugins
 			
 			private int GetEmptySlot()
 			{
-				for(int i = 0; i < maxShownMessages; i++)
+				for(int i = 0; i < config.MaxShownMessages; i++)
 				{
-					if(!usedSlots.Contains(i))
+					if(!usedSlots.ContainsKey(i))
 						return i;
 				}
 				
@@ -279,8 +256,7 @@ namespace Oxide.Plugins
 			}
 		
 			public void CreateNotification(string message, float showDuration = 0f)
-			{
-				string uiDef;
+			{				
 				Vector2 anchorMin;
 				Vector2 anchorMax;
 				Vector2 offset;
@@ -292,48 +268,36 @@ namespace Oxide.Plugins
 					return;
 				}
 				
-				offset = (new Vector2(0, dimensions.y) + new Vector2(0, spacing)) * slot;
+				offset = (new Vector2(0, dimensions.y) + new Vector2(0, config.Spacing)) * slot;
 				
-				if(scrollDown)
+				if(config.ScrollDown)
 					offset *= -1;
 				
 				anchorMin = position + offset;
 				anchorMax = anchorMin + dimensions;
-				
-				uiDef = notificationDefinition;
-				uiDef = uiDef.Replace("{slot}", slot.ToString());
-				uiDef = uiDef.Replace("{alpha}", transparency.ToString());
-				uiDef = uiDef.Replace("{fadetime}", fadeOutTime.ToString());
-				uiDef = uiDef.Replace("{positionMin}", anchorMin.x + " " + anchorMin.y);
-				uiDef = uiDef.Replace("{positionMax}", anchorMax.x + " " + anchorMax.y);
-				uiDef = uiDef.Replace("{message}", message);
-				
-				CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "AddUI", new Facepunch.ObjectList(uiDef, null, null, null, null));
-				CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "DestroyUI", new Facepunch.ObjectList("Alert" + slot, null, null, null, null));
-				
+
+                string name = PUMSG + slot;
+                var element = CreatePopupMessage(name, $"0.5 0.5 0.5 {config.Transparency}", message, slot, $"{anchorMin.x} {anchorMin.y}", $"{anchorMax.x} {anchorMax.y}");
+
+                CuiHelper.AddUi(player, element);
 				if(showDuration < 1f)
-					showDuration = defaultShowDuration;
+					showDuration = config.ShowDuration;
 				
-				usedSlots.Add(slot);
+				usedSlots.Add(slot, name);
 				StartCoroutine(DestroyAfterDuration(slot, showDuration));
 			}
 			
 			public void DestroyNotification(int slot)
 			{
-				CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "DestroyUI", new Facepunch.ObjectList("Notification" + slot, null, null, null, null));
-				CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "DestroyUI", new Facepunch.ObjectList("NotificationText" + slot, null, null, null, null));
-				CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "DestroyUI", new Facepunch.ObjectList("Alert" + slot, null, null, null, null));
-				CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "DestroyUI", new Facepunch.ObjectList("NotificationCloseButton" + slot, null, null, null, null));
-				CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo() { connection = player.net.connection }, null, "DestroyUI", new Facepunch.ObjectList("NotificationCloseText" + slot, null, null, null, null));
-				
+                CuiHelper.DestroyUi(player, usedSlots[slot]);				
 				StartCoroutine(DelayedRemoveFromSlot(slot));
 			}
 			
 			private IEnumerator DelayedRemoveFromSlot(int slot)
 			{
-				yield return new WaitForSeconds(fadeOutTime + 0.5f);
+				yield return new WaitForSeconds(config.FadeTime + 0.5f);
 				
-				if(usedSlots.Contains(slot))
+				if(usedSlots.ContainsKey(slot))
 					usedSlots.Remove(slot);
 					
 				if(msgQueue.Count > 0)
@@ -349,114 +313,74 @@ namespace Oxide.Plugins
 				
 				DestroyNotification(slot);
 			}
-		
-			#region UIdef
-			private const string notificationDefinition = @"[  
-							{
-								""parent"": ""HUD/Overlay"",
-								""name"": ""Notification{slot}"",
-								""fadeOut"": ""{fadetime}"",
-								""components"":
-								[
-									{
-										""type"":""UnityEngine.UI.Image"",
-										""fadeIn"": ""0.3"",
-										""color"": ""0.5 0.5 0.5 {alpha}"" 
-									},
-									{
-										""type"":""RectTransform"",
-										""anchormin"": ""{positionMin}"",
-										""anchormax"": ""{positionMax}""
-									}
-								]
-							},
-							{
-								""parent"": ""Notification{slot}"",
-								""name"": ""NotificationText{slot}"",
-								""fadeOut"": ""{fadetime}"",
-								""components"":
-								[
-									{
-										""type"":""UnityEngine.UI.Text"",
-										""text"":""{message}"",
-										""fontSize"":14,
-										""align"": ""MiddleCenter"",
-										""fadeIn"": ""0.3"",
-										""color"": ""1.0 1.0 1.0 1.0""
-									},
-									{
-										""type"":""RectTransform"",
-										""anchormin"": ""0 0"",
-										""anchormax"": ""1 1""
-									}
-								]
-							},
-							{
-								""parent"": ""Notification{slot}"",
-								""name"": ""NotificationCloseButton{slot}"",
-								""fadeOut"": ""{fadetime}"",
-								""components"":
-								[
-									{
-										""type"":""UnityEngine.UI.Button"",
-										""command"":""popupmsg.close {slot}"",
-										""color"": ""1.0 0.3 0.0 0.5"",
-										""fadeIn"": ""0.3"",
-										""imagetype"": ""Tiled""
-									},
-									{
-										""type"":""RectTransform"",
-										""anchormin"": ""0.9 0.8"",
-										""anchormax"": ""1 1""
-									}
-								]
-							},
-							{
-								""parent"": ""NotificationCloseButton{slot}"",
-								""name"": ""NotificationCloseText{slot}"",
-								""fadeOut"": ""{fadetime}"",
-								""components"":
-								[
-									{
-										""type"":""UnityEngine.UI.Text"",
-										""text"":""X"",
-										""fontSize"":12,
-										""align"": ""MiddleCenter"",
-										""fadeIn"": ""0.3"",
-										""color"": ""1.0 1.0 1.0 1.0""
-									},
-									{
-										""type"":""RectTransform"",
-										""anchormin"": ""0 0"",
-										""anchormax"": ""1 1""
-									}
-								]
-							},
-							{
-								""parent"": ""Notification{slot}"",
-								""name"": ""Alert{slot}"",
-								""fadeOut"": ""0.5"",
-								""components"":
-								[
-									{
-										""type"":""UnityEngine.UI.Image"",
-										""color"": ""1.0 0.5 0.0 0.3""
-									},
-									{
-										""type"":""RectTransform"",
-										""anchormin"": ""0 0"",
-										""anchormax"": ""1 1""
-									}
-								]
-							}
-						]
-						";
-			#endregion
-		}
-		
-		private void OnServerInitialized()
-		{
-			LoadConfig();
-		}
+        }
+        #region UI
+        static string PUMSG = "PopupNotification";
+        static CuiElementContainer CreatePopupMessage(string panelName, string color, string text, int slot, string aMin, string aMax)
+        {
+            var NewElement = new CuiElementContainer();
+            NewElement.Add(new CuiElement
+            {
+                Name = panelName,
+                Components =
+                        {
+                            new CuiImageComponent { Color = color, FadeIn = 0.3f },
+                            new CuiRectTransformComponent { AnchorMin = aMin, AnchorMax = aMax }
+                        },
+                FadeOut = config.FadeTime
+            });
+            NewElement.Add(new CuiElement
+            {
+                Name = CuiHelper.GetGuid(),
+                Parent = panelName,
+                Components =
+                    {
+                        new CuiTextComponent {Text = text, Align = TextAnchor.MiddleCenter, FontSize = 14 },
+                        new CuiRectTransformComponent { AnchorMin = "0 0", AnchorMax = "1 1" }
+                    },
+                FadeOut = config.FadeTime
+            });
+            var buttonName = CuiHelper.GetGuid();
+            NewElement.Add(new CuiElement
+            {
+                Name = buttonName,
+                Parent = panelName,
+                Components =
+                    {
+                        new CuiButtonComponent {Command = $"popupmsg.close {slot}", Color = "1.0 0.3 0.0 0.5", FadeIn = 0.3f, ImageType = UnityEngine.UI.Image.Type.Tiled },
+                        new CuiRectTransformComponent {AnchorMin = "0.89 0.79", AnchorMax = "0.99 0.99" }
+                    },
+                FadeOut = config.FadeTime
+            });
+            NewElement.Add(new CuiElement
+            {
+                Name = CuiHelper.GetGuid(),
+                Parent = buttonName,
+                Components =
+                    {
+                        new CuiTextComponent {Text = "X", FadeIn = 0.3f, Align = TextAnchor.MiddleCenter, FontSize = 12  },
+                        new CuiRectTransformComponent {AnchorMin = "0 0", AnchorMax = "1 1" }
+                    },
+                FadeOut = config.FadeTime
+            });
+            return NewElement;
+        }
+        #endregion
+
+        #region Localization
+        string msg(string key, string id = null) => lang.GetMessage(key, this, id);
+        Dictionary<string, string> Messages = new Dictionary<string, string>
+            {
+            {"Usage: /popupmsg \"Your message here.\" OR /popupmsg \"player name\" \"You message here.\"","Usage: /popupmsg \"Your message here.\" OR /popupmsg \"player name\" \"You message here.\"" },
+            {"Invalid duration","Invalid duration" },
+            {"Usage: popupmsg.global \"Your message here.\" duration","Usage: popupmsg.global \"Your message here.\" duration" },
+            {"Couldn't send popup notification to player","Couldn't send popup notification to player" },
+            {"Usage: popupmsg.toplayer \"Your message here.\" \"Player name\" <duration>","Usage: popupmsg.toplayer \"Your message here.\" \"Player name\" <duration>" },
+            {"No players found with that name","No players found with that name" },
+            {"Multiple players found with that name","Multiple players found with that name" },
+            {"{0} is not online","{0} is not online" },
+            {"Unable to find a valid player","Unable to find a valid player" }
+            };
+        #endregion
     }
 }

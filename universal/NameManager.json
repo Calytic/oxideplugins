@@ -1,0 +1,15 @@
+{
+    "name": "Name Manager",
+    "description": "Manage names on your server",
+    "author": "Ankawi",
+    "version": "1.0.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "Universal"
+    ],
+    "keywords": [
+        "oxide",
+        "Universal"
+    ]
+}

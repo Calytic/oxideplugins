@@ -6,9 +6,10 @@ using Oxide.Core;
 
 namespace Oxide.Plugins
 {
-    [Info("TwigsDecay", "Wulf/lukespragg/Nogrod", "2.0.0", ResourceId = 857)]
+    [Info("TwigsDecay", "Wulf/lukespragg/Nogrod", "2.0.1", ResourceId = 857)]
     class TwigsDecay : RustPlugin
     {
+        private readonly FieldInfo entityListField = typeof(BaseNetworkable.EntityRealm).GetField("entityList", BindingFlags.Instance | BindingFlags.NonPublic);
         private readonly FieldInfo decayTimer = typeof(DecayEntity).GetField("decayTimer", BindingFlags.Instance | BindingFlags.NonPublic);
         private readonly FieldInfo decayDelayTime = typeof(DecayEntity).GetField("decayDelayTime", BindingFlags.Instance | BindingFlags.NonPublic);
         private readonly Dictionary<string, float> damage = new Dictionary<string, float>();
@@ -167,7 +168,7 @@ namespace Oxide.Plugins
                     activePlayers.Add(player.userID);
             }
 
-            var entities = BaseNetworkable.serverEntities.entityList.Values;
+            var entities = ((ListDictionary<uint, BaseNetworkable>)entityListField.GetValue(BaseNetworkable.serverEntities)).Values;
             var kill = new List<BaseNetworkable>();
             foreach (var entity in entities)
             {

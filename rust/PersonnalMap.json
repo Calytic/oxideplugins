@@ -1,0 +1,16 @@
+{
+    "name": "Personal Paper Map",
+    "description": "Personalize the Paper Map, set a default map, let users save there maps",
+    "author": "Reneb",
+    "version": "1.0.0",
+    "configuration": true,
+    "require": {},
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

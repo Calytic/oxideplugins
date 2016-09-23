@@ -7,7 +7,7 @@ using System;
 
 namespace Oxide.Plugins
 {
-    [Info("ScreenTimer", "DylanSMR", "1.0.6", ResourceId = 1918)]
+    [Info("ScreenTimer", "DylanSMR", "1.0.7", ResourceId = 1918)]
     [Description("A GUI timer.")]
     class ScreenTimer : RustPlugin
     {  
@@ -43,10 +43,14 @@ namespace Oxide.Plugins
 
         void OnPlayerInit(BasePlayer player)
         {
-            if(isin.Contains(player.userID))
-            isin.Remove(player.userID);
+            if(!active) return;
             StartTime(player);
             isin.Add(player.userID);
+        }
+
+        void OnPlayerDisconnected(BasePlayer player){
+            if(!active) return;
+            isin.Remove(player.userID);
         }
 
         void Unload()
@@ -350,17 +354,18 @@ namespace Oxide.Plugins
 
             void StartTime(BasePlayer player)
             {
+                if(!active) return;
                 CuiHelper.DestroyUi(player, MainTimer);
                 var element = UI.CreateElementContainer(MainTimer, UIColors["dark"], "0.17 0.024", "0.34 0.107", false);
                 UI.CreatePanel(ref element, MainTimer, UIColors["light"],  "0.01 0.04", "0.984 0.94", false);  
                 if(!newactive){
-                timer.Once(1.5f, () =>
-                {
-                    UI.CreateLabel(ref element, MainTimer, UIColors["dark"], format.ToString(), 20, "0 1", "1 0.4");
-                    UI.CreateLabel(ref element, MainTimer, UIColors["dark"], reason.ToString(), 18, " 0 1", "1 1");
-                    CuiHelper.AddUi(player, element);    
-                    newactive = true;
-                });}
+                    timer.Once(1.5f, () =>
+                    {
+                        UI.CreateLabel(ref element, MainTimer, UIColors["dark"], format.ToString(), 20, "0 1", "1 0.4");
+                        UI.CreateLabel(ref element, MainTimer, UIColors["dark"], reason.ToString(), 18, " 0 1", "1 1");
+                        CuiHelper.AddUi(player, element);    
+                        newactive = true;
+                    });}
                 else
                 {
                     UI.CreateLabel(ref element, MainTimer, UIColors["dark"], format.ToString(), 20, " 0 1", "1 0.4");

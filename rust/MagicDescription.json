@@ -2,7 +2,7 @@
     "name": "MagicDescription",
     "description": "Adds dynamic information in the server description",
     "author": "Wulf",
-    "version": "1.2.1",
+    "version": "1.2.3",
     "configuration": true,
     "language": "cs",
     "games": [

@@ -18,7 +18,7 @@ using Newtonsoft.Json;
 
 namespace Oxide.Plugins
 {
-	[Info("FancyDrop", "Fujikura", "2.1.7", ResourceId = 1934)]
+	[Info("FancyDrop", "Fujikura", "2.1.9", ResourceId = 1934)]
 	[Description("The Next Level of a fancy airdrop-toolset")]
 	class FancyDrop : RustPlugin
 	{
@@ -31,23 +31,22 @@ namespace Oxide.Plugins
 		[PluginReference]
 		Plugin GUIAnnouncements;
 
-		private static FancyDrop fancyDrop = null;
-		private bool Changed = false;
-		private bool initialized= false;
-		private int updateScheduled = 4;
-		private Vector3 lastDropPos;
-		private float lastDropRadius = 0;
-		private Vector3 lastLootPos;
+		static FancyDrop fancyDrop = null;
+		bool Changed = false;
+		bool initialized= false;
+		int updateScheduled = 4;
+		Vector3 lastDropPos;
+		float lastDropRadius = 0;
+		Vector3 lastLootPos;
 		//private StringBuilder lootTable = new System.Text.StringBuilder();
 		//private IEnumerable<LootSpawn> lootDefs;
 
-		private string	msgConsoleDropSpawn;
-		private string msgConsoleDropLanded;
+		string	msgConsoleDropSpawn;
+		string msgConsoleDropLanded;
 
-		private List<CargoPlane> CargoPlanes = new List<CargoPlane>();
-		private List<SupplyDrop> SupplyDrops = new List<SupplyDrop>();
-		private List<SupplyDrop> LootedDrops = new List<SupplyDrop>();
-		private List<Vector3> thrownSignals = new List<Vector3>();
+		List<CargoPlane> CargoPlanes = new List<CargoPlane>();
+		List<SupplyDrop> SupplyDrops = new List<SupplyDrop>();
+		List<SupplyDrop> LootedDrops = new List<SupplyDrop>();
 
 		ExportData dropLoot = null;
 		TableData dropTable = null;
@@ -253,93 +252,92 @@ namespace Oxide.Plugins
 			return dp;
 		}
 
-		private FieldInfo dropPlanestartPos = typeof(CargoPlane).GetField("startPos", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
-		private FieldInfo dropPlaneendPos = typeof(CargoPlane).GetField("endPos", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
-		private FieldInfo dropPlanesecondsToTake = typeof(CargoPlane).GetField("secondsToTake", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
-		private FieldInfo dropPlanesecondsTaken = typeof(CargoPlane).GetField("secondsTaken", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
-		private FieldInfo dropPlanedropped = typeof(CargoPlane).GetField("dropped", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
+		FieldInfo dropPlanestartPos = typeof(CargoPlane).GetField("startPos", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
+		FieldInfo dropPlaneendPos = typeof(CargoPlane).GetField("endPos", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
+		FieldInfo dropPlanesecondsToTake = typeof(CargoPlane).GetField("secondsToTake", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
+		FieldInfo dropPlanesecondsTaken = typeof(CargoPlane).GetField("secondsTaken", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
+		FieldInfo dropPlanedropped = typeof(CargoPlane).GetField("dropped", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
 
-		private FieldInfo _isSpawned = typeof(BaseNetworkable).GetField("isSpawned", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
-		private FieldInfo _creationFrame = typeof(BaseNetworkable).GetField("creationFrame", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
+		FieldInfo _isSpawned = typeof(BaseNetworkable).GetField("isSpawned", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
+		FieldInfo _creationFrame = typeof(BaseNetworkable).GetField("creationFrame", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
 				
 		#region Config
 
-		private Dictionary<string,object> setupDropTypes;
-		private Dictionary<string,object> setupDropDefault;
-		private Dictionary<string, object> setupItemList;
+		Dictionary<string,object> setupDropTypes;
+		Dictionary<string,object> setupDropDefault;
+		Dictionary<string, object> setupItemList;
 
-		private float planeOffSetXMultiply;
-		private float planeOffSetYMultiply;
-		private bool populateOnSpawn;
+		float planeOffSetXMultiply;
+		float planeOffSetYMultiply;
+		bool populateOnSpawn;
 
-		private bool airdropTimerEnabled;
-		private bool airdropRemoveInBuilt;
-		private bool airdropTimerResetAfterRandom;
-		private bool airdropCleanupAtStart;
-		private int airdropTimerMinPlayers;
-		private int airdropTimerWaitMinutesMin;
-		private int airdropTimerWaitMinutesMax;
-		private int airdropMassdropDefault;
-		private float airdropMassdropRadiusDefault;
-		private float airdropMassdropDelay;
-		private Timer _aidropTimer;
-		private Timer _massDropTimer;
+		bool airdropTimerEnabled;
+		bool airdropRemoveInBuilt;
+		bool airdropTimerResetAfterRandom;
+		bool airdropCleanupAtStart;
+		int airdropTimerMinPlayers;
+		int airdropTimerWaitMinutesMin;
+		int airdropTimerWaitMinutesMax;
+		int airdropMassdropDefault;
+		float airdropMassdropRadiusDefault;
+		float airdropMassdropDelay;
+		Timer _aidropTimer;
+		Timer _massDropTimer;
 
-		private bool supplyDropEffectLanded;
-		private string supplyDropEffect;
+		bool supplyDropEffectLanded;
+		string supplyDropEffect;
 
-		private bool supplyDropLight;
-		private float dropLightFrequency;
-		private float dropLightOffTime;
-		private bool removeDropLightOnLanded;
+		bool supplyDropLight;
+		float dropLightFrequency;
+		float dropLightOffTime;
+		bool removeDropLightOnLanded;
 
-		private string Prefix;
-		private string Color;
-		private string colorAdmMsg;
-		private string colorTextMsg;
-		private string Format;
-		private string guiCommand;
-		private float supplySignalSmokeTime;
-		private float supplySignalDropRadius;
-		private bool supplySignalUseRadius;
-		private int neededAuthLvl;
-		private bool lockDirectDrop;
-		private string version;
+		string Prefix;
+		string Color;
+		string colorAdmMsg;
+		string colorTextMsg;
+		string Format;
+		string guiCommand;
+		float supplySignalSmokeTime;
+		//private float supplySignalDropRadius;
+		//private bool supplySignalUseRadius;
+		int neededAuthLvl;
+		bool lockDirectDrop;
+		string version;
 
-		private bool notifyDropGUI;
+		bool notifyDropGUI;
+		bool notifyDropServerSignal;
+		bool notifyDropServerSignalCoords;
+		bool notifyDropSignalByPlayer;
+		bool notifyDropSignalByPlayerCoords;
+		bool notifyDropAdminSignal;
+		bool notifyDropConsoleSignal;
 
-		private bool notifyDropServerSignal;
-		private bool notifyDropServerSignalCoords;
-		private bool notifyDropSignalByPlayer;
-		private bool notifyDropSignalByPlayerCoords;
-		private bool notifyDropAdminSignal;
-		private bool notifyDropConsoleSignal;
+		bool notifyDropServerRegular;
+		bool notifyDropServerRegularCoords;
+		bool notifyDropConsoleRegular;
 
-		private bool notifyDropServerRegular;
-		private bool notifyDropServerRegularCoords;
-		private bool notifyDropConsoleRegular;
+		bool notifyDropServerCustom;
+		bool notifyDropServerCustomCoords;
 
-		private bool notifyDropServerCustom;
-		private bool notifyDropServerCustomCoords;
+		bool notifyDropServerMass;
 
-		private bool notifyDropServerMass;
+		bool notifyDropPlayer;
+		bool notifyDropDirect;
 
-		private bool notifyDropPlayer;
-		private bool notifyDropDirect;
+		bool notifyDropPlayersOnLanded;
+		float supplyDropNotifyDistance;
+		float supplyLootNotifyDistance;
 
-		private bool notifyDropPlayersOnLanded;
-		private float supplyDropNotifyDistance;
-		private float supplyLootNotifyDistance;
+		bool notifyDropServerLooted;
+		bool notifyDropServerLootedCoords;
+		bool notifyDropConsoleLooted;
 
-		private bool notifyDropServerLooted;
-		private bool notifyDropServerLootedCoords;
-		private bool notifyDropConsoleLooted;
+		bool notifyDropConsoleOnLanded;
+		bool notifyDropConsoleSpawned;
+		bool notifyDropConsoleFirstOnly;
 
-		private bool notifyDropConsoleOnLanded;
-		private bool notifyDropConsoleSpawned;
-		private bool notifyDropConsoleFirstOnly;
-
-		private object GetConfig(string menu, string datavalue, object defaultValue)
+		object GetConfig(string menu, string datavalue, object defaultValue)
 		{
 			var data = Config[menu] as Dictionary<string, object>;
 			if (data == null)
@@ -421,8 +419,8 @@ namespace Oxide.Plugins
 			Format = Convert.ToString(GetConfig("Generic", "Prefix format", "<color={0}>{1}</color>: "));
 			guiCommand = Convert.ToString(GetConfig("Generic", "GUI Announce command", "announce.announce"));
 			neededAuthLvl = Convert.ToInt32(GetConfig("Generic", "AuthLevel needed for console commands", 1));
-			supplySignalUseRadius = Convert.ToBoolean(GetConfig("Generic", "Use of random dropzone around SupplySignal", false));
-			supplySignalDropRadius = Convert.ToSingle(GetConfig("Generic", "Radius for random zone around SupplySignal", 15.0));
+			//supplySignalUseRadius = Convert.ToBoolean(GetConfig("Generic", "Use of random dropzone around SupplySignal", false));
+			//supplySignalDropRadius = Convert.ToSingle(GetConfig("Generic", "Radius for random zone around SupplySignal", 15.0));
 			supplySignalSmokeTime = Convert.ToSingle(GetConfig("Generic", "Time for active smoke of SupplySignal", 210.0));
 			colorAdmMsg = Convert.ToString(GetConfig("Generic", "Admin messages color", "silver"));
 			colorTextMsg = Convert.ToString(GetConfig("Generic", "Broadcast messages color", "white"));
@@ -490,7 +488,7 @@ namespace Oxide.Plugins
 
 		#region ColliderCheck
 
-		private sealed class ColliderCheck : MonoBehaviour
+		sealed class ColliderCheck : MonoBehaviour
 		{
 			public bool notifyEnabled = true;
 			public bool notifyConsole;
@@ -508,7 +506,7 @@ namespace Oxide.Plugins
 				});
 			}
 
-			public void OnCollisionEnter(Collision col)
+			void OnCollisionEnter(Collision col)
 			{
 				if (GetComponent<BaseEntity>() is SupplyDrop && !landed)
 				{
@@ -526,7 +524,7 @@ namespace Oxide.Plugins
 				}
 			}
 
-			private IEnumerator DeSpawn()
+			IEnumerator DeSpawn()
 			{
 				yield return new WaitForSeconds( (int)cratesettings["despawnMinutes"] * 60 );
 				yield return new WaitWhile(() => GetComponent<BaseEntity>().IsOpen());
@@ -534,7 +532,7 @@ namespace Oxide.Plugins
 				GetComponent<BaseEntity>().KillMessage();
 			}
 
-			private void OnDestroy()
+			void OnDestroy()
 			{
 				cratesettings.Clear();
 				fancyDrop.SupplyDrops.Remove(GetComponent<SupplyDrop>());
@@ -853,66 +851,61 @@ namespace Oxide.Plugins
 
 		#region ServerHooks
 
+		private List<BaseEntity> activeSignals = new List<BaseEntity>();
+		
 		void OnExplosiveThrown(BasePlayer player, BaseEntity entity)
 		{
-			if (entity != null && entity is SupplySignal)
-			{
-				if (!thrownSignals.Contains(entity.transform.position))
-					thrownSignals.Add(entity.transform.position);		
-				var signalposition = entity.transform.position;
-				timer.Once(3f, () => {				
-					if (entity == null)
-					{
-						if (thrownSignals.Contains(signalposition))
-							thrownSignals.Remove(signalposition);
-						return;
-					}
-					timer.Once(supplySignalSmokeTime,() => { if(entity != null) entity.Kill(BaseNetworkable.DestroyMode.None); });
-					if (notifyDropConsoleSignal)
-					{
-						Puts($"SupplySignal thrown by '{player.displayName}' at: {entity.GetEstimatedWorldPosition()}");
-					}
-					if (notifyDropAdminSignal)
-					{
-						foreach(var admin in BasePlayer.activePlayerList.Where(p => p.IsAdmin()).ToList())
-						SendReply(admin, "<color=#c0c0c0ff>"+ string.Format(lang.GetMessage("msgDropSignalAdmin", this, player.UserIDString), player.displayName, signalposition) + "</color>");
-					}
-					if (notifyDropSignalByPlayer)
-						if (notifyDropSignalByPlayerCoords)
-							PrintToChat(string.Format(Format,Color, Prefix) + $"<color={colorTextMsg}>" + string.Format(lang.GetMessage("msgDropSignalByPlayerCoords", this, player.UserIDString), player.displayName, signalposition.x.ToString("0"), signalposition.z.ToString("0")) +"</color>");
-						else
-							PrintToChat(string.Format(Format,Color, Prefix) + $"<color={colorTextMsg}>" + string.Format(lang.GetMessage("msgDropSignalByPlayer", this, player.UserIDString), player.displayName) +"</color>");
-				});
-			}
+			if (entity == null || !(entity is SupplySignal)) return;
+			entity.net = Network.Net.sv.CreateNetworkable();
+			SupplyThrown(player, entity);
 		}
 		
 		void OnEntitySpawned(BaseEntity entity)
 		{
-			if (entity != null && entity is SupplySignal && !thrownSignals.Contains(entity.transform.position))
-				OnExplosiveThrown(entity.creatorEntity as BasePlayer, entity);
+			if (entity == null || !(entity is SupplySignal) || activeSignals.Contains(entity)) return;
+			SupplyThrown(entity.creatorEntity as BasePlayer, entity);
+		}
+		
+		void SupplyThrown(BasePlayer player, BaseEntity entity)
+		{
+			if (activeSignals.Contains(entity))
+			{
+				activeSignals.Remove(entity);
+				return;
+			}
+			else
+				activeSignals.Add(entity);
+			var position = player.transform.position;
+			timer.Once(3.1f, () => {				
+				if (entity == null)
+					return;
+				timer.Once(supplySignalSmokeTime,() => { if(entity != null) entity.Kill(BaseNetworkable.DestroyMode.None); });
+				if (notifyDropConsoleSignal)
+				{
+					Puts($"SupplySignal thrown by '{player.displayName}' at: {position}");
+				}
+				if (notifyDropAdminSignal)
+				{
+					foreach(var admin in BasePlayer.activePlayerList.Where(p => p.IsAdmin()).ToList())
+					SendReply(admin, "<color=#c0c0c0ff>"+ string.Format(lang.GetMessage("msgDropSignalAdmin", this, player.UserIDString), player.displayName, position) + "</color>");
+				}
+				if (notifyDropSignalByPlayer)
+					if (notifyDropSignalByPlayerCoords)
+						PrintToChat(string.Format(Format,Color, Prefix) + $"<color={colorTextMsg}>" + string.Format(lang.GetMessage("msgDropSignalByPlayerCoords", this, player.UserIDString), player.displayName, position.x.ToString("0"), position.z.ToString("0")) +"</color>");
+					else
+						PrintToChat(string.Format(Format,Color, Prefix) + $"<color={colorTextMsg}>" + string.Format(lang.GetMessage("msgDropSignalByPlayer", this, player.UserIDString), player.displayName) +"</color>");
+			});
 		}
 		
 		void OnAirdrop(CargoPlane plane, Vector3 location)
 		{
 			if(Airstrike && Airstrike?.Call("isStrikePlane", plane) != null && (bool)Airstrike?.Call("isStrikePlane", plane)) return;
 			if(CargoPlanes.Contains(plane)) return;
-			if((bool)dropPlanedropped.GetValue(plane)) return;
 			CargoPlanes.Add(plane);
-			if (thrownSignals.Count > 0)
-			{
-				location = thrownSignals.First();
-				thrownSignals.RemoveAt(0);
-			}
-			if(supplySignalUseRadius)
-				{
-					location.x = UnityEngine.Random.Range(location.x - supplySignalDropRadius, location.x + supplySignalDropRadius);
-					location.z = UnityEngine.Random.Range(location.z - supplySignalDropRadius, location.z + supplySignalDropRadius);
-				}
-				startCargoPlane(location, false, plane, "supplysignal");
-				return;
+			startCargoPlane(location, false, plane, "supplysignal");
 		}
 
-		private void OnLootEntity(BasePlayer player, BaseEntity entity)
+		void OnLootEntity(BasePlayer player, BaseEntity entity)
 		{
 			if (entity != null && entity is SupplyDrop && !LootedDrops.Contains(entity as SupplyDrop))
 			{
@@ -941,7 +934,7 @@ namespace Oxide.Plugins
 			}
 		}
 
-		private void OnTick()
+		void OnTick()
 		{
 			if (initialized) return;
 			try {
@@ -956,8 +949,16 @@ namespace Oxide.Plugins
 				PrintError("OnTick scheduled update failed: " + ex.Message);
 			}
 		}
+		
+		void OnPluginLoaded(Plugin name)
+		{
+			if (name.Name == "BetterLoot" && BetterLoot?.Call("isSupplyDropActive") != null && !(bool)BetterLoot?.Call("isSupplyDropActive"))
+				GameManager.server.FindPrefab("assets/prefabs/misc/supply drop/supply_drop.prefab").GetComponent<LootContainer>().initialLootSpawn = false;
+			if (name.Name == "BetterLoot" && BetterLoot?.Call("isSupplyDropActive") != null && (bool)BetterLoot?.Call("isSupplyDropActive"))
+				GameManager.server.FindPrefab("assets/prefabs/misc/supply drop/supply_drop.prefab").GetComponent<LootContainer>().initialLootSpawn = true;
+		}
 
-		private void UpdateInternals()
+		void UpdateInternals()
 		{
 			Puts($"Map Highest Point: ({TerrainMeta.HighestPoint.y}m) | Plane flying height: (~{TerrainMeta.HighestPoint.y * planeOffSetYMultiply}m)");
 			if(airdropTimerEnabled)
@@ -965,7 +966,8 @@ namespace Oxide.Plugins
 			if(airdropCleanupAtStart && UnityEngine.Time.realtimeSinceStartup < 60 ) airdropCleanUp();
 			if (airdropRemoveInBuilt) removeBuiltInAirdrop();
 			if (airdropTimerEnabled) airdropTimerNext();
-			GameManager.server.FindPrefab("assets/prefabs/misc/supply drop/supply_drop.prefab").GetComponent<LootContainer>().initialLootSpawn = false;
+			if (BetterLoot && BetterLoot?.Call("isSupplyDropActive") != null && !(bool)BetterLoot?.Call("isSupplyDropActive"))
+				GameManager.server.FindPrefab("assets/prefabs/misc/supply drop/supply_drop.prefab").GetComponent<LootContainer>().initialLootSpawn = false;
 			SetupLoot();
 
 			object value;
@@ -975,13 +977,13 @@ namespace Oxide.Plugins
 					setupDropDefault.Add(pair.Key, checkdefaults[pair.Key]);
 		}
 
-		private void OnServerInitialized()
+		void OnServerInitialized()
 		{
 			//if (!permission.PermissionExists("fancydrop.lootconfig")) permission.RegisterPermission("fancydrop.lootconfig", this);
 			Puts($"Initializing in T-'{updateScheduled}' Ticks");
 		}
 
-		private void Init()
+		void Init()
 		{
 			fancyDrop = this;
 			LoadVariables();
@@ -990,7 +992,7 @@ namespace Oxide.Plugins
 			msgConsoleDropLanded = lang.GetMessage("msgConsoleDropLanded", this);
 		}
 
-		private void Unload()
+		void Unload()
 		{
 			GameManager.server.FindPrefab("assets/prefabs/misc/supply drop/supply_drop.prefab").GetComponent<LootContainer>().initialLootSpawn = true;
 		}
@@ -1605,7 +1607,7 @@ namespace Oxide.Plugins
 
 		#region airdropTimer
 
-		public void airdropTimerNext(int custom = 0)
+		void airdropTimerNext(int custom = 0)
 		{
 			if(airdropTimerEnabled)
 			{
@@ -1621,7 +1623,7 @@ namespace Oxide.Plugins
 			}
 		}
 
-		public void airdropTimerRun()
+		void airdropTimerRun()
 		{
 			var playerCount = BasePlayer.activePlayerList.Count;
 			if (playerCount >= airdropTimerMinPlayers)
@@ -1641,7 +1643,7 @@ namespace Oxide.Plugins
 			airdropTimerNext();
 		}
 
-		private void airdropTimerStop()
+		void airdropTimerStop()
 		{
 			if (_aidropTimer == null || _aidropTimer.Destroyed)
 				return;
@@ -1649,7 +1651,7 @@ namespace Oxide.Plugins
 			_aidropTimer = null;
 		}
 
-		private void removeBuiltInAirdrop()
+		void removeBuiltInAirdrop()
 		{
 			var triggeredEvents = UnityEngine.Object.FindObjectsOfType<TriggeredEventPrefab>();
 			var planePrefab = triggeredEvents.Where(e => e.targetPrefab != null && e.targetPrefab.guid.Equals("8429b072581d64747bfe17eab7852b42")).ToList();
@@ -1664,7 +1666,7 @@ namespace Oxide.Plugins
 
 		#region FindPlayer
 
-		public static BasePlayer FindPlayerByName(string name)
+		static BasePlayer FindPlayerByName(string name)
 		{
 			BasePlayer result = null;
 			foreach (BasePlayer current in BasePlayer.activePlayerList)
@@ -1702,7 +1704,7 @@ namespace Oxide.Plugins
 			PrintToChat(player, string.Format(Format,Color, Prefix) + $"<color={colorTextMsg}>"+ message +"</color>");
 		}
 
-		private string GetDirectionAngle(float angle)
+		string GetDirectionAngle(float angle)
 		{
 			if (angle > 337.5 || angle < 22.5)
 				return "North";
@@ -1816,7 +1818,7 @@ namespace Oxide.Plugins
 			}
 		}
 
-		public void SpawnIntoContainer(ItemContainer container, bool randomSingle, bool randomGrouped, int level = 1 ,string category = "LootSpawn.SupplyDrop")
+		void SpawnIntoContainer(ItemContainer container, bool randomSingle, bool randomGrouped, int level = 1 ,string category = "LootSpawn.SupplyDrop")
 		{
 			if (dropTable.Categories.ContainsKey(level))
 			if (dropTable.Categories[level].ContainsKey(category) && dropTable.Categories[level][category].Count > 0)
@@ -1842,7 +1844,7 @@ namespace Oxide.Plugins
 				}
 		}
 
-		private void SubCategoryIntoContainer(ItemContainer container, bool randomSingle, bool randomGrouped, int level, string category)
+		void SubCategoryIntoContainer(ItemContainer container, bool randomSingle, bool randomGrouped, int level, string category)
 		{
 			int num = 0;
 			foreach (var cat in dropTable.Categories[level][category])
@@ -1860,7 +1862,7 @@ namespace Oxide.Plugins
 				}
 		}
 
-	   private void SetupContainer(StorageContainer drop, Dictionary<string,object> setup)
+	   void SetupContainer(StorageContainer drop, Dictionary<string,object> setup)
 	   {
 			int slots = UnityEngine.Random.Range(Convert.ToInt32(setup["minItems"]) , Convert.ToInt32(setup["maxItems"]));
 			if (slots > 30) slots = 30;
@@ -1914,7 +1916,7 @@ namespace Oxide.Plugins
 			drop.inventory.capacity = drop.inventory.itemList.Count;
 	   }
 
-		private void SetupLoot()
+		void SetupLoot()
 		{
 			dropLoot = new ExportData();
 			dropTable = new TableData();

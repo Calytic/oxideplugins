@@ -2,7 +2,7 @@
     "name": "AntiOfflineRaid",
     "description": "Cancels\/reduces base damage when offline",
     "author": "Calytic",
-    "version": "0.2.3",
+    "version": "0.2.4",
     "configuration": true,
     "suggest": {
         "Clans": "*"

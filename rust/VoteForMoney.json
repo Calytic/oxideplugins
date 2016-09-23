@@ -1,0 +1,22 @@
+{
+    "name": "Vote For Money",
+    "description": "Players who vote are rewarded with Economics, Server Rewards, Kits and other...",
+    "author": "",
+    "version": "0.3.1",
+    "configuration": true,
+    "suggest": {
+        "Kits": "*"
+    },
+    "require": {
+        "Economics": "*",
+        "ServerRewards": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

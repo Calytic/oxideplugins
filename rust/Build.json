@@ -2,7 +2,7 @@
     "name": "Build",
     "description": "Build, spawn, plant, upgrade, deploy anything the way that you want it.",
     "author": "Reneb",
-    "version": "1.1.6",
+    "version": "1.1.7",
     "configuration": true,
     "language": "cs",
     "games": [

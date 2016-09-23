@@ -12,7 +12,7 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("AdminPanel", "austinv900", "1.2.1", ResourceId = 2034)]
+    [Info("AdminPanel", "austinv900", "1.2.2", ResourceId = 2034)]
     class AdminPanel : RustPlugin
     {
 
@@ -27,6 +27,9 @@ namespace Oxide.Plugins
 
         [PluginReference]
         Plugin NTeleportation;
+
+        [PluginReference]
+        Plugin EnhancedBanSystem;
 
         const string permAP = "adminpanel.allowed";
 
@@ -129,15 +132,11 @@ namespace Oxide.Plugins
                         }
                         else if (args[1] == "admintp")
                         {
-                            //rust.RunServerCommand("teleport.topos " + player.UserIDString + " " + adminZoneCords);
-                            foreach (var ply in BasePlayer.activePlayerList)
-                            {
-                                    ply.Teleport(player);
-                            }
+                            rust.RunServerCommand("teleport.topos " + player.UserIDString + " " + adminZoneCords);
                         }
                         else if (args[1] == "radar")
                         {
-                            if (AdminRadar) { AdminRadar?.Call("radar", player, "players"); AdminGui(player); }
+                            if (AdminRadar) { AdminRadar?.Call("ToggleRadar", player); AdminGui(player); }
                         }
                         else if (args[1] == "god")
                         {

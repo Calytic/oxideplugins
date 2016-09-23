@@ -1,0 +1,22 @@
+{
+    "name": "Playtime Tracker",
+    "description": "Track playtime and AFK time of users with a built in reward system",
+    "author": "k1lly0u",
+    "version": "0.1.2",
+    "configuration": true,
+    "suggest": {
+        "ServerRewards": "*",
+        "Economics": "*",
+        "Economy": "*"
+    },
+    "language": "cs",
+    "games": [
+        "rust",
+        "hurtworld"
+    ],
+    "keywords": [
+        "oxide",
+        "rust",
+        "hurtworld"
+    ]
+}

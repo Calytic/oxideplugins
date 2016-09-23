@@ -1,9 +1,10 @@
 {
     "name": "Finder",
-    "description": "Find Players, SleepingBags, Doors, Sleepers, and teleport to them",
+    "description": "Find Players, SleepingBags, Buildings, Items, and teleport to them",
     "author": "Reneb",
-    "version": "2.0.6",
+    "version": "3.0.1",
     "configuration": false,
+    "suggest": {},
     "language": "cs",
     "games": [
         "rust"

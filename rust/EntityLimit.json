@@ -2,7 +2,7 @@
     "name": "Entity Limit",
     "description": "Limit entities per player",
     "author": "PaiN",
-    "version": "0.4",
+    "version": "0.5",
     "configuration": true,
     "suggest": {
         "RemoverTool": "*"

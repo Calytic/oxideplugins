@@ -1,0 +1,15 @@
+{
+    "name": "Rusted.store",
+    "description": "Donation and payment platform",
+    "author": "",
+    "version": "1.0.1",
+    "configuration": true,
+    "language": "js",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}
