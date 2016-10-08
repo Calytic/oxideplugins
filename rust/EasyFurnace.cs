@@ -4,7 +4,7 @@ using System;
 
 namespace Oxide.Plugins
 {
-    [Info("EasyFurnace", "oskar3123", "1.1.3", ResourceId = 1191)]
+    [Info("EasyFurnace", "oskar3123", "1.1.4", ResourceId = 1191)]
     class EasyFurnace : RustPlugin
     {
         class Cfg
@@ -246,11 +246,11 @@ namespace Oxide.Plugins
 
             ItemDefinition wooddefinition = ItemManager.FindItemDefinition("wood");
             int woodToRetain = (int)(Math.Ceiling((double)orecount / oresize) * woodfactor);
-            Puts(woodToRetain.ToString());
+            //Puts(woodToRetain.ToString());
             int woodMaxStack = GetStackSize(wooddefinition);
             if (woodToRetain > woodMaxStack * woodsize)
                 woodToRetain = woodMaxStack * woodsize;
-            Puts(woodToRetain.ToString());
+            //Puts(woodToRetain.ToString());
 
             int retainedWood = RemoveItemsFromInventory(player, wooddefinition, woodToRetain);
             if (retainedWood < woodsize)
@@ -278,9 +278,9 @@ namespace Oxide.Plugins
             item.MoveToContainer(player.inventory.containerMain, -1, false);
 
             int extraWood = retainedWood % woodsize;
-            Puts(extraWood.ToString());
+            //Puts(extraWood.ToString());
             int perstack = (int)Math.Floor((double)retainedWood / woodsize);
-            Puts(perstack.ToString());
+            //Puts(perstack.ToString());
             for (int i = 0; i < woodsize; i++)
             {
                 ItemManager.Create(wooddefinition, perstack + (extraWood > 0 ? 1 : 0)).MoveToContainer(container, -1, false);

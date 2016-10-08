@@ -18,7 +18,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("LootConfig", "Nogrod", "1.0.14")]
+    [Info("LootConfig", "Nogrod", "1.0.15")]
     internal class LootConfig : RustPlugin
     {
         private const int VersionConfig = 7;
@@ -68,7 +68,7 @@ namespace Oxide.Plugins
 #endif
                 GameManager.server.FindPrefab(source);
             }
-            CheckConfig();
+            if (!CheckConfig()) return;
             NextTick(UpdateLoot);
         }
 
@@ -77,7 +77,7 @@ namespace Oxide.Plugins
         {
             if (!LoadConfig())
                 return;
-            CheckConfig();
+            if (!CheckConfig()) return;
             UpdateLoot();
             Puts("Loot config reloaded.");
         }
@@ -168,9 +168,9 @@ namespace Oxide.Plugins
                     spawnGroupsData[spawnGroupKey] = spawnGroupData = new Dictionary<string, LootContainer>();
                 foreach (var entry in spawnGroup.prefabs)
                 {
-                    var lootContainer = entry.prefab?.Get()?.GetComponent<LootContainer>();
-                    if (lootContainer == null) continue;
-                    spawnGroupData[lootContainer.PrefabName] = lootContainer;
+                    var container = entry.prefab?.Get()?.GetComponent<LootContainer>();
+                    if (container?.lootDefinition == null) continue;
+                    spawnGroupData[container.PrefabName] = container;
                 }
             }
             var containerData = new Dictionary<string, LootContainer>();
@@ -178,9 +178,9 @@ namespace Oxide.Plugins
             Array.Sort(allPrefabs, (a, b) => caseInsensitiveComparer.Compare(a, b));
             foreach (var strPrefab in allPrefabs)
             {
-                var prefab = GameManager.server.FindPrefab(strPrefab)?.GetComponent<LootContainer>();
-                if (prefab == null) continue;
-                containerData[strPrefab] = prefab;
+                var container = GameManager.server.FindPrefab(strPrefab)?.GetComponent<LootContainer>();
+                if (container?.lootDefinition == null) continue;
+                containerData[strPrefab] = container;
             }
             /*foreach (var container in containers)
             {
@@ -211,7 +211,7 @@ namespace Oxide.Plugins
                     LootContainers = containerData,
                     SpawnGroups = spawnGroupsData.OrderBy(l => l.Key).ToDictionary(l => l.Key, l => l.Value),
                     ItemModReveals = itemModReveal.ToDictionary(l => l.name),
-                    ItemModUnwraps = itemModUnwrap.ToDictionary(l => l.name),
+                    ItemModUnwraps = itemModUnwrap.Where(l => l.revealList != null).ToDictionary(l => l.name),
                     Categories = loot.ToDictionary(l => l.name)
                 });
             }
@@ -224,12 +224,12 @@ namespace Oxide.Plugins
             return LoadConfig();
         }
 
-        private void CheckConfig()
+        private bool CheckConfig()
         {
-            if (_config.Version == Protocol.network && _config.VersionConfig == VersionConfig && _config.WorldSize == World.Size && _config.WorldSeed == World.Seed) return;
+            if (_config.Version == Protocol.network && _config.VersionConfig == VersionConfig && _config.WorldSize == World.Size && _config.WorldSeed == World.Seed) return true;
             Puts("Incorrect config version({0}/{1}[{2}, {3}])", _config.Version, _config.VersionConfig, _config.WorldSize, _config.WorldSeed);
             if (_config.Version > 0) Config.WriteObject(_config, false, $"{Config.Filename}.old");
-            CreateDefaultConfig();
+            return CreateDefaultConfig();
         }
 
         private void LootDump()
@@ -585,6 +585,7 @@ namespace Oxide.Plugins
             public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
             {
                 var itemAmount = (ItemAmount) value;
+                if (itemAmount.itemDef == null) return;
                 writer.WriteStartObject();
                 writer.WritePropertyName("Shortname");
                 writer.WriteValue(itemAmount.itemDef.shortname);

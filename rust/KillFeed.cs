@@ -12,7 +12,7 @@ using System.IO;
 
 namespace Oxide.Plugins
 {
-    [Info("Kill Feed", "Tuntenfisch", "1.14.22", ResourceId = 1433)]
+    [Info("Kill Feed", "Tuntenfisch", "1.14.23", ResourceId = 1433)]
     [Description("Displays a basic Kill Feed on screen!")]
     public class KillFeed : RustPlugin
     {
@@ -1278,6 +1278,11 @@ namespace Oxide.Plugins
                         name = player.username;
                     }
                     else if (entity.ToPlayer().HasPlayerFlag(BasePlayer.PlayerFlags.Sleeping))                  // hitEntity (player) is sleeping and his name needs to be formatted
+                    {
+                        needsFormatting = true;
+                        name = entity.ToPlayer().displayName;
+                    }
+                    else if (entity.ToPlayer().userID < 76560000000000000L || entity.ToPlayer().userID > 0L)
                     {
                         needsFormatting = true;
                         name = entity.ToPlayer().displayName;

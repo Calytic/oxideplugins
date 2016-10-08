@@ -1,8 +1,8 @@
 {
-    "name": "AbsolutMarket",
-    "description": "Global Trade Menu. Any player can buy and sell items. Simply list it!",
+    "name": "AbsolutGifts",
+    "description": "Daily Gift Reward System - PlayTimeRewards.. Time Resets Daily",
     "author": "{Midgard}Altimus Maximus",
-    "version": "1.2.3",
+    "version": "1.0.0",
     "configuration": true,
     "language": "cs",
     "games": [

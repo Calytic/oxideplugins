@@ -3,10 +3,10 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("NoSleepers", "Wulf/lukespragg", "0.4.0", ResourceId = 1452)]
+    [Info("NoSleepers", "Wulf/lukespragg", "0.4.1", ResourceId = 1452)]
     [Description("Prevents players from sleeping and optionally removes player corpses")]
 
-    class NoSleepers : RustPlugin
+    class NoSleepers : CovalencePlugin
     {
         #region Initialization
 
@@ -23,8 +23,12 @@ namespace Oxide.Plugins
 
         void OnServerInitialized()
         {
-            LoadDefaultConfig();
+            #if !RUST
+            throw new NotSupportedException("This plugin does not support this game");
+            #endif
 
+            LoadDefaultConfig();
+            permission.RegisterPermission(permExclude, this);
             if (!killExisting) return;
 
             var killCount = 0;

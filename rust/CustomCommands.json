@@ -1,8 +1,8 @@
 {
-    "name": "AbsolutMarket",
-    "description": "Global Trade Menu. Any player can buy and sell items. Simply list it!",
+    "name": "CustomCommands",
+    "description": "UI Buttons for Custom Console and Chat Commands - Unique to each Player!",
     "author": "{Midgard}Altimus Maximus",
-    "version": "1.2.3",
+    "version": "1.0.1",
     "configuration": true,
     "language": "cs",
     "games": [

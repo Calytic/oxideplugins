@@ -13,7 +13,7 @@ using Oxide.Core;
 
 namespace Oxide.Plugins
 {
-	[Info("BetterLoot", "Fujikura/dcode", "2.8.0", ResourceId = 828)]
+	[Info("BetterLoot", "Fujikura/dcode", "2.8.1", ResourceId = 828)]
 	[Description("A complete re-implementation of the drop system")]
 	public class BetterLoot : RustPlugin
 	{
@@ -362,6 +362,7 @@ namespace Oxide.Plugins
 			{
 				foreach (var item in originalItemsB)
 				{
+					if (item == null) continue;
 					int index = RarityIndex(item.rarity);
 					object indexoverride;
 					if (rarityItemOverride.TryGetValue(item.shortname, out indexoverride))
@@ -383,6 +384,7 @@ namespace Oxide.Plugins
 				}
 				foreach (var item in originalItemsC)
 				{
+					if (item == null) continue;
 					int index = RarityIndex(item.rarity);
 					object indexoverride;
 					if (rarityItemOverride.TryGetValue(item.shortname, out indexoverride))
@@ -405,6 +407,7 @@ namespace Oxide.Plugins
 			}
 			else
 				foreach (var item in originalItems) {
+					if (item == null) continue;
 					int index = RarityIndex(item.rarity);
 					object indexoverride;
 					if (rarityItemOverride.TryGetValue(item.shortname, out indexoverride))

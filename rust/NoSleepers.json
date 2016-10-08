@@ -2,7 +2,7 @@
     "name": "NoSleepers",
     "description": "Prevents players from sleeping and optionally removes player corpses",
     "author": "Wulf",
-    "version": "0.4.0",
+    "version": "0.4.1",
     "configuration": true,
     "language": "cs",
     "games": [

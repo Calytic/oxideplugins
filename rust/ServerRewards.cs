@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Oxide.Core.Plugins;
 using Oxide.Game.Rust.Cui;
 using Oxide.Core.Configuration;
+using Oxide.Core.Libraries.Covalence;
 using UnityEngine;
 using System.Collections;
 using System.Reflection;
@@ -12,7 +13,7 @@ using System.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("ServerRewards", "k1lly0u", "0.3.21", ResourceId = 1751)]
+    [Info("ServerRewards", "k1lly0u", "0.3.27", ResourceId = 1751)]
     public class ServerRewards : RustPlugin
     {
         #region Fields
@@ -265,12 +266,20 @@ namespace Oxide.Plugins
             DisplayPoints(player);
         }        
         private void SwitchElement(BasePlayer player, ElementType type, int page = 0, string npcid = null)
-        {           
+        {
             if (type == ElementType.Transfer)
             {
                 UIElements.DestroyUI(player, OpenUI[player.userID]);
                 CreateTransferElement(player, page);
-                OpenUI[player.userID] = new OUIData { type = ElementType.None };                
+                OpenUI[player.userID].type = ElementType.Transfer;                
+            }
+            else if (type == ElementType.Exchange)
+            {
+                UIElements.DestroyUI(player, OpenUI[player.userID]);
+                CuiElementContainer element = GetElement(type, page, null);
+                OpenUI[player.userID].type = ElementType.Exchange;
+                CuiHelper.AddUi(player, element);
+                return;
             }
             else
             {
@@ -278,8 +287,8 @@ namespace Oxide.Plugins
 
                 UIElements.DestroyUI(player, OpenUI[player.userID]);
                 CuiHelper.DestroyUi(player, UIMain);
-                OpenUI[player.userID] = new OUIData { npcid = npcid, page = page, type = type };
-
+                OpenUI[player.userID].page = page;
+                OpenUI[player.userID].type = type;
                 CuiHelper.AddUi(player, element);
             }            
         }        
@@ -324,32 +333,57 @@ namespace Oxide.Plugins
         {            
             public static Dictionary<ElementType, CuiElementContainer[]> standardElements;
             public static Dictionary<string, Dictionary<ElementType, CuiElementContainer[]>> npcElements;
+            public static List<string> elementIDs;
             
-            public static void RenameComponents()
+            public static void RenameComponents(CuiElementContainer[] container)
             {
-                foreach(var element in standardElements[ElementType.Navigation][0].ToArray())
+                foreach(var element in container)
                 {
-                    if (element.Name == "AddUI CreatedPanel")
-                        element.Name = CuiHelper.GetGuid();
-                }
-                foreach(var npc in npcElements)
-                {
-                    foreach(var element in npc.Value[ElementType.Navigation][0])
+                    foreach(var e in element)
                     {
-                        if (element.Name == "AddUI CreatedPanel")
-                            element.Name = CuiHelper.GetGuid();
+                        if (e.Name == "AddUI CreatedPanel")
+                            e.Name = CuiHelper.GetGuid();
+                        elementIDs.Add(e.Name);
                     }
-                }
+                }                             
             }
             public static void DestroyUI(BasePlayer player, OUIData data)
             {
                 if (data.type == ElementType.None) return;
+                if (data.type == ElementType.Transfer)
+                {
+                    CuiHelper.DestroyUi(player, UIMain);
+                    return;
+                }
 
                 CuiElementContainer element = null;
 
-                if (!string.IsNullOrEmpty(data.npcid) && npcElements.ContainsKey(data.npcid))                
-                    element = npcElements[data.npcid][data.type][data.page];                
-                else element = standardElements[data.type][data.page];
+                if (data.type == ElementType.Exchange)
+                {
+                    element = standardElements[ElementType.Exchange][data.page];
+                }
+                else if (!string.IsNullOrEmpty(data.npcid) && npcElements.ContainsKey(data.npcid))
+                {
+                    if (npcElements[data.npcid].ContainsKey(data.type))
+                    {
+                        if (npcElements[data.npcid][data.type].Length >= data.page)
+                            element = npcElements[data.npcid][data.type][data.page];
+                    }
+                }
+                else
+                {
+                    if (standardElements.ContainsKey(data.type))
+                    {
+                        if (standardElements[data.type].Length >= data.page)
+                            element = standardElements[data.type][data.page];
+                    }
+                }
+
+                if (element == null)
+                {
+                    DestroyWholeList(player);
+                    return;
+                }                
 
                 for (int i = 0; i < element.ToArray().Length; i++)                
                     CuiHelper.DestroyUi(player, element.ToArray()[i].Name);                                
@@ -358,13 +392,18 @@ namespace Oxide.Plugins
             {
                 CuiElementContainer element = null;
 
-                if (!string.IsNullOrEmpty(data.npcid))
+                if (!string.IsNullOrEmpty(data.npcid) && npcElements.ContainsKey(data.npcid))
                     element = npcElements[data.npcid][ElementType.Navigation][0];
                 else element = standardElements[ElementType.Navigation][0];
 
                 for (int i = 0; i < element.ToArray().Length; i++)
                     CuiHelper.DestroyUi(player, element.ToArray()[i].Name);
-            }           
+            }  
+            static void DestroyWholeList(BasePlayer player)
+            {
+                foreach(var element in elementIDs)
+                    CuiHelper.DestroyUi(player, element);
+            }         
         }
         void InitializeAllElements()
         {
@@ -374,9 +413,7 @@ namespace Oxide.Plugins
             CreateItemsUI();
             CreateCommandsUI();
             CreateExchangeUI();
-            CreateAllNPCs();
-            UIElements.RenameComponents();
-            PrintWarning("All UI elements created successfully!");
+            CreateAllNPCs(); 
         }
 
         #region Standard Elements
@@ -395,8 +432,15 @@ namespace Oxide.Plugins
             CreateMenuButton(ref Selector, UISelect, msg("storeClose"), "SRUI_DestroyAll", number);
 
             if (!string.IsNullOrEmpty(npcid))
+            {
                 UIElements.npcElements.Add(npcid, new Dictionary<ElementType, CuiElementContainer[]> { { ElementType.Navigation, new CuiElementContainer[] { Selector } } });
-            else UIElements.standardElements.Add(ElementType.Navigation, new CuiElementContainer[] { Selector });
+                UIElements.RenameComponents(UIElements.npcElements[npcid][ElementType.Navigation]);
+            }
+            else
+            {
+                UIElements.standardElements.Add(ElementType.Navigation, new CuiElementContainer[] { Selector });
+                UIElements.RenameComponents(UIElements.standardElements[ElementType.Navigation]);
+            }
         }
         private void CreateKitsUI()
         {
@@ -407,7 +451,8 @@ namespace Oxide.Plugins
             List<CuiElementContainer> kitList = new List<CuiElementContainer>();
             for (int i = 0; i <= maxPages; i++)            
                 kitList.Add(CreateKitsElement(i));
-            UIElements.standardElements.Add(ElementType.Kits, kitList.ToArray());            
+            UIElements.standardElements.Add(ElementType.Kits, kitList.ToArray());
+            UIElements.RenameComponents(UIElements.standardElements[ElementType.Kits]);
         }
         private void CreateItemsUI()
         {
@@ -419,6 +464,7 @@ namespace Oxide.Plugins
             for (int i = 0; i <= maxPages; i++)
                 itemList.Add(CreateItemsElement(i));
             UIElements.standardElements.Add(ElementType.Items, itemList.ToArray());
+            UIElements.RenameComponents(UIElements.standardElements[ElementType.Items]);
         }
         private void CreateCommandsUI()
         {
@@ -430,6 +476,7 @@ namespace Oxide.Plugins
             for (int i = 0; i <= maxPages; i++)
                 commandList.Add(CreateCommandsElement(i));
             UIElements.standardElements.Add(ElementType.Commands, commandList.ToArray());
+            UIElements.RenameComponents(UIElements.standardElements[ElementType.Commands]);
         }
         private void CreateExchangeUI()
         {
@@ -442,6 +489,7 @@ namespace Oxide.Plugins
             SR_UI.CreateButton(ref Main, UIMain, UIColors["buttonbg"], msg("storeExchange"), 20, "0.25 0.3", "0.4 0.38", "SRUI_Exchange 1");
             SR_UI.CreateButton(ref Main, UIMain, UIColors["buttonbg"], msg("storeExchange"), 20, "0.6 0.3", "0.75 0.38", "SRUI_Exchange 2");
             UIElements.standardElements.Add(ElementType.Exchange, new CuiElementContainer[] { Main });
+            UIElements.RenameComponents(UIElements.standardElements[ElementType.Exchange]);
         }
         private CuiElementContainer CreateKitsElement(int page = 0)
         {
@@ -544,7 +592,8 @@ namespace Oxide.Plugins
                 {
                     CreateNPCMenu(npc.Key);                    
                 }
-            }
+            }            
+            PrintWarning("All UI elements created successfully!");
         }
         private void CreateNPCMenu(string npcid)
         {
@@ -554,18 +603,18 @@ namespace Oxide.Plugins
             CreateNPCCommandsUI(npcid);
             CreateNPCItemsUI(npcid);
             CreateNPCKitsUI(npcid);
-            UIElements.RenameComponents();
         }
         private void CreateNPCKitsUI(string npcid)
         {
             int maxPages = 0;
             var count = npcDealers.NPCIDs[npcid].kitList;
             if (count.Count > 10)
-                maxPages = (count.Count - 1) / 10 + 1;
+                maxPages = (count.Count - 1) / 10 + 1;            
             List<CuiElementContainer> kitList = new List<CuiElementContainer>();
             for (int i = 0; i <= maxPages; i++)
                 kitList.Add(CreateNPCKitsElement(npcid, i));
             UIElements.npcElements[npcid].Add(ElementType.Kits, kitList.ToArray());
+            UIElements.RenameComponents(UIElements.npcElements[npcid][ElementType.Kits]);
         }
         private void CreateNPCItemsUI(string npcid)
         {
@@ -574,9 +623,10 @@ namespace Oxide.Plugins
             if (count.Count > 21)
                 maxPages = (count.Count - 1) / 21 + 1;
             List<CuiElementContainer> itemList = new List<CuiElementContainer>();
-            for (int i = 0; i <= maxPages; i++)
-                itemList.Add(CreateNPCItemsElement(npcid, i));
+            for (int i = 0; i <= maxPages; i++)            
+                itemList.Add(CreateNPCItemsElement(npcid, i));            
             UIElements.npcElements[npcid].Add(ElementType.Items, itemList.ToArray());
+            UIElements.RenameComponents(UIElements.npcElements[npcid][ElementType.Items]);
         }
         private void CreateNPCCommandsUI(string npcid)
         {
@@ -588,6 +638,7 @@ namespace Oxide.Plugins
             for (int i = 0; i <= maxPages; i++)
                 commandList.Add(CreateNPCCommandsElement(npcid, i));
             UIElements.npcElements[npcid].Add(ElementType.Commands, commandList.ToArray());
+            UIElements.RenameComponents(UIElements.npcElements[npcid][ElementType.Commands]);
         }
         private CuiElementContainer CreateNPCKitsElement(string npcid, int page = 0)
         {
@@ -894,7 +945,10 @@ namespace Oxide.Plugins
 
                 string fileLocation = rewardData.storedImages[999999999.ToString()][0].ToString();
                 if (rewardData.storedImages.ContainsKey(item.ID.ToString()))
-                    fileLocation = rewardData.storedImages[item.ID.ToString()][item.Skin].ToString();
+                {
+                    if (rewardData.storedImages[item.ID.ToString()].ContainsKey(item.Skin))
+                        fileLocation = rewardData.storedImages[item.ID.ToString()][item.Skin].ToString();
+                }
 
                 SR_UI.LoadImage(ref container, panelName, fileLocation, $"{posMin.x + 0.02} {posMin.y + 0.08}", $"{posMax.x - 0.02} {posMax.y}");
                 if (item.Amount > 1)
@@ -917,14 +971,19 @@ namespace Oxide.Plugins
                 foreach (var item in (string[])contents)
                 {
                     var entry = item.Split('_');
-                    var name = ItemNames[entry[0]];
-                    var amount = int.Parse(entry[1]);
+                    var name = entry[0];
+                    if (ItemNames.ContainsKey(entry[0]))
+                        name = ItemNames[entry[0]];
+                    var amount = 0;
+                    if (!int.TryParse(entry[1], out amount))
+                        amount = 1;
                     var mods = new List<string>();
 
                     if (entry.Length > 2)
                         for (int i = 2; i < entry.Length; i++)
                         {
-                            mods.Add(ItemNames[entry[i]]);
+                            if (ItemNames.ContainsKey(entry[i]))
+                                mods.Add(ItemNames[entry[i]]);
                         }
 
                     if (itemList.ContainsKey(name))
@@ -1195,6 +1254,7 @@ namespace Oxide.Plugins
             NPCCreator = new Dictionary<ulong, NPCInfos>();
             UIElements.npcElements = new Dictionary<string, Dictionary<ElementType, CuiElementContainer[]>>();
             UIElements.standardElements = new Dictionary<ElementType, CuiElementContainer[]>();
+            UIElements.elementIDs = new List<string>();
         }
         void OnServerInitialized()
         {
@@ -1254,7 +1314,9 @@ namespace Oxide.Plugins
         private void InformPoints(BasePlayer player)
         {
             var outstanding = PointCache[player.userID];
-            SendMSG(player, string.Format(msg("msgOutRewards1", player.UserIDString), outstanding));
+            if (configData.Options.NPCDealers_Only)
+                SendMSG(player, string.Format(msg("msgOutRewardsnpc", player.UserIDString), outstanding));
+            else SendMSG(player, string.Format(msg("msgOutRewards1", player.UserIDString), outstanding));
         }
         private void OpenStore(BasePlayer player, string npcid = null)
         {
@@ -1346,8 +1408,14 @@ namespace Oxide.Plugins
 
         #region API
         [HookMethod("AddPoints")]
-        public object AddPoints(ulong ID, int amount)
+        public object AddPoints(object userID, int amount)
         {
+            ulong ID;
+            var success = GetUserID(userID);
+            if (success is bool)
+                return false;
+            else ID = (ulong)success;            
+
             if (!PointCache.ContainsKey(ID))
                 PointCache.Add(ID, amount);
             else PointCache[ID] += amount;
@@ -1366,8 +1434,13 @@ namespace Oxide.Plugins
             return true;
         }
         [HookMethod("TakePoints")]
-        public object TakePoints(ulong ID, int amount, string item = "")
+        public object TakePoints(object userID, int amount, string item = "")
         {
+            ulong ID;
+            var success = GetUserID(userID);
+            if (success is bool)
+                return false;
+            else ID = (ulong)success;
 
             if (!PointCache.ContainsKey(ID)) return null;
             PointCache[ID] -= amount;
@@ -1390,10 +1463,36 @@ namespace Oxide.Plugins
             return true;
         }
         [HookMethod("CheckPoints")]
-        public object CheckPoints(ulong ID)
+        public object CheckPoints(object userID)
         {
+            ulong ID;
+            var success = GetUserID(userID);
+            if (success is bool)
+                return false;
+            else ID = (ulong)success;
+
             if (!PointCache.ContainsKey(ID)) return null;
             return PointCache[ID];
+        }
+
+        private object GetUserID(object userID)
+        {
+            if (userID == null)
+                return false;
+            if (userID is ulong)
+                return (ulong)userID;
+            else if (userID is string)
+            {
+                ulong ID = 0U;
+                if (ulong.TryParse((string)userID, out ID))
+                    return ID;
+                return false;
+            }
+            else if (userID is BasePlayer)
+                return (userID as BasePlayer).userID;
+            else if (userID is IPlayer)
+                return ulong.Parse((userID as IPlayer).Id);
+            return false;
         }
         #endregion
 
@@ -1539,8 +1638,15 @@ namespace Oxide.Plugins
                             if (!string.IsNullOrEmpty(isRegistered))
                             {
                                 if (!NPCCreator.ContainsKey(player.userID))
-                                    NPCCreator.Add(player.userID, new NPCInfos { NPCID = NPC.UserIDString });
+                                    NPCCreator.Add(player.userID, new NPCInfos());
+
+                                if (npcDealers.NPCIDs[NPC.UserIDString].isCustom)
+                                {
+                                    NPCCreator[player.userID] = npcDealers.NPCIDs[NPC.UserIDString];
+                                    NPCCreator[player.userID].NPCID = NPC.UserIDString;
+                                }
                                 else NPCCreator[player.userID] = new NPCInfos { NPCID = NPC.UserIDString };
+
                                 var Main = SR_UI.CreateElementContainer(UIMain, UIColors["dark"], "0 0", "1 1");
                                 SR_UI.CreatePanel(ref Main, UIMain, UIColors["light"], "0.01 0.02", "0.99 0.98", true);
                                 SR_UI.CreateLabel(ref Main, UIMain, "", msg("cldesc", player.UserIDString), 18, "0.25 0.88", "0.75 0.98");
@@ -1592,7 +1698,7 @@ namespace Oxide.Plugins
             {
                 string color1 = UIColors["buttonbg"];
                 string text1 = commNames[n];
-                string command1 = $"SRUI_CustomList Commands {text1} true {page}";
+                string command1 = $"SRUI_CustomList Commands {text1.Replace(" ", "%!%")} true {page}";
                 string color2 = "0 0 0 0";
                 string text2 = "";
                 string command2 = "";
@@ -1600,17 +1706,17 @@ namespace Oxide.Plugins
                 if (NPCCreator[player.userID].commandList.Contains(commNames[n]))
                 {
                     color1 = UIColors["buttoncom"];
-                    command1 = $"SRUI_CustomList Commands {text1} false {page}";
+                    command1 = $"SRUI_CustomList Commands {text1.Replace(" ", "%!%")} false {page}";
                 }
                 if (n + 1 < commNames.Length)
                 {                    
                     color2 = UIColors["buttonbg"];
                     text2 = commNames[n + 1];
-                    command2 = $"SRUI_CustomList Commands {text2} true {page}";
+                    command2 = $"SRUI_CustomList Commands {text2.Replace(" ", "%!%")} true {page}";
                     if (NPCCreator[player.userID].commandList.Contains(commNames[n + 1]))
                     {
                         color2 = UIColors["buttoncom"];
-                        command2 = $"SRUI_CustomList Commands {text2} false {page}";
+                        command2 = $"SRUI_CustomList Commands {text2.Replace(" ", "%!%")} false {page}";
                     }
                     ++n;
                 }
@@ -1629,25 +1735,24 @@ namespace Oxide.Plugins
             {
                 string color1 = UIColors["buttonbg"];
                 string text1 = kitNames[n];
-                string command1 = $"SRUI_CustomList Kits {text1} true {page}";
+                string command1 = $"SRUI_CustomList Kits {text1.Replace(" ", "%!%")} true {page}";
                 string color2 = "0 0 0 0";
                 string text2 = "";
-                string command2 = "";
-
+                string command2 = "";                
                 if (NPCCreator[player.userID].kitList.Contains(kitNames[n]))
                 {
                     color1 = UIColors["buttoncom"];
-                    command1 = $"SRUI_CustomList Kits {text1} false {page}";
+                    command1 = $"SRUI_CustomList Kits {text1.Replace(" ", "%!%")} false {page}";                    
                 }
                 if (n + 1 < kitNames.Length)
                 {                    
                     color2 = UIColors["buttonbg"];
                     text2 = kitNames[n+1];
-                    command2 = $"SRUI_CustomList Kits {text2} true {page}";
+                    command2 = $"SRUI_CustomList Kits {text2.Replace(" ", "%!%")} true {page}";
                     if (NPCCreator[player.userID].kitList.Contains(kitNames[n+1]))
                     {
                         color2 = UIColors["buttoncom"];
-                        command2 = $"SRUI_CustomList Kits {text2} false {page}";
+                        command2 = $"SRUI_CustomList Kits {text2.Replace(" ", "%!%")} false {page}";                        
                     }
                     ++n;
                 }
@@ -1719,10 +1824,10 @@ namespace Oxide.Plugins
                 return;
 
             string type = arg.GetString(0);
-            string key = arg.GetString(1);
+            string key = arg.GetString(1).Replace("%!%", " ");
             bool isAdding = arg.GetBool(2);
             int page = arg.GetInt(3);
-            
+
             switch (type)
             {
                 case "Kits":
@@ -1773,8 +1878,7 @@ namespace Oxide.Plugins
                 return;
 
             CuiHelper.DestroyUi(player, UIMain);
-            CuiHelper.DestroyUi(player, UISelect);
-
+            CuiHelper.DestroyUi(player, UISelect);            
             var info = NPCCreator[player.userID];
             npcDealers.NPCIDs[info.NPCID].isCustom = true;
             npcDealers.NPCIDs[info.NPCID].itemList = info.itemList;
@@ -2500,6 +2604,7 @@ namespace Oxide.Plugins
         {
             {"title", "ServerRewards: " },
             { "msgOutRewards1", "You currently have {0} unspent reward tokens! Spend them in the reward store using /s" },
+            { "msgOutRewardsnpc", "You currently have {0} unspent reward tokens! Spend them in the reward store by finding a NPC reward dealer" },
             {"msgNoPoints", "You dont have enough reward points" },
             {"errorProfile", "Error getting your profile from the database"},
             {"errorPCon", "There was a error pulling {0}'s profile from the database" },

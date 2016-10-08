@@ -2,7 +2,7 @@
     "name": "Trade",
     "description": "Allows players to trade items safely at a distance",
     "author": "Calytic",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "configuration": true,
     "language": "cs",
     "games": [

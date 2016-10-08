@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("AnimalRemover", "Ankawi", "1.0.1")]
+    [Info("AnimalRemover", "Ankawi", "1.0.2")]
     [Description("Allows you to disable specific animals from spawning on the server")]
     public class AnimalRemover : RustPlugin
     {
@@ -96,48 +96,7 @@ namespace Oxide.Plugins
         }
         void OnEntitySpawned(BaseNetworkable entity)
         {
-            if ((bool)Config["Disable Bear Spawning"])
-            {
-                if (entity.PrefabName.Contains(BearPrefab))
-                {
-                    entity.Kill();
-                }
-            }
-            if ((bool)Config["Disable Boar Spawning"])
-            {
-                if (entity.PrefabName.Contains(BoarPrefab))
-                {
-                    entity.Kill();
-                }
-            }
-            if ((bool)Config["Disable Chicken Spawning"])
-            {
-                if (entity.PrefabName.Contains(ChickenPrefab))
-                {
-                    entity.Kill();
-                }
-            }
-            if ((bool)Config["Disable Horse Spawning"])
-            {
-                if (entity.PrefabName.Contains(HorsePrefab))
-                {
-                    entity.Kill();
-                }
-            }
-            if ((bool)Config["Disable Stag Spawning"])
-            {
-                if (entity.PrefabName.Contains(StagPrefab))
-                {
-                    entity.Kill();
-                }
-            }
-            if ((bool)Config["Disable Wolf Spawning"])
-            {
-                if (entity.PrefabName.Contains(WolfPrefab))
-                {
-                    entity.Kill();
-                }
-            }
+            KillAnimals();
         }
         void SetConfig(params object[] args)
         {

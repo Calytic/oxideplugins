@@ -2,7 +2,7 @@
     "name": "RustNotifications",
     "description": "Rust plugin to notify when someone connects\/disconnects from the server\/when structures are attacked",
     "author": "seanbyrne88",
-    "version": "0.7.0",
+    "version": "0.7.1",
     "configuration": true,
     "require": {
         "Slack": "*",

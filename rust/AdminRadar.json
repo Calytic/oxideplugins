@@ -1,11 +1,13 @@
 {
     "name": "Admin Radar",
-    "description": "Draw boxes where all players are to easily see if players are not supposed to be at places",
+    "description": "Admin Tool that gives admins the ability to help detect cheaters.",
     "author": "Austinv900",
-    "version": "2.0.7",
+    "version": "2.0.17",
     "configuration": true,
     "suggest": {
-        "AdminPanel": "*"
+        "AdminPanel": "*",
+        "Godmode": "*",
+        "XpBooster": "*"
     },
     "language": "cs",
     "games": [

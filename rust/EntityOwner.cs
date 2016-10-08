@@ -15,7 +15,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Entity Owner", "Calytic", "3.0.52", ResourceId = 1255)]
+    [Info("Entity Owner", "Calytic", "3.0.53", ResourceId = 1255)]
     [Description("Modify entity ownership and cupboard/turret authorization")]
     class EntityOwner : RustPlugin
     {
@@ -188,7 +188,7 @@ namespace Oxide.Plugins
             var sb = new StringBuilder();
             if (canCheckOwners(player) || canChangeOwners(player))
             {
-                sb.Append("<size=18>EntityOwner</size> by <color=#ce422b>Calytic</color> at <color=#ce422b>http://cyclone.network</color>\n");
+                sb.Append("<size=18>EntityOwner</size> by <color=#ce422b>Calytic</color> at <color=#ce422b>http://rustservers.io</color>\n");
             }
 
             if (canCheckOwners(player))
@@ -409,7 +409,7 @@ namespace Oxide.Plugins
         [ChatCommand("auth")]
         void cmdAuth(BasePlayer player, string command, string[] args)
         {
-            if (!canCheckOwners(player))
+            if (!canChangeOwners(player))
             {
                 SendReply(player, messages["You are not allowed to use this command"]);
                 return;

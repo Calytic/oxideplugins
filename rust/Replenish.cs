@@ -5,7 +5,7 @@ using Oxide.Core;
 using UnityEngine;
 
 namespace Oxide.Plugins {
-    [Info("Replenish", "Skrallex", "1.2.2", ResourceId = 1956)]
+    [Info("Replenish", "Skrallex", "1.3.0", ResourceId = 1956)]
     [Description("Easily replenish chests")]
     class Replenish : RustPlugin {
     	List<ReplenishableContainer> containers = new List<ReplenishableContainer>();
@@ -16,16 +16,6 @@ namespace Oxide.Plugins {
         bool RequireAllSlotsEmpty;
         int DefaultTimerLength;
         bool UsePermissionsOnly;
-
-        bool AllowLargeBox;
-        bool AllowSmallBox;
-        bool AllowFurnace;
-        bool AllowLargeFurnace;
-        bool AllowRefinery;
-        bool AllowCampFire;
-        bool AllowSmallStash;
-        bool AllowLargeStocking;
-        bool AllowSmallStocking;
 
         const string adminPerm = "replenish.admin";
         const string canEdit = "replenish.edit";
@@ -47,7 +37,6 @@ namespace Oxide.Plugins {
             // Load config and localisations.
             LoadDefaultMessages();
             LoadConfig();
-            LoadAllowableContainers();
         }
 
         void Unload() {
@@ -70,16 +59,6 @@ namespace Oxide.Plugins {
             Config["RequireAllSlotsEmpty"] = false;
             Config["DefaultTimerLength"] = 30;
             Config["UsePermissionsOnly"] = false;
-            Config["AllowLargeBox"] = true;
-            Config["AllowSmallBox"] = true;
-            Config["AllowFurnace"] = true;
-            Config["AllowLargeFurnace"] = true;
-            Config["AllowRefinery"] = true;
-            Config["AllowCampFire"] = true;
-            Config["AllowSmallStash"] = true;
-            Config["AllowLargeStocking"] = true;
-            Config["AllowSmallStocking"] = true;
-
             SaveConfig();
         }
 
@@ -87,36 +66,6 @@ namespace Oxide.Plugins {
             RequireAllSlotsEmpty = (bool)Config["RequireAllSlotsEmpty"] == null ? false : (bool)Config["RequireAllSlotsEmpty"];
             DefaultTimerLength = (int)Config["DefaultTimerLength"] == null ? 30 : (int)Config["DefaultTimerLength"];
             UsePermissionsOnly = (bool)Config["UsePermissionsOnly"] == null ? false : (bool)Config["UsePermissionsOnly"];
-            AllowLargeBox = (bool)Config["AllowLargeBox"] == null ? false : (bool)Config["AllowLargeBox"];
-            AllowSmallBox = (bool)Config["AllowSmallBox"] == null ? false : (bool)Config["AllowSmallBox"];
-            AllowFurnace = (bool)Config["AllowFurnace"] == null ? false : (bool)Config["AllowFurnace"];
-            AllowLargeFurnace = (bool)Config["AllowLargeFurnace"] == null ? false : (bool)Config["AllowLargeFurnace"];
-            AllowRefinery = (bool)Config["AllowRefinery"] == null ? false : (bool)Config["AllowRefinery"];
-            AllowCampFire = (bool)Config["AllowCampFire"] == null ? false : (bool)Config["AllowCampFire"];
-            AllowSmallStash = (bool)Config["AllowSmallStash"] == null ? false : (bool)Config["AllowSmallStash"];
-            AllowLargeStocking = (bool)Config["AllowLargeStocking"] == null ? false : (bool)Config["AllowLargeStocking"];
-            AllowSmallStocking = (bool)Config["AllowSmallStocking"] == null ? false : (bool)Config["AllowSmallStocking"];
-        }
-
-        void LoadAllowableContainers() {
-            if(AllowLargeBox)
-                allowableContainers.Add("box.wooden.large", "Large Wood Box");
-            if(AllowSmallBox)
-                allowableContainers.Add("woodbox_deployed", "Wood Storage Box");
-            if (AllowFurnace)
-                allowableContainers.Add("furnace", "Furnace");
-            if (AllowLargeFurnace)
-                allowableContainers.Add("furnace.large", "Large Furnace");
-            if (AllowRefinery)
-                allowableContainers.Add("refinery_small_deployed", "Small Oil Refinery");
-            if (AllowCampFire)
-                allowableContainers.Add("campfire.prefab", "Camp Fire");
-            if (AllowSmallStash)
-                allowableContainers.Add("small_stash_deployed", "Small Stash");
-            if (AllowLargeStocking)
-                allowableContainers.Add("stocking_small_deployed", "Small Stocking");
-            if (AllowLargeStocking)
-                allowableContainers.Add("stocking_large_deployed", "Super Stocking");
         }
 
         void LoadDefaultMessages() {
@@ -125,7 +74,6 @@ namespace Oxide.Plugins {
                 {"NoPermission", "You do not have permission to use this command."},
 
                 {"AddSyntax", "Invalid command syntax. Try <color=cyan>/replenish_add</color> <color=red>{Optional: TimeInSeconds}</color>"},
-
 
                 {"AlreadyReplenishing", "That container is already set to be replenished. Removing it first."},
                 {"NotReplenishing", "That container is not set to replenish."},
@@ -153,7 +101,21 @@ namespace Oxide.Plugins {
                     "\n><color=red>replenish_test</color>: Test if a container is replenishing." +
                     "\n><color=red>replenish_testm</color>: Test if multiple containers are replenishing." +
                     "\n><color=red>replenish_list</color>: Lists all replenishing containers and their locations." +
-                    "\n><color=red>replenish_stop</color>: Stop adding/removing/testing multiple containers." }
+                    "\n><color=red>replenish_stop</color>: Stop adding/removing/testing multiple containers." },
+
+                {"smallwoodbox", "Small Wooden Box"},
+                {"largewoodbox", "Large Wooden Box"},
+                {"smallstash", "Small Stash"},
+                {"furnace", "Furnace"},
+                {"largefurnace", "Large Furnace"},
+                {"lantern", "Lantern"},
+                {"campfire", "Camp Fire"},
+                {"watercatcher", "Water Barrel"},
+                {"researchtable", "Research Table"},
+                {"repairbench", "Repair Bench"},
+                {"smallrefinery", "Refinery"},
+                {"autoturret", "Auto Turret"},
+                {"generic", "Generic Container"}
             }, this);
         }
 
@@ -162,32 +124,24 @@ namespace Oxide.Plugins {
         		return;
         	}
 
-        	string containerType = "";
-        	foreach(KeyValuePair<string, string> entry in allowableContainers) {
-        		if(info.HitEntity.ToString().Contains(entry.Key)) {
-        			containerType = entry.Value;
-        			break;
-        		}
-        	}
-
-        	if(containerType == "")
-        		return;
-
         	StorageContainer container = info.HitEntity.GetComponent<StorageContainer>();
         	if(container == null)
         		return;
         	ReplenishPlayer rPlayer = GetReplenishPlayer(player);
 
+            string type = container.panelName;
+            Puts(type + "");
+
         	if(rPlayer.adding) {
-        		CreateReplenishableContainer(player, rPlayer, container, info, containerType);
+        		CreateReplenishableContainer(player, rPlayer, container, info, type);
         	}
 
         	if(rPlayer.removing) {
-        		RemoveReplenishableContainer(player, container, containerType);
+        		RemoveReplenishableContainer(player, container);
         	}
 
         	if(rPlayer.testing) {
-        		TestReplenishableContainer(player, container, containerType);
+        		TestReplenishableContainer(player, container);
         	}
 
         	if(!rPlayer.multi) {
@@ -215,7 +169,7 @@ namespace Oxide.Plugins {
         	}
 
         	ReplenishableContainer repl = new ReplenishableContainer(container.inventory.uid, rPlayer.timer);
-        	repl.type = type;
+        	repl.type = Lang(type);
         	repl.SaveItems(container.inventory);
         	var worldPos = info.HitEntity.GetEstimatedWorldPosition();
         	repl.pos = new Pos(worldPos.x, worldPos.y, worldPos.z);
@@ -223,7 +177,7 @@ namespace Oxide.Plugins {
         	ReplyFormatted(player, String.Format(Lang("BoxAdded"), repl.type, repl.uid, repl.timer));
         }
 
-        void RemoveReplenishableContainer(BasePlayer player, StorageContainer container, string type) {
+        void RemoveReplenishableContainer(BasePlayer player, StorageContainer container) {
         	if(GetReplenishableContainer(container.inventory) == null) {
         		ReplyPlayer(player, "NotReplenishing");
         		return;
@@ -233,7 +187,7 @@ namespace Oxide.Plugins {
         	ReplyFormatted(player, String.Format(Lang("BoxRemoved"), repl.type, repl.uid));
         }
 
-        void TestReplenishableContainer(BasePlayer player, StorageContainer container, string type) {
+        void TestReplenishableContainer(BasePlayer player, StorageContainer container) {
         	if(GetReplenishableContainer(container.inventory) == null) {
         		ReplyPlayer(player, "NotReplenishing");
         		return;

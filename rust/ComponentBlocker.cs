@@ -6,13 +6,15 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("ComponentBlocker", "Calytic", "0.1.0", ResourceId = 1382)]
+    [Info("ComponentBlocker", "Calytic", "0.1.2", ResourceId = 1382)]
     class ComponentBlocker : RustPlugin
     {
         List<string> blockList = new List<string>();
         List<string> blockCache = new List<string>();
 
         bool enabled = false;
+        bool craftRefund = true;
+        private bool sendMessages = true;
 
         private Dictionary<string, string> messages = new Dictionary<string, string>();
 
@@ -25,12 +27,11 @@ namespace Oxide.Plugins
             "You may not pick that up (restricted)"
         };
 
-        private bool sendMessages = true;
-
         void OnServerInitialized()
         {
             blockList = GetConfig<List<string>>("blockList", new List<string>());
             sendMessages = GetConfig<bool>("sendMessages", true);
+            craftRefund = GetConfig<bool>("craftRefund", true);
             Config["blockList"] = blockList;
 
             Dictionary<string, object> customMessages = GetConfig<Dictionary<string, object>>("messages", null);
@@ -82,6 +83,7 @@ namespace Oxide.Plugins
 
             Config["messages"] = messages;
             Config["sendMessages"] = true;
+            Config["craftRefund"] = true;
             Config["blockList"] = new List<string>();
             Config["VERSION"] = this.Version.ToString();
         }
@@ -102,7 +104,7 @@ namespace Oxide.Plugins
             Config["VERSION"] = this.Version.ToString();
 
             // NEW CONFIGURATION OPTIONS HERE
-
+            Config["craftRefund"] = true;
             // END NEW CONFIGURATION OPTIONS
 
             PrintWarning("Upgrading Configuration File");
@@ -117,7 +119,7 @@ namespace Oxide.Plugins
             }
 
             var sb = new StringBuilder()
-               .Append("ComponentBlocker by <color=#ce422b>http://cyclone.network</color>\n")
+               .Append("ComponentBlocker by <color=#ce422b>http://rustservers.io</color>\n")
                .Append("  ").Append("<color=\"#ffd479\">/blocker \"name\"</color> - Adds or removes item/entity to/from blocklist").Append("\n");
             player.ChatMessage(sb.ToString());
         }
@@ -332,8 +334,11 @@ namespace Oxide.Plugins
             if (isBlocked(def.displayName.english, def.shortname))
             {
                 task.cancelled = true;
-                RefundIngredients(task.blueprint, task.owner, task.amount);
-                if(sendMessages)
+                if (craftRefund)
+                {
+                    RefundIngredients(task.blueprint, task.owner, task.amount);
+                }
+                if (sendMessages)
                     SendReply(task.owner, messages["You may not craft this (restricted)"]);
 
                 return false;

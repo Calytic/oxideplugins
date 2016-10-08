@@ -15,7 +15,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("RustNotifications", "seanbyrne88", "0.7.0")]
+    [Info("RustNotifications", "seanbyrne88", "0.7.1")]
     [Description("Configurable Notifications for Rust Events")]
     class RustNotifications : RustPlugin
     {
@@ -73,22 +73,16 @@ namespace Oxide.Plugins
 
         private string GetDisplayNameByID(ulong UserID)
         {
-            if (BasePlayer.activePlayerList.Exists(x => UserID == x.userID))
+            IPlayer player = this.covalence.Players.FindPlayer(UserID.ToString());
+            // BasePlayer player = BasePlayer.Find(UserID.ToString());
+            if(player == null)
             {
-                return BasePlayer.activePlayerList.Find(x => UserID == x.userID).displayName;
+                PrintWarning(String.Format("Tried to find player with ID {0} but they weren't in active or sleeping player list", UserID.ToString()));
+                return "Unknown";
             }
             else
             {
-                try
-                {
-                    return BasePlayer.sleepingPlayerList.Find(x => UserID == x.userID).displayName;
-                }
-                catch (Exception)
-                {
-                    PrintWarning(String.Format("Tried to find player with ID {0} but they weren't in active or sleeping player list", UserID.ToString()));
-                    throw;
-                }
-
+                return player.Name;
             }
         }
 

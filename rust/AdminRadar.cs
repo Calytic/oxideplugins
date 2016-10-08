@@ -4,10 +4,11 @@ using System.Linq;
 using UnityEngine;
 using Oxide.Core;
 using Oxide.Core.Plugins;
+using Rust.Xp;
 
 namespace Oxide.Plugins
 {
-    [Info("Player Radar", "Austinv900 & Speedy2M", "2.0.7", ResourceId = 978)]
+    [Info("Player Radar", "Austinv900 & Speedy2M", "2.0.17", ResourceId = 978)]
     [Description("Allows admins to have a Radar to help detect cheaters")]
 
     class AdminRadar : RustPlugin
@@ -21,7 +22,7 @@ namespace Oxide.Plugins
         Dictionary<string, PlSettings> LoadedData = new Dictionary<string, PlSettings>();
         Dictionary<string, string> NameList = new Dictionary<string, string>();
         List<string> FilterList = new List<string>();
-        Dictionary<BasePlayer, string> Radars = new Dictionary<BasePlayer, string>();
+        List<string> ActiveRadars = new List<string>();
         #endregion
 
         #region Radar Class
@@ -208,7 +209,7 @@ namespace Oxide.Plugins
             foreach (var pl in BasePlayer.activePlayerList)
             {
                 if (pl.GetComponent<Radar>()) GameObject.Destroy(pl.GetComponent<Radar>());
-                if (Radars.ContainsKey(pl)) Radars.Remove(pl);
+                if (ActiveRadars.Contains(pl.UserIDString)) ActiveRadars.Remove(pl.UserIDString);
             }
         }
         void OnServerSave()
@@ -217,18 +218,21 @@ namespace Oxide.Plugins
         }
         void OnPlayerDisconnected(BasePlayer player)
         {
-            if (player.GetComponent<Radar>()) { GameObject.Destroy(player.GetComponent<Radar>()); if (Radars.ContainsKey(player)) Radars.Remove(player); }
+            if (player.GetComponent<Radar>()) { GameObject.Destroy(player.GetComponent<Radar>()); if (ActiveRadars.Contains(player.UserIDString)) ActiveRadars.Remove(player.UserIDString); }
         }
 
-        /*object OnXpEarn(ulong id)
+        object OnXpEarn(ulong steamid)
         {
-            if (DenyXP && IsRadar(id.ToString()))
+            string id = steamid.ToString();
+            var isGod = Godmode?.Call<bool>("IsGod", id) ?? false;
+
+            if (DenyXP && ActiveRadars.Contains(id))
             {
-                if (Godmode && (bool)Godmode.Call("IsRadar", id.ToString())) return null;
-                return 0f;
+                if (isGod)  return null;
+                return (float)0;
             }
-            else return null;
-        }*/
+            return null;
+        }
         #endregion
 
         #region Configuration
@@ -682,7 +686,7 @@ namespace Oxide.Plugins
         {
             if (IsRadar(player.UserIDString))
             {
-                if (Radars.ContainsKey(player)) Radars.Remove(player);
+                if (ActiveRadars.Contains(player.UserIDString)) ActiveRadars.Remove(player.UserIDString);
                 GameObject.Destroy(player.GetComponent<Radar>());
                 SendMessage(player, Lang("RadarOff", player.UserIDString));
                 return;
@@ -692,7 +696,7 @@ namespace Oxide.Plugins
             var repeat = SelectPlayerInvoke(player.UserIDString, filter);
             LoadNameList();
 
-            if (!Radars.ContainsKey(player)) Radars.Add(player, filter);
+            if (!ActiveRadars.Contains(player.UserIDString)) ActiveRadars.Add(player.UserIDString);
             Radar whrd = player.gameObject.AddComponent<Radar>();
 
             whrd.CancelInvoke();
@@ -859,8 +863,8 @@ namespace Oxide.Plugins
         #region Helper
         void SendMessage(BasePlayer player, string message) => rust.SendChatMessage(player, $"<color=grey>[<color=teal>{ChatPrefix}</color>]</color>","<color=grey>" + message + "</color>", ChatIcon);
         string Lang(string key, string id = null, params object[] args) => string.Format(lang.GetMessage(key, this, id), args);
-        bool IsRadar(string id) => rust.FindPlayer(id).GetComponent<Radar>();
-        bool Allowed(BasePlayer player) => permission.UserHasGroup(player.UserIDString, "admin") || permission.UserHasPermission(player.UserIDString, permAllowed);
+        bool IsRadar(string id) => ActiveRadars.Contains(id);
+        bool Allowed(BasePlayer player) => permission.UserHasGroup(player.UserIDString, "admin") || permission.UserHasPermission(player.UserIDString, "adminradar." + permAllowed);
         private bool HasPlayerData(string id) => LoadedData.ContainsKey(id);
 
         string ListToString<T>(List<T> list, int first = 0, string seperator = ", ") => string.Join(seperator, (from val in list select val.ToString()).Skip(first).ToArray());
@@ -869,18 +873,18 @@ namespace Oxide.Plugins
         bool RadarList(out string list)
         {
             string namelist = string.Empty;
-            foreach (var key in Radars.Keys)
+            foreach (var key in ActiveRadars)
             {
-                namelist += $"<color=red>{key.displayName}</color> - <color=green>{Radars[key]}</color>\n";
+                namelist += $"<color=red>{rust.FindPlayer(key).displayName}</color>\n";
             }
             list = namelist;
-            return Radars.Count != 0;
+            return ActiveRadars.Count != 0;
         }
 
         private void SendHelpText(BasePlayer player)
         {
             string message =
-                "<size=12>---- Radar Commands ----\n" +
+                "<size=13>---- Radar Commands ----\n" +
                 "<color=red>/radar</color> <color=green>(filter)</color> - <color=yellow>activates radar with default settings or with optional filter</color>\n" +
                 "<color=red>/radar list</color> - <color=yellow>Shows a list of players using Radar</color>\n" +
                 "<color=red>/radar give</color> <color=green>[target] (filter)</color> - <color=yellow>Give a player radar with filter</color>\n" +

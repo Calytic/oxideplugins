@@ -3,11 +3,12 @@ using System.Text;
 using System.Collections.Generic;
 using UnityEngine;
 using Oxide.Core;
+using Oxide.Core.Plugins;
 using Newtonsoft.Json;
 
 namespace Oxide.Plugins
 {
-    [Info("Trade", "Calytic", "1.0.5")]
+    [Info("Trade", "Calytic", "1.0.6", ResourceId = 1242)]
     class Trade : RustPlugin
     {
         #region Configuration Data
@@ -17,6 +18,9 @@ namespace Oxide.Plugins
         private float cooldownMinutes;
         private float maxRadius;
         private float pendingSeconds;
+
+        [PluginReference]
+        private Plugin Ignore;
 
         private Dictionary<string, DateTime> tradeCooldowns = new Dictionary<string, DateTime>();
 
@@ -281,6 +285,7 @@ namespace Oxide.Plugins
                 {"Denied: Wounded", "You cannot do that while wounded"},
                 {"Denied: Generic", "You cannot do that right now"},
                 {"Denied: They Busy", "That player is busy"},
+                {"Denied: They Ignored You", "They ignored you"},
                 {"Denied: Distance", "Too far away"},
 
                 {"Item: BP", "BP"},
@@ -443,6 +448,16 @@ namespace Oxide.Plugins
             if (!CheckCooldown(player))
             {
                 return;
+            }
+
+            if (Ignore != null)
+            {
+                var IsIgnored = Ignore.Call("IsIgnoredS", player.UserIDString, targetPlayer.UserIDString);
+                if ((bool)IsIgnored == true)
+                {
+                    SendReply(player, GetMsg("Denied: They Ignored You", player));
+                    return;
+                }
             }
 
             OnlinePlayer onlineTargetPlayer;

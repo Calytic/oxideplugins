@@ -6,7 +6,7 @@ using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("Robbery", "Wulf/lukespragg", "3.1.1", ResourceId = 736)]
+    [Info("Robbery", "Wulf/lukespragg", "3.1.3", ResourceId = 736)]
     [Description("Players can steal money, points, and/or items from other players")]
 
     class Robbery : RustPlugin
@@ -24,6 +24,7 @@ namespace Oxide.Plugins
         [PluginReference] Plugin ZoneManager;
 
         readonly Hash<string, float> cooldowns = new Hash<string, float>();
+        const string permKilling = "robbery.killing";
         const string permMugging = "robbery.mugging";
         const string permPickpocket = "robbery.pickpocket";
         const string permProtection = "robbery.protection";
@@ -50,6 +51,7 @@ namespace Oxide.Plugins
         {
             LoadDefaultConfig();
             LoadDefaultMessages();
+            permission.RegisterPermission(permKilling, this);
             permission.RegisterPermission(permMugging, this);
             permission.RegisterPermission(permPickpocket, this);
             permission.RegisterPermission(permProtection, this);
@@ -218,19 +220,16 @@ namespace Oxide.Plugins
             var attackerInv = attacker.inventory.containerMain;
             if (victimInv == null || attackerInv == null) return;
 
-            // Check if victim has items and attacker can accept items
-            if (victimInv.availableSlots.Equals(victimInv.capacity) || attackerInv.IsFull()) return;
-
-            // Pick a random inventory slot to steal from
+            // Get random inventory slot from victim and check attacker for inventory space
             var item = victimInv.GetSlot(UnityEngine.Random.Range(1, victimInv.capacity));
-            if (item != null)
+            if (item != null && !attackerInv.IsFull())
             {
                 // Transfer item from victim to attacker
                 item.MoveToContainer(attackerInv);
-                PrintToChat(attacker, Lang("StoleItem", attacker.UserIDString, item.amount, item.info.displayName, victim.UserIDString));
+                PrintToChat(attacker, Lang("StoleItem", attacker.UserIDString, item.amount, item.info.displayName.english, victim.displayName));
             }
             else
-                PrintToChat(attacker, Lang("StoleNothing", attacker.UserIDString));
+                PrintToChat(attacker, Lang("StoleNothing", attacker.UserIDString, victim.displayName));
         }
 
         #endregion
@@ -271,7 +270,7 @@ namespace Oxide.Plugins
             if (friendProtection && Friends)
             {
                 // Check if victim is friend of attacker
-                if (!((bool)Friends.Call("AreFriends", attacker.userID, victim.userID))) return false;
+                if (!((bool)Friends.Call("AreFriendsS", attacker.UserIDString, victim.UserIDString))) return false;
                 PrintToChat(attacker, Lang("IsFriend", attacker.UserIDString));
                 return true;
             }
@@ -321,6 +320,28 @@ namespace Oxide.Plugins
 
         #endregion
 
+        #region Killing
+
+        void OnUserDeath(BaseEntity entity, HitInfo info)
+        {
+            // Check for valid victim and attacker
+            var victim = entity as BasePlayer;
+            var attacker = info?.Initiator as BasePlayer;
+            if (victim == null || attacker == null) return;
+            if (victim == attacker) return;
+
+            // Check if the attacker has permission
+            if (!permission.UserHasPermission(attacker.UserIDString, permKilling)) return;
+
+            // Check for zone/friend/clan exclusions
+            if (InNoLootZone(victim, attacker) || IsFriend(victim, attacker) || IsClanmate(victim, attacker)) return;
+
+            // Transfer the booty if enabled
+            if (moneyStealing) StealMoney(victim, attacker);
+        }
+
+        #endregion
+
         #region Mugging
 
         void OnEntityTakeDamage(BaseEntity entity, HitInfo info)
@@ -331,8 +352,14 @@ namespace Oxide.Plugins
             if (victim == null || attacker == null) return;
             if (victim == attacker) return;
 
+            // Ignore gunshots, only allow melee essentially
+            if (info.IsProjectile()) return;
+
             // Check if the attacker has permission
             if (!permission.UserHasPermission(attacker.UserIDString, permMugging)) return;
+
+            // Check for zone/friend/clan exclusions
+            if (InNoLootZone(victim, attacker) || IsFriend(victim, attacker) || IsClanmate(victim, attacker)) return;
 
             // Check if attacker needs a cooldown
             if (!cooldowns.ContainsKey(attacker.UserIDString)) cooldowns.Add(attacker.UserIDString, 0f);
@@ -341,9 +368,6 @@ namespace Oxide.Plugins
                 PrintToChat(attacker, Lang("Cooldown", attacker.UserIDString));
                 return;
             }
-
-            // Check for zone/friend/clan exclusions
-            if (InNoLootZone(victim, attacker) || IsFriend(victim, attacker) || IsClanmate(victim, attacker)) return;
 
             // Transfer the booty if enabled
             if (itemStealing) StealItem(victim, attacker);
@@ -365,19 +389,14 @@ namespace Oxide.Plugins
             // Check if the attacker has permission
             if (!permission.UserHasPermission(attacker.UserIDString, permPickpocket)) return;
 
-            // Check if attacker needs a cooldown
-            if (!cooldowns.ContainsKey(attacker.UserIDString)) cooldowns.Add(attacker.UserIDString, 0f);
-            if (usageCooldown != 0 && cooldowns[attacker.UserIDString] + usageCooldown > Interface.Oxide.Now)
-            {
-                PrintToChat(attacker, Lang("Cooldown", attacker.UserIDString));
-                return;
-            }
-
             // Check for valid target victim
             var ray = new Ray(attacker.eyes.position, attacker.eyes.HeadForward());
             var entity = FindObject(ray, 1);
             var victim = entity?.ToPlayer();
             if (victim == null) return;
+
+            // Check for zone/friend/clan exclusions
+            if (InNoLootZone(victim, attacker) || IsFriend(victim, attacker) || IsClanmate(victim, attacker)) return;
 
             // Make sure victim isn't looking
             var victimToAttacker = (attacker.transform.position - victim.transform.position).normalized;
@@ -391,6 +410,14 @@ namespace Oxide.Plugins
             if (attacker.GetActiveItem()?.GetHeldEntity() != null)
             {
                 PrintToChat(attacker, Lang("CantHoldItem", attacker.UserIDString));
+                return;
+            }
+
+            // Check if attacker needs a cooldown
+            if (!cooldowns.ContainsKey(attacker.UserIDString)) cooldowns.Add(attacker.UserIDString, 0f);
+            if (usageCooldown != 0 && cooldowns[attacker.UserIDString] + usageCooldown > Interface.Oxide.Now)
+            {
+                PrintToChat(attacker, Lang("Cooldown", attacker.UserIDString));
                 return;
             }
 
