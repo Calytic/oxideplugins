@@ -15,14 +15,16 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Entity Owner", "Calytic", "3.0.53", ResourceId = 1255)]
+    [Info("Entity Owner", "Calytic", "3.0.7", ResourceId = 1255)]
     [Description("Modify entity ownership and cupboard/turret authorization")]
     class EntityOwner : RustPlugin
     {
         #region Data & Config
         private Dictionary<string, string> messages = new Dictionary<string, string>();
         private readonly int layerMasks = LayerMask.GetMask("Construction", "Construction Trigger", "Trigger", "Deployed");
+        FieldInfo keyCodeField = typeof(CodeLock).GetField("code", (BindingFlags.Instance | BindingFlags.NonPublic));
 
+        private bool prodKeyCode = true;
         private int EntityLimit = 8000;
         private float DistanceThreshold = 3f;
         private float CupboardDistanceThreshold = 20f;
@@ -67,7 +69,8 @@ namespace Oxide.Plugins
             "Deauthorized {0} on {1} turrets",
             "Deauthorizing turrets..",
             "Deauthorizing cupboards..",
-            "Deauthorized {0} on {1} cupboards"
+            "Deauthorized {0} on {1} cupboards",
+            "Code: {0}",
         };
 
         // Loads the default configuration
@@ -94,6 +97,7 @@ namespace Oxide.Plugins
             Config["EntityLimit"] = 8000;
             Config["DistanceThreshold"] = 3.0f;
             Config["CupboardDistanceThreshold"] = 20f;
+            Config["prodKeyCode"] = true;
 
             Config.Save();
         }
@@ -114,10 +118,12 @@ namespace Oxide.Plugins
             Config["VERSION"] = Version.ToString();
 
             // NEW CONFIGURATION OPTIONS HERE
+            Config["prodKeyCode"] = true;
             // END NEW CONFIGURATION OPTIONS
 
             PrintToConsole("Upgrading Configuration File");
             SaveConfig();
+            LoadMessages();
         }
 
         // Gets a config value of a specific type
@@ -142,20 +148,14 @@ namespace Oxide.Plugins
                 EntityLimit = GetConfig("EntityLimit", 8000);
                 DistanceThreshold = GetConfig("DistanceThreshold", 3f);
                 CupboardDistanceThreshold = GetConfig("CupboardDistanceThreshold", 20f);
+                prodKeyCode = GetConfig("prodKeyCode", true);
 
                 if (DistanceThreshold >= 5)
                 {
                     PrintWarning("ALERT: Distance threshold configuration option is ABOVE 5.  This may cause serious performance degradation (lag) when using EntityOwner commands");
                 }
 
-                var customMessages = GetConfig<Dictionary<string, object>>("messages", null);
-                if (customMessages != null)
-                {
-                    foreach (var kvp in customMessages.ToList())
-                    {
-                        messages[kvp.Key] = kvp.Value.ToString();
-                    }
-                }
+                LoadMessages();
 
                 if (!permission.PermissionExists("entityowner.cancheckowners")) permission.RegisterPermission("entityowner.cancheckowners", this);
                 if (!permission.PermissionExists("entityowner.canchangeowners")) permission.RegisterPermission("entityowner.canchangeowners", this);
@@ -165,6 +165,17 @@ namespace Oxide.Plugins
             catch (Exception ex)
             {
                 PrintError("OnServerInitialized failed: {0}", ex.Message);
+            }
+        }
+
+        void LoadMessages() {
+            var customMessages = GetConfig<Dictionary<string, object>>("messages", null);
+            if (customMessages != null)
+            {
+                foreach (var kvp in customMessages.ToList())
+                {
+                    messages[kvp.Key] = kvp.Value.ToString();
+                }
             }
         }
 
@@ -246,7 +257,21 @@ namespace Oxide.Plugins
                         owner = "N/A";
                     }
 
-                    SendReply(player, string.Format(messages["Owner: {0}"], owner) + "\n<color=lightgrey>" + targetEntity.ShortPrefabName + "</color>");
+                    string msg = string.Format(messages["Owner: {0}"], owner) + "\n<color=lightgrey>" + targetEntity.ShortPrefabName + "</color>";
+
+                    if(prodKeyCode) {
+                        if(target is Door) {
+                            Door door = (Door)target;
+                            BaseLock baseLock = door.GetSlot(BaseEntity.Slot.Lock) as BaseLock;
+                            if(baseLock is CodeLock) {
+                                CodeLock codeLock = (CodeLock)baseLock;
+                                string keyCode = keyCodeField.GetValue(codeLock).ToString();
+                                msg += "\n" + string.Format(messages["Code: {0}"], keyCode);
+                            }
+                        }
+                    }
+
+                    SendReply(player, msg);
                 }
             }
             else
@@ -843,7 +868,7 @@ namespace Oxide.Plugins
                     }
                     else
                     {
-                        IPlayer pl = covalence.Players.GetPlayer(target.ToString());
+                        IPlayer pl = covalence.Players.FindPlayer(target.ToString());
                         SendReply(player, string.Format(messages["Owner: {0}"], pl.Name));
                     }
                 }
@@ -1242,7 +1267,9 @@ namespace Oxide.Plugins
                         });
 
                         priv.SendNetworkUpdate(BasePlayer.NetworkQueue.Update);
-                        target.SetInsideBuildingPrivilege(priv, true);
+                        if(priv.CheckEntity(target)) {
+                            target.SetInsideBuildingPrivilege(priv, true);
+                        }
 
                         total++;
                     }
@@ -1306,7 +1333,9 @@ namespace Oxide.Plugins
                             {
                                 priv.authorizedPlayers.Remove(p);
                                 priv.SendNetworkUpdate(BasePlayer.NetworkQueue.Update);
-                                target.SetInsideBuildingPrivilege(priv, false);
+                                if(priv.CheckEntity(target)) {
+                                    target.SetInsideBuildingPrivilege(priv, false);
+                                }
                             }
                         }
 
@@ -1680,7 +1709,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            var p = covalence.Players.GetPlayer(playerID.ToString());
+            var p = covalence.Players.FindPlayer(playerID.ToString());
             if (p != null)
             {
                 return $"{p.Name} [<color=red>Offline</color>]";
@@ -1691,26 +1720,18 @@ namespace Oxide.Plugins
 
         void SetValue(object inputObject, string propertyName, object propertyVal)
         {
-            //find out the type
             var type = inputObject.GetType();
-
-            //get the property information based on the type
             var propertyInfo = type.GetField(propertyName, BindingFlags.NonPublic | BindingFlags.Instance);
 
-            //find the property type
             var propertyType = propertyInfo.FieldType;
 
-            //Convert.ChangeType does not handle conversion to nullable types
-            //if the property type is nullable, we need to get the underlying type of the property
             var targetType = IsNullableType(propertyType) ? Nullable.GetUnderlyingType(propertyType) : propertyType;
 
-            //Returns an System.Object with the specified System.Type and whose value is
-            //equivalent to the specified object.
             propertyVal = Convert.ChangeType(propertyVal, targetType);
 
-            //Set the value of the property
             propertyInfo.SetValue(inputObject, propertyVal);
         }
+
         private bool IsNullableType(Type type)
         {
             return type.IsGenericType && type.GetGenericTypeDefinition().Equals(typeof(Nullable<>));
