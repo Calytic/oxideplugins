@@ -1,8 +1,8 @@
 {
     "name": "BuildingRestriction",
     "description": "Restrict buildings foundations \/ height",
-    "author": "",
-    "version": "0.1.2",
+    "author": "Jakkee",
+    "version": "1.1.2",
     "configuration": true,
     "language": "cs",
     "games": [

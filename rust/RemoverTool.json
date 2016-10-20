@@ -2,7 +2,7 @@
     "name": "R-Remover Tool",
     "description": "Remover tool",
     "author": "Reneb",
-    "version": "4.0.6",
+    "version": "4.0.7",
     "configuration": true,
     "suggest": {
         "BuildingOwners": "*",

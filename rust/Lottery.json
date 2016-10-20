@@ -2,8 +2,11 @@
     "name": "Lottery",
     "description": "Allow players to roll number to win more money",
     "author": "sami37",
-    "version": "1.0.0",
+    "version": "1.0.3",
     "configuration": true,
+    "suggest": {
+        "ServerRewards": "*"
+    },
     "require": {
         "Economics": "*"
     },

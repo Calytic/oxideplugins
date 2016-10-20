@@ -1,8 +1,8 @@
 {
-    "name": "Magic Craft",
-    "description": "Alternative crafting system",
-    "author": "Norn",
-    "version": "0.2.4",
+    "name": "NoWaterBuild",
+    "description": "Block players building in water",
+    "author": "Jakkee",
+    "version": "0.1",
     "configuration": true,
     "language": "cs",
     "games": [

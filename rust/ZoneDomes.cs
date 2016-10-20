@@ -10,7 +10,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("ZoneDomes", "k1lly0u", "0.1.31", ResourceId = 1945)]
+    [Info("ZoneDomes", "k1lly0u", "0.1.32", ResourceId = 1945)]
     class ZoneDomes : RustPlugin
     {
         #region Fields
@@ -232,6 +232,7 @@ namespace Oxide.Plugins
                         {
                             DestroySphere(Spheres[i]);
                             data.Zones.Remove(ID);
+                            SaveData();
                             SendMsg(player, ID, GetMsg("remSuccess"));
                             return true;
                         }

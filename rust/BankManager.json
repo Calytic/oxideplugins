@@ -1,9 +1,12 @@
 {
     "name": "Bank Manager",
-    "description": "Allows players to deposit and withdraw items from a bank.",
+    "description": "Allows players to deposit and withdraw items from a bank.  With NPC support.",
     "author": "insane8472",
-    "version": "1.0.9",
+    "version": "1.1.2",
     "configuration": true,
+    "suggest": {
+        "HumanNPC": "*"
+    },
     "require": {
         "Clans": "*"
     },

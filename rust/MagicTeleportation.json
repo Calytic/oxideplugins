@@ -2,11 +2,10 @@
     "name": "Magic Teleportation",
     "description": "Magical home\/teleport system.",
     "author": "Norn",
-    "version": "0.9",
+    "version": "1.0",
     "configuration": true,
     "suggest": {
         "BuildingOwners": "*",
-        "DeadPlayersList": "*",
         "PopupNotifications": "*"
     },
     "language": "cs",

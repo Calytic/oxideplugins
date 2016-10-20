@@ -9,11 +9,12 @@ using System.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("PlayerChallenges", "k1lly0u", "2.0.35", ResourceId = 1442)]
+    [Info("PlayerChallenges", "k1lly0u", "2.0.36", ResourceId = 1442)]
     class PlayerChallenges : RustPlugin
     {
         #region Fields
         [PluginReference] Plugin BetterChat;
+        [PluginReference] Plugin EventManager;
         [PluginReference] Plugin LustyMap;
         [PluginReference] Plugin Clans;
         [PluginReference] Plugin Friends;        
@@ -246,6 +247,16 @@ namespace Oxide.Plugins
                 LustyMap.Call("EnableMaps", player);
             }
         }
+        private bool IsPlaying(BasePlayer player)
+        {
+            if (EventManager)
+            {
+                var isPlaying = EventManager.Call("isPlaying", player);
+                if (isPlaying is bool && (bool)isPlaying)
+                    return true;
+            }
+            return false;
+        }
         private bool IsClanmate(ulong playerId, ulong friendId)
         {
             if (!Clans) return false;
@@ -258,8 +269,10 @@ namespace Oxide.Plugins
         private bool IsFriend(ulong playerId, ulong friendId)
         {
             if (!Friends) return false;
-            bool isFriend = (bool)Friends?.Call("IsFriend", playerId, friendId);
-            return isFriend;
+            object isFriend = Friends?.Call("IsFriend", playerId, friendId);
+            if (isFriend is bool && (bool)isFriend)
+                return true;
+            return false;            
         }
         #endregion
 
@@ -275,7 +288,7 @@ namespace Oxide.Plugins
             LoadData();
             CheckValidData();
             RegisterGroups();
-            AddAllUsergroups();
+            AddAllUsergroups();            
             SaveLoop();
             if (configData.UI_Arrangement.Count != 20)
             {
@@ -354,11 +367,13 @@ namespace Oxide.Plugins
                 var attacker = info?.InitiatorPlayer;
                 if (attacker == null) return;
                 CheckEntry(attacker);
-                if (entity.ToPlayer() != null)
+                if (entity is BasePlayer)
                 {
-                    if (IsFriend(attacker.userID, entity.ToPlayer().userID)) return;
-                    if (IsClanmate(attacker.userID, entity.ToPlayer().userID)) return;
-                    if (configData.Options.IgnoreSleepers && entity.ToPlayer().IsSleeping()) return;
+                    var victim = entity.ToPlayer();
+                    if (IsPlaying(attacker)) return;
+                    if (IsFriend(attacker.userID, victim.userID)) return;
+                    if (IsClanmate(attacker.userID, victim.userID)) return;
+                    if (configData.Options.IgnoreSleepers && victim.IsSleeping()) return;
 
                     var distance = Vector3.Distance(attacker.transform.position, entity.transform.position);
                     AddDistance(attacker, CTypes.PVPKill, (int)distance);
@@ -469,22 +484,28 @@ namespace Oxide.Plugins
         }
         private void AddAllUsergroups()
         {
-            foreach (var type in titleCache)
+            if (BetterChat && configData.Options.UseBetterChat)
             {
-                var name = GetGroupName(type.Key);
-                if (titleCache[type.Key].UserID == 0U) continue;
-                if (!UserInGroup(titleCache[type.Key].UserID.ToString(), name))
-                    AddToGroup(titleCache[type.Key].UserID.ToString(), name);
+                foreach (var type in titleCache)
+                {
+                    var name = GetGroupName(type.Key);
+                    if (titleCache[type.Key].UserID == 0) continue;
+                    if (!UserInGroup(titleCache[type.Key].UserID.ToString(), name))
+                        AddToGroup(titleCache[type.Key].UserID.ToString(), name);
+                }
             }
         }
         private void RemoveAllUsergroups()
         {
-            foreach (var type in titleCache)
+            if (BetterChat && configData.Options.UseBetterChat)
             {
-                var name = GetGroupName(type.Key);
-                if (titleCache[type.Key].UserID == 0U) continue;
-                if (UserInGroup(titleCache[type.Key].UserID.ToString(), name))
-                    RemoveFromGroup(titleCache[type.Key].UserID.ToString(), name);
+                foreach (var type in titleCache)
+                {
+                    var name = GetGroupName(type.Key);
+                    if (titleCache[type.Key].UserID == 0) continue;
+                    if (UserInGroup(titleCache[type.Key].UserID.ToString(), name))
+                        RemoveFromGroup(titleCache[type.Key].UserID.ToString(), name);
+                }
             }
         }
         private void CheckUpdateTimer()
@@ -680,6 +701,7 @@ namespace Oxide.Plugins
             public bool IgnoreSleepers;
             public bool UseBetterChat;
             public bool IgnoreAdmins;
+            public bool IgnoreEventKills;
             public bool AnnounceNewLeaders;
             public bool UseUpdateTimer;
             public int UpdateTimer;
@@ -751,6 +773,7 @@ namespace Oxide.Plugins
                     AnnounceNewLeaders = false,
                     IgnoreAdmins = true,
                     IgnoreSleepers = true,
+                    IgnoreEventKills = true,
                     SaveTimer = 600,
                     UseBetterChat = true,
                     UseUpdateTimer = false,

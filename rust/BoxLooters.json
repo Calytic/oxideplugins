@@ -2,7 +2,7 @@
     "name": "BoxLooters",
     "description": "[AntiCheat] Log looters for a containers",
     "author": "k1lly0u",
-    "version": "0.2.95",
+    "version": "0.3.1",
     "configuration": true,
     "language": "cs",
     "games": [

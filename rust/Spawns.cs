@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Oxide.Core;
@@ -9,7 +10,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Spawns", "Reneb / k1lly0u", "2.0.1", ResourceId = 0)]
+    [Info("Spawns", "Reneb / k1lly0u", "2.0.2", ResourceId = 0)]
     class Spawns : RustPlugin
     {
         #region Fields
@@ -25,7 +26,7 @@ namespace Oxide.Plugins
         void Loaded()
         {
             lang.RegisterMessages(Messages, this);
-            data = Interface.Oxide.DataFileSystem.GetFile("spawns_data");
+            data = Interface.Oxide.DataFileSystem.GetFile("SpawnsDatabase/spawns_data");
             SpawnCreation = new Dictionary<ulong, List<Vector3>>();
             LoadedSpawnfiles = new Dictionary<string, List<Vector3>>();
         }
@@ -42,11 +43,25 @@ namespace Oxide.Plugins
             bool hasChanged = false;
             for (int i = 0; i < spawnsData.Spawnfiles.Count; i++)
             {
-                if (!Interface.Oxide.DataFileSystem.ExistsDatafile(spawnsData.Spawnfiles[i]))
+                var name = spawnsData.Spawnfiles[i];
+                if (!Interface.Oxide.DataFileSystem.ExistsDatafile($"SpawnsDatabase/{name}"))
                 {
-                    spawnsData.Spawnfiles.Remove(spawnsData.Spawnfiles[i]);
+                    spawnsData.Spawnfiles.Remove(name);
                     hasChanged = true;
-                }
+                } 
+                else 
+                {                    
+                    if (LoadSpawns(name) != null)
+                    {
+                        spawnsData.Spawnfiles.Remove(name);
+                        hasChanged = true;
+                    }
+                    else if (LoadedSpawnfiles[name].Count == 0)
+                    {
+                        spawnsData.Spawnfiles.Remove(name);
+                        hasChanged = true;
+                    }
+                }               
             }
             if (hasChanged) SaveData();
         }
@@ -56,13 +71,15 @@ namespace Oxide.Plugins
         }
         object LoadSpawns(string name)
         {
+            if (string.IsNullOrEmpty(name))
+                return MSG("noFile");
+
             if (!LoadedSpawnfiles.ContainsKey(name))
-            {
+            {                
                 object success = LoadSpawnFile(name);
-                if (success == null)
-                {
+                if (success == null)                
                     return MSG("noFile");
-                }
+                
                 else LoadedSpawnfiles.Add(name, (List<Vector3>)success);
             }
             return null;
@@ -96,7 +113,7 @@ namespace Oxide.Plugins
             object success = LoadSpawns(filename);
             if (success != null) return (string)success;
             if (number < 0) number = 0;
-            if (number > LoadedSpawnfiles[filename].Count) number = LoadedSpawnfiles[filename].Count;
+            if (number > LoadedSpawnfiles[filename].Count - 1) number = LoadedSpawnfiles[filename].Count - 1;
             return LoadedSpawnfiles[filename][number];
         }
         string[] GetSpawnfileNames() => spawnsData.Spawnfiles.ToArray();
@@ -157,8 +174,10 @@ namespace Oxide.Plugins
                             return;
                         }
                         else
-                        {
+                        {                            
                             SpawnCreation[player.userID].Add(player.transform.position);
+                            var number = SpawnCreation[player.userID].Count;
+                            ShowSpawnPoint(player, SpawnCreation[player.userID][number - 1], number.ToString());
                             SendReply(player, string.Format("Added Spawn nÂ°{0}", SpawnCreation[player.userID].Count));
                         }
                         return;
@@ -235,8 +254,7 @@ namespace Oxide.Plugins
                             int i = 1;
                             foreach (var point in SpawnCreation[player.userID])
                             {
-                                player.SendConsoleCommand("ddraw.text", 10f, Color.green, point + new Vector3(0, 1.5f, 0), $"<size=40>{i}</size>");
-                                player.SendConsoleCommand("ddraw.box", 10f, Color.green, point, 1f);
+                                ShowSpawnPoint(player, point, i.ToString());
                                 i++;
                             }
                             return;
@@ -249,6 +267,11 @@ namespace Oxide.Plugins
                         break;
                 }
             }
+        }
+        void ShowSpawnPoint(BasePlayer player, Vector3 point, string name, float time = 10f)
+        {
+            player.SendConsoleCommand("ddraw.text", 10f, Color.green, point + new Vector3(0, 1.5f, 0), $"<size=40>{name}</size>");
+            player.SendConsoleCommand("ddraw.box", 10f, Color.green, point, 1f);
         }
         void SendHelp(BasePlayer player)
         {
@@ -291,7 +314,7 @@ namespace Oxide.Plugins
         }
         void SaveSpawnFile(BasePlayer player, string name)
         {
-            var NewSpawnFile = Interface.Oxide.DataFileSystem.GetFile(name);
+            var NewSpawnFile = Interface.Oxide.DataFileSystem.GetFile($"SpawnsDatabase/{name}");
             NewSpawnFile.Clear();
             NewSpawnFile.Settings.Converters = new JsonConverter[] { new StringEnumConverter(), new UnityVector3Converter() };
             var spawnFile = new Spawnfile();
@@ -305,6 +328,7 @@ namespace Oxide.Plugins
             NewSpawnFile.WriteObject(spawnFile);
 
             spawnsData.Spawnfiles.Add(name);
+            LoadedSpawnfiles.Add(name, SpawnCreation[player.userID]);
             SaveData();
 
             SendReply(player, string.Format(MSG("saved", player.UserIDString), SpawnCreation[player.userID].Count, name));
@@ -312,17 +336,14 @@ namespace Oxide.Plugins
         }
         object LoadSpawnFile(string name)
         {
-            var sfile = Interface.GetMod().DataFileSystem.GetDatafile(name);
+            if (!Interface.Oxide.DataFileSystem.ExistsDatafile($"SpawnsDatabase/{name}"))
+                return null;
+            var sfile = Interface.GetMod().DataFileSystem.GetDatafile($"SpawnsDatabase/{name}");
             sfile.Settings.Converters = new JsonConverter[] { new StringEnumConverter(), new UnityVector3Converter() };
 
             var spawnFile = new Spawnfile();
             spawnFile = sfile.ReadObject<Spawnfile>();
-
-            var spawnList = new List<Vector3>();
-            foreach (var pair in spawnFile.spawnPoints)
-            {
-                spawnList.Add(pair.Value);
-            }
+            var spawnList = spawnFile.spawnPoints.Values.ToList();
             if (spawnList.Count < 1)
                 return null;
             return spawnList;
@@ -387,7 +408,7 @@ namespace Oxide.Plugins
             {"saveSyn", "/spawns save <filename> - Saves your spawn file" },
             {"closeSyn", "/spawns close - Cancel spawn file creation" },
             {"showSyn", "/spawns show - Display a box at each spawnpoint" },
-            {"noAcceess", "You are not allowed to use this command" },
+            {"noAccess", "You are not allowed to use this command" },
             {"saved", "{0} spawnpoints saved into {1}" }
         };
         #endregion

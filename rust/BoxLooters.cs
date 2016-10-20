@@ -1,686 +1,459 @@
-using Oxide.Core;
 using System;
 using System.Collections.Generic;
-using System.Reflection;
-using System.Linq;
+using Oxide.Core;
+using Oxide.Core.Configuration;
 using UnityEngine;
+using System.Linq;
+using System.Reflection;
 
 namespace Oxide.Plugins
 {
-    [Info("BoxLooters", "4seti [Lunatiq] for Rust Planet", "0.2.95", ResourceId = 989)]
-    public class BoxLooters : RustPlugin
+    [Info("BoxLooters", "4seti / k1lly0u", "0.3.1", ResourceId = 989)]
+    class BoxLooters : RustPlugin
     {
-        Vector3 eyesAdjust;
+        #region Fields
+        BoxDS boxData;
+        PlayerDS playerData;
+        private DynamicConfigFile bdata;
+        private DynamicConfigFile pdata;
+
+        private Vector3 eyesAdjust;
         private FieldInfo serverinput;
 
-        Core.Libraries.Time time = new Core.Libraries.Time();
+        private bool eraseData = false;
 
-        Dictionary<uint, BoxData> boxData;
-        Dictionary<ulong, PlayerData> playerData;       
-        bool changed;
+        private Dictionary<uint, BoxData> boxCache;
+        private Dictionary<ulong, PlayerData> playerCache;
+        #endregion
 
         #region Oxide Hooks
         void Loaded()
         {
-            permission.RegisterPermission("boxlooters.checkbox", this);
+            bdata = Interface.Oxide.DataFileSystem.GetFile("Boxlooters/box_data");
+            pdata = Interface.Oxide.DataFileSystem.GetFile("Boxlooters/player_data");
+
+            eyesAdjust = new Vector3(0f, 1.5f, 0f);
+            serverinput = typeof(BasePlayer).GetField("serverInput", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
+
+            boxCache = new Dictionary<uint, BoxData>();
+            playerCache = new Dictionary<ulong, PlayerData>();
+
             lang.RegisterMessages(messages, this);
-
-            eyesAdjust = new Vector3(0f, 1.5f, 0f);            
-            serverinput = typeof(BasePlayer).GetField("serverInput", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic)); 
-
-            timer.Once(SaveTimer, () => SaveDataLoop());
+            permission.RegisterPermission("boxlooters.checkbox", this);
         }
         void OnServerInitialized()
         {
             LoadVariables();
             LoadData();
+            if (eraseData)
+                ClearAllData();
+            else RemoveOldData();
         }
-        protected override void LoadDefaultConfig()
-        {
-            Puts("Creating a new config file");
-            Config.Clear();
-            LoadVariables();
-        }
+        void OnNewSave(string filename) => eraseData = true;        
+        void OnServerSave() => SaveData();
         void Unload() => SaveData();
-        void OnLootEntity(BasePlayer looter, BaseEntity entry)
+
+        void OnLootEntity(BasePlayer looter, BaseEntity entity)
         {
-            if (looter == null || entry == null) return;
-            var type = entry.GetType();
-            if (entry is StorageContainer)
-            {
-                StorageContainer box = entry as StorageContainer;
-                if (!(box.panelName == "largewoodbox" || box.panelName == "smallwoodbox"
-                      || box.panelName == "fuelstorage" || box.panelName == "smallstash"
-                      || box.panelName == "furnace" || box.panelName == "smallrefinery"
-                      || box.panelName == "largefurnace" || box.panelName == "watercatcher"
-                      || box.name.Contains("hopperoutput")
-                      || box.prefabID == 349880778))
-                    return;
-                if (box == null || looter == null) return;
-                uint boxID = box.net.ID;
-                uint timeStamp = time.GetUnixTimestamp();
-                if (boxData == null) boxData = new Dictionary<uint, BoxData>();
-                if (boxData.ContainsKey(boxID))
-                {
-                    if (boxData[boxID].Looters.ContainsKey(looter.userID))
-                    {
-                        boxData[boxID].Looters[looter.userID].LastLoot = DateTime.Now.ToString("d/M/yyyy HH:mm:ss");
-                        boxData[boxID].Looters[looter.userID].LastInit = timeStamp;
-                    }
-                    else boxData[boxID].Looters.Add(looter.userID, new LootEntry(looter.displayName, DateTime.Now.ToString("d/M/yyyy HH:mm:ss"), timeStamp));
+            if (looter == null || entity == null || !IsValidType(entity)) return;
 
-                    boxData[boxID].lastInit = timeStamp;
-                }
+            var time = GrabCurrentTime();
+            var date = DateTime.Now.ToString("d/M HH:mm:ss");
+            var lootEntry = new LootEntry
+            {
+                FirstLoot = date,
+                LastInit = time,
+                LastLoot = date,
+                Name = looter.displayName
+            };
+            
+            if (entity is BasePlayer)
+            {
+                var looted = entity.ToPlayer();
+                if (!playerCache.ContainsKey(looted.userID))
+                    playerCache.Add(looted.userID, new PlayerData(time, looter));
                 else
                 {
-                    boxData.Add(boxID, new BoxData(timeStamp, box.transform.position));
-                    boxData[boxID].Looters.Add(looter.userID, new LootEntry(looter.displayName, DateTime.Now.ToString("d/M/yyyy HH:mm:ss"), timeStamp));
+                    playerCache[looted.userID].lastInit = time;
+                    playerCache[looted.userID].AddLoot(looter, time, date);
                 }
             }
-            if (entry is BasePlayer)
+            else
             {
-                BasePlayer player = entry.GetComponent<BasePlayer>();
-                ulong playerID = player.userID;
-                uint timeStamp = time.GetUnixTimestamp();
-                if (playerData == null) playerData = new Dictionary<ulong, PlayerData>();
-                if (playerData.ContainsKey(playerID))
-                {
-                    if (playerData[playerID].Looters.ContainsKey(looter.userID))
-                    {
-                        playerData[playerID].Looters[looter.userID].LastLoot = DateTime.Now.ToString("d/M/yyyy HH:mm:ss");
-                        playerData[playerID].Looters[looter.userID].LastInit = timeStamp;
-                    }
-                    else
-                        playerData[playerID].Looters.Add(looter.userID, new LootEntry(looter.displayName, DateTime.Now.ToString("d/M/yyyy HH:mm:ss"), timeStamp));
-
-                    playerData[playerID].lastInit = timeStamp;
-                }
+                if (entity?.net?.ID == null) return;
+                var boxId = entity.net.ID;
+                if (!boxCache.ContainsKey(boxId))
+                    boxCache.Add(boxId, new BoxData(time, looter, entity.transform.position));
                 else
                 {
-                    playerData.Add(playerID, new PlayerData(timeStamp));
-                    playerData[playerID].PlayerName = player.displayName;
-                    playerData[playerID].Looters.Add(looter.userID, new LootEntry(looter.displayName, DateTime.Now.ToString("d/M/yyyy HH:mm:ss"), timeStamp));
+                    boxCache[boxId].lastInit = time;
+                    boxCache[boxId].AddLoot(looter, time, date);               
                 }
             }
+
         }
         void OnEntityDeath(BaseCombatEntity entity, HitInfo hitInfo)
         {
-            if (entity == null) return;
-            if (entity is StorageContainer)
+            try
             {
-                var box = entity as StorageContainer;
-                if (!(box.panelName == "largewoodbox" || box.panelName == "smallwoodbox"
-                      || box.panelName == "fuelstorage" || box.panelName == "smallstash"
-                      || box.panelName == "furnace" || box.panelName == "smallrefinery"
-                      || box.panelName == "largefurnace" || box.panelName == "watercatcher"
-                      || box.name.Contains("quarry/hopperoutput.prefab")
-                      || box.prefabID == 349880778))
-                    return;
-                if (hitInfo.Initiator is BasePlayer)
+                if (entity == null || !IsValidType(entity) || entity is BasePlayer) return;
+                if (hitInfo?.Initiator is BasePlayer)
                 {
-                    var player = hitInfo.Initiator as BasePlayer;
-                    if (boxData.ContainsKey(box.net.ID))
-                    {
-                        boxData[box.net.ID].destrID = player.userID;
-                        boxData[box.net.ID].destrName = player.displayName;
-                    }
-                    else
-                    {
-                        boxData.Add(box.net.ID, new BoxData(time.GetUnixTimestamp(), box.transform.position));
-                        boxData[box.net.ID].destrID = player.userID;
-                        boxData[box.net.ID].destrName = player.displayName;
-                    }
+                    if (entity?.net?.ID == null) return;
+                    var boxId = entity.net.ID;
+                    if (!boxCache.ContainsKey(boxId)) return;
+                    boxCache[boxId].SetKiller(hitInfo.InitiatorPlayer.userID, hitInfo.InitiatorPlayer.displayName);
                 }
-                AddToLootLog(box);
             }
+            catch { }
         }
         #endregion
 
-        #region Methods
-        private void AddToLootLog(StorageContainer box)
+        #region Data Cleanup
+        void ClearAllData()
         {
-            if (boxData.ContainsKey(box.net.ID))
-            {
-                boxData[box.net.ID].lastInit = time.GetUnixTimestamp();
-                var lootData = getLooters(box.transform.position);
-                foreach (var looter in lootData)
-                {
-					if (!boxData[box.net.ID].Looters.ContainsKey(looter.userID))
-						boxData[box.net.ID].Looters.Add(looter.userID, new LootEntry(looter.Name, DateTime.Now.ToString("d/M/yyyy HH:mm:ss"), time.GetUnixTimestamp()));
-                    else
-                        boxData[box.net.ID].Looters[looter.userID].LastLoot = DateTime.Now.ToString("d/M/yyyy HH:mm:ss");
-                }
-            }
-            else
-            {
-                boxData.Add(box.net.ID, new BoxData(time.GetUnixTimestamp(), box.transform.position));
-                var lootData = getLooters(box.transform.position);
-                foreach (var looter in lootData)
-                {
-                    if (!boxData[box.net.ID].Looters.ContainsKey(looter.userID))
-                        boxData[box.net.ID].Looters.Add(looter.userID, new LootEntry(looter.Name, DateTime.Now.ToString("d/M/yyyy HH:mm:ss"), time.GetUnixTimestamp()));
-                    else
-                        boxData[box.net.ID].Looters[looter.userID].LastLoot = DateTime.Now.ToString("d/M/yyyy HH:mm:ss");
-                }
-            }
+            PrintWarning("Detected map wipe, resetting loot data!");
+            boxCache.Clear();
+            playerCache.Clear();
         }
-        private List<Looter> getLooters(Vector3 v3)
+        void RemoveOldData()
         {
-            List<Looter> looters = new List<Looter>();
-            int playerMask = UnityEngine.LayerMask.GetMask("Player (Server)");
-            var colliders = Physics.OverlapSphere(v3, detectRadius, playerMask);
-            foreach (var collider in colliders)
+            PrintWarning("Attempting to remove old log entries");
+            int boxCount = 0;
+            int playerCount = 0;
+            var time = GrabCurrentTime() - (configData.RemoveHours * 3600);
+            for (int j = 0; j < boxCache.Count; j++)
             {
-                var player = collider.GetComponentInParent<BasePlayer>();
-                if (player != null)
+                var ekey = boxCache.Keys.ToList()[j];
+                var entry = boxCache[ekey];
+                if (entry.lastInit < time)
                 {
-                    looters.Add(new Looter(player.userID, player.displayName));
+                    boxCache.Remove(ekey);
+                    boxCount++;
+                    continue;
+                }
+                for (int i = 0; i < entry.Looters.Count; i++)
+                {
+                    var key = entry.Looters.Keys.ToList()[i];
+                    var looter = entry.Looters[key];
+                    if (looter.LastInit < time)
+                    {
+                        entry.Looters.Remove(key);
+                        boxCount++;
+                    }
                 }
             }
-            return looters;
-        }  
-        private List<BasePlayer> FindPlayerByName(string playerName = "")
-        {            
-            if (playerName == "") return null;
-            playerName = playerName.ToLower();
-            List<BasePlayer> matches = new List<BasePlayer>();
-            foreach (var player in BasePlayer.activePlayerList)
+            PrintWarning($"Removed {boxCount} old records from BoxData");
+            for (int j = 0; j < playerCache.Count; j++)
             {
-                string displayName = player.displayName.ToLower();
-                if (displayName.Contains(playerName))
+                var ekey = playerCache.Keys.ToList()[j];
+                var entry = playerCache[ekey];
+                if (entry.lastInit < time)
                 {
-                    matches.Add(player);
+                    playerCache.Remove(ekey);
+                    playerCount++;
+                    continue;
+                }
+                for (int i = 0; i < entry.Looters.Count; i++)
+                {
+                    var key = entry.Looters.Keys.ToList()[i];
+                    var looter = entry.Looters[key];
+                    if (looter.LastInit < time)
+                    {
+                        entry.Looters.Remove(key);
+                        playerCount++;
+                    }
                 }
             }
-            return matches;
+            PrintWarning($"Removed {playerCount} old records from PlayerData");
         }
-        private Tuple<uint, BoxData> FindBoxFromRad(Vector3 pos, float rad)
-        {
-            Tuple<uint, BoxData> result = null;
-            foreach (var item in boxData)
-            {
-                if (GetDistance(pos, item.Value.x, item.Value.y, item.Value.z) < rad)
-                {
-                    result = new Tuple<uint, BoxData>(item.Key, item.Value);
-                    break;
-                }
-            }
-            return result;
-        }
-        private float GetDistance(Vector3 v3, float x, float y, float z)
-        {
-            float distance = 1000f;
+        #endregion
 
-            distance = (float)Math.Pow(Math.Pow(v3.x - x, 2) + Math.Pow(v3.y - y, 2), 0.5);
-            distance = (float)Math.Pow(Math.Pow(distance, 2) + Math.Pow(v3.z - z, 2), 0.5);
-
-            return distance;
-        }
-        void ReplyChat(BasePlayer player, string msg)
-        {
-            player.ChatMessage(string.Format("<color=#81D600>{0}</color>: {1}", Title, msg));
-        }
+        #region Functions
         object FindBoxFromRay(BasePlayer player)
         {
-            object target = null;
             var input = serverinput.GetValue(player) as InputState;
             Ray ray = new Ray(player.eyes.position, Quaternion.Euler(input.current.aimAngles) * Vector3.forward);
             RaycastHit hit;
-            if (!UnityEngine.Physics.Raycast(ray, out hit, 20))
+            if (!Physics.Raycast(ray, out hit, 20))
                 return null;
 
-            if (hit.collider.GetComponentInParent<StorageContainer>() != null)            
-                target = hit.collider.GetComponentInParent<StorageContainer>();
-            
-            else if (hit.collider.GetComponentInParent<BasePlayer>() != null)            
-                target = hit.collider.GetComponentInParent<BasePlayer>();
-
-            else if (hit.collider.GetComponentInParent<BaseEntity>() != null)
+            var hitEnt = hit.collider.GetComponentInParent<BaseEntity>();
+            if (hitEnt != null)
             {
-                var ent = hit.collider.GetComponentInParent<BaseEntity>();
-                if (ent.GetComponent<MiningQuarry>())
+                if (IsValidType(hitEnt))
+                    return hitEnt;
+            }
+            return null;            
+        }
+        void ReplyInfo(BasePlayer player, string Id, int replies = 10, bool isPlayer = false, string additional = "")
+        {
+            var entId = Id;
+            if (!string.IsNullOrEmpty(additional))
+                entId = $"{additional} - {Id}";
+
+            if (!isPlayer)
+            {                
+                if (boxCache.ContainsKey(uint.Parse(Id)))
                 {
-                    var quarry = ent.GetComponent<MiningQuarry>();
-                    var children = quarry.children;
+                    var box = boxCache[uint.Parse(Id)];
+                    SendReply(player, string.Format(lang.GetMessage("BoxData", this, player.UserIDString), entId));
+
+                    if (!string.IsNullOrEmpty(box.destroyName))
+                        SendReply(player, string.Format(lang.GetMessage("DetectDestr", this, player.UserIDString), box.destroyName, box.destroyId));
+
+                    int i = 1;
+                    string response = "";
+                    foreach (var data in box.Looters.OrderByDescending(x => x.Value.LastInit))
+                    {
+                        if (i > replies) return;
+                        response += string.Format(lang.GetMessage("DetectedLooter", this, player.UserIDString), i, data.Value.Name, data.Key, data.Value.FirstLoot, data.Value.LastLoot);
+                        i++;
+                        if (i > replies)
+                            response += "/n";
+                    }
+                    SendReply(player, response);
+                }
+                else SendReply(player, string.Format(lang.GetMessage("NoLooters", this, player.UserIDString), entId));
+            }
+            else
+            {
+                if (playerCache.ContainsKey(ulong.Parse(Id)))
+                {
+                    SendReply(player, string.Format(lang.GetMessage("PlayerData", this, player.UserIDString), entId));
+                    int i = 1;
+                    string response = "";
+                    foreach (var data in playerCache[ulong.Parse(Id)].Looters.OrderByDescending(x => x.Value.LastInit))
+                    {
+                        if (i > replies) return;
+                        response += string.Format(lang.GetMessage("DetectedLooter", this, player.UserIDString), i, data.Value.Name, data.Key, data.Value.FirstLoot, data.Value.LastLoot);
+                        i++;
+                        if (i > replies)
+                            response += "/n";
+                    }
+                }
+                else SendReply(player, string.Format(lang.GetMessage("NoLootersPlayer", this, player.UserIDString), entId));
+            }
+        }
+        #endregion
+
+        #region Helpers
+        double GrabCurrentTime() => DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1, 0, 0, 0)).TotalSeconds;
+        bool HasPermission(BasePlayer player) => permission.UserHasPermission(player.UserIDString, "boxlooters.checkbox") || player.net.connection.authLevel > 0;
+        float GetDistance(Vector3 init, Vector3 target) => Vector3.Distance(init, target);
+        bool IsValidType(BaseEntity entity) => !entity.GetComponent<LootContainer>() && (entity is StorageContainer || entity is MiningQuarry || entity is ResourceExtractorFuelStorage || entity is BasePlayer);
+        #endregion
+
+        #region Commands
+        [ChatCommand("box")]
+        void cmdBox(BasePlayer player, string command, string[] args)
+        {
+            if (!HasPermission(player)) return;
+            if (args == null || args.Length == 0)
+            {
+                var success = FindBoxFromRay(player);
+                if (success is MiningQuarry)
+                {
+                    var children = (success as MiningQuarry).children;
                     if (children != null)
                     {
-                        var containers = new List<StorageContainer>();
-                        foreach (var entry in children)
+                        foreach (var child in children)
                         {
-                            if (entry is StorageContainer)
-                                containers.Add(entry.GetComponent<StorageContainer>());
-                        }
-                        if (containers.Count > 0)
-                            return containers;
-                    }                    
-                }                
-            }
-            return target;
-        }
-        #endregion
-
-        #region ChatCommands
-        [ChatCommand("boxsave")]
-        void cmdSave(BasePlayer player, string cmd, string[] args)
-        {
-            if (player.net.connection.authLevel == 0) return;
-            SaveData();
-            ReplyChat(player, "Data Saved!");
-        }
-        [ChatCommand("boxclear")]
-        void cmdClear(BasePlayer player, string cmd, string[] args)
-        {
-            if (player.net.connection.authLevel == 0) return;
-            int oldDataCount = boxData.Count + playerData.Count;
-            int oldEntriesCount = boxData.Sum(v => v.Value.Looters.Count) + playerData.Sum(v => v.Value.Looters.Count);
-            float remH = -1;
-            if (args.Length > 0) float.TryParse(args[0], out remH);
-            TryClear(remH);
-            int newEntriesCount = boxData.Sum(v => v.Value.Looters.Count) + playerData.Sum(v => v.Value.Looters.Count);
-            ReplyChat(player, string.Format(lang.GetMessage("RemovedRows", this, player.UserIDString), (oldDataCount - playerData.Count - boxData.Count), (remH >= 0 ? remH : RemoveHours), (boxData.Count + playerData.Count)));
-            ReplyChat(player, string.Format(lang.GetMessage("RemovedEntries", this, player.UserIDString), (oldEntriesCount - newEntriesCount), (remH >= 0 ? remH : RemoveHours), (newEntriesCount)));
-        }
-        [ChatCommand("box")]
-        void cmdBox(BasePlayer player, string cmd, string[] args)
-        {
-            if (!HavePerm(player)) return;
-
-            //var input = serverinput.GetValue(player) as InputState;
-            //var currentRot = Quaternion.Euler(input.current.aimAngles) * Vector3.forward;
-
-            var rayResult = FindBoxFromRay(player);
-            if (rayResult is StorageContainer)
-            {
-                var box = rayResult as StorageContainer;
-                if (box != null)
-                {
-                    if (boxData.ContainsKey(box.net.ID))
-                    {
-                        ReplyChat(player, string.Format(lang.GetMessage("BoxData", this, player.UserIDString), box.net.ID));
-                        int i = 1;
-                        foreach (var data in boxData[box.net.ID].Looters)
-                        {
-                            ReplyChat(player, string.Format(lang.GetMessage("DetectedLooter", this, player.UserIDString), i, data.Value.Name, data.Key, data.Value.FirstLoot, data.Value.LastLoot));
-                            i++;
-                        }
-                    }
-                    else
-                        ReplyChat(player, string.Format(lang.GetMessage("NoLooters", this, player.UserIDString), box.net.ID));
-                }
-                else
-                    ReplyChat(player, lang.GetMessage("NoBox", this, player.UserIDString));
-            }
-            else if (rayResult is BasePlayer)
-            {
-                var target = rayResult as BasePlayer;
-                if (target != null)
-                {
-                    if (playerData.ContainsKey(target.userID))
-                    {
-                        ReplyChat(player, string.Format(lang.GetMessage("BoxData", this, player.UserIDString), target.displayName));
-                        int i = 1;
-                        foreach (var data in playerData[target.userID].Looters)
-                        {
-                            ReplyChat(player, string.Format(lang.GetMessage("DetectedLooter", this, player.UserIDString), i, data.Value.Name, data.Key, data.Value.FirstLoot, data.Value.LastLoot));
-                            i++;
-                        }
-                    }
-                    else
-                        ReplyChat(player, string.Format(lang.GetMessage("NoLootersPlayer", this, player.UserIDString), target.userID));
-                }
-                else
-                    ReplyChat(player, lang.GetMessage("NoPlayer", this, player.UserIDString));
-            }
-            else if (rayResult is List<StorageContainer>)
-            {
-                foreach (var box in (List<StorageContainer>)rayResult)
-                {                    
-                    if (box != null)
-                    {
-                        if (boxData.ContainsKey(box.net.ID))
-                        {
-                            ReplyChat(player, string.Format(lang.GetMessage("BoxData", this, player.UserIDString), box.net.ID));
-                            int i = 1;
-                            foreach (var data in boxData[box.net.ID].Looters)
+                            if (child.GetComponent<StorageContainer>())
                             {
-                                ReplyChat(player, string.Format(lang.GetMessage("DetectedLooter", this, player.UserIDString), i, data.Value.Name, data.Key, data.Value.FirstLoot, data.Value.LastLoot));
-                                i++;
+                                ReplyInfo(player, child.net.ID.ToString(), 5, false, child.ShortPrefabName);
                             }
                         }
-                        else
-                            ReplyChat(player, string.Format(lang.GetMessage("NoLooters", this, player.UserIDString), box.net.ID));
                     }
-                    else
-                        ReplyChat(player, lang.GetMessage("NoBox", this, player.UserIDString));
+                    else SendReply(player, lang.GetMessage("Nothing", this, player.UserIDString));
                 }
+                else if (success is BaseEntity)
+                    ReplyInfo(player, (success as BaseEntity).net.ID.ToString());
+
+                else SendReply(player, lang.GetMessage("Nothing", this, player.UserIDString));
+                return;
             }
-            else
-                ReplyChat(player, lang.GetMessage("Nothing", this, player.UserIDString));
-        }
-        [ChatCommand("boxrad")]
-        void cmdBoxRad(BasePlayer player, string cmd, string[] args)
-        {
-            if (!HavePerm(player)) return;
-
-            float rad = 3f;
-            if (args.Length > 0) float.TryParse(args[0], out rad);
-
-            var boxRad = FindBoxFromRad(player.transform.position, rad);
-            if (boxRad != null)
+            switch (args[0].ToLower())
             {
-                ReplyChat(player, string.Format(lang.GetMessage("BoxData", this, player.UserIDString), boxRad.Item1));
-
-                player.SendConsoleCommand("ddraw.box", 30f, Color.magenta, boxRad.Item2.BoxV3(), 1f);
-
-                if (boxRad.Item2.destrID != 0)
-                    ReplyChat(player, string.Format(lang.GetMessage("DetectDestr", this, player.UserIDString), boxRad.Item2.destrName, boxRad.Item2.destrID));
-
-                int i = 1;
-                foreach (var data in boxRad.Item2.Looters)
-                {
-                    ReplyChat(player, string.Format(lang.GetMessage("DetectedLooter", this, player.UserIDString), i, data.Value.Name, data.Key, data.Value.FirstLoot, data.Value.LastLoot));
-                    i++;
-                }
-            }
-            else
-                ReplyChat(player, lang.GetMessage("NoBox", this, player.UserIDString));
-        }
-        [ChatCommand("boxpname")]
-        void cmdBoxPlayer(BasePlayer player, string cmd, string[] args)
-        {
-            if (!HavePerm(player)) return;
-
-            if (args.Length == 0) return;
-
-            var pList = FindPlayerByName(args[0]);
-            BasePlayer target;
-            if (pList.Count > 1)
-            {
-                ReplyChat(player, lang.GetMessage("MatchOverflow", this, player.UserIDString));
-            }
-            else if (pList.Count == 0)
-            {
-                ReplyChat(player, lang.GetMessage("MatchNoone", this, player.UserIDString));
-            }
-            else
-            {
-                target = pList.First();
-                if (playerData.ContainsKey(target.userID))
-                {
-                    ReplyChat(player, string.Format(lang.GetMessage("BoxData", this, player.UserIDString), target.displayName));
-                    int i = 1;
-                    foreach (var data in playerData[target.userID].Looters)
+                case "help":
                     {
-                        ReplyChat(player, string.Format(lang.GetMessage("DetectedLooter", this, player.UserIDString), i, data.Value.Name, data.Key, data.Value.FirstLoot, data.Value.LastLoot));
-                        i++;
+                        SendReply(player, $"<color=#4F9BFF>{Title}  v{Version}</color>");
+                        SendReply(player, "<color=#4F9BFF>/box help</color> - Display the help menu");
+                        SendReply(player, "<color=#4F9BFF>/box</color> - Retrieve information on the box you are looking at");                        
+                        SendReply(player, "<color=#4F9BFF>/box id <number></color> - Retrieve information on the specified box");
+                        SendReply(player, "<color=#4F9BFF>/box near <opt:radius></color> - Show nearby boxes (current and destroyed) and their ID numbers");
+                        SendReply(player, "<color=#4F9BFF>/box player <partialname/id></color> - Retrieve loot information about a player");
+                        SendReply(player, "<color=#4F9BFF>/box clear</color> - Clears all saved data");
+                        SendReply(player, "<color=#4F9BFF>/box save</color> - Saves box data");
                     }
-                }
-                else
-                    ReplyChat(player, string.Format(lang.GetMessage("NoLootersPlayer", this, player.UserIDString), target.userID));
+                    return;
+                case "id":
+                    if (args.Length >= 2)
+                    {
+                        uint id;
+                        if (uint.TryParse(args[1], out id))                        
+                            ReplyInfo(player, id.ToString());                        
+                        else SendReply(player, lang.GetMessage("NoID", this, player.UserIDString));
+                        return;
+                    }
+                    break;
+                case "near":
+                    {
+                        float radius = 20f;
+                        if (args.Length >= 2)
+                        {
+                            if (!float.TryParse(args[1], out radius))
+                                radius = 20f;
+                        }
+                        foreach(var box in boxCache)
+                        {
+                            if (GetDistance(player.transform.position, box.Value.GetPosition()) <= radius)
+                            {
+                                player.SendConsoleCommand("ddraw.text", 20f, Color.green, box.Value.GetPosition() + new Vector3(0, 1.5f, 0), $"<size=40>{box.Key}</size>");
+                                player.SendConsoleCommand("ddraw.box", 20f, Color.green, box.Value.GetPosition(), 1f);
+                            }
+                        }
+                    }
+                    return;
+                case "player":
+                    if (args.Length >= 2)
+                    {
+                        var target = covalence.Players.FindPlayer(args[1]);
+                        if (target != null)                        
+                            ReplyInfo(player, target.Id, 10, true);
+                        else SendReply(player, lang.GetMessage("NoPlayer", this, player.UserIDString));
+                        return;
+                    }
+                    break;
+                case "clear":
+                    boxCache.Clear();
+                    playerCache.Clear();
+                    SendReply(player, lang.GetMessage("ClearData", this, player.UserIDString));
+                    return;
+                case "save":
+                    SaveData();
+                    SendReply(player, lang.GetMessage("SavedData", this, player.UserIDString));
+                    return;
+                default:
+                    break;
             }
-        }
-        private bool HavePerm(BasePlayer player)
-        {
-            if (permission.UserHasPermission(player.userID.ToString(), "boxlooters.checkbox") || player.net.connection.authLevel >
-                0)
-                return true;
-            return false;
+            SendReply(player, lang.GetMessage("SynError", this, player.UserIDString));
         }
         #endregion
 
-        #region Config & Variables
-
-        Dictionary<string, string> messages = new Dictionary<string, string>()
+        #region Config        
+        private ConfigData configData;
+        class ConfigData
         {
-            {"BoxData", "List of looters for this Box[<color=#F5D400>{0}</color>]:"},
-            {"PlayerData", "List of looters for this Player[<color=#F5D400>{0}</color>]:"},
-            {"RemovedRows", "Removed {0} rows older than {1} hours, {2} rows total"},
-            {"RemovedEntries", "Removed {0} loot entries older than {1} hours, {2} entries total"},
-            {"DetectedLooter", "<color=#F5D400>[{0}]</color><color=#4F9BFF>{1}</color>({2}) F:<color=#F80>{3}</color> L:<color=#F80>{4}</color>"},
-            {"DetectDestr", "Destoyed by: <color=#4F9BFF>{0}</color> ID:{1}"},
-            {"DetectName", "<color=#4F9BFF>{0}</color> ID:{1}"},
-            {"NoBox", "<color=#4F9BFF>No Box is found</color>"},
-            {"NoLooters", "<color=#4F9BFF>This Box[{0}] is clear!</color>"},
-            {"NoLootersPlayer", "<color=#4F9BFF>This Player[{0}] is clear!</color>"},
-            {"NoPlayer", "<color=#4F9BFF>No Box is found</color>"},
-            {"Nothing", "<color=#4F9BFF>Nothing is found</color>"},
-            {"MatchOverflow",  "More than one match!"},
-            {"MatchNoone",  "No players with that name found!"}
-        };
-        
-        float detectRadius = 15f;
-        int SaveTimer = 600;
-        int RemoveHours = 48;        
-
+            public int RemoveHours { get; set; }            
+        }
         private void LoadVariables()
         {
             LoadConfigVariables();
             SaveConfig();
         }
-        private void LoadConfigVariables()
+        protected override void LoadDefaultConfig()
         {
-            CheckCfgFloat("Options - /boxrad detect radius", ref detectRadius);            
-            CheckCfg("Options - Data save timer (seconds)", ref SaveTimer);
-            CheckCfg("Options - Amount of hours before removing an entry", ref RemoveHours);
-        }
-        private void CheckCfg<T>(string Key, ref T var)
-        {
-            if (Config[Key] is T)
-                var = (T)Config[Key];
-            else
-                Config[Key] = var;
-        }
-        private void CheckCfgFloat(string Key, ref float var)
-        {
-
-            if (Config[Key] != null)
-                var = Convert.ToSingle(Config[Key]);
-            else
-                Config[Key] = var;
-        }
-        object GetConfig(string menu, string datavalue, object defaultValue)
-        {
-            var data = Config[menu] as Dictionary<string, object>;
-            if (data == null)
+            var config = new ConfigData
             {
-                data = new Dictionary<string, object>();
-                Config[menu] = data;
-                changed = true;
-            }
-            object value;
-            if (!data.TryGetValue(datavalue, out value))
-            {
-                value = defaultValue;
-                data[datavalue] = value;
-                changed = true;
-            }
-            return value;
+                RemoveHours = 48
+            };
+            SaveConfig(config);
         }
+        private void LoadConfigVariables() => configData = Config.ReadObject<ConfigData>();
+        void SaveConfig(ConfigData config) => Config.WriteObject(config, true);
         #endregion
 
-        #region Data Management
-        private void LoadData()
+        #region Data Management        
+        class BoxData
         {
-            try
-            {
-                boxData = Interface.GetMod().DataFileSystem.ReadObject<Dictionary<uint, BoxData>>("box-data");
-                Log("Old Box data loaded!");
-            }
-            catch
-            {
-                boxData = new Dictionary<uint, BoxData>();
-                Warn("New Box Data file initiated!");
-                SaveData();
-            }
-            try
-            {
-                playerData = Interface.GetMod().DataFileSystem.ReadObject<Dictionary<ulong, PlayerData>>("box-data-player");
-                Log("Old Players data loaded!");
-            }
-            catch
-            {
-                playerData = new Dictionary<ulong, PlayerData>();
-                Warn("New Player Data file initiated!");
-                SaveData();
-            }
-            TryClear();
-        }
-        void TryClear(float remH = -1)
-        {
-            List<uint> removeList = new List<uint>();
-            uint timeStamp = time.GetUnixTimestamp();
-            List<ulong> entryRemoveList = new List<ulong>();
-            long removedEntries = 0;
-            foreach (var item in boxData)
-            {
-                if (((timeStamp - item.Value.lastInit) / 3600) >= (remH >= 0 ? remH : RemoveHours))
-                {
-                    removeList.Add(item.Key);
-                }
-                else
-                {
-                    entryRemoveList = new List<ulong>();
-                    foreach (var lootEntry in item.Value.Looters)
-                    {
-                        if (lootEntry.Value.LastInit > 0)
-                            if (((timeStamp - lootEntry.Value.LastInit) / 3600) >= (remH >= 0 ? remH : RemoveHours))
-                            {
-                                entryRemoveList.Add(lootEntry.Key);
-                            }
-                    }
-                    foreach (var remItem in entryRemoveList)
-                    {
-                        item.Value.Looters.Remove(remItem);
-                        removedEntries++;
-                    }
-                }
-            }
-            if (removeList.Count > 0 || removedEntries > 0)
-            {
-                foreach (var item in removeList)
-                {
-                    boxData.Remove(item);
-                }
-                Warn(string.Format("Removed {0} old records from BoxData, {1} old LootEntries removed", removeList.Count, removedEntries));
-            }
-            List<ulong> pRemoveList = new List<ulong>();
-            removedEntries = 0;
-            foreach (var item in playerData)
-            {
-                if (((timeStamp - item.Value.lastInit) / 3600) >= (remH >= 0 ? remH : RemoveHours))
-                {
-                    pRemoveList.Add(item.Key);
-                }
-                else
-                {
-                    entryRemoveList = new List<ulong>();
-                    foreach (var lootEntry in item.Value.Looters)
-                    {
-                        if (lootEntry.Value.LastInit > 0)
-                            if (((timeStamp - lootEntry.Value.LastInit) / 3600) >= (remH >= 0 ? remH : RemoveHours))
-                            {
-                                entryRemoveList.Add(lootEntry.Key);
-                            }
-                    }
-                    foreach (var remItem in entryRemoveList)
-                    {
-                        item.Value.Looters.Remove(remItem);
-                        removedEntries++;
-                    }
-                }
-            }
-            if (removeList.Count > 0)
-            {
-                foreach (var item in pRemoveList)
-                {
-                    playerData.Remove(item);
-                }
-                Warn(string.Format("Removed {0} old records from PlayerData, {1} old LootEntries removed", pRemoveList.Count, removedEntries));
-            }
-        }
-        void SaveDataLoop()
-        {
-            SaveData();
-            timer.Once(SaveTimer, () => SaveDataLoop());
-        }
-        void SaveData()
-        {
-            Interface.GetMod().DataFileSystem.WriteObject("box-data", boxData);
-            Interface.GetMod().DataFileSystem.WriteObject("box-data-player", playerData);
-            Log("Data saved!");
-        }
-        #endregion
-
-        #region Utility Methods
-
-        private void Log(string message) => Puts("{0}: {1}", Title, message);
-        private void Warn(string message) => PrintWarning("{0}: {1}", Title, message);
-        private void Error(string message) => PrintError("{0}: {1}", Title, message);
-        #endregion
-
-        #region Class        
-        public class Looter
-        {
-            public readonly ulong userID;
-            public readonly string Name;
-            public Looter(ulong userid, string name)
-            {
-                userID = userid;
-                Name = name;
-            }
-        }       
-
-        public class BoxData
-        {
-            public uint lastInit;
-            public float x = 0, y = 0, z = 0;
-            public ulong destrID = 0;
-            public string destrName;
+            public double lastInit;
+            public float x, y, z;
+            public ulong destroyId;
+            public string destroyName;
             public Dictionary<ulong, LootEntry> Looters;
-
-            public BoxData()
-            {
-                lastInit = 0;
-                destrName = string.Empty;
-                Looters = new Dictionary<ulong, LootEntry>();
-            }
-            public BoxData(uint time, Vector3 pos)
+           
+            public BoxData() { }
+            public BoxData(double time, BasePlayer player, Vector3 pos)
             {
                 lastInit = time;
-                destrName = string.Empty;
                 x = pos.x;
                 y = pos.y;
                 z = pos.z;
-                Looters = new Dictionary<ulong, LootEntry>();
+                Looters = new Dictionary<ulong, LootEntry>
+                {
+                    { player.userID, new LootEntry
+                    {
+                        FirstLoot = DateTime.Now.ToString("d/M HH:mm:ss"),
+                        LastInit = time,
+                        LastLoot = DateTime.Now.ToString("d/M HH:mm:ss"),
+                        Name = player.displayName
+                    }}
+                };
             }
-			public Vector3 BoxV3()
-			{
-				return new Vector3(x, y + 0.5f, z);
-			}
-        }
-
-        public class PlayerData
-        {
-            public uint lastInit;
-            public string PlayerName;
-            public Dictionary<ulong, LootEntry> Looters;
-
-            public PlayerData()
+            public void AddLoot(BasePlayer looter, double time, string date)
             {
-                lastInit = 0;
-                Looters = new Dictionary<ulong, LootEntry>();
+                if (Looters.ContainsKey(looter.userID))
+                {
+                    Looters[looter.userID].LastInit = time;
+                    Looters[looter.userID].LastLoot = date;
+                }
+                else Looters.Add(looter.userID, new LootEntry
+                {
+                    FirstLoot = date,
+                    LastInit = time,
+                    LastLoot = date,
+                    Name = looter.displayName
+                });
             }
-            public PlayerData(uint time)
+            public void SetKiller(ulong Id, string name)
+            {
+                destroyId = Id;
+                destroyName = name;
+            }
+            public Vector3 GetPosition() => new Vector3(x, y, z);            
+        }
+        class PlayerData
+        {
+            public double lastInit;
+            public Dictionary<ulong, LootEntry> Looters;
+            public PlayerData() { }
+            public PlayerData(double time, BasePlayer player)
             {
                 lastInit = time;
-                Looters = new Dictionary<ulong, LootEntry>();
+                Looters = new Dictionary<ulong, LootEntry>
+                {
+                    { player.userID, new LootEntry
+                    {
+                        FirstLoot = DateTime.Now.ToString("d/M HH:mm:ss"),
+                        LastInit = time,
+                        LastLoot = DateTime.Now.ToString("d/M HH:mm:ss"),
+                        Name = player.displayName
+                    }}
+                };
+            }
+            public void AddLoot(BasePlayer looter, double time, string date)
+            {
+                if (Looters.ContainsKey(looter.userID))
+                {
+                    Looters[looter.userID].LastInit = time;
+                    Looters[looter.userID].LastLoot = date;
+                }
+                else
+                    Looters.Add(looter.userID, new LootEntry
+                    {
+                        FirstLoot = date,
+                        LastInit = time,
+                        LastLoot = date,
+                        Name = looter.displayName
+                    });
             }
         }
         public class LootEntry
         {
             public string Name;
-			public uint LastInit = 0;
-			public string FirstLoot;
+            public double LastInit = 0;
+            public string FirstLoot;
             public string LastLoot;
             public LootEntry()
             {
@@ -688,25 +461,69 @@ namespace Oxide.Plugins
                 FirstLoot = string.Empty;
                 LastLoot = string.Empty;
             }
-            public LootEntry(string name, string firstLoot, uint lastInit)
+            public LootEntry(string name, string firstLoot, double lastInit)
             {
                 Name = name;
                 FirstLoot = firstLoot;
                 LastLoot = FirstLoot;
-				LastInit = lastInit;
+                LastInit = lastInit;
             }
         }
-        public class Tuple<T, U>
+        void SaveData()
         {
-            public T Item1 { get; set; }
-            public U Item2 { get; set; }
-
-            public Tuple(T item1, U item2)
+            boxData.boxes = boxCache;
+            playerData.players = playerCache;
+            bdata.WriteObject(boxData);
+            pdata.WriteObject(playerData);
+            PrintWarning("Saved Boxlooters data");
+        }
+        void LoadData()
+        {            
+            try
             {
-                Item1 = item1;
-                Item2 = item2;
+                boxData = bdata.ReadObject<BoxDS>();
+                boxCache = boxData.boxes;
+            }
+            catch
+            {
+                boxData = new BoxDS();
+            }
+            try
+            {
+                playerData = pdata.ReadObject<PlayerDS>();
+                playerCache = playerData.players;
+            }
+            catch
+            {
+                playerData = new PlayerDS();                
             }
         }
+        class BoxDS
+        {
+            public Dictionary<uint, BoxData> boxes = new Dictionary<uint, BoxData>();
+        }
+        class PlayerDS
+        {
+            public Dictionary<ulong, PlayerData> players = new Dictionary<ulong, PlayerData>();
+        }       
+        #endregion
+
+        #region Localization
+        Dictionary<string, string> messages = new Dictionary<string, string>()
+        {
+            {"BoxData", "List of looters for this Box[<color=#F5D400>{0}</color>]:"},
+            {"PlayerData", "List of looters for this Player [<color=#F5D400>{0}</color>]:"},            
+            {"DetectedLooter", "<color=#F5D400>[{0}]</color><color=#4F9BFF>{1}</color>({2}) F:<color=#F80>{3}</color> L:<color=#F80>{4}</color>"},
+            {"DetectDestr", "Destoyed by: <color=#4F9BFF>{0}</color> ID:{1}"},
+            {"NoLooters", "<color=#4F9BFF>The box [{0}] is clear!</color>"},
+            {"NoLootersPlayer", "<color=#4F9BFF>The player [{0}] is clear!</color>"},
+            {"Nothing", "<color=#4F9BFF>Unable to find a valid entity</color>"},
+            {"NoID", "<color=#4F9BFF>You must enter a valid entity ID</color>"},
+            {"NoPlayer",  "No players with that name/ID found!"},
+            {"SynError", "<color=#F5D400>Syntax Error: Type '/box' to view available options</color>" },
+            {"SavedData", "You have successfully saved loot data" },
+            {"ClearData", "You have successfully cleared all loot data" }
+        };
         #endregion
     }
 }

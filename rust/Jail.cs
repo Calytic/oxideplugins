@@ -11,7 +11,7 @@ using Newtonsoft.Json.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("Jail", "Reneb / k1lly0u", "3.0.17", ResourceId = 794)]
+    [Info("Jail", "Reneb / k1lly0u", "3.0.18", ResourceId = 794)]
     class Jail : RustPlugin
     {
         [PluginReference] Plugin ZoneManager;
@@ -590,7 +590,7 @@ namespace Oxide.Plugins
                             {
                                 SendMsg(player, string.Format(lang.GetMessage("sentTo", this, player.UserIDString), target.displayName, prison));
                                 if (args.Length >= 4 && broadcastImprisonment)
-                                    PrintToChat(string.Format(lang.GetMessage("sentToReason", this, player.UserIDString), target.displayName, args[3]));
+                                    PrintToChat(string.Format(lang.GetMessage("sentToBroadcast", this, player.UserIDString), target.displayName, args[3]));
                             }                          
                         }
                         else if (success is string)
@@ -724,7 +724,7 @@ namespace Oxide.Plugins
                     {
                         SendReply(arg, lang.GetMessage("sentTo", this), target.displayName, prison);
                         if (arg.Args.Length >= 3 && broadcastImprisonment)
-                            PrintToChat(string.Format(lang.GetMessage("sentToReason", this), target.displayName, arg.Args[2]));
+                            PrintToChat(string.Format(lang.GetMessage("sentToBroadcast", this), target.displayName, arg.Args[2]));
                     }
                 }
                 else if (success is string)

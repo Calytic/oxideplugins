@@ -1,8 +1,8 @@
 {
-    "name": "Remote Doors Switch",
-    "description": "Switch that allows you to open \/ close doors remotelly",
+    "name": "RemoteDoors",
+    "description": "Switch that allows you to open \/ close doors remotely",
     "author": "Reneb",
-    "version": "1.0.5",
+    "version": "1.0.8",
     "configuration": true,
     "language": "cs",
     "games": [

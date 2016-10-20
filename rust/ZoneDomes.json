@@ -2,7 +2,7 @@
     "name": "ZoneDomes",
     "description": "Assign shaded sphere entities to physically see the border of zones (ZoneManager)",
     "author": "k1lly0u",
-    "version": "0.1.31",
+    "version": "0.1.32",
     "configuration": false,
     "require": {
         "ZoneManager": "*"

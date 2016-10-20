@@ -6,7 +6,7 @@ using System.Reflection;
 
 namespace Oxide.Plugins
 {
-    [Info("AutomaticAuthorization", "k1lly0u", "0.1.6", ResourceId = 2063)]
+    [Info("AutomaticAuthorization", "k1lly0u", "0.1.7", ResourceId = 2063)]
     class AutomaticAuthorization : RustPlugin
     {
         #region Fields
@@ -153,6 +153,12 @@ namespace Oxide.Plugins
         }
         void AuthToTurret(BasePlayer player, AutoTurret turret, Dictionary<ulong, string> authList)
         {
+            bool isOnline = false;
+            if (turret.IsOnline())
+            {
+                turret.SetIsOnline(false);
+                isOnline = true;
+            }
             turret.authorizedPlayers.Clear();
             foreach (var friend in authList)
             {
@@ -164,6 +170,8 @@ namespace Oxide.Plugins
             }
             turret.SendNetworkUpdateImmediate();
             player.SendNetworkUpdateImmediate();
+            if (isOnline)
+                turret.SetIsOnline(true);
             SendReply(player, string.Format(msg("turretSuccess"), authList.Count));
             return;
         }

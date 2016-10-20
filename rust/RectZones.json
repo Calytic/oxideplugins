@@ -2,7 +2,7 @@
     "name": "Rect Zones",
     "description": "Creates polygonal zones",
     "author": "deer_SWAG",
-    "version": "0.0.24",
+    "version": "0.0.25",
     "configuration": false,
     "language": "cs",
     "games": [

@@ -1,14 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using Oxide.Core;
 using Oxide.Core.Plugins;
 using UnityEngine;
 using static UnityEngine.Vector3;
 
 namespace Oxide.Plugins
 {
-    [Info("PathFinding", "Reneb / Nogrod", "1.0.1")]
+    [Info("PathFinding", "Reneb / Nogrod", "1.1.1")]
     public class PathFinding : RustPlugin
     {
         private static readonly Vector3 Up = up;
@@ -42,6 +41,7 @@ namespace Oxide.Plugins
                 if (startNode.X < 0 || startNode.X >= Size || startNode.Z < 0 || startNode.Z >= Size) return null;
                 Grid[startNode.X, startNode.Z] = startNode;
                 OpenList.Enqueue(startNode);
+                //PathFindNode closestNode = null;
 
                 while (OpenList.Count > 0)
                 {
@@ -76,15 +76,19 @@ namespace Oxide.Plugins
                                 OpenList.Enqueue(neighbour);
                             else
                                 OpenList.Update(neighbour);
+                            //if (closestNode == null || newGScore < closestNode.G)
+                            //    closestNode = neighbour;
                         }
                     }
                     if (closedList.Count > MaxDepth)
                     {
-                        Interface.Oxide.LogWarning("[PathFinding] Hit MaxDepth!");
+                        //Interface.Oxide.LogWarning("[PathFinding] Hit MaxDepth!");
                         break;
                     }
                 }
                 Clear();
+                //if (closestNode != null)
+                //    return RetracePath(startNode, closestNode);
                 return null;
             }
 
@@ -124,7 +128,7 @@ namespace Oxide.Plugins
                 if (node != null) return node;
                 var halfGrid = Size/2f;
                 var groundPos = new Vector3(x - halfGrid, y, z - halfGrid);
-                groundPos.y = TerrainMeta.HeightMap.GetHeight(groundPos);
+                //groundPos.y = TerrainMeta.HeightMap.GetHeight(groundPos);
                 FindRawGroundPosition(groundPos, out groundPos);
                 Grid[x, z] = node = new PathFindNode(groundPos);
                 return node;
@@ -316,12 +320,12 @@ namespace Oxide.Plugins
         {
             groundPos = sourcePos;
             RaycastHit hitinfo;
-            if (Physics.Raycast(sourcePos + Up, down, out hitinfo, groundLayer))
+            if (Physics.Raycast(sourcePos + Up, down, out hitinfo, 50, groundLayer))
             {
                 groundPos.y = Math.Max(hitinfo.point.y, TerrainMeta.HeightMap.GetHeight(groundPos));
                 return true;
             }
-            if (Physics.Raycast(sourcePos - Up, Up, out hitinfo, groundLayer))
+            if (Physics.Raycast(sourcePos - Up, Up, out hitinfo, 1.5f, groundLayer))
             {
                 groundPos.y = Math.Max(hitinfo.point.y, TerrainMeta.HeightMap.GetHeight(groundPos));
                 return true;
@@ -409,7 +413,7 @@ namespace Oxide.Plugins
         public static Vector3 jumpPosition = new Vector3(0f, 1f, 0f);
         public static int groundLayer;
         public static int blockLayer;
-        private static int MaxDepth = 1000;
+        private static int MaxDepth = 5000;
         private readonly FieldInfo serverinput = typeof (BasePlayer).GetField("serverInput", BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic);
 
         protected override void LoadDefaultConfig()
@@ -436,8 +440,8 @@ namespace Oxide.Plugins
         /////////////////////////////////////////////
         private void OnServerInitialized()
         {
-            groundLayer = LayerMask.GetMask("Terrain", "World", "Construction");
-            blockLayer = LayerMask.GetMask("World", "Construction", "Tree", "Deployed");
+            groundLayer = LayerMask.GetMask("Terrain", "World", "Construction", "Deployed", "Default");
+            blockLayer = LayerMask.GetMask("World", "Construction", "Tree", "Deployed", "Default");
 
             timer.Once(30f, ResetPathFollowers);
         }

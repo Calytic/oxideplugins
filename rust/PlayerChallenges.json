@@ -2,7 +2,7 @@
     "name": "Player Challenges",
     "description": "Allows titles to be set when certain criteria are met, with a UI Leader board",
     "author": "k1lly0u",
-    "version": "2.0.35",
+    "version": "2.0.36",
     "configuration": true,
     "suggest": {
         "BetterChat": "*"

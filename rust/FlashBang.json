@@ -2,7 +2,7 @@
     "name": "Flashbang Grenade",
     "description": "Replaces grenade with a flashbang grenade",
     "author": "PaiN",
-    "version": "0.5.0",
+    "version": "0.6",
     "configuration": false,
     "language": "cs",
     "games": [

@@ -2,7 +2,7 @@
     "name": "CustomCommands",
     "description": "UI Buttons for Custom Console and Chat Commands - Unique to each Player!",
     "author": "{Midgard}Altimus Maximus",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "configuration": true,
     "language": "cs",
     "games": [

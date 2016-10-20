@@ -11,7 +11,7 @@ using System.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("FlashBang", "PaiN", "0.5", ResourceId = 1283)]
+    [Info("FlashBang", "PaiN", "0.6", ResourceId = 1283)]
     [Description("Replaces grenade with a flashbang grenade.")]
     class FlashBang : RustPlugin
     {
@@ -62,7 +62,7 @@ namespace Oxide.Plugins
 				elements.Add(new CuiElement
 				{  
 					Name = "FlashBang",
-					Parent = "HUD/Overlay",
+					Parent = "Overlay",
 					FadeOut = 0.5f,
 					Components =
 					{

@@ -2,7 +2,7 @@
     "name": "Finder",
     "description": "Find Players, SleepingBags, Buildings, Items, and teleport to them",
     "author": "Reneb",
-    "version": "3.0.1",
+    "version": "3.0.2",
     "configuration": false,
     "suggest": {},
     "language": "cs",

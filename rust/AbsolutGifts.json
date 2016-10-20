@@ -2,7 +2,7 @@
     "name": "AbsolutGifts",
     "description": "Daily Gift Reward System - PlayTimeRewards.. Time Resets Daily",
     "author": "{Midgard}Altimus Maximus",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "configuration": true,
     "language": "cs",
     "games": [
