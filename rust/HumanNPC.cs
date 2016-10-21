@@ -16,12 +16,13 @@ using Oxide.Core.Configuration;
 using Oxide.Core.Plugins;
 
 using Rust;
-
+using Rust.Xp;
 using UnityEngine;
+using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic", "0.3.7", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic", "0.3.8", ResourceId = 856)]
     public class HumanNPC : RustPlugin
     {
         //////////////////////////////////////////////////////
@@ -30,9 +31,7 @@ namespace Oxide.Plugins
         private int playerLayer;
         private static int targetLayer;
         private static Vector3 Vector3Down;
-        private static Vector3 jumpPosition;
         private static int groundLayer;
-        private static int blockshootLayer;
 
         private static readonly FieldInfo modelStateField = typeof(BasePlayer).GetField("modelState", BindingFlags.Instance | BindingFlags.NonPublic);
         private readonly FieldInfo serverinput = typeof(BasePlayer).GetField("serverInput", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
@@ -52,6 +51,8 @@ namespace Oxide.Plugins
         Plugin Kits;
         [PluginReference]
         Plugin Waypoints;
+        [PluginReference]
+        Plugin Vanish;
 
         private static PathFinding PathFinding;
 
@@ -258,6 +259,7 @@ namespace Oxide.Plugins
                             Interface.Oxide.LogInfo("Blocked waypoint to spawn? {0} for {1}", lastPos, npc.player.displayName);
                         }
                     }
+                    if (cachedWaypoints.Count <= 0) cachedWaypoints = null;
                     //Interface.Oxide.LogInfo("Waypoints: {0} for {1}", cachedWaypoints.Count, npc.player.displayName);
                 }
             }
@@ -315,16 +317,21 @@ namespace Oxide.Plugins
             {
                 if (npc == null) npc = GetComponent<HumanPlayer>();
                 LastPos = Vector3.zero;
-                shouldMove = true;
                 if (cachedWaypoints == null) {
                     shouldMove = false;
                     return;
                 }
+                shouldMove = true;
                 Interface.Oxide.CallHook("OnNPCPosition", npc.player, npc.player.transform.position);
                 if (currentWaypoint + 1 >= cachedWaypoints.Count)
                 {
                     UpdateWaypoints();
                     currentWaypoint = -1;
+                }
+                if (cachedWaypoints == null)
+                {
+                    shouldMove = false;
+                    return;
                 }
                 currentWaypoint++;
 
@@ -396,7 +403,8 @@ namespace Oxide.Plugins
                     if (validAttack)
                     {
                         var range = c_attackDistance < npc.info.damageDistance;
-                        var see = CanSee(npc.player, entity);
+                        var see = CanSee(npc, entity);
+                        //Interface.Oxide.LogInfo("Entity: {0} {1} {2}", entity.GetType().FullName, range, see);
                         if (range && see)
                         {
                             AttemptAttack(entity);
@@ -556,11 +564,21 @@ namespace Oxide.Plugins
                 var dir = (target.transform.position + npc.player.GetOffset() - source).normalized;
                 var vector32 = dir*(component.projectileVelocity * baseProjectile.projectileVelocityScale);
 
+                Vector3 hit;
                 RaycastHit raycastHit;
-                if (!Physics.SphereCast(source, .1f, vector32, out raycastHit, npc.info.attackDistance + 5f) || raycastHit.collider.GetComponent<BaseCombatEntity>() == null)
+                if (Vector3.Distance(npc.player.transform.position, target.transform.position) < 0.5)
+                    hit = target.transform.position + npc.player.GetOffset(true);
+                else if (!Physics.SphereCast(source, .01f, vector32, out raycastHit, float.MaxValue, targetLayer))
                 {
                     //Interface.Oxide.LogInfo("Attack failed: {0} - {1}", npc.player.displayName, attackEntity.name);
                     return;
+                }
+                else
+                {
+                    hit = raycastHit.point;
+                    target = raycastHit.GetCollider().GetComponent<BaseCombatEntity>();
+                    //Interface.Oxide.LogInfo("Attack failed: {0} - {1}", raycastHit.GetCollider().name, (Rust.Layer)raycastHit.GetCollider().gameObject.layer);
+                    miss = miss || target == null;
                 }
                 baseProjectile.primaryMagazine.contents--;
                 npc.ForceSignalAttack();
@@ -583,7 +601,7 @@ namespace Oxide.Plugins
                 if (miss)
                 {
                     dmg = 0;
-                    dest = raycastHit.point;
+                    dest = hit;
                 }
                 else
                 {
@@ -594,14 +612,14 @@ namespace Oxide.Plugins
                     DidHit = !miss,
                     HitEntity = target,
                     PointStart = source,
-                    PointEnd = raycastHit.point,
+                    PointEnd = hit,
                     HitPositionWorld = dest,
                     HitNormalWorld = -dir,
                     WeaponPrefab = GameManager.server.FindPrefab(StringPool.Get(baseProjectile.prefabID)).GetComponent<AttackEntity>(),
                     Weapon = (AttackEntity) firstWeapon,
                     HitMaterial = StringPool.Get("Flesh")
                 };
-                target.OnAttacked(hitInfo);
+                target?.OnAttacked(hitInfo);
                 Effect.server.ImpactEffect(hitInfo);
             }
 
@@ -612,7 +630,7 @@ namespace Oxide.Plugins
                     if (!reloading && weapon.primaryMagazine.contents <= 0)
                     {
                         reloading = true;
-                        entity.SignalBroadcast(BaseEntity.Signal.Reload, string.Empty, null);
+                        npc.player.SignalBroadcast(BaseEntity.Signal.Reload, string.Empty, null);
                         startedReload = Time.realtimeSinceStartup;
                         return;
                     }
@@ -661,7 +679,7 @@ namespace Oxide.Plugins
                     dmg *= 3f;
 
                 if(weapon != null) {
-                    npc.ForceSignalGesture();
+                    //npc.ForceSignalGesture();
                     CreateProjectileEffect(target, weapon, dmg, miss);
                 }
                 else
@@ -827,12 +845,12 @@ namespace Oxide.Plugins
             }
             public void StartAttackingEntity(BaseCombatEntity entity)
             {
-                if (locomotion.attackEntity != null) return;
+                if (locomotion.attackEntity != null && UnityEngine.Random.Range(0f, 1f) < 0.75f) return;
                 if (Interface.Oxide.CallHook("OnNPCStartTarget", player, entity) == null)
                 {
-                    var item = GetFirstWeaponItem();
-                    if (item != null)
-                        SetActive(item.uid);
+                    //var item = GetFirstWeaponItem();
+                    //if (item != null)
+                    //    SetActive(item.uid);
                     locomotion.attackEntity = entity;
                     locomotion.pathFinding = null;
 
@@ -986,6 +1004,7 @@ namespace Oxide.Plugins
             {
                 player.svActiveItemID = id;
                 player.SendNetworkUpdate();
+                player.SignalBroadcast(BaseEntity.Signal.Reload, string.Empty, null);
             }
 
             void OnDestroy()
@@ -1053,6 +1072,7 @@ namespace Oxide.Plugins
             public float reloadDuration;
             public bool needsAmmo;
             public bool defend;
+            public float xp;
             public List<string> message_hello;
             public List<string> message_bye;
             public List<string> message_use;
@@ -1119,6 +1139,7 @@ namespace Oxide.Plugins
                     needsAmmo = needsAmmo,
                     hitchance = hitchance,
                     reloadDuration = reloadDuration,
+                    xp = xp,
                     protections = protections?.ToDictionary(p => p.Key, p => p.Value)
                 };
             }
@@ -1209,11 +1230,9 @@ namespace Oxide.Plugins
 
         void SaveData()
         {
-            if (storedData != null && save)
-            {
-                data.WriteObject(storedData);
-                save = false;
-            }
+            if (storedData == null || !save) return;
+            data.WriteObject(storedData);
+            save = false;
         }
 
         void LoadData()
@@ -1278,13 +1297,11 @@ namespace Oxide.Plugins
         void OnServerInitialized()
         {
             eyesPosition = new Vector3(0f, 0.5f, 0f);
-            jumpPosition = new Vector3(0f, 2f, 0f);
             Vector3Down = new Vector3(0f, -1f, 0f);
             PathFinding = (PathFinding)plugins.Find(nameof(PathFinding));
             playerLayer = LayerMask.GetMask("Player (Server)");
-            targetLayer = LayerMask.GetMask("Player (Server)", "Trigger", "AI", "Deployed");
+            targetLayer = LayerMask.GetMask("Player (Server)", "AI", "Deployed", "Construction");
             groundLayer = LayerMask.GetMask("Construction", "Terrain", "World");
-            blockshootLayer = LayerMask.GetMask("Construction", "Terrain", "World", "Deployed", "Tree", "Resource", "World", "Debris");
 
             foreach (var info in ItemManager.itemList)
             {
@@ -1306,15 +1323,9 @@ namespace Oxide.Plugins
         ///  OnServerSave()
         ///  called when a server performs a save
         //////////////////////////////////////////////////////
-        void OnServerSave()
-        {
-            SaveData();
-        }
+        void OnServerSave() => SaveData();
 
-        void OnServerShutdown()
-        {
-            SaveData();
-        }
+        void OnServerShutdown() => SaveData();
 
         //////////////////////////////////////////////////////
         /// OnPlayerInput(BasePlayer player, InputState input)
@@ -1359,8 +1370,8 @@ namespace Oxide.Plugins
                 if (hitinfo.Initiator is BaseCombatEntity && !(hitinfo.Initiator is Barricade) && humanPlayer.info.defend) humanPlayer.StartAttackingEntity((BaseCombatEntity)hitinfo.Initiator);
                 if (humanPlayer.info.message_hurt != null && humanPlayer.info.message_hurt.Count != 0)
                 {
-                    if (hitinfo.Initiator?.ToPlayer() != null)
-                        SendMessage(humanPlayer, hitinfo.Initiator.ToPlayer(), GetRandomMessage(humanPlayer.info.message_hurt));
+                    if (hitinfo.InitiatorPlayer != null)
+                        SendMessage(humanPlayer, hitinfo.InitiatorPlayer, GetRandomMessage(humanPlayer.info.message_hurt));
                 }
                 Interface.Oxide.CallHook("OnHitNPC", entity.GetComponent<BaseCombatEntity>(), hitinfo);
                 if (humanPlayer.info.invulnerability)
@@ -1381,19 +1392,20 @@ namespace Oxide.Plugins
         void OnEntityDeath(BaseEntity entity, HitInfo hitinfo)
         {
             var humanPlayer = entity.GetComponent<HumanPlayer>();
-            if (humanPlayer != null)
+            if (humanPlayer?.info == null) return;
+            if (!humanPlayer.info.lootable)
+                humanPlayer.player.inventory?.Strip();
+            var player = hitinfo?.InitiatorPlayer;
+            if (player != null)
             {
-                if (!humanPlayer.info.lootable)
-                    humanPlayer.player.inventory.Strip();
                 if (humanPlayer.info.message_kill != null && humanPlayer.info.message_kill.Count > 0)
-                {
-                    if (hitinfo.Initiator?.ToPlayer() != null)
-                        SendMessage(humanPlayer, hitinfo.Initiator.ToPlayer(), GetRandomMessage(humanPlayer.info.message_kill));
-                }
-                Interface.Oxide.CallHook("OnKillNPC", entity.GetComponent<BasePlayer>(), hitinfo);
-                if (humanPlayer.info.respawn)
-                    timer.Once(humanPlayer.info.respawnSeconds, () => SpawnOrRefresh(humanPlayer.info.userid));
+                    SendMessage(humanPlayer, player, GetRandomMessage(humanPlayer.info.message_kill));
+                if (humanPlayer.info.xp > 0)
+                    player.xp.Add(Definitions.Cheat, humanPlayer.info.xp);
             }
+            Interface.Oxide.CallHook("OnKillNPC", entity.GetComponent<BasePlayer>(), hitinfo);
+            if (humanPlayer.info.respawn)
+                timer.Once(humanPlayer.info.respawnSeconds, () => SpawnOrRefresh(humanPlayer.info.userid));
         }
 
         object CanLootPlayer(BasePlayer target, BasePlayer looter)
@@ -1651,11 +1663,18 @@ namespace Oxide.Plugins
             return true;
         }
 
-        private static bool CanSee(BasePlayer source, BaseEntity target)
+        private static bool CanSee(HumanPlayer npc, BaseEntity target)
         {
-            if (Physics.Linecast(source.transform.position + jumpPosition, target.transform.position + jumpPosition, blockshootLayer))
-                return false;
-            return true;
+            var source = npc.player;
+            var weapon = source.GetActiveItem()?.GetHeldEntity() as BaseProjectile;
+            var pos = source.transform.position + source.GetOffset();
+            if (weapon != null)
+                pos += Quaternion.LookRotation(target.transform.position - source.transform.position)*weapon.ikHold_max.position;
+            RaycastHit raycastHit;
+            return Vector3.Distance(source.transform.position, target.transform.position) < 0.75
+                || Physics.SphereCast(new Ray(pos, (target.transform.position + source.GetOffset(true) - pos).normalized), .5f, out raycastHit, float.MaxValue, Physics.AllLayers)
+                && raycastHit.GetCollider().GetComponent<BaseCombatEntity>() == target;
+            //return !Physics.Linecast(pos, target.transform.position + source.GetOffset(true), blockshootLayer);
         }
 
         private static string GetRandomMessage(List<string> messagelist) => messagelist[GetRandom(0, messagelist.Count)];
@@ -2254,7 +2273,7 @@ namespace Oxide.Plugins
             var humanPlayer = npc.GetComponent<HumanPlayer>();
             if (humanPlayer.info.message_hello != null && humanPlayer.info.message_hello.Count > 0)
                 SendMessage(humanPlayer, player, GetRandomMessage(humanPlayer.info.message_hello));
-            if (humanPlayer.info.hostile)
+            if (humanPlayer.info.hostile && player.GetComponent<NPCEditor>() == null && !(bool)(Vanish?.CallHook("IsInvisible", player) ?? false))
                 humanPlayer.StartAttackingEntity(player);
         }
 

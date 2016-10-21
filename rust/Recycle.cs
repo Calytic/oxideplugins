@@ -6,7 +6,7 @@ using System.Text;
 
 namespace Oxide.Plugins
 {
-    [Info("Recycle", "Calytic", "2.0.1")]
+    [Info("Recycle", "Calytic", "2.0.21", ResourceId = 1296)]
     [Description("Recycle crafted items to base resources")]
     class Recycle : RustPlugin
     {
@@ -15,6 +15,8 @@ namespace Oxide.Plugins
         private float cooldownMinutes;
         private float refundRatio;
         private string box;
+        private bool npconly;
+        private List<object> npcids;
 
         #endregion
 
@@ -48,6 +50,8 @@ namespace Oxide.Plugins
             Config["Settings","box"] = "assets/prefabs/deployable/woodenbox/woodbox_deployed.prefab";
             Config["Settings","cooldownMinutes"] = 5;
             Config["Settings","refundRatio"] = 0.5f;
+            Config["Settings", "NPCOnly"] = false;
+            Config["Settings", "NPCIDs"] = new List<object>();
             Config["VERSION"] = Version.ToString();
         }
 
@@ -72,6 +76,9 @@ namespace Oxide.Plugins
             cooldownMinutes = GetConfig("Settings","cooldownMinutes", 5f);
             box = GetConfig("Settings","box", "assets/prefabs/deployable/woodenbox/box_wooden.item.prefab");
             refundRatio = GetConfig("Settings", "refundRatio", 0.5f);
+
+            npconly = GetConfig("Settings", "NPCOnly", false);
+            npcids = GetConfig("Settings", "NPCIDs", new List<object>());
         }
 
         void CheckConfig()
@@ -93,6 +100,8 @@ namespace Oxide.Plugins
             Config["VERSION"] = Version.ToString();
 
             // NEW CONFIGURATION OPTIONS HERE
+            Config["Settings", "NPCOnly"] = false;
+            Config["Settings", "NPCIDs"] = new List<object>();
             // END NEW CONFIGURATION OPTIONS
 
             PrintToConsole("Upgrading configuration file");
@@ -174,6 +183,12 @@ namespace Oxide.Plugins
             }
         }
 
+        void OnUseNPC(BasePlayer npc, BasePlayer player)
+        {
+            if (!npcids.Contains(npc.UserIDString)) return;
+            ShowBox(player, player);
+        }
+
         #endregion
 
         #region Commands
@@ -187,38 +202,8 @@ namespace Oxide.Plugins
         [ChatCommand("rec")]
         void cmdRec(BasePlayer player, string command, string[] args)
         {
-            string playerID = player.userID.ToString();
-
-            if(!CanPlayerRecycle(player))
-                return;
-
-            if(cooldownMinutes > 0 && !player.IsAdmin()) {
-                DateTime startTime;
-
-                if(recycleCooldowns.TryGetValue(playerID, out startTime)) {
-                    DateTime endTime = DateTime.Now;
-                
-                    TimeSpan span = endTime.Subtract(startTime);
-                    if(span.TotalMinutes > 0 && span.TotalMinutes < Convert.ToDouble(cooldownMinutes)) {
-                        double timeleft = System.Math.Round(Convert.ToDouble(cooldownMinutes) - span.TotalMinutes, 2);
-                        if(span.TotalSeconds < 0) {
-                            recycleCooldowns.Remove(playerID);
-                        } 
-
-                        if(timeleft < 1) {
-                            double timelefts = System.Math.Round((Convert.ToDouble(cooldownMinutes)*60) - span.TotalSeconds);
-                            SendReply(player, string.Format(GetMsg("Cooldown: Seconds", player), timelefts.ToString()));
-                            return;
-                        } else {
-                            SendReply(player, string.Format(GetMsg("Cooldown: Minutes", player), System.Math.Round(timeleft).ToString()));
-                            return;
-                        }
-                    } else {
-                        recycleCooldowns.Remove(playerID);
-                    }
-                }
-            }
-
+            if (npconly) return;
+            
             ShowBox(player, player);
         }
 
@@ -228,6 +213,47 @@ namespace Oxide.Plugins
 
         void ShowBox(BasePlayer player, BaseEntity target)
         {
+            string playerID = player.userID.ToString();
+
+            if (!CanPlayerRecycle(player))
+                return;
+
+            if (cooldownMinutes > 0 && !player.IsAdmin())
+            {
+                DateTime startTime;
+
+                if (recycleCooldowns.TryGetValue(playerID, out startTime))
+                {
+                    DateTime endTime = DateTime.Now;
+
+                    TimeSpan span = endTime.Subtract(startTime);
+                    if (span.TotalMinutes > 0 && span.TotalMinutes < Convert.ToDouble(cooldownMinutes))
+                    {
+                        double timeleft = System.Math.Round(Convert.ToDouble(cooldownMinutes) - span.TotalMinutes, 2);
+                        if (span.TotalSeconds < 0)
+                        {
+                            recycleCooldowns.Remove(playerID);
+                        }
+
+                        if (timeleft < 1)
+                        {
+                            double timelefts = System.Math.Round((Convert.ToDouble(cooldownMinutes) * 60) - span.TotalSeconds);
+                            SendReply(player, string.Format(GetMsg("Cooldown: Seconds", player), timelefts.ToString()));
+                            return;
+                        }
+                        else
+                        {
+                            SendReply(player, string.Format(GetMsg("Cooldown: Minutes", player), System.Math.Round(timeleft).ToString()));
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        recycleCooldowns.Remove(playerID);
+                    }
+                }
+            }
+
             if(!recycleCooldowns.ContainsKey(player.userID.ToString())) {
                 recycleCooldowns.Add(player.userID.ToString(), DateTime.Now);
             }

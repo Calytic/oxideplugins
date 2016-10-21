@@ -1,7 +1,7 @@
 PLUGIN.Title        = "Bank Manager"
 PLUGIN.Description  = "Allows players to deposit and withdraw items from a bank."
 PLUGIN.Author       = "InSaNe8472"
-PLUGIN.Version      = V(1,0,9)
+PLUGIN.Version      = V(1,1,2)
 PLUGIN.ResourceID   = 1331
 
 local DataFile_PB = "BankManager_PlayerBank"
@@ -13,6 +13,7 @@ local Data_PS = {}
 local Data_CB = {}
 local Data_CC = {}
 local Bank = {}
+local BankOpened = {}
 local Shared = {}
 local BankUser = {}
 local BankItem = {}
@@ -23,6 +24,8 @@ local ClanBank = {}
 local ClanName = {}
 local ClanUser = {}
 local Owner = {}
+local ProximityPlayer = {}
+local ProximityClan = {}
 
 function PLUGIN:Init()
 	permission.RegisterPermission("bankmanager.use", self.Plugin)
@@ -31,22 +34,23 @@ function PLUGIN:Init()
 	command.AddChatCommand("bank", self.Plugin, "cmdBank")
 	self:LoadDataFile()
 	self:LoadDefaultConfig()
+	self:LoadDefaultLang()
 end
 
 function PLUGIN:LoadDefaultConfig()
 	self.Config.Settings = self.Config.Settings or {}
 	self.Config.Clan = self.Config.Clan or {}
-	self.Config.Messages = self.Config.Messages or {}
+	self.Config.NPC = self.Config.NPC or {}
 	self.Config.Defaults = self.Config.Defaults or {}
 	self.Config.Items = self.Config.Items or {}
 	self.Config.Settings.Enabled = self.Config.Settings.Enabled or "true"
-	self.Config.Settings.MessageSize = self.Config.Settings.MessageSize or "13"
+	self.Config.Settings.ShareEnabled = self.Config.Settings.ShareEnabled or "true"
+	self.Config.Settings.MessageSize = self.Config.Settings.MessageSize or "12"
 	self.Config.Settings.Ground = self.Config.Settings.Ground or "true"
 	self.Config.Settings.Tier = self.Config.Settings.Tier or "-1"
 	self.Config.Settings.BuildingBlocked = self.Config.Settings.BuildingBlocked or "true"
 	self.Config.Settings.PerformItemCheck = self.Config.Settings.PerformItemCheck or "true"
 	self.Config.Settings.UsePermissions = self.Config.Settings.UsePermissions or "true"
-	self.Config.Settings.Prefix = self.Config.Settings.Prefix or "[<color=#cd422b> Bank Manager </color>]"
 	self.Config.Settings.MaxBank = self.Config.Settings.MaxBank or "15"
 	self.Config.Settings.MaxShare = self.Config.Settings.MaxShare or "10"
 	self.Config.Settings.KeepDurability = self.Config.Settings.KeepDurability or "true"
@@ -57,46 +61,13 @@ function PLUGIN:LoadDefaultConfig()
 	self.Config.Clan.MaxBank = self.Config.Clan.MaxBank or "15"
 	self.Config.Clan.KeepDurability = self.Config.Clan.KeepDurability or "true"
 	self.Config.Clan.Cooldown = self.Config.Clan.Cooldown or "3"
-	self.Config.Messages.NotEnabled = self.Config.Messages.NotEnabled or "Bank group <color=#cd422b>{group}</color> is <color=#cd422b>disabled</color>."
-	self.Config.Messages.NoPlugin = self.Config.Messages.NoPlugin or "The <color=#cd422b>{plugin} plugin</color> is not installed."
-	self.Config.Messages.ChangedStatus = self.Config.Messages.ChangedStatus or "Bank group <color=#cd422b>{group}</color> now <color=#cd422b>{status}</color>."
-	self.Config.Messages.ChangedClanStatus = self.Config.Messages.ChangedClanStatus or "Clan <color=#cd422b>{clan}'s</color> group <color=#ffd479>{group}</color> bank access <color=#cd422b>{status}</color>."
-	self.Config.Messages.NoPermission = self.Config.Messages.NoPermission or "You do not have permission to use this command."
-	self.Config.Messages.ClanNoPermission = self.Config.Messages.ClanNoPermission or "You do not have permission to access <color=#cd422b>{clan}'s</color> bank."
-	self.Config.Messages.MinClanMembers = self.Config.Messages.MinClanMembers or "Your clan, <color=#cd422b>{clan}</color>, currently has <color=#ffd479>{members} member(s)</color>.  You must have minimum <color=#cd422b>{required} members</color> to use clan bank."
-	self.Config.Messages.ClanOwner = self.Config.Messages.ClanOwner or "Your clan, <color=#cd422b>{clan}</color>, currently has <color=#ffd479>{members} member(s)</color>.  You must have minimum <color=#cd422b>{required} members</color> to use clan bank.  As owner, you may access existing banked items.  They will be returned to you upon closing your inventory."
-	self.Config.Messages.NoClanExists = self.Config.Messages.NoClanExists or "Clan <color=#cd422b>{clan}</color> does not exist."
-	self.Config.Messages.NoClan = self.Config.Messages.NoClan or "You do not belong to a clan."
-	self.Config.Messages.ClanError = self.Config.Messages.ClanError or "An error occured while retrieving your clan information."
-	self.Config.Messages.BankDisabled = self.Config.Messages.BankDisabled or "Your open bank has been saved and closed.  The bank system has been reloaded, unloaded or disabled by an administrator."
-	self.Config.Messages.WrongArgs = self.Config.Messages.WrongArgs or "Syntax error.  Use <color=#cd422b>/bank</color> for help."
-	self.Config.Messages.WrongRank = self.Config.Messages.WrongRank or "You may only toggle access for ranks lower than your own."
-	self.Config.Messages.BankOpened = self.Config.Messages.BankOpened or "Bank opened for <color=#cd422b>{player}</color>."
-	self.Config.Messages.ClanBankOpened = self.Config.Messages.ClanBankOpened or "Bank opened for clan <color=#cd422b>{clan}</color>."
-	self.Config.Messages.BankClosed = self.Config.Messages.BankClosed or "Bank closed for <color=#cd422b>{player}</color>."
-	self.Config.Messages.Returned = self.Config.Messages.Returned or "One or more items have been returned to you for the following reason(s): <color=#cd422b>{reason}</color>"
-	self.Config.Messages.ClanBankClosed = self.Config.Messages.ClanBankClosed or "Bank closed for clan <color=#cd422b>{clan}</color>."
-	self.Config.Messages.NoPlayer = self.Config.Messages.NoPlayer or "Player not found.  Please try again."
-	self.Config.Messages.MultiPlayer = self.Config.Messages.MultiPlayer or "Multiple players found.  Provide a more specific username."
-	self.Config.Messages.Self = self.Config.Messages.Self or "You cannot use commands on yourself."
-	self.Config.Messages.MaxShare = self.Config.Messages.MaxShare or "You may only share your bank with <color=#cd422b>{limit} player(s)</color> at one time."
-	self.Config.Messages.CoolDown = self.Config.Messages.CoolDown or "You must wait <color=#cd422b>{cooldown} seconds</color> before using this command again."
-	self.Config.Messages.PlayerExists = self.Config.Messages.PlayerExists or "You already share your bank with <color=#cd422b>{player}</color>."
-	self.Config.Messages.PlayerAdded = self.Config.Messages.PlayerAdded or "You now share your bank with <color=#cd422b>{player}</color>."
-	self.Config.Messages.PlayerDeleted = self.Config.Messages.PlayerDeleted or "You no longer share your bank with <color=#cd422b>{player}</color>."
-	self.Config.Messages.DeleteAll = self.Config.Messages.DeleteAll or "You no longer share your bank with anyone. (<color=#cd422b>{entries}</color> player(s) removed)"
-	self.Config.Messages.PlayerNotExists = self.Config.Messages.PlayerNotExists or "You do not share your bank with <color=#cd422b>{player}</color>."
-	self.Config.Messages.NoShares = self.Config.Messages.NoShares or "You do not share your bank with anyone."
-	self.Config.Messages.NotShared = self.Config.Messages.NotShared or "<color=#cd422b>{player}</color> does not share their bank with you."
-	self.Config.Messages.Occupied = self.Config.Messages.Occupied or "<color=#cd422b>{target}'s</color> bank is currently occupied by <color=#cd422b>{player}</color> ({id})."
-	self.Config.Messages.ClanOccupied = self.Config.Messages.ClanOccupied or "Clan <color=#cd422b>{clan}'s</color> bank is currently occupied by <color=#cd422b>{player}</color> ({id})."
-	self.Config.Messages.BankBox = self.Config.Messages.BankBox or "This box is a bank owned by another player and cannot be opened or destroyed."
-	self.Config.Messages.NoItem = self.Config.Messages.NoItem or "No item found in first slot of inventory to check for information."
-	self.Config.Messages.RequiredPermission = self.Config.Messages.RequiredPermission or "You cannot share your bank with <color=#cd422b>{player}</color>.  They do not have the required permissions."
-	self.Config.Messages.BuildingBlocked = self.Config.Messages.BuildingBlocked or "You cannot access a bank in building blocked areas."
-	self.Config.Messages.CheckGround = self.Config.Messages.CheckGround or "You may only access a bank while standing on the ground."
-	self.Config.Messages.CheckTier = self.Config.Messages.CheckTier or "You may only access a bank while standing on the ground or on tier <color=#cd422b>{tier}</color> or highier foundations."
-	self.Config.Messages.CheckRadius = self.Config.Messages.CheckRadius or "You cannot access a bank within <color=#cd422b>{range} meters</color> of another online player.  Current nearest range is <color=#cd422b>{current} meters</color>."
+	self.Config.NPC.Enabled = self.Config.NPC.Enabled or "false"
+	self.Config.NPC.MustInteract = self.Config.NPC.MustInteract or "true"
+	self.Config.NPC.PlayerBankName = self.Config.NPC.PlayerBankName or "Player Bank"
+	self.Config.NPC.ClanBankName = self.Config.NPC.ClanBankName or "Clan Bank"
+	self.Config.NPC.CheckBuildingBlock = self.Config.NPC.CheckBuild or "false"
+	self.Config.NPC.CheckOnGround = self.Config.NPC.CheckGround or "false"
+	self.Config.NPC.CheckRadius = self.Config.NPC.CheckRadius or "false"
 	self.Config.Defaults.ForceUpdate = self.Config.Defaults.ForceUpdate or "false"
 	self.Config.Defaults.Items = self.Config.Defaults.Items or {
 		"Ammunition:0:2:1000:0:2:1000",
@@ -116,7 +87,7 @@ function PLUGIN:LoadDefaultConfig()
 		{["Permission"] = "bankmanager.vip1", ["MaxBank"] = "20", ["MaxShare"] = "20", ["Items"] = {"wood:1:3:2000"}},
 		{["Permission"] = "bankmanager.vip2", ["MaxBank"] = "30", ["MaxShare"] = "30", ["Items"] = {"wood:1:3:3000"}}
 	}
-	if not tonumber(self.Config.Settings.MessageSize) or tonumber(self.Config.Settings.MessageSize) < 1 then self.Config.Settings.MessageSize = "13" end
+	if not tonumber(self.Config.Settings.MessageSize) or tonumber(self.Config.Settings.MessageSize) < 1 then self.Config.Settings.MessageSize = "12" end
 	if not tonumber(self.Config.Settings.Tier) or tonumber(self.Config.Settings.Tier) < -1 or tonumber(self.Config.Settings.Tier) > 4 then self.Config.Settings.Tier = "-1" end
 	if not tonumber(self.Config.Settings.MaxBank) or tonumber(self.Config.Settings.MaxBank) < 1 or tonumber(self.Config.Settings.MaxBank) > 30 then self.Config.Settings.MaxBank = "15" end
 	if not tonumber(self.Config.Settings.MaxShare) or tonumber(self.Config.Settings.MaxShare) < 1 then self.Config.Settings.MaxShare = "10" end
@@ -131,6 +102,112 @@ function PLUGIN:LoadDefaultConfig()
 			permission.RegisterPermission(data.Permission, self.Plugin)
 		end
 	end
+end
+
+function PLUGIN:LoadDefaultLang()
+	lang.RegisterMessages(util.TableToLangDict({
+		["AdminMenu"] = "\n	<color=#ffd479>/bank toggle <bank | clan | share | npc></color> - Enable or disable bank system\n"..
+		"	<color=#ffd479>/bank admin <bank | clan> <player | clan></color> - Open player or clan bank",
+		["BankBox"] = "This box is a bank owned by another player and cannot be opened or destroyed.",
+		["BankClosed"] = "Bank closed for <color=#cd422b>{player}</color>.",
+		["BankDisabled"] = "Your open bank has been saved and closed. The bank system has been reloaded, unloaded or disabled by an administrator.",
+		["BankOpened"] = "Bank opened for <color=#cd422b>{player}</color>.",
+		["BuildingBlocked"] = "You cannot access a bank in building blocked areas.",
+		["ChangedClanStatus"] = "Clan <color=#cd422b>{clan}'s</color> group <color=#ffd479>{group}</color> bank access <color=#cd422b>{status}</color>.",
+		["ChangedFeature"] = "Bank feature <color=#cd422b>{group}</color> now <color=#cd422b>{status}</color>.",
+		["ChangedStatus"] = "Bank group <color=#cd422b>{group}</color> now <color=#cd422b>{status}</color>.",
+		["CheckGround"] = "You may only access a bank while standing on the ground.",
+		["CheckRadius"] = "You cannot access a bank within <color=#cd422b>{range} meters</color> of another online player. Current nearest range is <color=#cd422b>{current} meters</color>.",
+		["CheckTier"] = "You may only access a bank while standing on the ground or on tier <color=#cd422b>{tier}</color> or highier foundations.",
+		["ClanBankClosed"] = "Bank closed for clan <color=#cd422b>{clan}</color>.",
+		["ClanBankOpened"] = "Bank opened for clan <color=#cd422b>{clan}</color>.",
+		["ClanError"] = "An error occured while retrieving your clan information.",
+		["ClanNoPermission"] = "You do not have permission to access <color=#cd422b>{clan}'s</color> bank.",
+		["ClanOccupied"] = "Clan <color=#cd422b>{clan}'s</color> bank is currently occupied by <color=#cd422b>{player}</color> ({id}).",
+		["ClanOwner"] = "Your clan, <color=#cd422b>{clan}</color>, currently has <color=#ffd479>{members} member(s)</color>. You must have minimum <color=#cd422b>{required} members</color> to use clan bank. As owner, you may access existing banked items. They will be returned to you upon closing your inventory.",
+		["CoolDown"] = "You must wait <color=#cd422b>{cooldown} seconds</color> before trying that.",
+		["DeleteAll"] = "You no longer share your bank with anyone. (<color=#cd422b>{entries}</color> player(s) removed)",
+		["Disabled"] = "disabled",
+		["Enabled"] = "enabled",
+		["GroupPlayer"] = "player",
+		["GroupClan"] = "clan",
+		["GroupShare"] = "sharing",
+		["GroupNPC"] = "npc",
+		["GroupMember"] = "member",
+		["GroupModerator"] = "moderator",
+		["Help"] = "<color=#ffd479>/bank</color> - Allows players to deposit and withdraw items from a bank",
+		["InfoClan"] = "\n	Clan: <color=#ffd479>{i1}</color>\n"..
+		"	Rank: <color=#ffd479>{i2}</color>\n"..
+		"	Members: <color=#ffd479>{i3}</color>",
+		["InfoItem"] = "\n	Your limits for <color=#cd422b>{i1}</color>:\n"..
+		"	[Player] Bankable: <color=#ffd479>{i2}</color>\n"..
+		"	[Player] Maximum Deposit: <color=#ffd479>{i3}</color>\n"..
+		"	[Player] Maximum Stack: <color=#ffd479>{i4}</color>\n"..
+		"	[Clan] Bankable: <color=#ffd479>{i5}</color>\n"..
+		"	[Clan] Maximum Deposit: <color=#ffd479>{i6}</color>\n"..
+		"	[Clan] Maximum Stack: <color=#ffd479>{i7}</color>",
+		["Initialize1"] = "{prefix} Item check not performed, items may be missing or invalid",
+		["Initialize2"] = "{prefix} Performing item check...",
+		["Initialize3"] = "{prefix} Force update configuration found, updating items...",
+		["Initialize4"] = "{prefix} New item(s) added: {items}",
+		["Initialize5"] = "{prefix} No new items added",
+		["Initialize6"] = "{prefix} Invalid item(s) removed: {items}",
+		["Initialize7"] = "{prefix} No invalid items removed",
+		["Initialize8"] = "{prefix} Duplicate item(s) removed: {items}",
+		["Initialize9"] = "{prefix} No duplicate items removed",
+		["LangError"] = "Language error: ",
+		["LimitsBank"] = "\n	Player Bank Enabled: <color=#ffd479>{l1}</color>\n"..
+		"	Building Blocked: <color=#ffd479>{l2}</color>\n"..
+		"	Your Max Bank: <color=#ffd479>{l3} items</color>\n"..
+		"	Your Max Share: <color=#ffd479>{l4} players</color>\n"..
+		"	Keep Durability: <color=#ffd479>{l5}</color>\n"..
+		"	Cooldown: <color=#ffd479>{l6} seconds</color>",
+		["LimitsClan"] = "\n	Clan Bank Enabled: <color=#ffd479>{l1}</color>\n"..
+		"	Minimum Members: <color=#ffd479>{l2} members</color>\n"..
+		"	Max Bank: <color=#ffd479>{l3} items</color>\n"..
+		"	Keep Durability: <color=#ffd479>{l4}</color>\n"..
+		"	Cooldown: <color=#ffd479>{l5} seconds</color>",
+		["MaxShare"] = "You may only share your bank with <color=#cd422b>{limit} player(s)</color> at one time.",
+		["Menu"] = "\n	<color=#ffd479>/bank limits <bank | clan></color> - View bank limits\n"..
+		"	<color=#ffd479>/bank info <item | clan></color> - View item information (first inventory slot) or clan information\n"..
+		"	<color=#ffd479>/bank <bank | clan></color> - Open personal or clan bank\n"..
+		"	<color=#ffd479>/bank share <player></color> - Open bank of shared player\n"..
+		"	<color=#ffd479>/bank add <player></color> - Share your bank with player\n"..
+		"	<color=#ffd479>/bank remove <player></color> - Unshare your bank with player\n"..
+		"	<color=#ffd479>/bank removeall</color> - Unshare your bank with all players\n"..
+		"	<color=#ffd479>/bank list <player></color> - List players sharing your bank\n"..
+		"	<color=#ffd479>/bank clan toggle <moderator | member></color> - Toggle group bank access",
+		["MinClanMembers"] = "Your clan, <color=#cd422b>{clan}</color>, currently has <color=#ffd479>{members} member(s)</color>. You must have minimum <color=#cd422b>{required} members</color> to use clan bank.",
+		["MustInteract"] = "You must interact with a Banking NPC to access your bank.",
+		["NoClan"] = "You do not belong to a clan.",
+		["NoClanExists"] = "Clan <color=#cd422b>{clan}</color> does not exist.",
+		["NoItem"] = "No item found in first slot of inventory to check for information.",
+		["NoPermission"] = "You do not have permission to use this command.",
+		["NoPlayer"] = "Player not found or multiple players found.  Provide a more specific username.",
+		["NoPlugin"] = "The <color=#cd422b>{plugin} plugin</color> is not installed.",
+		["NoShares"] = "You do not share your bank with anyone.",
+		["NotEnabled"] = "Bank group <color=#cd422b>{group}</color> is <color=#cd422b>disabled</color>.",
+		["NotShareEnabled"] = "Bank sharing is <color=#cd422b>disabled</color>.",
+		["NotShared"] = "<color=#cd422b>{player}</color> does not share their bank with you.",
+		["Occupied"] = "<color=#cd422b>{target}'s</color> bank is currently occupied by <color=#cd422b>{player}</color> ({id}).",
+		["PlayerAdded"] = "You now share your bank with <color=#cd422b>{player}</color>.",
+		["PlayerDeleted"] = "You no longer share your bank with <color=#cd422b>{player}</color>.",
+		["PlayerExists"] = "You already share your bank with <color=#cd422b>{player}</color>.",
+		["PlayerNotExists"] = "You do not share your bank with <color=#cd422b>{player}</color>.",
+		["Prefix"] = "[<color=#cd422b> Bank Manager </color>] ",
+		["Proximity"] = "You must be within close proximity of a Banking NPC to access your bank.",
+		["RequiredPermission"] = "You cannot share your bank with <color=#cd422b>{player}</color> or open their bank. They do not have the required permissions.",
+		["Returned"] = "One or more items have been returned to you for the following reason(s): <color=#cd422b>{reason}</color>",
+		["ReturnReason1"] = "Insufficent clan members, ",
+		["ReturnReason2"] = "Item cannot be banked, ",
+		["ReturnReason3"] = "Item reached max deposit, ",
+		["ReturnReason4"] = "Max bank reached, ",
+		["ReturnReason5"] = "Max item stack reached, ",
+		["Self"] = "You cannot use commands on yourself.",
+		["ShareList"] = "Bank shared with <color=#cd422b>{count} player(s)</color>:\n{players}",
+		["WrongArgs"] = "Syntax error. Use <color=#cd422b>/bank</color> for help.",
+		["WrongRank"] = "You may only toggle access for ranks lower than your own."		
+	}), self.Plugin)
 end
 
 function PLUGIN:LoadDataFile(call)
@@ -159,22 +236,38 @@ function PLUGIN:Unload()
 	self:CloseBanks(1)
 end
 
+local function FormatMessage(message, values)
+	for key, value in pairs(values) do message = message:gsub("{" .. key .. "}", value) end
+	return message
+end
+
+function PLUGIN:Lang(player, lng)
+	local playerSteamID
+	if player and player ~= nil then playerSteamID = rust.UserIDFromPlayer(player) end
+	local message = lang.GetMessage(lng, self.Plugin, playerSteamID)
+	if message == lng then message = lang.GetMessage("LangError", self.Plugin, playerSteamID)..lng end
+	return message
+end
+
 function PLUGIN:OnServerInitialized()
 	clans = plugins.Find(ClanPlugin) or false
-	local prefix = self.Config.Settings.Prefix:gsub(" ", "")
+	local prefix = self:Lang(nil, "Prefix"):gsub(" ", "")
 	prefix = prefix:gsub("<color=%p*%w*>", "")
 	prefix = prefix:gsub("</color>", "")
 	if self.Config.Defaults.ForceUpdate == "false" then
 		if self.Config.Settings.PerformItemCheck ~= "true" then
-			print(prefix.." Item check not performed, items may be missing or invalid")
+			local message = FormatMessage(self:Lang(nil, "Initialize1"), { prefix = prefix })
+			print(message)
 			return
 		end
 	end
-	print(prefix.." Performing item check...")
+	local message = FormatMessage(self:Lang(nil, "Initialize2"), { prefix = prefix })
+	print(message)
 	if self.Config.Defaults.ForceUpdate == "true" then
 		self.Config.Defaults.ForceUpdate = "false"
 		self.Config.Items = {}
-		print(prefix.." Force update found, updating items.")
+		local message = FormatMessage(self:Lang(nil, "Initialize3"), { prefix = prefix })
+		print(message)
 	end
 	local items, acnt = global.ItemManager.GetItemDefinitions(), ""
 	for i = 0, items.Count - 1 do
@@ -246,19 +339,25 @@ function PLUGIN:OnServerInitialized()
 		x = x + 1
 	end
 	if acnt ~= "" then
-		print(prefix.." New item(s) added: "..string.sub(acnt, 1, -3))
+		local message = FormatMessage(self:Lang(nil, "Initialize4"), { prefix = prefix, items = string.sub(acnt, 1, -3) })
+		print(message)
 		else
-		print(prefix.." No new items added")
+		local message = FormatMessage(self:Lang(nil, "Initialize5"), { prefix = prefix })
+		print(message)
 	end
 	if rcnt ~= "" then
-		print(prefix.." Invalid item(s) removed: "..string.sub(rcnt, 1, -3))
+		local message = FormatMessage(self:Lang(nil, "Initialize6"), { prefix = prefix, items = string.sub(rcnt, 1, -3) })
+		print(message)
 		else
-		print(prefix.." No invalid items removed")
+		local message = FormatMessage(self:Lang(nil, "Initialize7"), { prefix = prefix })
+		print(message)
 	end
 	if dcnt ~= "" then
-		print(prefix.." Duplicate item(s) removed: "..string.sub(dcnt, 1, -3))
+		local message = FormatMessage(self:Lang(nil, "Initialize8"), { prefix = prefix, items = string.sub(dcnt, 1, -3) })
+		print(message)
 		else
-		print(prefix.." No duplicate items removed")
+		local message = FormatMessage(self:Lang(nil, "Initialize9"), { prefix = prefix })
+		print(message)
 	end
 	self:SaveConfig()
 end
@@ -309,138 +408,118 @@ function PLUGIN:GetPlayerData_CC(clan, addNewEntry)
 	return playerData
 end
 
-local function FindPlayer(NameOrIpOrSteamID, checkSleeper)
-	local playerTbl = {}
-	local enumPlayerList = global.BasePlayer.activePlayerList:GetEnumerator()
-	while enumPlayerList:MoveNext() do
-		if enumPlayerList.Current then 
-			local currPlayer = enumPlayerList.Current
-			local currSteamID = rust.UserIDFromPlayer(currPlayer)
-			local currIP = ""
-			if currPlayer.net ~= nil and currPlayer.net.connection ~= nil then
-				currIP = currPlayer.net.connection.ipaddress
-			end
-			if currPlayer.displayName == NameOrIpOrSteamID or currSteamID == NameOrIpOrSteamID or currIP == NameOrIpOrSteamID then
-				table.insert(playerTbl, currPlayer)
-				return #playerTbl, playerTbl
-			end
-			local matched, _ = string.find(currPlayer.displayName:lower(), NameOrIpOrSteamID:lower(), 1, true)
-			if matched then
-				table.insert(playerTbl, currPlayer)
-			end
-		end
+function PLUGIN:OnPlayerDisconnected(player)
+	local playerSteamID = rust.UserIDFromPlayer(player)
+	if ProximityPlayer[playerSteamID] ~= nil and ProximityPlayer[playerSteamID] == "true" then
+		ProximityPlayer[playerSteamID] = nil
 	end
-	if checkSleeper then
-		local enumSleeperList = global.BasePlayer.sleepingPlayerList:GetEnumerator()
-		while enumSleeperList:MoveNext() do
-			local currPlayer = enumSleeperList.Current
-			local currSteamID = rust.UserIDFromPlayer(currPlayer)
-			if currPlayer.displayName == NameOrIpOrSteamID or currSteamID == NameOrIpOrSteamID then
-				table.insert(playerTbl, currPlayer)
-				return #playerTbl, playerTbl
-			end
-			local matched, _ = string.find(currPlayer.displayName:lower(), NameOrIpOrSteamID:lower(), 1, true)
-			if matched then
-				table.insert(playerTbl, currPlayer)
-			end
-		end
+	if ProximityClan[playerSteamID] ~= nil and ProximityClan[playerSteamID] == "true" then
+		ProximityClan[playerSteamID] = nil
 	end
-	return #playerTbl, playerTbl
-end
-
-local function FormatMessage(message, values)
-	for key, value in pairs(values) do message = message:gsub("{" .. key .. "}", value) end
-	return message
+	BankOpened[playerSteamID] = nil
 end
 
 function PLUGIN:cmdBank(player, cmd, args)
 	local playerSteamID = rust.UserIDFromPlayer(player)
 	if args.Length > 0 and args[0] == "toggle" then
 		if not permission.UserHasPermission(playerSteamID, "bankmanager.admin") then
-			self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.NoPermission)
+			self:RustMessage(player, self:Lang(player, "NoPermission"))
 			return
 		end
 		if args.Length < 2 then
-			self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.WrongArgs)
+			self:RustMessage(player, self:Lang(player, "WrongArgs"))
 			return
 		end
 		local sfunc = args[1]
-		if sfunc ~= "bank" and sfunc ~= "clan" then
-			self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.WrongArgs)
+		if sfunc ~= "bank" and sfunc ~= "clan" and sfunc ~= "share" and sfunc ~= "npc" then
+			self:RustMessage(player, self:Lang(player, "WrongArgs"))
 			return
 		end
 		local message
 		if sfunc == "bank" then
 			if self.Config.Settings.Enabled == "true" then
 				self.Config.Settings.Enabled = "false"
-				message = FormatMessage(self.Config.Messages.ChangedStatus, { group = "player", status = "disabled" })
+				message = FormatMessage(self:Lang(player, "ChangedStatus"), { group = self:Lang(player, "GroupPlayer"), status = self:Lang(player, "Disabled") })
 				self:CloseBanks(2)
 				else
 				self.Config.Settings.Enabled = "true"
-				message = FormatMessage(self.Config.Messages.ChangedStatus, { group = "player", status = "enabled" })
+				message = FormatMessage(self:Lang(player, "ChangedStatus"), { group = self:Lang(player, "GroupPlayer"), status = self:Lang(player, "Enabled") })
 			end
 		end
 		if sfunc == "clan" then
 			if not self:CheckPlugin(player) then return end
 			if self.Config.Clan.Enabled == "true" then
 				self.Config.Clan.Enabled = "false"
-				message = FormatMessage(self.Config.Messages.ChangedStatus, { group = "clan", status = "disabled" })
+				message = FormatMessage(self:Lang(player, "ChangedStatus"), { group = self:Lang(player, "GroupClan"), status = self:Lang(player, "Disabled") })
 				self:CloseBanks(3)
 				else
 				self.Config.Clan.Enabled = "true"
-				message = FormatMessage(self.Config.Messages.ChangedStatus, { group = "clan", status = "enabled" })
+				message = FormatMessage(self:Lang(player, "ChangedStatus"), { group = self:Lang(player, "GroupClan"), status = self:Lang(player, "Enabled") })
+			end
+		end
+		if sfunc == "share" then
+			if self.Config.Settings.ShareEnabled == "true" then
+				self.Config.Settings.ShareEnabled = "false"
+				message = FormatMessage(self:Lang(player, "ChangedFeature"), { group = self:Lang(player, "GroupShare"), status = self:Lang(player, "Disabled") })
+				else
+				self.Config.Settings.ShareEnabled = "true"
+				message = FormatMessage(self:Lang(player, "ChangedFeature"), { group = self:Lang(player, "GroupShare"), status = self:Lang(player, "Enabled") })
+			end
+		end
+		if sfunc == "npc" then
+			if self.Config.NPC.Enabled == "true" then
+				self.Config.NPC.Enabled = "false"
+				message = FormatMessage(self:Lang(player, "ChangedFeature"), { group = self:Lang(player, "GroupNPC"), status = self:Lang(player, "Disabled") })
+				local players = global.BasePlayer.activePlayerList:GetEnumerator()
+				while players:MoveNext() do
+					local playerSteamID = rust.UserIDFromPlayer(players.Current)
+					if ProximityPlayer[playerSteamID] ~= nil and ProximityPlayer[playerSteamID] == "true" then
+						ProximityPlayer[playerSteamID] = "false"
+					end
+					if ProximityClan[playerSteamID] ~= nil and ProximityClan[playerSteamID] == "true" then
+						ProximityClan[playerSteamID] = "false"
+					end
+				end
+				else
+				self.Config.NPC.Enabled = "true"
+				message = FormatMessage(self:Lang(player, "ChangedFeature"), { group = self:Lang(player, "GroupNPC"), status = self:Lang(player, "Enabled") })
 			end
 		end
 		self:SaveConfig()
-		self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+		self:RustMessage(player, message)
 		return
 	end
 	if self.Config.Settings.UsePermissions == "true" then
 		if not permission.UserHasPermission(playerSteamID, "bankmanager.admin") and not permission.UserHasPermission(playerSteamID, "bankmanager.use") then
-			self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.NoPermission)
+			self:RustMessage(player, self:Lang(player, "NoPermission"))
 			return
 		end
 	end
 	if args.Length == 0 then
 		if permission.UserHasPermission(playerSteamID, "bankmanager.admin") then
-			self:RustMessage(player,
-				self.Config.Settings.Prefix.." <color=#ffd479>/bank toggle <bank | clan></color> - Enable or disable bank system\n"..
-				self.Config.Settings.Prefix.." <color=#ffd479>/bank admin <bank | clan> <player | clan></color> - Open player or clan bank"
-			)
+			self:RustMessage(player, self:Lang(player, "AdminMenu"))
 		end
-		self:RustMessage(player,
-			self.Config.Settings.Prefix.." <color=#ffd479>/bank limits <bank | clan></color> - View bank limits\n"..
-			self.Config.Settings.Prefix.." <color=#ffd479>/bank info <item | clan></color> - View item information (first inventory slot) or clan information\n"..
-			self.Config.Settings.Prefix.." <color=#ffd479>/bank <bank | clan></color> - Open personal or clan bank\n"..
-			self.Config.Settings.Prefix.." <color=#ffd479>/bank share <player></color> - Open bank of shared player\n"..
-			self.Config.Settings.Prefix.." <color=#ffd479>/bank add <player></color> - Share your bank with player"
-		)
-		self:RustMessage(player,
-			self.Config.Settings.Prefix.." <color=#ffd479>/bank remove <player></color> - Unshare your bank with player\n"..
-			self.Config.Settings.Prefix.." <color=#ffd479>/bank removeall</color> - Unshare your bank with all players\n"..
-			self.Config.Settings.Prefix.." <color=#ffd479>/bank list <player></color> - List players sharing your bank\n"..
-			self.Config.Settings.Prefix.." <color=#ffd479>/bank clan toggle <moderator | member></color> - Toggle group bank access"
-		)
+		self:RustMessage(player, self:Lang(player, "Menu"))
 		return
 		elseif args.Length > 0 then
 		local func = args[0]
 		if func ~= "admin" and func ~= "limits" and func ~= "info" and func ~= "bank" and func ~= "clan" and func ~= "share" and func ~= "add" and func ~= "remove" and
 			func ~= "removeall" and func ~= "list" then
-			self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.WrongArgs)
+			self:RustMessage(player, self:Lang(player, "WrongArgs"))
 			return
 		end
 		if func == "admin" then
 			if not permission.UserHasPermission(playerSteamID, "bankmanager.admin") then
-				self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.NoPermission)
+				self:RustMessage(player, self:Lang(player, "NoPermission"))
 				return
 			end
 			if args.Length < 2 then
-				self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.WrongArgs)
+				self:RustMessage(player, self:Lang(player, "WrongArgs"))
 				return
 			end
 			local sfunc = args[1]
 			if sfunc ~= "bank" and sfunc ~= "clan" then
-				self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.WrongArgs)
+				self:RustMessage(player, self:Lang(player, "WrongArgs"))
 				return
 			end
 			if sfunc == "bank" then
@@ -461,19 +540,19 @@ function PLUGIN:cmdBank(player, cmd, args)
 						return
 					end
 				end
-				local message = FormatMessage(self.Config.Messages.NoClanExists, { clan = args[2] })
-				self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+				local message = FormatMessage(self:Lang(player, "NoClanExists"), { clan = args[2] })
+				self:RustMessage(player, message)
 			end
 			return
 		end
 		if func == "limits" then
 			if args.Length < 2 then
-				self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.WrongArgs)
+				self:RustMessage(player, self:Lang(player, "WrongArgs"))
 				return
 			end
 			local sfunc = args[1]
 			if sfunc ~= "bank" and sfunc ~= "clan" then
-				self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.WrongArgs)
+				self:RustMessage(player, self:Lang(player, "WrongArgs"))
 				return
 			end
 			if sfunc == "bank" then
@@ -484,34 +563,23 @@ function PLUGIN:cmdBank(player, cmd, args)
 					MaxBank = CustomMaxBank
 					MaxShare = CustomMaxShare
 				end
-				self:RustMessage(player,
-					self.Config.Settings.Prefix.." Player Bank Enabled: <color=#ffd479>"..self.Config.Settings.Enabled.."</color>\n"..
-					self.Config.Settings.Prefix.." Building Blocked: <color=#ffd479>"..self.Config.Settings.BuildingBlocked.."</color>\n"..
-					self.Config.Settings.Prefix.." Your Max Bank: <color=#ffd479>"..MaxBank.." items</color>\n"..
-					self.Config.Settings.Prefix.." Your Max Share: <color=#ffd479>"..MaxShare.." players</color>\n"..
-					self.Config.Settings.Prefix.." Keep Durability: <color=#ffd479>"..self.Config.Settings.KeepDurability.."</color>\n"..
-					self.Config.Settings.Prefix.." Cooldown: <color=#ffd479>"..self.Config.Settings.Cooldown.." seconds</color>"
-				)
+				local message = FormatMessage(self:Lang(player, "LimitsBank"), { l1 = self.Config.Settings.Enabled, l2 = self.Config.Settings.BuildingBlocked, l3 = MaxBank, l4 = MaxShare, l5 = self.Config.Settings.KeepDurability, l6 = self.Config.Settings.Cooldown })
+				self:RustMessage(player, message)
 			end
 			if sfunc == "clan" then
-				self:RustMessage(player,
-					self.Config.Settings.Prefix.." Clan Bank Enabled: <color=#ffd479>"..self.Config.Clan.Enabled.."</color>\n"..
-					self.Config.Settings.Prefix.." Minimum Members: <color=#ffd479>"..self.Config.Clan.MinMembers.." members</color>\n"..
-					self.Config.Settings.Prefix.." Max Bank: <color=#ffd479>"..self.Config.Clan.MaxBank.." items</color>\n"..
-					self.Config.Settings.Prefix.." Keep Durability: <color=#ffd479>"..self.Config.Clan.KeepDurability.."</color>\n"..
-					self.Config.Settings.Prefix.." Cooldown: <color=#ffd479>"..self.Config.Clan.Cooldown.." seconds</color>"
-				)
+				local message = FormatMessage(self:Lang(player, "LimitsClan"), { l1 = self.Config.Clan.Enabled, l2 = self.Config.Clan.MinMembers, l3 = self.Config.Clan.MaxBank, l4 = self.Config.Clan.KeepDurability, l5 = self.Config.Clan.Cooldown })
+				self:RustMessage(player, message)
 			end
 			return
 		end
 		if func == "info" then
 			if args.Length < 2 then
-				self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.WrongArgs)
+				self:RustMessage(player, self:Lang(player, "WrongArgs"))
 				return
 			end
 			local sfunc = args[1]
 			if sfunc ~= "item" and sfunc ~= "clan" then
-				self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.WrongArgs)
+				self:RustMessage(player, self:Lang(player, "WrongArgs"))
 				return
 			end
 			if sfunc == "item" then
@@ -525,7 +593,7 @@ function PLUGIN:cmdBank(player, cmd, args)
 					end
 				end
 				if not FindItemInfo then
-					self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.NoItem)
+					self:RustMessage(player, self:Lang(player, "NoItem"))
 					return
 				end
 				local FindItem = true
@@ -563,57 +631,63 @@ function PLUGIN:cmdBank(player, cmd, args)
 				local CanBank, _CanBank = "false", "false"
 				if tonumber(bnk) == 1 then CanBank = "true" end
 				if tonumber(_bnk) == 1 then _CanBank = "true" end
-				self:RustMessage(player,
-					self.Config.Settings.Prefix.." Your limits for <color=#cd422b>"..FindItemInfo.."</color>:\n"..
-					self.Config.Settings.Prefix.." [Player] Bankable: <color=#ffd479>"..CanBank.."</color>\n"..
-					self.Config.Settings.Prefix.." [Player] Maximum Deposit: <color=#ffd479>"..maxd.."</color>\n"..
-					self.Config.Settings.Prefix.." [Player] Maximum Stack: <color=#ffd479>"..maxs.."</color>"
-				)
-				self:RustMessage(player,
-					self.Config.Settings.Prefix.." [Clan] Bankable: <color=#ffd479>".._CanBank.."</color>\n"..
-					self.Config.Settings.Prefix.." [Clan] Maximum Deposit: <color=#ffd479>".._maxd.."</color>\n"..
-					self.Config.Settings.Prefix.." [Clan] Maximum Stack: <color=#ffd479>".._maxs.."</color>"
-				)
+				local message = FormatMessage(self:Lang(player, "InfoItem"), { i1 = FindItemInfo, i2 = CanBank, i3 = maxd, i4 = maxs, i5 = _CanBank, i6 = _maxd, i7 = _maxs })
+				self:RustMessage(player, message)
 				return
 			end
 			if sfunc == "clan" then
 				local found, playerClan, playerGroup, count = self:GetClanMember(player)
 				if not found then return end
-				self:RustMessage(player,
-					self.Config.Settings.Prefix.." Clan: <color=#ffd479>"..playerClan.."</color>\n"..
-					self.Config.Settings.Prefix.." Rank: <color=#ffd479>"..playerGroup.."</color>\n"..
-					self.Config.Settings.Prefix.." Members: <color=#ffd479>"..count.."</color>"
-				)
+				local message = FormatMessage(self:Lang(player, "InfoClan"), { i1 = playerClan, i2 = playerGroup, i3 = count })
+				self:RustMessage(player, message)
 				return
 			end
 		end
 		if func == "bank" then
-			if self.Config.Settings.Enabled ~= "true" and not permission.UserHasPermission(playerSteamID, "bankmanager.admin") then
-				local message = FormatMessage(self.Config.Messages.NotEnabled, { group = "player" })
-				self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
-				return
-			end
-			if self.Config.Settings.BuildingBlocked == "true" and not player:CanBuild() then
-				self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.BuildingBlocked)
-				return
+			if not permission.UserHasPermission(playerSteamID, "bankmanager.admin") then
+				if self.Config.Settings.Enabled ~= "true" then
+					local message = FormatMessage(self:Lang(player, "NotEnabled"), { group = self:Lang(player, "GroupPlayer") })
+					self:RustMessage(player, message)
+					return
+				end
+				if self.Config.NPC.Enabled == "true" then
+					if self.Config.NPC.MustInteract == "true" then
+						self:RustMessage(player, self:Lang(player, "MustInteract"))
+						return
+						else
+						if not self:CheckProximity(player, 1) then return end
+					end
+				end
 			end
 			if not self:CheckCooldown(player, 1) then return end
+			if self:CheckBuildingBlock(player) then return end
 			if not self:CheckGround(player) then return end
 			if self:CheckRadius(player) then return end
 			self:OpenPlayerBank(player, player)
 			return
 		end
 		if func == "clan" then
-			if not self:CheckPlugin(player) then return end
-			if self.Config.Clan.Enabled ~= "true" and not permission.UserHasPermission(playerSteamID, "bankmanager.admin") then
-				local message = FormatMessage(self.Config.Messages.NotEnabled, { group = "clan" })
-				self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
-				return
-			end
 			local sfunc
 			if args.Length >= 2 then sfunc = args[1] end
 			if sfunc == nil then
+				if not self:CheckPlugin(player) then return end
+				if not permission.UserHasPermission(playerSteamID, "bankmanager.admin") then
+					if self.Config.Clan.Enabled ~= "true" then
+						local message = FormatMessage(self:Lang(player, "NotEnabled"), { group = self:Lang(player, "GroupClan") })
+						self:RustMessage(player, message)
+						return
+					end
+					if self.Config.NPC.Enabled == "true" then
+						if self.Config.NPC.MustInteract == "true" then
+							self:RustMessage(player, self:Lang(player, "MustInteract"))
+							return
+							else
+							if not self:CheckProximity(player, 2) then return end
+						end
+					end
+				end
 				if not self:CheckCooldown(player, 2) then return end
+				if self:CheckBuildingBlock(player) then return end
 				if not self:CheckGround(player) then return end
 				if self:CheckRadius(player) then return end
 				local found, playerClan, playerGroup, count = self:GetClanMember(player)
@@ -623,16 +697,16 @@ function PLUGIN:cmdBank(player, cmd, args)
 						local playerData = self:GetPlayerData_CB(playerClan, true)
 						if #playerData.Bank > 0 then
 							Owner[playerSteamID] = true
-							local message = FormatMessage(self.Config.Messages.ClanOwner, { clan = playerClan, members = count, required = self.Config.Clan.MinMembers })
-							self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+							local message = FormatMessage(self:Lang(player, "ClanOwner"), { clan = playerClan, members = count, required = self.Config.Clan.MinMembers })
+							self:RustMessage(player, message)
 							else
-							local message = FormatMessage(self.Config.Messages.MinClanMembers, { clan = playerClan, members = count, required = self.Config.Clan.MinMembers })
-							self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+							local message = FormatMessage(self:Lang(player, "MinClanMembers"), { clan = playerClan, members = count, required = self.Config.Clan.MinMembers })
+							self:RustMessage(player, message)
 							return
 						end
 						else
-						local message = FormatMessage(self.Config.Messages.MinClanMembers, { clan = playerClan, members = count, required = self.Config.Clan.MinMembers })
-						self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+						local message = FormatMessage(self:Lang(player, "MinClanMembers"), { clan = playerClan, members = count, required = self.Config.Clan.MinMembers })
+						self:RustMessage(player, message)
 						return
 					end
 				end
@@ -640,18 +714,18 @@ function PLUGIN:cmdBank(player, cmd, args)
 				return
 				else
 				if args.Length < 3 or sfunc ~= "toggle" then
-					self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.WrongArgs)
+					self:RustMessage(player, self:Lang(player, "WrongArgs"))
 					return
 				end
 				local _sfunc = args[2]
 				if _sfunc ~= "moderator" and _sfunc ~= "member" then
-					self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.WrongArgs)
+					self:RustMessage(player, self:Lang(player, "WrongArgs"))
 					return
 				end
 				local found, playerClan, playerGroup, count = self:GetClanMember(player)
 				if not found then return end
 				if playerGroup == "member" then
-					self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.WrongRank)
+					self:RustMessage(player, self:Lang(player, "WrongRank"))
 					return
 				end
 				local message
@@ -660,33 +734,41 @@ function PLUGIN:cmdBank(player, cmd, args)
 					if playerGroup == "owner" then
 						if playerData.Config.moderator == "true" then
 							playerData.Config.moderator = "false"
-							message = FormatMessage(self.Config.Messages.ChangedClanStatus, { clan = playerClan, group = "moderator", status = "disabled" })
+							message = FormatMessage(self:Lang(player, "ChangedClanStatus"), { clan = playerClan, group = self:Lang(player, "GroupModerator"), status = self:Lang(player, "Disabled") })
 							else
 							playerData.Config.moderator = "true"
-							message = FormatMessage(self.Config.Messages.ChangedClanStatus, { clan = playerClan, group = "moderator", status = "enabled" })
+							message = FormatMessage(self:Lang(player, "ChangedClanStatus"), { clan = playerClan, group = self:Lang(player, "GroupModerator"), status = self:Lang(player, "Enabled") })
 						end
 						else
-						self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.WrongRank)
+						self:RustMessage(player, self:Lang(player, "WrongRank"))
 						return
 					end
 				end
 				if _sfunc == "member" then
 					if playerData.Config.member == "true" then
 						playerData.Config.member = "false"
-						message = FormatMessage(self.Config.Messages.ChangedClanStatus, { clan = playerClan, group = "member", status = "disabled" })
+						message = FormatMessage(self:Lang(player, "ChangedClanStatus"), { clan = playerClan, group = self:Lang(player, "GroupMember"), status = self:Lang(player, "Disabled") })
 						else
 						playerData.Config.member = "true"
-						message = FormatMessage(self.Config.Messages.ChangedClanStatus, { clan = playerClan, group = "member", status = "enabled" })
+						message = FormatMessage(self:Lang(player, "ChangedClanStatus"), { clan = playerClan, group = self:Lang(player, "GroupMember"), status = self:Lang(player, "Enabled") })
 					end
 				end
-				self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+				self:RustMessage(player, message)
 				self:SaveDataFile(4)
 				return
 			end
 		end
 		if func == "share" then
+			if self.Config.Settings.ShareEnabled ~= "true" then
+				self:RustMessage(player, self:Lang(player, "NotShareEnabled"))
+				return
+			end
 			if not permission.UserHasPermission(playerSteamID, "bankmanager.share") and not permission.UserHasPermission(playerSteamID, "bankmanager.admin") then
-				self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.NoPermission)
+				self:RustMessage(player, self:Lang(player, "NoPermission"))
+				return
+			end
+			if args.Length < 2 then
+				self:RustMessage(player, self:Lang(player, "WrongArgs"))
 				return
 			end
 			local found, targetplayer, targetname, targetid = self:CheckPlayer(player, args[1])
@@ -703,17 +785,17 @@ function PLUGIN:cmdBank(player, cmd, args)
 					end
 				end
 			end
-			local message = FormatMessage(self.Config.Messages.NotShared, { player = targetname })
-			self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+			local message = FormatMessage(self:Lang(player, "NotShared"), { player = targetname })
+			self:RustMessage(player, message)
 			return
 		end
 		if func == "add" then
 			if not permission.UserHasPermission(playerSteamID, "bankmanager.share") and not permission.UserHasPermission(playerSteamID, "bankmanager.admin") then
-				self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.NoPermission)
+				self:RustMessage(player, self:Lang(player, "NoPermission"))
 				return
 			end
 			if args.Length < 2 then
-				self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.WrongArgs)
+				self:RustMessage(player, self:Lang(player, "WrongArgs"))
 				return
 			end
 			local playerData = self:GetPlayerData_PS(playerSteamID, true)
@@ -722,8 +804,8 @@ function PLUGIN:cmdBank(player, cmd, args)
 				local found, CustomMaxBank, CustomMaxShare, CustomItems = self:CheckCustomPermission(playerSteamID)
 				if found then MaxShare = CustomMaxShare end
 				if tonumber(#playerData.Shared) >= tonumber(MaxShare) then
-					local message = FormatMessage(self.Config.Messages.MaxShare, { limit = MaxShare })
-					self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+					local message = FormatMessage(self:Lang(player, "MaxShare"), { limit = MaxShare })
+					self:RustMessage(player, message)
 					return
 				end
 			end
@@ -732,8 +814,8 @@ function PLUGIN:cmdBank(player, cmd, args)
 			if #playerData.Shared > 0 then
 				for current, data in pairs(playerData.Shared) do
 					if data.id == targetid then
-						local message = FormatMessage(self.Config.Messages.PlayerExists, { player = targetname })
-						self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+						local message = FormatMessage(self:Lang(player, "PlayerExists"), { player = targetname })
+						self:RustMessage(player, message)
 						return
 					end
 				end
@@ -741,13 +823,13 @@ function PLUGIN:cmdBank(player, cmd, args)
 			local newShare = {["player"] = targetname, ["id"] = targetid}
 			table.insert(playerData.Shared, newShare)
 			self:SaveDataFile(2)
-			local message = FormatMessage(self.Config.Messages.PlayerAdded, { player = targetname })
-			self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+			local message = FormatMessage(self:Lang(player, "PlayerAdded"), { player = targetname })
+			self:RustMessage(player, message)
 			return
 		end
 		if func == "remove" then
 			if args.Length < 2 then
-				self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.WrongArgs)
+				self:RustMessage(player, self:Lang(player, "WrongArgs"))
 				return
 			end
 			local found, targetplayer, targetname, targetid = self:CheckPlayer(player, args[1])
@@ -758,24 +840,24 @@ function PLUGIN:cmdBank(player, cmd, args)
 					if data.id == targetid then
 						table.remove(playerData.Shared, current)
 						self:SaveDataFile(2)
-						local message = FormatMessage(self.Config.Messages.PlayerDeleted, { player = targetname })
-						self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+						local message = FormatMessage(self:Lang(player, "PlayerDeleted"), { player = targetname })
+						self:RustMessage(player, message)
 						return
 					end
 				end
 			end
-			local message = FormatMessage(self.Config.Messages.PlayerNotExists, { player = targetname })
-			self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+			local message = FormatMessage(self:Lang(player, "PlayerNotExists"), { player = targetname })
+			self:RustMessage(player, message)
 			return
 		end
 		if func == "removeall" then
 			local playerData = self:GetPlayerData_PS(playerSteamID, true)
 			if #playerData.Shared == 0 then
-				self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.NoShares)
+				self:RustMessage(player, self:Lang(player, "NoShares"))
 				return
 			end
-			local message = FormatMessage(self.Config.Messages.DeleteAll, { entries = #playerData.Shared })
-			self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+			local message = FormatMessage(self:Lang(player, "DeleteAll"), { entries = #playerData.Shared })
+			self:RustMessage(player, message)
 			playerData.Shared = {}
 			self:SaveDataFile(2)
 			return
@@ -783,7 +865,7 @@ function PLUGIN:cmdBank(player, cmd, args)
 		if func == "list" then
 			local playerData = self:GetPlayerData_PS(playerSteamID, true)
 			if #playerData.Shared == 0 then
-				self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.NoShares)
+				self:RustMessage(player, self:Lang(player, "NoShares"))
 				return
 			end
 			local count = 0
@@ -792,7 +874,8 @@ function PLUGIN:cmdBank(player, cmd, args)
 				players = players..data.player..", "
 				count = count + 1
 			end
-			self:RustMessage(player, self.Config.Settings.Prefix.." Bank shared with <color=#cd422b>"..count.." player(s)</color>:\n"..string.sub(players, 1, -3))
+			local message = FormatMessage(self:Lang(player, "ShareList"), { count = count, players = string.sub(players, 1, -3) })
+			self:RustMessage(player, message)
 			return
 		end
 		return
@@ -801,24 +884,26 @@ end
 
 function PLUGIN:OpenPlayerBank(player, target)
 	local playerSteamID = rust.UserIDFromPlayer(player)
+	if BankOpened[playerSteamID] == "true" then return end
 	local _playerSteamID = rust.UserIDFromPlayer(target)
 	if BankUser[playerSteamID] and player == target then
 		local user, id = tostring(BankUser[playerSteamID]):match("([^:]+):([^:]+)")
-		local message = FormatMessage(self.Config.Messages.Occupied, { target = target.displayName, player = user, id = id })
-		self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+		local message = FormatMessage(self:Lang(player, "Occupied"), { target = target.displayName, player = user, id = id })
+		self:RustMessage(player, message)
 		return
 	end
 	if Bank[_playerSteamID] and Shared[_playerSteamID] == nil then
-		local message = FormatMessage(self.Config.Messages.Occupied, { target = target.displayName, player = target.displayName, id = _playerSteamID })
-		self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+		local message = FormatMessage(self:Lang(player, "Occupied"), { target = target.displayName, player = target.displayName, id = _playerSteamID })
+		self:RustMessage(player, message)
 		return
 	end
 	if BankUser[_playerSteamID] then
 		local user, id = tostring(BankUser[_playerSteamID]):match("([^:]+):([^:]+)")
-		local message = FormatMessage(self.Config.Messages.Occupied, { target = target.displayName, player = user, id = id })
-		self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+		local message = FormatMessage(self:Lang(player, "Occupied"), { target = target.displayName, player = user, id = id })
+		self:RustMessage(player, message)
 		return
 	end
+	BankOpened[playerSteamID] = "true"
 	timer.Once(.5, function()
 		local PlayerPos = player.transform.position
 		PlayerPos.y = PlayerPos.y - 1
@@ -863,14 +948,15 @@ function PLUGIN:OpenPlayerBank(player, target)
 		end
 		local loot = box:GetComponent("StorageContainer")
 		loot:PlayerOpenLoot(player)
-		local message = FormatMessage(self.Config.Messages.BankOpened, { player = target.displayName })
-		self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+		local message = FormatMessage(self:Lang(player, "BankOpened"), { player = target.displayName })
+		self:RustMessage(player, message)
 		CoolDown[playerSteamID] = time.GetUnixTimestamp()
 	end)
 end
 
 function PLUGIN:OpenClanBank(player, clan, group, call)
 	local playerSteamID = rust.UserIDFromPlayer(player)
+	if BankOpened[playerSteamID] == "true" then return end
 	local playerClan, playerGroup
 	if call == 1 then
 		playerClan = clan
@@ -886,8 +972,8 @@ function PLUGIN:OpenClanBank(player, clan, group, call)
 			if playerData.Config.member == "true" then Access = true end
 		end
 		if not Access then
-			local message = FormatMessage(self.Config.Messages.ClanNoPermission, { clan = playerClan })
-			self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+			local message = FormatMessage(self:Lang(player, "ClanNoPermission"), { clan = playerClan })
+			self:RustMessage(player, message)
 			return
 		end
 		else
@@ -895,10 +981,11 @@ function PLUGIN:OpenClanBank(player, clan, group, call)
 	end
 	if ClanUser[playerClan] then
 		local user, id = tostring(ClanUser[playerClan]):match("([^:]+):([^:]+)")
-		local message = FormatMessage(self.Config.Messages.ClanOccupied, { clan = playerClan, player = user, id = id })
-		self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+		local message = FormatMessage(self:Lang(player, "ClanOccupied"), { clan = playerClan, player = user, id = id })
+		self:RustMessage(player, message)
 		return
 	end
+	BankOpened[playerSteamID] = "true"
 	timer.Once(.5, function()
 		local PlayerPos = player.transform.position
 		PlayerPos.y = PlayerPos.y - 1
@@ -939,8 +1026,8 @@ function PLUGIN:OpenClanBank(player, clan, group, call)
 		end
 		local loot = box:GetComponent("StorageContainer")
 		loot:PlayerOpenLoot(player)
-		local message = FormatMessage(self.Config.Messages.ClanBankOpened, { clan = playerClan })
-		self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+		local message = FormatMessage(self:Lang(player, "ClanBankOpened"), { clan = playerClan })
+		self:RustMessage(player, message)
 		CoolDown[playerSteamID] = time.GetUnixTimestamp()
 	end)
 end
@@ -1097,13 +1184,13 @@ function PLUGIN:SaveBank(player, call)
 	end
 	if Returned ~= "0" then
 		local Reason = ""
-		if string.match(Returned, "1") then Reason = Reason.."Insufficent clan members, " end
-		if string.match(Returned, "2") then Reason = Reason.."Item cannot be banked, " end
-		if string.match(Returned, "3") then Reason = Reason.."Item reached max deposit, " end
-		if string.match(Returned, "4") then Reason = Reason.."Max bank reached, " end
-		if string.match(Returned, "5") then Reason = Reason.."Max item stack reached, " end
-		local message = FormatMessage(self.Config.Messages.Returned, { reason = string.sub(Reason, 1, -3) })
-		self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+		if string.match(Returned, "1") then Reason = Reason..self:Lang(player, "ReturnReason1") end
+		if string.match(Returned, "2") then Reason = Reason..self:Lang(player, "ReturnReason2") end
+		if string.match(Returned, "3") then Reason = Reason..self:Lang(player, "ReturnReason3") end
+		if string.match(Returned, "4") then Reason = Reason..self:Lang(player, "ReturnReason4") end
+		if string.match(Returned, "5") then Reason = Reason..self:Lang(player, "ReturnReason5") end
+		local message = FormatMessage(self:Lang(player, "Returned"), { reason = string.sub(Reason, 1, -3) })
+		self:RustMessage(player, message)
 	end
 end
 
@@ -1143,13 +1230,13 @@ function PLUGIN:CloseBanks(call)
 			if call == 1 or call == 2 then
 				if Bank[playerSteamID] then
 					self:SaveBank(players.Current, 1)
-					self:RustMessage(players.Current, self.Config.Settings.Prefix.." "..self.Config.Messages.BankDisabled)
+					self:RustMessage(players.Current, self:Lang(player, "BankDisabled"))
 				end
 			end
 			if call == 1 or call == 3 then
 				if ClanBank[playerSteamID] then
 					self:SaveBank(players.Current, 2)
-					self:RustMessage(players.Current, self.Config.Settings.Prefix.." "..self.Config.Messages.BankDisabled)
+					self:RustMessage(players.Current, self:Lang(player, "BankDisabled"))
 				end
 			end
 		end
@@ -1170,7 +1257,7 @@ function PLUGIN:OnLootEntity(source, target)
 		local box, id = target.name:match("([^:]+):([^:]+)")
 		if playerSteamID ~= id then
 			timer.NextFrame(function() player:EndLooting() end)
-			self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.BankBox)
+			self:RustMessage(player, self:Lang(player, "BankBox"))
 		end
 	end
 end
@@ -1185,49 +1272,40 @@ function PLUGIN:OnPlayerLootEnd(source)
 		end
 		self:SaveBank(player, 1)
 		if player:IsConnected() then
-			local message = FormatMessage(self.Config.Messages.BankClosed, { player = TargetName })
-			self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+			local message = FormatMessage(self:Lang(player, "BankClosed"), { player = TargetName })
+			self:RustMessage(player, message)
 		end
 	end
 	if ClanBank[playerSteamID] then
 		local TargetName = ClanName[playerSteamID]
 		self:SaveBank(player, 2)
 		if player:IsConnected() then
-			local message = FormatMessage(self.Config.Messages.ClanBankClosed, { clan = TargetName })
-			self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+			local message = FormatMessage(self:Lang(player, "ClanBankClosed"), { clan = TargetName })
+			self:RustMessage(player, message)
 		end
 	end
+	BankOpened[playerSteamID] = "false"
 end
 
 function PLUGIN:CheckPlayer(player, target)
-	local numFound, targetPlayerTbl = FindPlayer(target, true)
-	if numFound == 0 then
-		self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.NoPlayer)
+	local target = rust.FindPlayer(target)
+	if not target then
+		self:RustMessage(player, self:Lang(player, "NoPlayer"))
 		return false
 	end
-	if numFound > 1 then
-		local targetNameString = ""
-		for i = 1, numFound do
-			targetNameString = targetNameString..targetPlayerTbl[i].displayName..", "
-		end
-		self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.MultiPlayer)
-		self:RustMessage(player, targetNameString)
-		return false
-	end
-	local targetPlayer = targetPlayerTbl[1]
-	local targetName = targetPlayer.displayName
-	local targetSteamID = rust.UserIDFromPlayer(targetPlayer)
+	local targetName = target.displayName
+	local targetSteamID = rust.UserIDFromPlayer(target)
 	local playerSteamID = rust.UserIDFromPlayer(player)
 	if playerSteamID == targetSteamID then
-		self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.Self)
+		self:RustMessage(player, self:Lang(player, "Self"))
 		return false
 	end
-	if not permission.UserHasPermission(targetSteamID, "bankmanager.share") then
-		local message = FormatMessage(self.Config.Messages.RequiredPermission, { player = targetName })
-		self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+	if not permission.UserHasPermission(targetSteamID, "bankmanager.admin") and not permission.UserHasPermission(targetSteamID, "bankmanager.share") then
+		local message = FormatMessage(self:Lang(player, "RequiredPermission"), { player = targetName })
+		self:RustMessage(player, message)
 		return false
 	end
-	return true, targetPlayer, targetName, targetSteamID
+	return true, target, targetName, targetSteamID
 end
 
 function PLUGIN:GetClanMember(player)
@@ -1250,13 +1328,13 @@ function PLUGIN:GetClanMember(player)
 					if string.match(tostring(ClanInfo.members), playerSteamID) then
 						return true, playerClan, "member", count
 					end
-					self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.ClanError)
+					self:RustMessage(player, self:Lang(player, "ClanError"))
 					return false
 				end
 			end
 		end
 	end
-	self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.NoClan)
+	self:RustMessage(player, self:Lang(player, "NoClan"))
 	return false
 end
 
@@ -1281,12 +1359,20 @@ function PLUGIN:CheckCooldown(player, call)
 		if call == 2 then Cooldown = tonumber(self.Config.Clan.Cooldown) end
 		if Timestamp - CoolDown[playerSteamID] < Cooldown then
 			local remaining = Cooldown - (Timestamp - CoolDown[playerSteamID])
-			local message = FormatMessage(self.Config.Messages.CoolDown, { cooldown = remaining })
-			self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+			local message = FormatMessage(self:Lang(player, "CoolDown"), { cooldown = remaining })
+			self:RustMessage(player, message)
 			return false
 		end
 	end
 	return true
+end
+
+function PLUGIN:CheckBuildingBlock(player)
+	if self.Config.Settings.BuildingBlocked == "true" and not player:CanBuild() then
+		self:RustMessage(player, self:Lang(player, "BuildingBlock"))
+		return true
+	end
+	return false
 end
 
 function PLUGIN:CheckGround(player)
@@ -1304,19 +1390,19 @@ function PLUGIN:CheckGround(player)
 					local Tier = self.Config.Settings.Tier
 					local buildingBlock = hitEntity:GetComponentInParent(global.BuildingBlock._type)
 					if tostring(buildingBlock.name) ~= "assets/prefabs/building core/foundation/foundation.prefab" then
-						local message = FormatMessage(self.Config.Messages.CheckTier, { tier = Tier })
-						self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+						local message = FormatMessage(self:Lang(player, "CheckTier"), { tier = Tier })
+						self:RustMessage(player, message)
 						return false
 					end
 					local Grade = tostring(buildingBlock.grade)
 					local _, _Tier = Grade:match("([^:]+):([^:]+)")
 					_Tier = string.sub(_Tier, 2)
 					if tonumber(_Tier) >= tonumber(Tier) then return true end
-					local message = FormatMessage(self.Config.Messages.CheckTier, { tier = Tier })
-					self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+					local message = FormatMessage(self:Lang(player, "CheckTier"), { tier = Tier })
+					self:RustMessage(player, message)
 					return false
 					else
-					self:RustMessage(player, self.Config.Settings.Prefix.." "..self.Config.Messages.CheckGround)
+					self:RustMessage(player, self:Lang(player, "CheckGround"))
 					return false
 				end
 			end
@@ -1330,11 +1416,11 @@ function PLUGIN:CheckRadius(player)
 	while players:MoveNext() do
 		if players.Current ~= player then
 			if UnityEngine.Vector3.Distance(players.Current.transform.position, player.transform.position) <= tonumber(self.Config.Settings.Radius) then
-			local Near = tostring(UnityEngine.Vector3.Distance(players.Current.transform.position, player.transform.position)):match("([^.]*).(.*)")
-			local message = FormatMessage(self.Config.Messages.CheckRadius, { range = self.Config.Settings.Radius, current = Near })
-			self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
-			return true
-		end
+				local Near = tostring(UnityEngine.Vector3.Distance(players.Current.transform.position, player.transform.position)):match("([^.]*).(.*)")
+				local message = FormatMessage(self:Lang(player, "CheckRadius"), { range = self.Config.Settings.Radius, current = Near })
+				self:RustMessage(player, message)
+				return true
+			end
 		end
 	end
 	return false
@@ -1346,17 +1432,125 @@ function PLUGIN:CheckPlugin(player)
 			self.Config.Clan.Enabled = "false"
 			self:SaveConfig()
 		end
-		local message = FormatMessage(self.Config.Messages.NoPlugin, { plugin = ClanPlugin })
-		self:RustMessage(player, self.Config.Settings.Prefix.." "..message)
+		local message = FormatMessage(self:Lang(player, "NoPlugin"), { plugin = ClanPlugin })
+		self:RustMessage(player, message)
 		return false
 	end
 	return true
 end
 
+function PLUGIN:CheckProximity(player, call)
+	local playerSteamID = rust.UserIDFromPlayer(player)
+	if call == 1 then
+		if ProximityPlayer[playerSteamID] == nil or ProximityPlayer[playerSteamID] == "false" then
+			self:RustMessage(player, self:Lang(player, "Proximity"))
+			return false
+		end
+		return true
+	end
+	if call == 2 then
+		if ProximityClan[playerSteamID] == nil or ProximityClan[playerSteamID] == "false" then
+			self:RustMessage(player, self:Lang(player, "Proximity"))
+			return false
+		end
+		return true
+	end
+end
+
+function PLUGIN:OnEnterNPC(npc, player)
+	local npc = tostring(npc):match("([^%[]*)%[([^%]]*)")
+	if npc:lower() == self.Config.NPC.PlayerBankName:lower() then
+		local playerSteamID = rust.UserIDFromPlayer(player)
+		ProximityPlayer[playerSteamID] = "true"
+	end
+	if npc:lower() == self.Config.NPC.ClanBankName:lower() then
+		local playerSteamID = rust.UserIDFromPlayer(player)
+		ProximityClan[playerSteamID] = "true"
+	end
+end
+
+function PLUGIN:OnLeaveNPC(npc, player)
+	local npc = tostring(npc):match("([^%[]*)%[([^%]]*)")
+	if npc:lower() == self.Config.NPC.PlayerBankName:lower() then
+		local playerSteamID = rust.UserIDFromPlayer(player)
+		ProximityPlayer[playerSteamID] = "false"
+	end
+	if npc:lower() == self.Config.NPC.ClanBankName:lower() then
+		local playerSteamID = rust.UserIDFromPlayer(player)
+		ProximityClan[playerSteamID] = "false"
+	end
+end
+
+function PLUGIN:OnUseNPC(npc, player)
+	if npc and player then
+		local npc = tostring(npc):match("([^%[]*)%[([^%]]*)")
+		if npc:lower() == self.Config.NPC.PlayerBankName:lower() then
+			local playerSteamID = rust.UserIDFromPlayer(player)
+			if self.Config.Settings.Enabled ~= "true" and not permission.UserHasPermission(playerSteamID, "bankmanager.admin") then
+				local message = FormatMessage(self:Lang(player, "NotEnabled"), { group = self:Lang(player, "GroupPlayer") })
+				self:RustMessage(player, message)
+				return
+			end
+			if not self:CheckCooldown(player, 1) then return end
+			if self.Config.NPC.CheckBuildingBlock == "true" then
+				if self:CheckBuildingBlock(player) then return end
+			end
+			if self.Config.NPC.CheckOnGround == "true" then
+				if not self:CheckGround(player) then return end
+			end
+			if self.Config.NPC.CheckRadius == "true" then
+				if self:CheckRadius(player) then return end
+			end
+			self:OpenPlayerBank(player, player)
+			return
+		end
+		if npc:lower() == self.Config.NPC.ClanBankName:lower() then
+			local playerSteamID = rust.UserIDFromPlayer(player)
+			if self.Config.Clan.Enabled ~= "true" and not permission.UserHasPermission(playerSteamID, "bankmanager.admin") then
+				local message = FormatMessage(self:Lang(player, "NotEnabled"), { group = self:Lang(player, "GroupClan") })
+				self:RustMessage(player, message)
+				return
+			end
+			if not self:CheckCooldown(player, 2) then return end
+			if self.Config.NPC.CheckBuildingBlock == "true" then
+				if self:CheckBuildingBlock(player) then return end
+			end
+			if self.Config.NPC.CheckOnGround == "true" then
+				if not self:CheckGround(player) then return end
+			end
+			if self.Config.NPC.CheckRadius == "true" then
+				if self:CheckRadius(player) then return end
+			end
+			local found, playerClan, playerGroup, count = self:GetClanMember(player)
+			if not found then return end
+			if tonumber(count) < tonumber(self.Config.Clan.MinMembers) then
+				if playerGroup == "owner" then 
+					local playerData = self:GetPlayerData_CB(playerClan, true)
+					if #playerData.Bank > 0 then
+						Owner[playerSteamID] = true
+						local message = FormatMessage(self:Lang(player, "ClanOwner"), { clan = playerClan, members = count, required = self.Config.Clan.MinMembers })
+						self:RustMessage(player, message)
+						else
+						local message = FormatMessage(self:Lang(player, "MinClanMembers"), { clan = playerClan, members = count, required = self.Config.Clan.MinMembers })
+						self:RustMessage(player, message)
+						return
+					end
+					else
+					local message = FormatMessage(self:Lang(player, "MinClanMembers"), { clan = playerClan, members = count, required = self.Config.Clan.MinMembers })
+					self:RustMessage(player, message)
+					return
+				end
+			end
+			self:OpenClanBank(player, playerClan, playerGroup, 1)
+			return
+		end
+	end
+end
+
 function PLUGIN:RustMessage(player, message)
-	rust.SendChatMessage(player, "<size="..tonumber(self.Config.Settings.MessageSize)..">"..message.."</size>")
+	rust.SendChatMessage(player, "<size="..tonumber(self.Config.Settings.MessageSize)..">"..self:Lang(player, "Prefix")..message.."</size>")
 end
 
 function PLUGIN:SendHelpText(player)
-	self:RustMessage(player, "<color=#ffd479>/bank</color> - Allows players to deposit and withdraw items from a bank")
-end	
+	self:RustMessage(player, self:Lang(player, "Help"))
+end										

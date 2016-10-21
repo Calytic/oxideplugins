@@ -14,7 +14,7 @@ using Oxide.Game.Rust.Cui;
 
 namespace Oxide.Plugins
 {
-    [Info("RemoverTool", "Reneb", "4.0.6", ResourceId = 651)]
+    [Info("RemoverTool", "Reneb", "4.0.7", ResourceId = 651)]
     class RemoverTool : RustPlugin
     {
         [PluginReference]
@@ -549,7 +549,7 @@ namespace Oxide.Plugins
                             else if (int.TryParse(arg, out temptime)) { Time = temptime; }
                             else
                             {
-                                var players = covalence.Players.FindConnectedPlayers(arg).ToList();
+                                var players = covalence.Players.FindPlayers(arg).Where(x => x.IsConnected).ToList();
                                 if (players.Count == 0) { Reason += string.Format(GetMsg("Couldn't find player. No players match this name: {0}.\n", player), arg); }
                                 else if (players.Count > 1) { Reason += string.Format(GetMsg("Couldn't find player. Multiple players match: {0}.\n", player), ListPlayersToString(players)); }
                                 else { Target = (BasePlayer)players[0]?.Object; }

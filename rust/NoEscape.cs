@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("NoEscape", "Calytic", "0.3.81", ResourceId = 1394)]
+    [Info("NoEscape", "Calytic", "0.4.1", ResourceId = 1394)]
     [Description("Prevent commands while raid/combat is occuring")]
     class NoEscape : RustPlugin
     {
@@ -111,7 +111,8 @@ namespace Oxide.Plugins
             "floor.ladder.hatch",
             "floor.frame",
             "wall.frame",
-            "shutter"
+            "shutter",
+            "external"
         };
 
         private List<string> GetDefaultDamageTypes()
@@ -166,6 +167,8 @@ namespace Oxide.Plugins
             Config["raidBlockNotify"] = true;
             Config["combatBlockNotify"] = false;
 
+            Config["blockingPrefabs"] = prefabs;
+
             Config["VERSION"] = Version.ToString();
         }
 
@@ -219,6 +222,7 @@ namespace Oxide.Plugins
             Config["VERSION"] = Version.ToString();
 
             // NEW CONFIGURATION OPTIONS HERE
+            Config["blockingPrefabs"] = GetConfig("blockingPrefabs", prefabs);
             Config["cupboardShare"] = GetConfig("cupboardShare", false);
             Config["raidBlockNotify"] = GetConfig("raidBlockNotify", true);
             Config["combatBlockNotify"] = GetConfig("combatBlockNotify", false);
@@ -267,6 +271,8 @@ namespace Oxide.Plugins
 
             CheckConfig();
 
+            prefabs = GetConfig("blockingPrefabs", prefabs);
+
             raidBlock = GetConfig("raidBlock", true);
             raidDuration = GetConfig("raidDuration", 50f);
             raidDistance = GetConfig("raidDistance", 100f);
@@ -312,7 +318,7 @@ namespace Oxide.Plugins
                     clanShare = false;
                     clanCheck = false;
                     raiderClanShare = false;
-                    PrintWarning("Clans not found! All clan options disabled. Cannot use clan options without this plugin. http://oxidemod.org/plugins/rust-io-clans.842/");
+                    PrintWarning("Clans not found! All clan options disabled. Cannot use clan options without this plugin. http://oxidemod.org/plugins/clans.2087/");
                 }
             }
 
@@ -345,10 +351,23 @@ namespace Oxide.Plugins
         {
             if (!blockOnDamage) return;
             if (hitInfo == null || hitInfo.WeaponPrefab == null || hitInfo.Initiator == null || !IsEntityBlocked(entity))
+            {
                 return;
+            }
+
+            if (hitInfo.Initiator.transform == null)
+            {
+                return;
+            }
+            if (hitInfo.Initiator.transform.position == null)
+            {
+                return;
+            }
 
             if (damageTypes.Contains(hitInfo.damageTypes.GetMajorityDamageType().ToString()))
+            {
                 StructureAttack(entity, hitInfo.Initiator, hitInfo.WeaponPrefab.ShortPrefabName, hitInfo.HitPositionWorld);
+            }
         }
 
         void OnPlayerAttack(BasePlayer attacker, HitInfo hitInfo)
@@ -356,8 +375,25 @@ namespace Oxide.Plugins
             if (!combatBlock || !(hitInfo.HitEntity is BasePlayer)) return;
             if (!IsDamageBlocking(hitInfo.damageTypes.GetMajorityDamageType())) return;
 
+            BasePlayer target = hitInfo.HitEntity as BasePlayer;
+
+            //if (useZoneManager)
+            //{
+            //    var result = ZoneManager.CallHook("HasPlayerFlag", target, 1 << 2);
+            //    if (result is bool && (bool)result == true)
+            //    {
+            //        return;
+            //    }
+
+            //    result = ZoneManager.CallHook("HasPlayerFlag", target, 1 << 3);
+            //    if (result is bool && (bool)result == true)
+            //    {
+            //        return;
+            //    }
+            //}
+
             if (combatOnTakeDamage)
-                StartCombatBlocking((hitInfo.HitEntity as BasePlayer).UserIDString);
+                StartCombatBlocking(target.UserIDString);
 
             if (combatOnHitPlayer)
                 StartCombatBlocking(attacker.UserIDString);
@@ -449,16 +485,20 @@ namespace Oxide.Plugins
                 if (!string.IsNullOrEmpty(ownerID))
                     source = ownerID;
                 else
+                {
                     return;
+                }
             }
 
             if (source == null)
+            {
                 return;
+            }
 
             string targetID = FindOwner(targetEntity);
             if (!string.IsNullOrEmpty(targetID))
             {
-                var target = covalence.Players.GetPlayer(targetID);
+                var target = covalence.Players.FindPlayerById(targetID);
                 List<string> sourceMembers = null;
 
                 if (clanCheck || friendCheck)
@@ -481,6 +521,7 @@ namespace Oxide.Plugins
 
         void BlockAll(string source, Vector3 position, List<string> sourceMembers = null)
         {
+            StartRaidBlocking(source, position);
             var nearbyTargets = new List<BasePlayer>();
             Vis.Entities<BasePlayer>(position, raidDistance, nearbyTargets, blockLayer);
             if (nearbyTargets.Count > 0)
@@ -627,7 +668,7 @@ namespace Oxide.Plugins
         {
             if (target == source)
             {
-                if (ownerBlock && raiderBlock && !clanCheck && !friendCheck)
+                if ((ownerBlock || raiderBlock) && (!clanCheck || !friendCheck))
                 {
                     return true;
                 }
@@ -1131,6 +1172,10 @@ namespace Oxide.Plugins
             var result = CanDo("repair", player);
             if (result is string)
             {
+                if (entity.health < entity.MaxHealth())
+                {
+                    return null;
+                }
                 SendReply(player, result.ToString());
                 return true;
             }

@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Lottery", "Sami37", "1.0.0")]
+    [Info("Lottery", "Sami37", "1.0.3", ResourceId = 2145)]
     internal class Lottery : RustPlugin
     {
         #region Economy Support
@@ -21,6 +21,14 @@ namespace Oxide.Plugins
 
         #endregion
 
+
+        #region serverreward
+
+        [PluginReference("ServerRewards")]
+        Plugin ServerRewards;
+
+
+        #endregion
         internal class playerinfo
         {
             public int multiplicator { get; set; } = 1;
@@ -42,33 +50,61 @@ namespace Oxide.Plugins
         }
 
         #region general_variable
-        private bool newConfig;
+        private bool newConfig, UseSR;
         public Dictionary<ulong, playerinfo> Currentbet = new Dictionary<ulong, playerinfo>();
-        private string container;
-        private string containerwin;
+        private string container, containerwin;
         private DynamicConfigFile data;
-        private double jackpot = 50000;
+        private double jackpot, SRMinBet, SRjackpot, MinBetjackpot;
+        private int JackpotNumber, SRJackpotNumber, DefaultMaxRange, DefaultMinRange;
         public Dictionary<string, int> IndividualRates { get; private set; }
-        private Dictionary<string, object> DefaultWinRates = DefaultPay();
+        public Dictionary<string, int> SRRates { get; private set; }
+        private Dictionary<string, object> DefaultWinRates = null;
+        private Dictionary<string, int> SRWinRates = null;
+        private List<string> DefaultBasePoint = null;
         #endregion
 
         #region config
-        private void CheckCfg<T>(string Key, ref T var)
-        {
-            if (Config[Key] is T)
-                var = (T) Config[Key];
-            else
-            {
-                Config[Key] = var;
-                newConfig = true;
-            }
-        }
+		object GetConfig(string menu, string datavalue, object defaultValue)
+		{
+			var data = Config[menu] as Dictionary<string, object>;
+			if (data == null)
+			{
+				data = new Dictionary<string, object>();
+				Config[menu] = data;
+				newConfig = true;
+			}
+			object value;
+			if (!data.TryGetValue(datavalue, out value))
+			{
+				value = defaultValue;
+				data[datavalue] = value;
+				newConfig = true;
+			}
+			return value;
+		}
+		protected override void LoadDefaultConfig()
+		{
+			Config.Clear();
+			LoadConfig();
+		}
 
-        protected override void LoadDefaultConfig()
+        void LoadConfig()
         {
-            Config["WinRate"] = DefaultWinRates;
-            Config["Jackpot"] = jackpot;
-            SaveConfig();
+            jackpot = Convert.ToDouble(GetConfig("Global", "Jackpot", 50000));
+            DefaultWinRates = (Dictionary<string, object>)GetConfig("Global", "WinRate", DefaultPay());
+            DefaultBasePoint = GetConfig("ServerRewards", "Match", DefaultSRPay()) as List<string>;
+            SRWinRates = GetConfig("ServerRewards", "WinPoint", DefautSRWinPay()) as Dictionary<string,int>;
+            SRjackpot = Convert.ToDouble(GetConfig("ServerRewards", "Jackpot", 10));
+            SRMinBet = Convert.ToDouble(GetConfig("ServerRewards", "MinBet", 1000));
+            MinBetjackpot = Convert.ToDouble(GetConfig("ServerRewards", "MinBetJackpot", 100000));
+            SRJackpotNumber = Convert.ToInt32(GetConfig("ServerRewards", "JackpotMatch", 1869));
+            JackpotNumber = Convert.ToInt32(GetConfig("Global", "JackpotMatch", 1058));
+            DefaultMinRange = Convert.ToInt32(GetConfig("Global", "RollMinRange", 1000));
+            DefaultMaxRange = Convert.ToInt32(GetConfig("Global", "RollMaxRange", 9999));
+            UseSR = Convert.ToBoolean(GetConfig("ServerRewards", "Enabled", false));
+		    if (!newConfig) return;
+		    SaveConfig();
+		    newConfig = false;
         }
         static Dictionary<string, object> DefaultPay()
         {
@@ -91,6 +127,41 @@ namespace Oxide.Plugins
             };
             return d;
         }
+
+        static List<string> DefaultSRPay()
+        {
+            var d = new List<string>
+            {
+                "111x",
+                "222x",
+                "333x",
+                "444x",
+                "555x",
+                "666x",
+                "777x",
+                "888x",
+                "999x",
+                "99x9",
+                "9x99",
+                "x999",
+                "99xx",
+                "9xxx"
+            };
+            return d;
+        }
+
+        static Dictionary<string, int> DefautSRWinPay()
+        {
+            var d = new Dictionary<string, int>
+            {
+                { "Match1Number", 1 },
+                { "Match2Number", 2 },
+                { "Match3Number", 3 },
+                { "Match4Number", 4 }
+            };
+            return d;
+        }
+
         #endregion
 
         #region data_init
@@ -100,46 +171,63 @@ namespace Oxide.Plugins
             var messages = new Dictionary<string, string>
             {
                 {"NoPerm", "You don't have permission to do it."},
-                {"NoWin", "You don't win anything."},
+                {"NoWin", "You roll {0} but don't win anything."},
                 {"NoEconomy", "Economics isn't installed."},
                 {"NotEnoughMoney", "You don't have enough money."},
                 {"Win", "You roll {0} and won {1}$"},
+                {"WinPoints", "You roll {0} and won {1} point(s)"},
                 {"NoBet", "You must bet before."},
                 {"Balance", "Your current balance is {0}$"},
                 {"CurrentBet", "Your current bet is {0}$"},
-                {"Roll", "Roll 7777 to win \nthe current jackpot:\n {0}$"},
-                {"Jackpot", "You roll {0} and won the jackpot : {1}$ !!!!!!"}
+                {"Roll", "Roll {0} to win \nthe current jackpot:\n {1}$"},
+                {"Jackpot", "You roll {0} and won the jackpot : {1}$ !!!!!!"},
+                {"MiniSRBet", "You need to bet more to place bet. (Min: {0})"},
+                {"BetMore", "If you had bet more you could win the jackpot. (Min: {0})"},
+                {"MinimumSRBet", "Minimum bet of {0} to win the current jackpot: {1} point(s)"}
             };
             lang.RegisterMessages(messages, this);
+            Puts("Messages loaded...");
         }
 
-        void Init()
-        {
+		void OnServerInitialized() {
+            LoadConfig();
+			LoadDefaultMessages();
             permission.RegisterPermission("Lottery.canuse", this);
-            CheckCfg("Jackpot", ref jackpot);
-            CheckCfg("WinRate", ref DefaultWinRates);
-            SaveConfig();
-            var dict = DefaultWinRates;
-            IndividualRates = new Dictionary<string, int>();
-            foreach (var entry in dict)
-            {
-                int rate;
-                if (!int.TryParse(entry.Value.ToString(), out rate)) continue;
-                IndividualRates.Add(entry.Key, rate);
-            }
+		    if (DefaultWinRates != null)
+		    {
+		        IndividualRates = new Dictionary<string, int>();
+		        foreach (var entry in DefaultWinRates)
+		        {
+		            int rate;
+		            if (!int.TryParse(entry.Value.ToString(), out rate)) continue;
+		            IndividualRates.Add(entry.Key, rate);
+		        }
 
-            data = Interface.Oxide.DataFileSystem.GetFile(Name);
-            try
-            {
-                Currentbet = data.ReadObject<Dictionary<ulong, playerinfo>>();
-            }
-            catch (Exception e)
-            {
-                Currentbet = new Dictionary<ulong, playerinfo>();
-                Puts(e.Message);
-            }
-            data.WriteObject(Currentbet);
-        }
+                var ServerRewardsDict = SRWinRates;
+                SRRates = new Dictionary<string, int>();
+		        if (ServerRewardsDict != null)
+		        {
+                    foreach (var entry in ServerRewardsDict)
+                    {
+                        int rate;
+                        if (!int.TryParse(entry.Value.ToString(), out rate)) continue;
+                        SRRates.Add(entry.Key, rate);
+                    }
+		        }
+
+                data = Interface.Oxide.DataFileSystem.GetFile(Name);
+                try
+                {
+                    Currentbet = data.ReadObject<Dictionary<ulong, playerinfo>>();
+                }
+                catch (Exception e)
+                {
+                    Currentbet = new Dictionary<ulong, playerinfo>();
+                    Puts(e.Message);
+                }
+                data.WriteObject(Currentbet);
+		    }
+		}
 
         void Unload()
         {
@@ -149,6 +237,7 @@ namespace Oxide.Plugins
                 GUIDestroy(player);
             }
             Puts("Data saved.");
+            if(Currentbet != null)
             SaveData(Currentbet);
         }
         #endregion
@@ -173,7 +262,7 @@ namespace Oxide.Plugins
         {
             if (!Economy.IsLoaded)
             {
-                SendReply(player, lang.GetMessage("NoEconomy", this));
+                SendReply(player, lang.GetMessage("NoEconomy", this, player.UserIDString));
                 return;
             }
             int multiplier = 1;
@@ -212,7 +301,7 @@ namespace Oxide.Plugins
                 {
                     int.TryParse(args[1], out bet);
                     if(currentBalance < (playerbet.currentbet+bet)*playerbet.multiplicator)
-                        SendReply(player, lang.GetMessage("NotEnoughMoney", this));
+                        SendReply(player, lang.GetMessage("NotEnoughMoney", this, player.UserIDString));
                     else
                         playerbet.currentbet += bet;
                 }
@@ -252,17 +341,17 @@ namespace Oxide.Plugins
                     AnchorMax = "0.9 1"
                 }
             }, containerwin);
-            foreach (var elem in IndividualRates)
+            if (UseSR && ServerRewards.IsLoaded)
             {
-                if (i >= from && i < from + 10)
+                foreach (var elem in SRRates)
                 {
-                    var pos = 0.91 - (i - from)/10.0;
+                    var pos = 0.86 - (i - from)/10.0;
                     var pos2 = 0.91 - (i - from)/20.0;
                     win.Add(new CuiLabel
                     {
                         Text =
                         {
-                            Text = elem.Key + ": " + elem.Value + " %",
+                            Text = elem.Key + ": " + elem.Value + " point(s)",
                             FontSize = 18,
                             Align = TextAnchor.MiddleCenter
                         },
@@ -272,12 +361,57 @@ namespace Oxide.Plugins
                             AnchorMax = $"{0.9} {pos2}"
                         }
                     }, containerwin);
+                    i++;
                 }
-                i++;
             }
-            var minfrom = from <= 10 ? 0 : from - 10;
-            var maxfrom = from + 10 >= i ? from : from + 10;
-            win.AddRange(ChangeBonusPage(minfrom, maxfrom));
+            else
+            {
+                foreach (var elem in IndividualRates)
+                {
+                    if (i == 0)
+                    {
+                        var pos = 0.81 - (i - from)/10.0;
+                        var pos2 = 0.86 - (i - from)/20.0;
+                        win.Add(new CuiLabel
+                        {
+                            Text =
+                            {
+                                Text = elem.Key + ": " + elem.Value + " %",
+                                FontSize = 18,
+                                Align = TextAnchor.MiddleCenter
+                            },
+                            RectTransform =
+                            {
+                                AnchorMin = $"{0.1} {pos}",
+                                AnchorMax = $"{0.9} {pos2}"
+                            }
+                        }, containerwin);
+                    }
+                    else if (i >= from && i < from + 9)
+                    {
+                        var pos = 0.81 - (i - from)/10.0;
+                        var pos2 = 0.86 - (i - from)/20.0;
+                        win.Add(new CuiLabel
+                        {
+                            Text =
+                            {
+                                Text = elem.Key + ": " + elem.Value + " %",
+                                FontSize = 18,
+                                Align = TextAnchor.MiddleCenter
+                            },
+                            RectTransform =
+                            {
+                                AnchorMin = $"{0.1} {pos}",
+                                AnchorMax = $"{0.9} {pos2}"
+                            }
+                        }, containerwin);
+                    }
+                    i++;
+                }
+                var minfrom = from <= 10 ? 0 : from - 10;
+                var maxfrom = from + 10 >= i ? from : from + 10;
+                win.AddRange(ChangeBonusPage(minfrom, maxfrom));
+            }
 
             var elements = new CuiElementContainer();
 #region background
@@ -562,20 +696,41 @@ namespace Oxide.Plugins
                 }
             }, container);
 
-            elements.Add(new CuiLabel
+            if (UseSR && ServerRewards.IsLoaded)
             {
-                Text =
+                var mini = string.Format(lang.GetMessage("MinimumSRBet", this, player.UserIDString), MinBetjackpot, SRjackpot);
+                elements.Add(new CuiLabel
                 {
-                    Text = string.Format(lang.GetMessage("Roll", this, player.UserIDString), jackpots),
-                    FontSize = 18,
-                    Align = TextAnchor.MiddleCenter
-                },
-                RectTransform =
+                    Text =
+                    {
+                        Text = mini,
+                        FontSize = 18,
+                        Align = TextAnchor.MiddleCenter
+                    },
+                    RectTransform =
+                    {
+                        AnchorMin = "0.71 0.39",
+                        AnchorMax = "0.99 0.59"
+                    }
+                }, container);
+            }
+            else
+            {
+                elements.Add(new CuiLabel
                 {
-                    AnchorMin = "0.71 0.39",
-                    AnchorMax = "0.99 0.59"
-                }
-            }, container);
+                    Text =
+                    {
+                        Text = string.Format(lang.GetMessage("Roll", this, player.UserIDString), JackpotNumber, jackpots),
+                        FontSize = 18,
+                        Align = TextAnchor.MiddleCenter
+                    },
+                    RectTransform =
+                    {
+                        AnchorMin = "0.71 0.39",
+                        AnchorMax = "0.99 0.59"
+                    }
+                }, container);
+            }
 #endregion
             CuiHelper.AddUi(player, elements);
             CuiHelper.AddUi(player, win);
@@ -613,122 +768,255 @@ namespace Oxide.Plugins
         #endregion
 
         #region reward
-        public int FindReward(int bet, int reference, int multiplicator)
+        public double FindReward(BasePlayer player, int bet, int reference, int multiplicator = 1)
         {
-            int reward = 0;
+            int findReward = 0;
+            float reward = 0;
             int[] number = GetIntArray(reference);
             string newreference;
+            if (UseSR && ServerRewards.IsLoaded)
+            {
+                #region jackpot
 
-            #region jackpot
-            if (reference == 7777)
-            {
-                int jackpots = (int) Math.Round(Currentbet.Sum(v => v.Value.totalbet));
-                reward = bet*(reward/100) * multiplicator + jackpots + (int)jackpot;
-                return reward;
-            }
-            #endregion
-            
-            #region full_match
-            if (IndividualRates.ContainsKey(reference.ToString()))
-            {
-                IndividualRates.TryGetValue(number.ToString(), out reward);
-                return bet*(reward/100) * multiplicator;
-            }
-            #endregion
+                if (reference == SRJackpotNumber)
+                {
+                    if (bet*multiplicator >= MinBetjackpot)
+                    {
+                        findReward = findReward*multiplicator + (int) SRjackpot;
+                        return findReward;
+                    }
+                    else
+                    {
+                        SendReply(player, string.Format(lang.GetMessage("BetMore", this, player.UserIDString), MinBetjackpot));
+                    }
+                }
 
-            #region three_match
-            newreference = number[0].ToString() + number[1].ToString() + number[2].ToString() + "x";
-            if(IndividualRates.ContainsKey(newreference))
-            {
-                IndividualRates.TryGetValue(newreference, out reward);
-                return bet*(reward/100) * multiplicator;
-            }
-            newreference = number[0].ToString() + number[1].ToString() + "x" + number[3].ToString();
-            if(IndividualRates.ContainsKey(newreference))
-            {
-                IndividualRates.TryGetValue(newreference, out reward);
-                return bet*(reward/100) * multiplicator;
-            }
-            newreference = number[0].ToString() + "x" + number[2].ToString() + number[3].ToString();
-            if(IndividualRates.ContainsKey(newreference))
-            {
-                IndividualRates.TryGetValue(newreference, out reward);
-                return bet*(reward/100) * multiplicator;
-            }
-            newreference =  "x" + number[1].ToString() + number[2].ToString() + number[3].ToString();
-            if(IndividualRates.ContainsKey(newreference))
-            {
-                IndividualRates.TryGetValue(newreference, out reward);
-                return bet*(reward/100) * multiplicator;
-            }
-            #endregion
+                #endregion
 
-            #region two_match
-            newreference = number[0].ToString() + number[1].ToString() + "x" + "x";
-            if(IndividualRates.ContainsKey(newreference))
-            {
-                IndividualRates.TryGetValue(newreference, out reward);
-                return bet*(reward/100) * multiplicator;
-            }
-            newreference = number[0].ToString() + "x" + "x" + number[3].ToString();
-            if(IndividualRates.ContainsKey(newreference))
-            {
-                IndividualRates.TryGetValue(newreference, out reward);
-                return bet*(reward/100) * multiplicator;
-            }
-            newreference =  "x" + "x" + number[2].ToString() + number[3].ToString();
-            if(IndividualRates.ContainsKey(newreference))
-            {
-                IndividualRates.TryGetValue(newreference, out reward);
-                return bet*(reward/100) * multiplicator;
-            }
-            newreference = number[0].ToString() + "x" + number[2].ToString() + "x";
-            if(IndividualRates.ContainsKey(newreference))
-            {
-                IndividualRates.TryGetValue(newreference, out reward);
-                return bet*(reward/100) * multiplicator;
-            }
-            newreference = "x" + number[1].ToString() + "x" + number[3].ToString();
-            if(IndividualRates.ContainsKey(newreference))
-            {
-                IndividualRates.TryGetValue(newreference, out reward);
-                return bet*(reward/100) * multiplicator;
-            }
-            newreference =  "x" + number[1].ToString() + number[2].ToString() + "x";
-            if(IndividualRates.ContainsKey(newreference))
-            {
-                IndividualRates.TryGetValue(newreference, out reward);
-                return bet*(reward/100) * multiplicator;
-            }
-           #endregion
+                #region full_match
+                    if (DefaultBasePoint.Contains(reference.ToString()))
+                    {
+                        SRWinRates.TryGetValue("Match4Number", out findReward);
+                        return findReward*multiplicator;
+                    }
 
-            #region one_match
-            newreference = number[0].ToString() + "x" + "x" + "x";
-            if(IndividualRates.ContainsKey(newreference))
-            {
-                IndividualRates.TryGetValue(newreference, out reward);
-                return bet*(reward/100) * multiplicator;
+                #endregion
+
+                #region three_match
+
+                newreference = number[0].ToString() + number[1].ToString() + number[2].ToString() + "x";
+                if (DefaultBasePoint.Contains(newreference))
+                {
+                    SRWinRates.TryGetValue("Match3Number", out findReward);
+                    return findReward*multiplicator;
+                }
+                newreference = number[0].ToString() + number[1].ToString() + "x" + number[3].ToString();
+                if (DefaultBasePoint.Contains(newreference))
+                {
+                    SRWinRates.TryGetValue("Match4Number", out findReward);
+                    return findReward*multiplicator;
+                }
+                newreference = number[0].ToString() + "x" + number[2].ToString() + number[3].ToString();
+                if (DefaultBasePoint.Contains(newreference))
+                {
+                    SRWinRates.TryGetValue("Match4Number", out findReward);
+                    return findReward*multiplicator;
+                }
+                newreference = "x" + number[1].ToString() + number[2].ToString() + number[3].ToString();
+                if (DefaultBasePoint.Contains(newreference))
+                {
+                    SRWinRates.TryGetValue("Match4Number", out findReward);
+                    return findReward*multiplicator;
+                }
+
+                #endregion
+
+                #region two_match
+
+                newreference = number[0].ToString() + number[1].ToString() + "x" + "x";
+                if (DefaultBasePoint.Contains(newreference))
+                {
+                    SRWinRates.TryGetValue("Match2Number", out findReward);
+                    return findReward*multiplicator;
+                }
+                newreference = number[0].ToString() + "x" + "x" + number[3].ToString();
+                if (DefaultBasePoint.Contains(newreference))
+                {
+                    SRWinRates.TryGetValue("Match2Number", out findReward);
+                    return findReward*multiplicator;
+                }
+                newreference = "x" + "x" + number[2].ToString() + number[3].ToString();
+                if (DefaultBasePoint.Contains(newreference))
+                {
+                    SRWinRates.TryGetValue("Match2Number", out findReward);
+                    return findReward*multiplicator;
+                }
+                newreference = number[0].ToString() + "x" + number[2].ToString() + "x";
+                if (DefaultBasePoint.Contains(newreference))
+                {
+                    SRWinRates.TryGetValue("Match2Number", out findReward);
+                    return findReward*multiplicator;
+                }
+                newreference = "x" + number[1].ToString() + "x" + number[3].ToString();
+                if (DefaultBasePoint.Contains(newreference))
+                {
+                    SRWinRates.TryGetValue("Match2Number", out findReward);
+                    return findReward*multiplicator;
+                }
+                newreference = "x" + number[1].ToString() + number[2].ToString() + "x";
+                if (DefaultBasePoint.Contains(newreference))
+                {
+                    SRWinRates.TryGetValue("Match2Number", out findReward);
+                    return findReward*multiplicator;
+                }
+
+                #endregion
+
+                #region one_match
+
+                newreference = number[0].ToString() + "x" + "x" + "x";
+                if (DefaultBasePoint.Contains(newreference))
+                {
+                    SRWinRates.TryGetValue("Match1Number", out findReward);
+                    return findReward*multiplicator;
+                }
+                newreference = "x" + number[1].ToString() + "x" + "x";
+                if (DefaultBasePoint.Contains(newreference))
+                {
+                    SRWinRates.TryGetValue("Match1Number", out findReward);
+                    return findReward*multiplicator;
+                }
+                newreference = "x" + "x" + number[2].ToString() + "x";
+                if (DefaultBasePoint.Contains(newreference))
+                {
+                    SRWinRates.TryGetValue("Match1Number", out findReward);
+                    return findReward*multiplicator;
+                }
+                newreference = "x" + "x" + "x" + number[3].ToString();
+                if (DefaultBasePoint.Contains(newreference))
+                {
+                    SRWinRates.TryGetValue("Match1Number", out findReward);
+                    return findReward*multiplicator;
+                }
+
+                #endregion
+
             }
-            newreference =  "x" + number[1].ToString() + "x" + "x";
-            if(IndividualRates.ContainsKey(newreference))
+            else
             {
-                IndividualRates.TryGetValue(newreference, out reward);
-                return bet*(reward/100) * multiplicator;
+                #region jackpot
+                if (reference == JackpotNumber)
+                {
+                    int jackpots = (int) Math.Round(Currentbet.Sum(v => v.Value.totalbet));
+                    return bet*(Math.Round((double)findReward/100, 2)) * multiplicator + jackpots + jackpot;
+                }
+                #endregion
+
+                #region full_match
+                if (IndividualRates.ContainsKey(reference.ToString()))
+                {
+                    IndividualRates.TryGetValue(number.ToString(), out findReward);
+                    return bet*(Math.Round((double)findReward/100, 2)) * multiplicator;
+                }
+                #endregion
+
+                #region three_match
+                newreference = number[0].ToString() + number[1].ToString() + number[2].ToString() + "x";
+                IndividualRates.TryGetValue(newreference, out findReward);
+
+                if(IndividualRates.ContainsKey(newreference))
+                {
+                    IndividualRates.TryGetValue(newreference, out findReward);
+                    return bet*(Math.Round((double)findReward/100, 2)) * multiplicator;
+                }
+                newreference = number[0].ToString() + number[1].ToString() + "x" + number[3].ToString();
+                if(IndividualRates.ContainsKey(newreference))
+                {
+                    IndividualRates.TryGetValue(newreference, out findReward);
+                    return bet*(Math.Round((double)findReward/100, 2)) * multiplicator;
+                }
+                newreference = number[0].ToString() + "x" + number[2].ToString() + number[3].ToString();
+                if(IndividualRates.ContainsKey(newreference))
+                {
+                    IndividualRates.TryGetValue(newreference, out findReward);
+                    return bet*(Math.Round((double)findReward/100, 2)) * multiplicator;
+                }
+                newreference =  "x" + number[1].ToString() + number[2].ToString() + number[3].ToString();
+                if(IndividualRates.ContainsKey(newreference))
+                {
+                    IndividualRates.TryGetValue(newreference, out findReward);
+                    return bet*(Math.Round((double)findReward/100, 2)) * multiplicator;
+                }
+                #endregion
+
+                #region two_match
+                newreference = number[0].ToString() + number[1].ToString() + "x" + "x";
+                if(IndividualRates.ContainsKey(newreference))
+                {
+                    IndividualRates.TryGetValue(newreference, out findReward);
+                    return bet*(Math.Round((double)findReward/100, 2)) * multiplicator;
+                }
+                newreference = number[0].ToString() + "x" + "x" + number[3].ToString();
+                if(IndividualRates.ContainsKey(newreference))
+                {
+                    IndividualRates.TryGetValue(newreference, out findReward);
+                    return bet*(Math.Round((double)findReward/100, 2)) * multiplicator;
+                }
+                newreference =  "x" + "x" + number[2].ToString() + number[3].ToString();
+                if(IndividualRates.ContainsKey(newreference))
+                {
+                    IndividualRates.TryGetValue(newreference, out findReward);
+                    return bet*(Math.Round((double)findReward/100, 2)) * multiplicator;
+                }
+                newreference = number[0].ToString() + "x" + number[2].ToString() + "x";
+                if(IndividualRates.ContainsKey(newreference))
+                {
+                    IndividualRates.TryGetValue(newreference, out findReward);
+                    return bet*(Math.Round((double)findReward/100, 2)) * multiplicator;
+                }
+                newreference = "x" + number[1].ToString() + "x" + number[3].ToString();
+                if(IndividualRates.ContainsKey(newreference))
+                {
+                    IndividualRates.TryGetValue(newreference, out findReward);
+                    return bet*(Math.Round((double)findReward/100, 2)) * multiplicator;
+                }
+                newreference =  "x" + number[1].ToString() + number[2].ToString() + "x";
+                if(IndividualRates.ContainsKey(newreference))
+                {
+                    IndividualRates.TryGetValue(newreference, out findReward);
+                    return bet*(Math.Round((double)findReward/100, 2)) * multiplicator;
+                }
+               #endregion
+
+                #region one_match
+                newreference = number[0].ToString() + "x" + "x" + "x";
+                if(IndividualRates.ContainsKey(newreference))
+                {
+                    IndividualRates.TryGetValue(newreference, out findReward);
+                    return bet*(Math.Round((double)findReward/100, 2)) * multiplicator;
+                }
+                newreference =  "x" + number[1].ToString() + "x" + "x";
+                if(IndividualRates.ContainsKey(newreference))
+                {
+                    IndividualRates.TryGetValue(newreference, out findReward);
+                    return bet*(Math.Round((double)findReward/100, 2)) * multiplicator;
+                }
+                newreference =  "x" + "x" + number[2].ToString() + "x";
+                if(IndividualRates.ContainsKey(newreference))
+                {
+                    IndividualRates.TryGetValue(newreference, out findReward);
+                    return bet*(Math.Round((double)findReward/100, 2)) * multiplicator;
+                }
+                newreference = "x" + "x" + "x" + number[3].ToString();
+                if(IndividualRates.ContainsKey(newreference))
+                {
+                    IndividualRates.TryGetValue(newreference, out findReward);
+                    return bet*(Math.Round((double)findReward/100, 2)) * multiplicator;
+                }
+    #endregion
             }
-            newreference =  "x" + "x" + number[2].ToString() + "x";
-            if(IndividualRates.ContainsKey(newreference))
-            {
-                IndividualRates.TryGetValue(newreference, out reward);
-                return bet*(reward/100) * multiplicator;
-            }
-            newreference = "x" + "x" + "x" + number[3].ToString();
-            if(IndividualRates.ContainsKey(newreference))
-            {
-                IndividualRates.TryGetValue(newreference, out reward);
-                return bet*(reward/100) * multiplicator;
-            }
-#endregion
-            return reward;
+
+            return findReward;
         }
         #endregion
 
@@ -801,45 +1089,95 @@ namespace Oxide.Plugins
             }
             if (playerbet.currentbet == 0)
             {
-                SendReply(arg.Player(), string.Format(lang.GetMessage("NoBet", this)));
+                SendReply(arg.Player(), lang.GetMessage("NoBet", this, arg.Player().UserIDString));
                 return;
             }
-            Economy?.CallHook("Withdraw", arg.Player().userID, playerbet.currentbet*playerbet.multiplicator);
-            int random = UnityEngine.Random.Range(1000, 9999);
-            playerbet.totalbet += playerbet.currentbet*(10/100.0);
-            int reward = FindReward((int)playerbet.currentbet, random, playerbet.multiplicator);
-            if (random == 7777)
+            int random = UnityEngine.Random.Range(DefaultMinRange, DefaultMaxRange);
+            if (UseSR && ServerRewards.IsLoaded)
             {
-                foreach (var resetbet in Currentbet)
+                if (SRMinBet <= playerbet.currentbet*playerbet.multiplicator)
                 {
-                    resetbet.Value.totalbet = 0;
-                    resetbet.Value.multiplicator = 1;
-                    playerinfos.Add(resetbet.Key, resetbet.Value);
+                    double reward = FindReward(arg.Player(), (int)playerbet.currentbet, random, playerbet.multiplicator);
+                    if(playerbet.currentbet*playerbet.multiplicator >= MinBetjackpot)
+                        if (random == SRJackpotNumber)
+                        {
+                            foreach (var resetbet in Currentbet)
+                            {
+                                resetbet.Value.totalbet = 0;
+                                resetbet.Value.multiplicator = 1;
+                                playerinfos.Add(resetbet.Key, resetbet.Value);
+                            }
+                            Currentbet.Clear();
+                            Currentbet = playerinfos;
+                            ServerRewards?.Call("AddPoints", new object[] { arg.Player().userID, reward });
+                            SendReply(arg.Player(), string.Format(lang.GetMessage("Jackpot", this, arg.Player().UserIDString), random, reward));
+                            return;
+                        }
+                    if (reward != 0 && random != SRJackpotNumber)
+                    {
+                        Currentbet.Remove(arg.Player().userID);
+                        Currentbet.Add(arg.Player().userID, playerbet);
+                        ServerRewards?.Call("AddPoints", new object[] { arg.Player().userID, reward });
+                        SendReply(arg.Player(), string.Format(lang.GetMessage("WinPoints", this, arg.Player().UserIDString), random, reward));
+                    }
+                    else if (reward == 0)
+                    {
+                        SendReply(arg.Player(), string.Format(lang.GetMessage("NoWin", this, arg.Player().UserIDString), random));
+                    }
+                    else
+                    {
+                        ServerRewards?.Call("AddPoints", new object[] { arg.Player().userID, reward });
+                        SendReply(arg.Player(), string.Format(lang.GetMessage("WinPoints", this, arg.Player().UserIDString), random, reward));
+                    }
+
+                    playerbet.totalbet += playerbet.currentbet*(10/100.0);
+                    Economy?.CallHook("Withdraw", arg.Player().userID, playerbet.currentbet*playerbet.multiplicator);
+                    playerbet.currentbet = 0;
+                    playerbet.multiplicator = 1;
                 }
-                Currentbet.Clear();
-                Currentbet = playerinfos;
-                Economy?.CallHook("Deposit", arg.Player().userID, reward);
-                SendReply(arg.Player(), string.Format(lang.GetMessage("Jackpot", this), random, reward));
-            }
-            else if (reward != 0 && random != 7777)
-            {
-                Currentbet.Remove(arg.Player().userID);
-                Currentbet.Add(arg.Player().userID, playerbet);
-                Economy?.CallHook("Deposit", arg.Player().userID, reward);
-                SendReply(arg.Player(), string.Format(lang.GetMessage("Win", this), random, reward));
-            }
-            else if (reward == 0)
-            {
-                SendReply(arg.Player(), lang.GetMessage("NoWin", this));
+                else
+                {
+                    SendReply(arg.Player(), string.Format(lang.GetMessage("MiniSRBet", this, arg.Player().UserIDString), SRMinBet));
+                }
             }
             else
             {
-                Economy?.CallHook("Deposit", arg.Player().userID, reward);
-                SendReply(arg.Player(), string.Format(lang.GetMessage("Win", this), random, reward));
-            }
+                double reward = FindReward(arg.Player(), (int)playerbet.currentbet, random, playerbet.multiplicator);
+                if (random == JackpotNumber)
+                {
+                    foreach (var resetbet in Currentbet)
+                    {
+                        resetbet.Value.totalbet = 0;
+                        resetbet.Value.multiplicator = 1;
+                        playerinfos.Add(resetbet.Key, resetbet.Value);
+                    }
+                    Currentbet.Clear();
+                    Currentbet = playerinfos;
+                    Economy?.CallHook("Deposit", arg.Player().userID, reward);
+                    SendReply(arg.Player(), string.Format(lang.GetMessage("Jackpot", this, arg.Player().UserIDString), random, reward));
+                }
+                else if (reward != 0 && random != JackpotNumber)
+                {
+                    Currentbet.Remove(arg.Player().userID);
+                    Currentbet.Add(arg.Player().userID, playerbet);
+                    Economy?.CallHook("Deposit", arg.Player().userID, reward);
+                    SendReply(arg.Player(), string.Format(lang.GetMessage("Win", this, arg.Player().UserIDString), random, reward));
+                }
+                else if (reward == 0)
+                {
+                    SendReply(arg.Player(), lang.GetMessage("NoWin", this, arg.Player().UserIDString));
+                }
+                else
+                {
+                    Economy?.CallHook("Deposit", arg.Player().userID, reward);
+                    SendReply(arg.Player(), string.Format(lang.GetMessage("Win", this, arg.Player().UserIDString), random, reward));
+                }
 
-            playerbet.currentbet = 0;
-            playerbet.multiplicator = 1;
+                playerbet.totalbet += playerbet.currentbet*(10/100.0);
+                Economy?.CallHook("Withdraw", arg.Player().userID, playerbet.currentbet*playerbet.multiplicator);
+                playerbet.currentbet = 0;
+                playerbet.multiplicator = 1;
+            }
             SaveData(Currentbet);
         }
 

@@ -6,7 +6,7 @@ using Oxide.Core;
 using Oxide.Core.Plugins;
 namespace Oxide.Plugins
 {
-    [Info("MagicCraft", "Norn", "0.2.3", ResourceId = 1347)]
+    [Info("MagicCraft", "Norn", "0.2.4", ResourceId = 1347)]
     [Description("An alternative crafting system.")]
     public class MagicCraft : RustPlugin
     {
@@ -61,7 +61,7 @@ namespace Oxide.Plugins
             {
                 Config["Protocol"] = Protocol.network;
             }
-            else if (Convert.ToInt32(Config["Protocol"]) != Protocol.network)
+            else if (Convert.ToInt32(Config["Protocol"]) != Protocol.network && !Convert.ToBoolean(Config["IgnoreProtocolChanges"]))
             {
                 Config["Protocol"] = Protocol.network;
                 Puts("Updating item list from protocol " + config_protocol.ToString() + " to protocol " + Config["Protocol"].ToString() + ".");
@@ -78,7 +78,7 @@ namespace Oxide.Plugins
             Puts("No configuration file found, generating...");
             Config.Clear();
             Config["Protocol"] = Protocol.network;
-            Config["UsePopupNotifications"] = false;
+            Config["IgnoreProtocolChanges"] = false;
             Config["MessagesEnabled"] = true;
             timer.Once(10, () => GenerateItems(true));
             SaveConfig();

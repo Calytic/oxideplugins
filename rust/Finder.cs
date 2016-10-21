@@ -12,7 +12,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("Finder", "Reneb", "3.0.1", ResourceId = 692)]
+    [Info("Finder", "Reneb", "3.0.2", ResourceId = 692)]
     class Finder : RustPlugin
     {
         //////////////////////////////////////////////////////////////////////////////////////////
@@ -128,7 +128,7 @@ namespace Oxide.Plugins
         PlayerFinder GetPlayerInfo(ulong userID)
         {
             var steamid = userID.ToString();
-            var player = covalence.Players.GetPlayer(steamid);
+            var player = covalence.Players.FindPlayer(steamid);
             if(player != null)
             {
                 return new PlayerFinder(player.Name, player.Id, player.IsConnected);
@@ -301,14 +301,17 @@ namespace Oxide.Plugins
                 case "item":
                     if(args.Length < 3)
                     {
-                        return GetMsg("usage: /find item ITEMNAME MINAMOUNT.", player);
+                        return GetMsg("usage: /find item ITEMNAME MINAMOUNT optional:STEAMID.", player);
                     }
                     var pu = GetPlayerInfo(puserid);
                     var itemname = args[1].ToLower();
+                    ulong ownerid = 0L;
+                    if (args.Length > 3)
+                        ulong.TryParse(args[3], out ownerid);
                     var itemamount = 0;
                     if(!(int.TryParse(args[2], out itemamount)))
                     {
-                        return GetMsg("usage: /find item ITEMNAME MINAMOUNT.", player);
+                        return GetMsg("usage: /find item ITEMNAME MINAMOUNT optional:STEAMID.", player);
                     }
                     ItemDefinition item = null;
                     for(int i = 0; i < ItemManager.itemList.Count; i++)
@@ -327,7 +330,13 @@ namespace Oxide.Plugins
                     {
                         ItemContainer inventory = sc.inventory;
                         if (inventory == null) continue;
-                        int amount = inventory.GetAmount(item.itemid, false);
+                        List<Item> list = inventory.itemList.FindAll((Item x) => x.info.itemid == item.itemid);
+                        int amount = 0;
+                        foreach (Item current in list)
+                        {
+                            if(ownerid == 0L || IsOwned(current, ownerid))
+                                amount += current.amount;
+                        }
                         if (amount < itemamount) continue;
                         pu.AddFind("Box", sc.transform.position, amount.ToString());
                     }
@@ -386,6 +395,13 @@ namespace Oxide.Plugins
 
 
             return returnstring;
+        }
+
+        bool IsOwned(Item item, ulong userid)
+        {
+            var owner = item.owners.Where(x => x.userid == userid).ToList();
+            if (owner == null || owner.Count == 0) return false;
+            return true;
         }
 
         [ChatCommand("find")]

@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 
@@ -12,7 +11,7 @@ using Newtonsoft.Json;
 
 namespace Oxide.Plugins
 {
-	[Info("RectZones", "deer_SWAG", "0.0.24", ResourceId = 000)]
+	[Info("RectZones", "deer_SWAG", "0.0.25", ResourceId = 000)]
 	[Description("Creates polygonal zones")]
 	public class RectZones : RustPlugin
 	{
@@ -35,7 +34,7 @@ namespace Oxide.Plugins
 			[JsonProperty("n")]
 			public string Name;
 			[JsonProperty("v")]
-			public HashSet<JVector3> Vertices = new HashSet<JVector3>();
+			public List<JVector3> Vertices = new List<JVector3>();
 			[JsonProperty("o")]
 			public Dictionary<string, string> Options = new Dictionary<string, string>();
 
@@ -73,12 +72,12 @@ namespace Oxide.Plugins
 		{
 			lang.RegisterMessages(new Dictionary<string, string>()
 			{
-				{ "HelpText", "Rect Zones:\n/rect add <height> [fixed] [name]\n/rect done\n/rect remove <zone id>\n/rect list\n/rect options\n/rect show [zone id]\n/rect clear" },
+				{ "HelpText", "Rect Zones:\n/rect add <height> [fixed] [name]\n/rect done\n/rect undo\n/rect remove <zone id>\n/rect list\n/rect options\n/rect show [zone id]\n/rect clear" },
 				{ "AlreadyEditing", "You are editing a zone. Type /rect done to finish editing" },
-				{ "AddHelp", "Now you can start adding points by pressing \"USE\" button (default is \"E\"). They will be added where your crosshair is pointing. To add options type /options <name> [value]. To finish type /rect done" },
-				{ "Done", "Zone was added. ID: {id}" },
+				{ "AddHelp", "Now you can start adding points by pressing \"USE\" button (default is \"E\"). They will be added where your crosshair is pointing. To add options type /options <name> = [value]. To finish type /rect done" },
+				{ "Done", "Zone <color=#ffff00ff>{name}</color> with id <color=#ffff00ff>{id}</color> was added" },
 				{ "DonePointsCount", "Points count should be more than 2 and less than 128" },
-				{ "RemoveHelp", "To remove a zone type /rect remove <zone id>" },
+				{ "RemoveHelp", "To remove a zone type /rect remove <id/name>" },
 				{ "Removed", "Zone was removed" },
 				{ "ZoneNotFound", "Zone was not found" },
 				{ "Empty", "Empty. To add a zone type /rect add <height> [fixed]" },
@@ -87,7 +86,11 @@ namespace Oxide.Plugins
 				{ "Cleared", "All zones were removed" },
 				{ "ShowEmpty", "Nothing to show" },
 				{ "CurrentZone", "Currently you are in zone with ID {id}" },
-				{ "CurrentZoneNoZone", "You are not in any zone" }
+				{ "CurrentZoneNoZone", "You are not in any zone" },
+				{ "InvalidAddCommand", "/rect add <height> [fixed] [name]" },
+				{ "HeightMustBeNumber", "Argument \"height\" must be a number. If you want to use floating point number then write it in the quotes" },
+				{ "UndoComplete", "Last point was removed" },
+				{ "List", "Zones:\n" }
 			}, this);
 		}
 
@@ -109,7 +112,7 @@ namespace Oxide.Plugins
 		{
 			foreach(GameObject zone in currentZones)
 			{
-				UnityEngine.Object.Destroy(zone);
+				GameObject.Destroy(zone);
 			}
 
 			currentZones.Clear();
@@ -183,334 +186,378 @@ namespace Oxide.Plugins
 		// -------------- Chat and commands --------------
 		// -----------------------------------------------
 
+		CommandHelper chatHelper = new CommandHelper();
+
 		[ChatCommand("rect")]
 		void cmdChat(BasePlayer player, string command, string[] args)
 		{
+			if (!IsPlayerPermitted(player, PermissionName))
+				return;
+
 			int length = args.Length;
 
-			if (IsPlayerPermitted(player, PermissionName) && length > 0)
+			chatHelper.Run(args, () =>
 			{
-				if(args[0] == "add")
+				player.ChatMessage(Lang("HelpText", player));
+			});
+
+			chatHelper.OnCommand("add", () =>
+			{
+				if (CheckIsEditing(player) != null)
 				{
-					if(CheckIsEditing(player) != null)
-					{
-						player.ChatMessage(Lang("AlreadyEditing", player));
-						return;
-					}
-
-					if(length > 1 && IsDigitsOnly(args[1]))
-					{
-						if (length > 2)
-						{
-							if (args[2] == "fixed")
-							{
-								if(length > 3)
-								{
-									CommandAdd(player, float.Parse(args[1]), args[3], true);
-								}
-								else
-								{
-									CommandAdd(player, float.Parse(args[1]), null, true);
-								}
-							}
-							else
-							{
-								CommandAdd(player, float.Parse(args[1]), args[2]);
-							}
-						}
-
-						player.ChatMessage(Lang("AddHelp", player));				
-					}
+					player.ChatMessage(Lang("AlreadyEditing", player));
+					return;
 				}
-				else if(args[0] == "done")
+
+				if (chatHelper.NextExists())
 				{
-					TemporaryStorage storage = CheckIsEditing(player);
+					float height = 0.0f;
 
-					if (storage != null)
+					if(float.TryParse(chatHelper.Next(), out height))
 					{
-						if(storage.Zone.Vertices.Count < MinPoints || storage.Zone.Vertices.Count > MaxPoints)
+						if(chatHelper.NextExists())
 						{
-							player.ChatMessage(Lang("DonePointsCount", player));
-							return;
-						}
-
-						CommandDone(player);
-						player.ChatMessage(Lang("Done", player).Replace("{id}", storage.Zone.Id));
-					}
-				}
-				else if(args[0] == "remove")
-				{
-					if(CheckIsEditing(player) != null)
-					{
-						player.ChatMessage(Lang("AlreadyEditing", player));
-						return;
-					}
-
-					if(length > 1)
-					{
-						if(IsDigitsOnly(args[1]))
-						{
-							int removed = data.Zones.RemoveWhere(x => x.Id == args[1]);
-
-							if (removed <= 0)
+							if(chatHelper.Next().Equals("fixed", StringComparison.CurrentCultureIgnoreCase))
 							{
-								player.ChatMessage(Lang("ZoneNotFound", player));
-								return;
-							}
-
-							currentZones.RemoveWhere((GameObject go) =>
-							{
-								RectZone rz = go.GetComponent<RectZone>();
-
-								if (rz.Definition.Id == args[1])
+								if(chatHelper.NextExists()) // with height, "fixed" and name
 								{
-									GameObject.Destroy(go);
-									return true;
+									CommandAdd(player, height, chatHelper.Next(), true);
 								}
-
-								return false;
-							});
-
-							SaveData();
-
-							player.ChatMessage(Lang("Removed", player));
-						}
-						else
-						{
-							int removed = data.Zones.RemoveWhere((ZoneDefinition x) =>
-							{
-								if (x.Name == null)
-									return false;
-
-								return x.Name.Equals(args[1], StringComparison.CurrentCultureIgnoreCase);
-							});
-
-							if (removed <= 0)
-							{
-								player.ChatMessage(Lang("ZoneNotFound", player));
-								return;
-							}
-
-							currentZones.RemoveWhere((GameObject go) =>
-							{
-								RectZone rz = go.GetComponent<RectZone>();
-
-								if (rz.Definition.Name.Equals(args[1], StringComparison.CurrentCultureIgnoreCase))
+								else // with height and "fixed"
 								{
-									GameObject.Destroy(go);
-									return true;
+									CommandAdd(player, height, null, true);
 								}
-
-								return false;
-							});
-
-							SaveData();
-
-							player.ChatMessage(Lang("Removed", player));
+							}
+							else // with height and name
+							{
+								CommandAdd(player, height, chatHelper.Current());
+							}
+						}
+						else // with only height
+						{
+							CommandAdd(player, height);
 						}
 					}
 					else
 					{
-						player.ChatMessage(Lang("RemoveHelp", player));
+						player.ChatMessage(Lang("HeightMustBeNumber", player));
 					}
 				}
-				else if(args[0] == "list")
+				else
 				{
-					if(data.Zones.Count == 0)
+					player.ChatMessage(Lang("InvalidAddCommand", player));
+				}
+			});
+
+			chatHelper.OnCommand("done", () =>
+			{
+				TemporaryStorage storage = CheckIsEditing(player);
+
+				if (storage != null)
+				{
+					if (storage.Zone.Vertices.Count < MinPoints || storage.Zone.Vertices.Count > MaxPoints)
 					{
-						player.ChatMessage(Lang("Empty", player));
+						player.ChatMessage(Lang("DonePointsCount", player));
 						return;
 					}
 
-					string result = string.Empty;
-					foreach (ZoneDefinition zd in data.Zones)
-					{
-						result += zd.Id + (zd.Name != null ? (" (" + zd.Name + ")") : "") + ", ";
-					}
-
-					player.ChatMessage(result.Substring(0, result.Length - 2));
+					CommandDone(player);
+					player.ChatMessage(Lang("Done", player).Replace("{id}", storage.Zone.Id).Replace("{name}", storage.Zone.Name));
 				}
-				else if(args[0] == "edit")
-				{
-					if(CheckIsEditing(player) != null)
-					{
-						player.ChatMessage(Lang("AlreadyEditing", player));
-						return;
-					}
+			});
 
-					if(args.Length > 1 && IsDigitsOnly(args[1]))
+			chatHelper.OnCommand("undo", () =>
+			{
+				TemporaryStorage storage = CheckIsEditing(player);
+
+				if (storage != null)
+				{
+					if(storage.Zone.Vertices.Count != 0)
 					{
-						// TODO: editing
+						storage.Zone.Vertices.RemoveRange(storage.Zone.Vertices.Count - 2, 2);
+						player.ChatMessage(Lang("UndoComplete", player));
 					}
 				}
-				else if(args[0] == "options")
-				{
-					TemporaryStorage storage = CheckIsEditing(player);
+			});
 
-					if(storage == null)
+			chatHelper.OnCommand("remove", () =>
+			{
+				if (CheckIsEditing(player) != null)
+				{
+					player.ChatMessage(Lang("AlreadyEditing", player));
+					return;
+				}
+
+				if (chatHelper.NextExists())
+				{
+					if (IsDigitsOnly(chatHelper.Next()))
 					{
-						if(args.Length > 1)
+						int removed = data.Zones.RemoveWhere(x => x.Id == chatHelper.Current());
+
+						if (removed <= 0)
 						{
-							string id = args[1];
+							player.ChatMessage(Lang("ZoneNotFound", player));
+							return;
+						}
 
-							if(IsDigitsOnly(id))
+						currentZones.RemoveWhere((GameObject go) =>
+						{
+							RectZone rz = go.GetComponent<RectZone>();
+
+							if (rz.Definition.Id == chatHelper.Current())
 							{
-								ZoneDefinition definition = null;
-
-								foreach(ZoneDefinition d in data.Zones)
-								{
-									if (d.Id == id)
-									{
-										definition = d;
-										break;
-									}
-								}
-
-								if(definition == null)
-								{
-									player.ChatMessage(Lang("ZoneNotFound", player));
-									return;
-								}
-
-								if(definition.Options.Count == 0)
-								{
-									player.ChatMessage(Lang("NoOptions", player));
-									return;
-								}
-
-								string result = string.Empty;
-								foreach (KeyValuePair<string, string> option in definition.Options)
-								{
-									result += option.Key + (option.Value != null ? (" = " + option.Value) : "") + ", ";
-								}
-
-								player.ChatMessage(result.Substring(0, result.Length - 2));
+								GameObject.Destroy(go);
+								return true;
 							}
-							else
+
+							return false;
+						});
+
+						SaveData();
+
+						player.ChatMessage(Lang("Removed", player));
+					}
+					else
+					{
+						int removed = data.Zones.RemoveWhere((ZoneDefinition x) =>
+						{
+							if (x.Name == null)
+								return false;
+
+							return x.Name.Equals(chatHelper.Current(), StringComparison.CurrentCultureIgnoreCase);
+						});
+
+						if (removed <= 0)
+						{
+							player.ChatMessage(Lang("ZoneNotFound", player));
+							return;
+						}
+
+						currentZones.RemoveWhere((GameObject go) =>
+						{
+							RectZone rz = go.GetComponent<RectZone>();
+
+							if (rz.Definition.Name.Equals(chatHelper.Current(), StringComparison.CurrentCultureIgnoreCase))
 							{
-								player.ChatMessage(Lang("OptionsHelp", player));
+								GameObject.Destroy(go);
+								return true;
 							}
+
+							return false;
+						});
+
+						SaveData();
+
+						player.ChatMessage(Lang("Removed", player));
+					}
+				}
+				else
+				{
+					player.ChatMessage(Lang("RemoveHelp", player));
+				}
+			});
+
+			chatHelper.OnCommand("list", () =>
+			{
+				if (data.Zones.Count == 0)
+				{
+					player.ChatMessage(Lang("Empty", player));
+					return;
+				}
+
+				string result = Lang("List", player);
+				foreach (ZoneDefinition zd in data.Zones)
+				{
+					result += zd.Id + (zd.Name != null ? (" (" + zd.Name + ")") : "") + ", ";
+				}
+
+				player.ChatMessage(result.Substring(0, result.Length - 2));
+			});
+
+			chatHelper.OnCommand("edit", () =>
+			{
+				if (CheckIsEditing(player) != null)
+				{
+					player.ChatMessage(Lang("AlreadyEditing", player));
+					return;
+				}
+
+				if (args.Length > 1 && IsDigitsOnly(args[1]))
+				{
+					// TODO: editing
+				}
+			});
+
+			chatHelper.OnCommand("options", () =>
+			{
+				TemporaryStorage storage = CheckIsEditing(player);
+
+				if (storage == null)
+				{
+					if (chatHelper.NextExists())
+					{
+						string id = chatHelper.Next();
+
+						if (IsDigitsOnly(id))
+						{
+							ZoneDefinition definition = null;
+
+							foreach (ZoneDefinition d in data.Zones)
+							{
+								if (d.Id == id)
+								{
+									definition = d;
+									break;
+								}
+							}
+
+							if (definition == null)
+							{
+								player.ChatMessage(Lang("ZoneNotFound", player));
+								return;
+							}
+
+							if (definition.Options.Count == 0)
+							{
+								player.ChatMessage(Lang("NoOptions", player));
+								return;
+							}
+
+							string result = string.Empty;
+							foreach (KeyValuePair<string, string> option in definition.Options)
+							{
+								result += option.Key + (option.Value != null ? (" = " + option.Value) : "") + ", ";
+							}
+
+							player.ChatMessage(result.Substring(0, result.Length - 2));
 						}
 						else
 						{
+							player.ChatMessage(Lang("OptionsHelp", player));
+						}
+					}
+					else
+					{
+						string result = string.Empty;
+
+						foreach (KeyValuePair<string, string> option in availableOptions)
+						{
+							result += "<color=#ffa500ff>" + option.Key + "</color> - " + (option.Value ?? "No description") + "\n";
+						}
+
+						player.ChatMessage(result);
+					}
+				}
+				else
+				{
+					if (chatHelper.NextExists())
+					{
+						if (chatHelper.Next() == "list")
+						{
 							string result = string.Empty;
 
-							foreach(KeyValuePair<string, string> option in availableOptions)
+							foreach (KeyValuePair<string, string> option in availableOptions)
 							{
 								result += "<color=#ffa500ff>" + option.Key + "</color> - " + (option.Value ?? "No description") + "\n";
 							}
 
 							player.ChatMessage(result);
-						}
-					}
-					else
-					{
-						if(args.Length > 1)
-						{
-							if(args[1] == "list")
-							{
-								string result = string.Empty;
 
-								foreach (KeyValuePair<string, string> option in availableOptions)
-								{
-									result += "<color=#ffa500ff>" + option.Key + "</color> - " + (option.Value ?? "No description") + "\n";
-								}
-
-								player.ChatMessage(result);
-
-								return;
-							}
-
-							for (int i = 1; i < args.Length; i++)
-							{
-								string[] option = args[i].Split(new char[] { '=' }, 2);
-
-								storage.Zone.Options.Add(option[0], (option.Length > 1 ? option[1] : null));
-							}
-						}
-						else
-						{
-							if(storage.Zone.Options.Count != 0)
-							{
-								string result = string.Empty;
-								foreach (KeyValuePair<string, string> option in storage.Zone.Options)
-								{
-									result += option.Key + " = " + option.Value + ", \n";
-								}
-
-								player.ChatMessage(result.Substring(0, result.Length - 2));
-							}
-							else
-							{
-								player.ChatMessage(Lang("NoOptions", player));
-							}
-						}
-					}
-				}
-				else if(args[0] == "show")
-				{
-					if(args.Length > 1 && IsDigitsOnly(args[1]))
-					{
-						foreach(GameObject zone in currentZones)
-						{
-							RectZone component = zone.GetComponent<RectZone>();
-
-							if(component.Definition.Id == args[1])
-							{
-								component.ShowZone(player, 10f);
-								return;
-							}
-						}
-
-						player.ChatMessage(Lang("ZoneNotFound", player));
-					}
-					else if(args.Length > 1 && args[1] == "current")
-					{
-						RectZone zone = GetCurrentZoneForPlayer(player);
-						zone.ShowZone(player, 10f);
-					}
-					else
-					{
-						if(currentZones.Count == 0)
-						{
-							player.ChatMessage(Lang("ShowEmpty", player));
 							return;
 						}
 
-						foreach (GameObject zone in currentZones)
+						for (int i = 1; i < args.Length; i++)
 						{
-							zone.GetComponent<RectZone>().ShowZone(player, 10f);
+							string[] option = args[i].Split(new char[] { '=' }, 2);
+
+							storage.Zone.Options.Add(option[0], (option.Length > 1 ? option[1] : null));
 						}
-					}									
-				}
-				else if(args[0] == "clear")
-				{
-					foreach(GameObject zone in currentZones)
-					{
-						GameObject.Destroy(zone);
-					}
-
-					currentZones.Clear();
-					data.Zones.Clear();
-
-					SaveData();
-
-					player.ChatMessage(Lang("Cleared", player));
-				}
-				else if(args[0] == "current")
-				{
-					RectZone zone = GetCurrentZoneForPlayer(player);
-
-					if(zone != null)
-					{
-						player.ChatMessage(Lang("CurrentZone", player).Replace("{id}", zone.Definition.Id));
 					}
 					else
 					{
-						player.ChatMessage(Lang("CurrentZoneNoZone", player));
+						if (storage.Zone.Options.Count != 0)
+						{
+							string result = string.Empty;
+							foreach (KeyValuePair<string, string> option in storage.Zone.Options)
+							{
+								result += option.Key + " = " + option.Value + ", \n";
+							}
+
+							player.ChatMessage(result.Substring(0, result.Length - 2));
+						}
+						else
+						{
+							player.ChatMessage(Lang("NoOptions", player));
+						}
 					}
 				}
-			}
+			});
+
+			chatHelper.OnCommand("show", () =>
+			{
+				if (chatHelper.NextExists() && IsDigitsOnly(chatHelper.Next()))
+				{
+					foreach (GameObject zone in currentZones)
+					{
+						RectZone component = zone.GetComponent<RectZone>();
+
+						if (component.Definition.Id == chatHelper.Current())
+						{
+							component.ShowZone(player, 10f);
+							return;
+						}
+					}
+
+					player.ChatMessage(Lang("ZoneNotFound", player));
+				}
+				else if (chatHelper.Current().Equals("current", StringComparison.CurrentCultureIgnoreCase))
+				{
+					RectZone zone = GetCurrentZoneForPlayer(player);
+					zone.ShowZone(player, 10f);
+				}
+				else
+				{
+					if (currentZones.Count == 0)
+					{
+						player.ChatMessage(Lang("ShowEmpty", player));
+						return;
+					}
+
+					foreach (GameObject zone in currentZones)
+					{
+						zone.GetComponent<RectZone>().ShowZone(player, 10f);
+					}
+				}
+			});
+
+			chatHelper.OnCommand("current", () =>
+			{
+				RectZone zone = GetCurrentZoneForPlayer(player);
+
+				if (zone != null)
+				{
+					player.ChatMessage(Lang("CurrentZone", player).Replace("{id}", zone.Definition.Id));
+				}
+				else
+				{
+					player.ChatMessage(Lang("CurrentZoneNoZone", player));
+				}
+			});
+
+			chatHelper.OnCommand("clear", () =>
+			{
+				foreach (GameObject zone in currentZones)
+				{
+					GameObject.Destroy(zone);
+				}
+
+				currentZones.Clear();
+				data.Zones.Clear();
+
+				SaveData();
+
+				player.ChatMessage(Lang("Cleared", player));
+			});
 		}
 
 		TemporaryStorage CheckIsEditing(BasePlayer player)
@@ -523,13 +570,15 @@ namespace Oxide.Plugins
 
 		void CommandAdd(BasePlayer player, float height, string name = null, bool fixedHeight = false)
 		{
+			player.ChatMessage(Lang("AddHelp", player));
+
 			isEditing = true;
 
 			TemporaryStorage storage = new TemporaryStorage();
 			storage.Player = player;
 			storage.Zone = new ZoneDefinition
 			{
-				Id = GenerateZoneId()
+				Id = GenerateId()
 			};
 			storage.Height = height;
 			storage.Fixed = fixedHeight;
@@ -581,7 +630,7 @@ namespace Oxide.Plugins
 			if(tempPlayers.Count == 0)
 				isEditing = false;
 		}
-		
+
 		void CreateZoneByDefinition(ZoneDefinition definition)
 		{
 			GameObject zoneObject = new GameObject(GameObjectPrefix + definition.Id);
@@ -605,11 +654,11 @@ namespace Oxide.Plugins
 			return null;
 		}
 
-		// HelpText
+		// For HelpText plugin
 
 		void SendHelpText(BasePlayer player)
 		{
-			if(player.IsAdmin())
+			if(IsPlayerPermitted(player, PermissionName))
 				player.ChatMessage(Lang("HelpText", player));
 		}
 
@@ -708,9 +757,7 @@ namespace Oxide.Plugins
 		{
 			if(availableOptions.Count > 0)
 			{
-				bool exists = availableOptions.ContainsKey(name);
-
-				if (exists)
+				if (availableOptions.ContainsKey(name))
 				{
 					PrintWarning("There is already an option with name \"" + name + "\"");
 					return false;
@@ -722,8 +769,8 @@ namespace Oxide.Plugins
 			return true;
 		}
 
-		[HookMethod("UnRegisterOption")]
-		public void UnRegisterOption(string name)
+		[HookMethod("UnregisterOption")]
+		public void UnregisterOption(string name)
 		{
 			availableOptions.Remove(name);
 		}
@@ -764,7 +811,7 @@ namespace Oxide.Plugins
 			player.SendConsoleCommand("ddraw.sphere", duration, Color.green, position, radius);
 		}
 
-		string GenerateZoneId()
+		string GenerateId()
 		{
 			byte[] bytes = Guid.NewGuid().ToByteArray();
 			int number = Math.Abs(BitConverter.ToInt32(bytes, 0));
@@ -785,6 +832,60 @@ namespace Oxide.Plugins
 
 		// --------------------------- HELPERS -----------------------------
 		// -----------------------------------------------------------------
+
+		public class CommandHelper
+		{
+			private string[] args;
+			private int index;
+			private bool isEmpty;
+
+			public void Run(string[] commands, Action onEmpty)
+			{
+				if (commands.Length == 0 || string.IsNullOrEmpty(commands[0]))
+				{
+					onEmpty.Invoke();
+					isEmpty = true;
+					return;
+				}
+
+				isEmpty = false;
+				args = commands;
+				index = 0;
+			}
+
+			public void OnCommand(string command, Action action)
+			{
+				if (isEmpty)
+					return;
+
+				if (command.Equals(args[0], StringComparison.CurrentCultureIgnoreCase))
+					action.Invoke();
+			}
+
+			public string Current()
+			{
+				return args[index];
+			}
+
+			public string Next()
+			{
+				index++;
+				return args[index];
+			}
+
+			public string Prev()
+			{
+				index--;
+				return args[index];
+			}
+
+			public bool NextExists(int num = 1)
+			{
+				if (args.Length >= (index + num + 1))
+					return true;
+				return false;
+			}
+		}
 
 		public class JVector3
 		{
@@ -860,7 +961,7 @@ namespace Oxide.Plugins
 				}
 			}
 
-			void MakeMesh(HashSet<JVector3> vertices)
+			void MakeMesh(List<JVector3> vertices)
 			{
 				Mesh mesh = new Mesh();
 

@@ -17,7 +17,7 @@ using Newtonsoft.Json.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("AntiOfflineRaid", "Calytic", "0.2.4", ResourceId = 1464)]
+    [Info("AntiOfflineRaid", "Calytic", "0.2.6", ResourceId = 1464)]
     [Description("Prevents/reduces offline raiding")]
     public class AntiOfflineRaid : RustPlugin
     {
@@ -115,6 +115,7 @@ namespace Oxide.Plugins
                 return HasMinutes(cooldownMinutes);
             }
 
+            [JsonIgnore]
             public double Days
             {
                 get
@@ -134,6 +135,7 @@ namespace Oxide.Plugins
                 return false;
             }
 
+            [JsonIgnore]
             public double Minutes
             {
                 get
@@ -153,6 +155,7 @@ namespace Oxide.Plugins
                 return false;
             }
 
+            [JsonIgnore]
             public double Hours
             {
                 get
@@ -303,7 +306,7 @@ namespace Oxide.Plugins
             Config["VERSION"] = Version.ToString();
 
             // NEW CONFIGURATION OPTIONS HERE
-            Config["clanFirstOffline"] = false;
+            Config["clanFirstOffline"] = GetConfig("clanFirstOffline", false);
             // END NEW CONFIGURATION OPTIONS
 
             PrintWarning("Upgrading configuration file");
@@ -317,6 +320,7 @@ namespace Oxide.Plugins
 
         void OnServerShutdown()
         {
+            UpdateLastOnlineAll();
             SaveData();
         }
 
@@ -367,7 +371,7 @@ namespace Oxide.Plugins
             if (input.previous == null) return;
 
             LastOnline lastOnlinePlayer = null;
-            if (lastOnline.TryGetValue(player.userID, out lastOnlinePlayer) && lastOnlinePlayer is LastOnline && input.current.buttons != 0 && !input.previous.Equals(input.current))
+            if (lastOnline.TryGetValue(player.userID, out lastOnlinePlayer) && input.current.buttons != 0 && !input.previous.Equals(input.current))
             {
                 lastOnlinePlayer.afkMinutes = 0;
             }
@@ -390,7 +394,6 @@ namespace Oxide.Plugins
             {
                 if (!player.IsConnected())
                     continue;
-
 
                 bool hasMoved = true;
                 LastOnline lastOnlinePlayer;
@@ -431,13 +434,8 @@ namespace Oxide.Plugins
             ulong targetID = 0;
 
             targetID = entity.OwnerID;
-            if (targetID != 0 && HasPerm(targetID.ToString(), "antiofflineraid.protect"))
+            if (targetID != 0 && HasPerm(targetID.ToString(), "antiofflineraid.protect") && lastOnline.ContainsKey(targetID))
             {
-                if (!lastOnline.ContainsKey(targetID))
-                {
-                    return;
-                }
-
                 float scale = scaleDamage(targetID);
                 if (clanShare)
                 {
@@ -607,23 +605,19 @@ namespace Oxide.Plugins
 
         private string SendStatus(Network.Connection connection, string[] args)
         {
-            if (connection.authLevel < 1)
-            {
-                return GetMsg("Denied: Permission", connection.userid);
-            }
-
             if (args.Length == 1)
             {
-                BasePlayer target = FindPlayerByPartialName(args[0]);
+                IPlayer target = FindPlayerByPartialName(args[0]);
+                ulong userID;
                 LastOnline lo;
-                if (target is BasePlayer && lastOnline.TryGetValue(target.userID, out lo))
+                if (target is IPlayer && ulong.TryParse(target.Id, out userID) &&  lastOnline.TryGetValue(userID, out lo))
                 {
                     StringBuilder sb = new StringBuilder();
 
-                    if (IsOffline(target.userID))
+                    if (IsOffline(userID))
                     {
-                        sb.AppendLine("<color=red><size=15>AntiOfflineRaid Status</size></color>: " + target.displayName);
-                        if (target.IsConnected())
+                        sb.AppendLine("<color=red><size=15>AntiOfflineRaid Status</size></color>: " + target.Name);
+                        if (target.IsConnected)
                         {
                             sb.AppendLine("<color=lightblue>Player Status</color>: <color=orange>AFK</color>: " + lo.lastOnline.ToString());
                         }
@@ -634,14 +628,14 @@ namespace Oxide.Plugins
                     }
                     else
                     {
-                        sb.AppendLine("<color=lime><size=15>AntiOfflineRaid Status</size></color>: " + target.displayName);
+                        sb.AppendLine("<color=lime><size=15>AntiOfflineRaid Status</size></color>: " + target.Name);
                         sb.AppendLine("<color=lightblue>Player Status</color>: <color=lime>Online</color>");
                     }
                     sb.AppendLine("<color=lightblue>AFK</color>: " + lo.afkMinutes + " minutes");
                     if (clanShare)
                     {
-                        sb.AppendLine("<color=lightblue>Clan Status</color>: " + (IsClanOffline(target.userID) ? "<color=red>Offline</color>" : "<color=lime>Online</color>") + " (" + getClanMembersOnline(target.userID) + ")");
-                        string tag = Clans.Call<string>("GetClanOf", target.userID);
+                        sb.AppendLine("<color=lightblue>Clan Status</color>: " + (IsClanOffline(userID) ? "<color=red>Offline</color>" : "<color=lime>Online</color>") + " (" + getClanMembersOnline(userID) + ")");
+                        string tag = Clans.Call<string>("GetClanOf", userID);
                         if (!string.IsNullOrEmpty(tag))
                         {
                             ulong lastOffline = 0;
@@ -662,13 +656,13 @@ namespace Oxide.Plugins
                             if (lastOnline.TryGetValue(lastOffline, out lastOfflinePlayer))
                             {
                                 DateTime lastOfflineTime = lastOfflinePlayer.lastOnline;
-                                IPlayer p = covalence.Players.GetPlayer(lastOffline.ToString());
+                                IPlayer p = covalence.Players.FindPlayerById(lastOffline.ToString());
                                 sb.AppendLine("<color=lightblue>Clan " + msg + "</color>: " + p.Name + " - " + lastOfflineTime.ToString());
                             }
                         }
                     }
 
-                    float scale = scaleDamage(target.userID);
+                    float scale = scaleDamage(userID);
                     if (scale != -1)
                     {
                         sb.AppendLine("<color=lightblue>Scale</color>: " + scale);
@@ -705,7 +699,7 @@ namespace Oxide.Plugins
 
         public int getClanMembersOnline(ulong targetID)
         {
-            var player = covalence.Players.GetPlayer(targetID.ToString());
+            var player = covalence.Players.FindPlayerById(targetID.ToString());
             var start = (player.IsConnected == false) ? 0 : 1;
             string tag = Clans.Call<string>("GetClanOf", targetID);
             if (tag == null)
@@ -856,7 +850,7 @@ namespace Oxide.Plugins
             {
                 if (!HasPerm(arg.connection.player as BasePlayer, "antiofflineraid.check") && arg.connection.authLevel < 1)
                 {
-                    SendReply(arg, "You lack the permission to do that");
+                    SendReply(arg, GetMsg("Denied: Permission", arg.connection.userid));
                     return;
                 }
             }
@@ -868,7 +862,7 @@ namespace Oxide.Plugins
         {
             if (!HasPerm(player, "antiofflineraid.check") && player.net.connection.authLevel < 1)
             {
-                SendReply(player, "You lack the permission to do that");
+                SendReply(player, GetMsg("Denied: Permission", player.UserIDString));
                 return;
             }
 
@@ -939,28 +933,18 @@ namespace Oxide.Plugins
             return (T)Convert.ChangeType(Config[name], typeof(T));
         }
 
-        protected static BasePlayer FindPlayerByPartialName(string nameOrIdOrIp)
+        protected IPlayer FindPlayerByPartialName(string nameOrIdOrIp)
         {
             if (string.IsNullOrEmpty(nameOrIdOrIp))
                 return null;
-            foreach (var activePlayer in BasePlayer.activePlayerList)
+
+            IPlayer player = covalence.Players.FindPlayerById(nameOrIdOrIp);
+
+            if (player is IPlayer)
             {
-                if (activePlayer.net == null) continue;
-                if (activePlayer.net.connection == null) continue;
-                if (activePlayer.userID.ToString() == nameOrIdOrIp)
-                    return activePlayer;
-                if (activePlayer.displayName.Contains(nameOrIdOrIp, CompareOptions.OrdinalIgnoreCase))
-                    return activePlayer;
-                if (activePlayer.net.connection != null && activePlayer.net.connection.ipaddress == nameOrIdOrIp)
-                    return activePlayer;
+                return player;
             }
-            foreach (var sleepingPlayer in BasePlayer.sleepingPlayerList)
-            {
-                if (sleepingPlayer.userID.ToString() == nameOrIdOrIp)
-                    return sleepingPlayer;
-                if (sleepingPlayer.displayName.Contains(nameOrIdOrIp, CompareOptions.OrdinalIgnoreCase))
-                    return sleepingPlayer;
-            }
+
             return null;
         }
 
@@ -984,6 +968,9 @@ namespace Oxide.Plugins
 
         private void HideMessage(BasePlayer player)
         {
+            if (player.net == null) return;
+            if (player.net.connection == null) return;
+
             var obj = new Facepunch.ObjectList?(new Facepunch.ObjectList("AntiOfflineRaidMsg"));
             CommunityEntity.ServerInstance.ClientRPCEx(new Network.SendInfo { connection = player.net.connection }, null, "DestroyUI", obj);
         }

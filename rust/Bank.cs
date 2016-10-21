@@ -2,6 +2,7 @@ using System;
 using System.Text;
 using System.Reflection;
 using System.Collections.Generic;
+using System.Linq;
 
 using Oxide.Core;
 using Oxide.Core.Plugins;
@@ -13,7 +14,7 @@ using Newtonsoft.Json;
 
 namespace Oxide.Plugins
 {
-    [Info("Bank", "Calytic", "0.0.2")]
+    [Info("Bank", "Calytic", "0.0.32", ResourceId = 2116)]
     [Description("Safe player storage")]
     class Bank : RustPlugin
     {
@@ -26,6 +27,8 @@ namespace Oxide.Plugins
         private Dictionary<string, object> boxSlots;
         private bool keyring;
         private float cooldownMinutes;
+        private bool npconly;
+        private List<object> npcids;
 
         public static DataFileSystem datafile;
         FieldInfo keyCodeField = typeof(KeyLock).GetField("keyCode", (BindingFlags.Instance | BindingFlags.NonPublic));
@@ -244,7 +247,7 @@ namespace Oxide.Plugins
                         item.flags = profile.flags;
                         item.skin = profile.skin;
                     
-                        if(profile.condition > 0.0f) {
+                        if(item.hasCondition) {
                             item.condition = profile.condition;
                         }
 
@@ -322,6 +325,12 @@ namespace Oxide.Plugins
 
             cooldownMinutes = GetConfig("Settings", "cooldownMinutes", 5f);
 
+
+            npconly = GetConfig("Settings", "NPCBankersOnly", false);
+            npcids = GetConfig("Settings", "NPCIDs", new List<object>());
+
+            //playersMask = LayerMask.GetMask("Player (Server)");
+
             keyring = GetConfig("Settings", "Keyring", true);
 
             foreach(KeyValuePair<string, object> kvp in boxPrefabs) {
@@ -376,6 +385,9 @@ namespace Oxide.Plugins
             Config["Settings", "defaultSlots"] = 4;
             Config["Settings", "keyring"] = true;
             Config["Settings", "cooldownMinutes"] = 5;
+            Config["Settings", "NPCBankersOnly"] = false;
+            Config["Settings", "NPCIDs"] = new List<object>();
+
             Config["VERSION"] = Version.ToString();
         }
 
@@ -413,6 +425,8 @@ namespace Oxide.Plugins
             Config["VERSION"] = Version.ToString();
 
             // NEW CONFIGURATION OPTIONS HERE
+            Config["Settings", "NPCBankersOnly"] = false;
+            Config["Settings", "NPCIDs"] = new List<object>();
             // END NEW CONFIGURATION OPTIONS
 
             PrintWarning("Upgrading configuration file");
@@ -490,6 +504,12 @@ namespace Oxide.Plugins
         #endregion
 
         #region Oxide Hooks
+        
+        void OnUseNPC(BasePlayer npc, BasePlayer player)
+        {
+            if (!npcids.Contains(npc.UserIDString)) return;
+            ShowBank(player, player);
+        }
 
         private void OnEntityTakeDamage(BaseCombatEntity entity, HitInfo hitInfo)
         {
@@ -655,36 +675,9 @@ namespace Oxide.Plugins
         [ChatCommand("bank")]
         void cmdBank(BasePlayer player, string command, string[] args)
         {
-            string playerID = player.userID.ToString();
-
-            if(!CanPlayerBank(player)) {
-                return;
-            }
-
-            if(cooldownMinutes > 0 && player.net.connection.authLevel < 1) {
-                if(bankCooldowns.ContainsKey(playerID)) {
-                    DateTime startTime = bankCooldowns[playerID];
-                    DateTime endTime = DateTime.Now;
-                
-                    TimeSpan span = endTime.Subtract(startTime);
-                    if(span.TotalMinutes > 0 && span.TotalMinutes < Convert.ToDouble(cooldownMinutes)) {
-                        double timeleft = System.Math.Round(Convert.ToDouble(cooldownMinutes) - span.TotalMinutes, 2);
-                        if(timeleft < 1) {
-                            double timelefts = System.Math.Round((Convert.ToDouble(cooldownMinutes) * 60) - span.TotalSeconds);
-                            SendReply(player, string.Format(GetMsg("Cooldown: Seconds", player), timelefts.ToString()));
-                        } else {
-                            SendReply(player, string.Format(GetMsg("Cooldown: Minutes", player), System.Math.Round(timeleft).ToString()));
-                        }
-                        return;
-                    } else {
-                        bankCooldowns.Remove(playerID);
-                    }
-                }
-            }
-
-            if(!LoadProfile(player.userID) && !banks.ContainsKey(player.userID)) {
-                banks.Add(player.userID, new BankProfile(player));
-            }
+            if(npconly) return;
+            
+            
 
             ShowBank(player, player);
         }
@@ -745,8 +738,38 @@ namespace Oxide.Plugins
 
         void ShowBank(BasePlayer player, BaseEntity target)
         {
+            if(!CanPlayerBank(player))
+                return;
+
+            string playerID = player.userID.ToString();
+
+            if(cooldownMinutes > 0 && player.net.connection.authLevel < 1) {
+                if(bankCooldowns.ContainsKey(playerID)) {
+                    DateTime startTime = bankCooldowns[playerID];
+                    DateTime endTime = DateTime.Now;
+                
+                    TimeSpan span = endTime.Subtract(startTime);
+                    if(span.TotalMinutes > 0 && span.TotalMinutes < Convert.ToDouble(cooldownMinutes)) {
+                        double timeleft = System.Math.Round(Convert.ToDouble(cooldownMinutes) - span.TotalMinutes, 2);
+                        if(timeleft < 1) {
+                            double timelefts = System.Math.Round((Convert.ToDouble(cooldownMinutes) * 60) - span.TotalSeconds);
+                            SendReply(player, string.Format(GetMsg("Cooldown: Seconds", player), timelefts.ToString()));
+                        } else {
+                            SendReply(player, string.Format(GetMsg("Cooldown: Minutes", player), System.Math.Round(timeleft).ToString()));
+                        }
+                        return;
+                    } else {
+                        bankCooldowns.Remove(playerID);
+                    }
+                }
+            }
+
+            if(!LoadProfile(player.userID) && !banks.ContainsKey(player.userID)) {
+                banks.Add(player.userID, new BankProfile(player));
+            }
+
             if(!bankCooldowns.ContainsKey(player.userID.ToString()) && player.net.connection.authLevel < 1) {
-                bankCooldowns.Add(player.userID.ToString(), DateTime.Now);
+                bankCooldowns.Add(playerID, DateTime.Now);
             }
             var ply = onlinePlayers[player];
             if (ply.View == null)

@@ -1,21 +1,29 @@
-using System.Collections.Generic;
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("BuildingRestriction", "Jakkee", "0.1.2")]
+    [Info("BuildingRestriction", "Jakkee", "1.1.2", ResourceId = 2124)]
     class BuildingRestriction : RustPlugin
     {
 
         #region Variables
 
-        private List<string> AllowedBuildingBlocks = new List<string> { "wall.low.prefab", "floor.prefab", "floor.triangle.prefab", "floor.frame.prefab", "roof.prefab" };
+        private List<string> AllowedBuildingBlocks = new List<string> { "assets/prefabs/building core/wall.low/wall.low.prefab",
+            "assets/prefabs/building core/floor/floor.prefab",
+            "assets/prefabs/building core/floor.triangle/floor.triangle.prefab",
+            "assets/prefabs/building core/floor.frame/floor.frame.prefab",
+            "assets/prefabs/building core/roof/roof.prefab" };
         private float MaxHeight = 15;
         private int MaxTFoundations = 24;
         private int MaxFoundations = 16;
         private string PermBypass = "buildingrestriction.bypass";
+        private string TriangleFoundation = "assets/prefabs/building core/foundation.triangle/foundation.triangle.prefab";
+        private string Foundation = "assets/prefabs/building core/foundation/foundation.prefab";
+        Dictionary<uint, List<BuildingBlock>> buildingids = new Dictionary<uint, List<BuildingBlock>>();
 
         #endregion
 
@@ -27,7 +35,6 @@ namespace Oxide.Plugins
             Config["Max build height"] = 5;
             Config["Max triangle foundations"] = 24;
             Config["Max foundations"] = 16;
-            Config["Permission"] = "buildingrestriction.bypass";
             Config.Save();
         }
 
@@ -37,7 +44,6 @@ namespace Oxide.Plugins
             MaxTFoundations = GetConfig("Max triangle foundations", 24);
             MaxFoundations = GetConfig("Max foundations", 16);
             MaxHeight = GetConfig("Max build height", 5) * 3;
-            PermBypass = GetConfig("Permission", "buildingrestriction.bypass");
             permission.RegisterPermission(PermBypass, this);
             lang.RegisterMessages(messages, this);
         }
@@ -61,10 +67,31 @@ namespace Oxide.Plugins
             }
         }
 
+        void OnServerInitialized()
+        {
+            UpdateDictionary();
+        }
+
         protected void ReloadConfig()
         {
             Config["VERSION"] = Version.ToString();
             SaveConfig();
+        }
+
+        void UpdateDictionary()
+        {
+            Puts("Searching for structures, This may awhile...");
+            buildingids.Clear();
+            var FoundationBlocks = Resources.FindObjectsOfTypeAll<BuildingBlock>().Where(x => x.name == Foundation || x.name == TriangleFoundation).ToList();
+            foreach (BuildingBlock Block in FoundationBlocks)
+            {
+                if (!buildingids.ContainsKey(Block.buildingID))
+                {
+                    var structure = UnityEngine.GameObject.FindObjectsOfType<BuildingBlock>().Where(x => x.buildingID == Block.buildingID && x.name == Foundation || x.name == TriangleFoundation).ToList();
+                    buildingids[Block.buildingID] = structure;
+                }
+            }
+            Puts("Completed! Found " + buildingids.Count.ToString() + " structures");
         }
 
         #endregion
@@ -74,68 +101,127 @@ namespace Oxide.Plugins
         void OnEntityBuilt(Planner planner, GameObject gameobject)
         {
             BasePlayer player = planner.GetOwnerPlayer();
-            if (HasPermission(player.UserIDString, PermBypass)) return;
-
+            var hasperm = HasPermission(player.UserIDString, PermBypass);
             BaseEntity entity = UnityEngine.GameObjectEx.ToBaseEntity(gameobject);
             var buildingBlock = entity.GetComponent<BuildingBlock>();
             if (buildingBlock != null)
             {
                 var buildingId = buildingBlock.buildingID;
-                var removeList = UnityEngine.GameObject.FindObjectsOfType<BuildingBlock>().Where(x => x.buildingID == buildingId).ToList();
-                bool first = false;
-                BuildingBlock firstfoundation = null;
-                var fcount = 0;
-                var trifcount = 0;
-                for (int i = 0; i < removeList.Count; i++)
+                if (buildingids.ContainsKey(buildingId))
                 {
-                    if (removeList[i].name.Contains("foundation"))
+                    var ConnectingStructure = buildingids[buildingBlock.buildingID];
+                    if (buildingBlock.name == Foundation || buildingBlock.name == TriangleFoundation)
                     {
-                        if (removeList[i].name.Contains("foundation.prefab"))
+                        try
                         {
-                            fcount++;
+                            var trifcount = ConnectingStructure.Count(s => TriangleFoundation == s.name);
+                            var fcount = ConnectingStructure.Count(s => Foundation == s.name);
+                            if (buildingBlock.name == Foundation && fcount >= MaxFoundations)
+                            {
+                                if (!hasperm)
+                                {
+                                    buildingBlock.Kill(BaseNetworkable.DestroyMode.Gib);
+                                    SendReply(player, Lang("Limit: Foundations", player.UserIDString, MaxFoundations.ToString()), player);
+                                }
+                            }
+                            else if (buildingBlock.name == TriangleFoundation && trifcount >= MaxTFoundations)
+                            {
+                                if (!hasperm)
+                                {
+                                    buildingBlock.Kill(BaseNetworkable.DestroyMode.Gib);
+                                    SendReply(player, Lang("Limit: Triangle Foundations", player.UserIDString, MaxTFoundations.ToString()), player);
+                                }
+                            }
+                            else
+                            {
+                                var structure = new List<BuildingBlock>(ConnectingStructure);
+                                structure.Add(buildingBlock);
+                                buildingids[buildingId] = structure;
+                            }
                         }
-                        else
+                        catch
                         {
-                            trifcount++;
+                            Puts("Failed to check max foundations on " + player.displayName + "'s structure.");
+                            Puts("ERROR: An admin has used Ent.Kill on a structure");
+                            Puts("ERROR: Please reload or restart: oxide.reload BuildingRestriction");
                         }
-                        if (!first)
+                    }
+                    else if (!AllowedBuildingBlocks.Contains(buildingBlock.name))
+                    {
+                        BuildingBlock firstfoundation = null;
+                        foreach (BuildingBlock block in ConnectingStructure)
                         {
-                            firstfoundation = removeList[i];
+                            if (block.name.Contains(TriangleFoundation) || block.name.Contains(Foundation))
+                            {
+                                firstfoundation = block;
+                                break;
+                            }
+                        }
+                        if (firstfoundation != null)
+                        {
+                            float height = (float)Math.Round(buildingBlock.transform.position.y - firstfoundation.transform.position.y, 0, MidpointRounding.AwayFromZero);
+                            if (MaxHeight <= height)
+                            {
+                                if (!hasperm)
+                                {
+                                    buildingBlock.Kill(BaseNetworkable.DestroyMode.Gib);
+                                    SendReply(player, Lang("Limit: Height", player.UserIDString, (MaxHeight / 3).ToString()), player);
+                                }
+                            }
                         }
                     }
                 }
-                if (firstfoundation != null)
+                else
                 {
-                    if (!buildingBlock.name.Contains("foundation"))
+                    var structure = new List<BuildingBlock>();
+                    structure.Add(buildingBlock);
+                    buildingids[buildingId] = structure;
+                    //buildingids[buildingBlock.buildingId] = UnityEngine.GameObject.FindObjectsOfType<BuildingBlock>().Where(x => x.buildingID == buildingBlock.buildingID && x.name == Foundation || x.name == TriangleFoundation).ToList();
+                }
+            }
+        }
+
+        void OnEntityDeath(BaseCombatEntity entity, HitInfo info)
+        {
+            //Admin destroy (Ent.Kill) is not detected here
+            try
+            {
+                var buildingBlock = entity.GetComponent<BuildingBlock>();
+                if (buildingBlock != null && buildingBlock.name == Foundation || buildingBlock.name == TriangleFoundation)
+                {
+                    if (buildingids.ContainsKey(buildingBlock.buildingID))
                     {
-                        float height = buildingBlock.transform.position.y - firstfoundation.transform.position.y;
-                        if (MaxHeight <= height)
+                        foreach (BuildingBlock Block in buildingids[buildingBlock.buildingID])
                         {
-                            foreach (string block in AllowedBuildingBlocks)
+                            if (buildingBlock == Block)
                             {
-                                if (buildingBlock.name.Contains(block))
-                                {
-                                    return;
-                                }
+                                buildingids[buildingBlock.buildingID].Remove(buildingBlock);
+                                break;
                             }
-                            buildingBlock.Kill(BaseNetworkable.DestroyMode.Gib);
-                            SendReply(player, Lang("Limit: Height", player.UserIDString, (MaxHeight / 3).ToString()), player);
                         }
                     }
-                    else
+                }
+            }
+            catch
+            {
+                return;
+            }
+        }
+
+        void OnStructureDemolish(BaseCombatEntity entity, BasePlayer player)
+        {
+            //Admin destroy (Ent.Kill) is not detected here
+            var buildingBlock = entity.GetComponent<BuildingBlock>();
+            if (buildingBlock != null && buildingBlock.name == Foundation || buildingBlock.name == TriangleFoundation)
+            {
+                if (buildingids.ContainsKey(buildingBlock.buildingID))
+                {
+                    foreach (BuildingBlock Block in buildingids[buildingBlock.buildingID])
                     {
-                        if (buildingBlock.name.Contains("foundation.prefab"))
+                        if (buildingBlock == Block)
                         {
-                            if (fcount > MaxFoundations)
-                            {
-                                buildingBlock.Kill(BaseNetworkable.DestroyMode.Gib);
-                                SendReply(player, Lang("Limit: Foundations", player.UserIDString, MaxFoundations.ToString()), player);
-                            }
-                        }
-                        else if (trifcount > MaxTFoundations)
-                        {
-                            buildingBlock.Kill(BaseNetworkable.DestroyMode.Gib);
-                            SendReply(player, Lang("Limit: Triangle Foundations", player.UserIDString, MaxTFoundations.ToString()), player);
+                            buildingids[buildingBlock.buildingID].Remove(buildingBlock);
+                            break;
                         }
                     }
                 }

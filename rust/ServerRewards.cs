@@ -13,7 +13,7 @@ using System.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("ServerRewards", "k1lly0u", "0.3.27", ResourceId = 1751)]
+    [Info("ServerRewards", "k1lly0u", "0.3.31", ResourceId = 1751)]
     public class ServerRewards : RustPlugin
     {
         #region Fields
@@ -271,13 +271,15 @@ namespace Oxide.Plugins
             {
                 UIElements.DestroyUI(player, OpenUI[player.userID]);
                 CreateTransferElement(player, page);
-                OpenUI[player.userID].type = ElementType.Transfer;                
+                OpenUI[player.userID].type = ElementType.Transfer;
+                OpenUI[player.userID].page = 0;
             }
             else if (type == ElementType.Exchange)
             {
                 UIElements.DestroyUI(player, OpenUI[player.userID]);
                 CuiElementContainer element = GetElement(type, page, null);
                 OpenUI[player.userID].type = ElementType.Exchange;
+                OpenUI[player.userID].page = 0;
                 CuiHelper.AddUi(player, element);
                 return;
             }
@@ -360,7 +362,8 @@ namespace Oxide.Plugins
 
                 if (data.type == ElementType.Exchange)
                 {
-                    element = standardElements[ElementType.Exchange][data.page];
+                    if (standardElements[ElementType.Exchange].Length >= data.page)
+                        element = standardElements[ElementType.Exchange][data.page];
                 }
                 else if (!string.IsNullOrEmpty(data.npcid) && npcElements.ContainsKey(data.npcid))
                 {
@@ -1192,7 +1195,7 @@ namespace Oxide.Plugins
             var player = args.connection.player as BasePlayer;
             if (player == null)
                 return;
-            var type = int.Parse(args.GetString(0));
+            var type = args.GetInt(0);
             CreateTransferElement(player, type);
         }
 
@@ -1213,21 +1216,20 @@ namespace Oxide.Plugins
             var player = args.connection.player as BasePlayer;
             if (player == null)
                 return;
-            var ID = ulong.Parse(args.GetString(0));
+            var ID = args.GetUInt64(0);
             var name = args.GetString(1);
-            var amount = int.Parse(args.GetString(2));
-            if ((int)CheckPoints(player.userID) >= amount)
+            var amount = args.GetInt(2);
+            var hasPoints = CheckPoints(player.userID);
+            if (hasPoints is int && (int)hasPoints >= amount)
             {
                 if (TakePoints(player.userID, amount) != null)
                 {
                     AddPoints(ID, amount);
                     PopupMessage(player, string.Format(msg("transfer3"), amount, msg("storeRP"), name));
+                    return;
                 }
             }
-            else
-            {
-                PopupMessage(player, msg("notEnoughPoints"));
-            }
+            PopupMessage(player, msg("notEnoughPoints"));            
         }
        
         [ConsoleCommand("SRUI_DestroyAll")]
@@ -1361,9 +1363,9 @@ namespace Oxide.Plugins
             ulong targetID;
             if (ulong.TryParse(arg, out targetID))
             {
-                var target = covalence.Players.GetPlayer(arg);
+                var target = covalence.Players.FindPlayer(arg);
                 if (target != null && target.Object is BasePlayer)
-                    return target as BasePlayer;
+                    return target.Object as BasePlayer;
             }
 
             var targets = covalence.Players.FindPlayers(arg);            
@@ -2151,7 +2153,8 @@ namespace Oxide.Plugins
                     }
                 }
                 BasePlayer target = FindPlayer(player, args[1]);
-                if (target != null) 
+                if (target != null)
+                {
                     switch (args[0].ToLower())
                     {
                         case "add":
@@ -2159,8 +2162,8 @@ namespace Oxide.Plugins
                             {
                                 int i = 0;
                                 int.TryParse(args[2], out i);
-                                if (i != 0)                                
-                                    if (AddPoints(target.userID, i) != null) 
+                                if (i != 0)
+                                    if (AddPoints(target.userID, i) != null)
                                         SendMSG(player, string.Format(msg("addPoints", player.UserIDString), target.displayName, i));
                             }
                             return;
@@ -2171,7 +2174,7 @@ namespace Oxide.Plugins
                                 int i = 0;
                                 int.TryParse(args[2], out i);
                                 if (i != 0)
-                                    if (TakePoints(target.userID, i) != null) 
+                                    if (TakePoints(target.userID, i) != null)
                                         SendMSG(player, string.Format(msg("removePoints", player.UserIDString), i, target.displayName));
                             }
                             return;
@@ -2190,8 +2193,9 @@ namespace Oxide.Plugins
                                 }
                                 SendMSG(player, string.Format(msg("noProfile", player.UserIDString), target.displayName));
                             }
-                            return;            
+                            return;
                     }
+                }                
             }
         }
 

@@ -17,7 +17,7 @@ using Newtonsoft.Json;
 
 namespace Oxide.Plugins
 {
-    [Info("RaidNotes", "Calytic", "0.0.1")]
+    [Info("RaidNotes", "Calytic", "0.0.3")]
     [Description("Broadcasts raid activity to chat")]
     public class RaidNotes : RustPlugin
     {
@@ -105,7 +105,7 @@ namespace Oxide.Plugins
             {
                 get
                 {
-                    return plugin.covalence.Players.GetPlayer(initiator.ToString());
+                    return plugin.covalence.Players.FindPlayerById(initiator.ToString());
                 }
             }
 
@@ -113,7 +113,7 @@ namespace Oxide.Plugins
             {
                 get
                 {
-                    return plugin.covalence.Players.GetPlayer(victim.ToString());
+                    return plugin.covalence.Players.FindPlayerById(victim.ToString());
                 }
             }
 
@@ -261,7 +261,7 @@ namespace Oxide.Plugins
             Config["useClans"] = false;
         }
 
-        void Loaded()
+        void OnServerInitialized()
         {
             CheckConfig();
             LoadMessages();
@@ -297,7 +297,7 @@ namespace Oxide.Plugins
             foreach (ItemDefinition def in ItemManager.itemList)
             {
                 var modEntity = def.GetComponent<ItemModEntity>();
-                if (modEntity != null)
+                if (modEntity != null && modEntity.entityPrefab != null)
                 {
                     var prefab = modEntity.entityPrefab.Get();
                     var thrownWeapon = prefab.GetComponent<ThrownWeapon>();
@@ -315,7 +315,7 @@ namespace Oxide.Plugins
                 {
                     useClans = false;
                     announceClan = false;
-                    PrintWarning("Clans not found! useClans and announceClan disabled. Cannot use without this plugin. http://oxidemod.org/plugins/rust-io-clans.842/");
+                    PrintWarning("Clans not found! useClans and announceClan disabled. Cannot use without this plugin. http://oxidemod.org/plugins/clans.2087/");
                 }
             }
         }
@@ -490,7 +490,7 @@ namespace Oxide.Plugins
             if (!string.IsNullOrEmpty(targetID) && targetID != source.UserIDString)
             {
                 ulong targetIDUint = Convert.ToUInt64(targetID);
-                IPlayer target = covalence.Players.GetPlayer(targetID);
+                IPlayer target = covalence.Players.FindPlayerById(targetID);
                 Raid raid;
                 bool raidFound = TryGetRaid(source, targetIDUint, targetEntity.transform.position, out raid);
                 raid.lastWeapon = weapon;
@@ -857,8 +857,8 @@ namespace Oxide.Plugins
 
             foreach (string mid in allMembers)
             {
-                IPlayer p = covalence.Players.GetConnectedPlayer(mid);
-                if (p is IPlayer)
+                IPlayer p = covalence.Players.FindPlayerById(mid);
+                if (p is IPlayer && p.IsConnected)
                 {
                     onlineMembers.Add(mid);
                 }
@@ -945,9 +945,9 @@ namespace Oxide.Plugins
             return (T)Convert.ChangeType(Config[name, name2], typeof(T));
         }
 
-        string GetMsg(string key, object userID = null)
+        string GetMsg(string key, BasePlayer player = null)
         {
-            return lang.GetMessage(key, this, userID == null ? null : userID.ToString());
+            return lang.GetMessage(key, this, player == null ? null : player.UserIDString);
         }
 
         public static List<BasePlayer> Sort(Vector3 position, List<BasePlayer> hits)

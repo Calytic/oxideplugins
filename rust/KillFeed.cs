@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Collections;
 using System.Text;
+using System.IO;
 using System;
 using Oxide.Game.Rust.Cui;
 using Oxide.Core;
@@ -8,17 +9,16 @@ using Newtonsoft.Json;
 using UnityEngine;
 using Network;
 using Rust;
-using System.IO;
 
 namespace Oxide.Plugins
 {
-    [Info("Kill Feed", "Tuntenfisch", "1.14.23", ResourceId = 1433)]
+    [Info("Kill Feed", "Tuntenfisch", "1.14.26", ResourceId = 1433)]
     [Description("Displays a basic Kill Feed on screen!")]
     public class KillFeed : RustPlugin
     {
         #region Fields
         const float _screenAspectRatio = 9f / 16f;
-        const float _height = 0.05f;
+        const float _height = 0.1f;
         const float _halfHeight = _height / 2f;
 
         static int _debugging;
@@ -312,7 +312,7 @@ namespace Oxide.Plugins
                 { "numberOfEntries",            new ConfigValue(3,                                                                          "2. Kill Feed", "2.2 number of entries") },
                 { "destroyAfter",               new ConfigValue(30.0f,                                                                      "2. Kill Feed", "2.3 destroy after") },
                 { "width",                      new ConfigValue(0.3f,                                                                       "2. Kill Feed", "2.4 Dimensions", "2.4.1 width") },
-                { "iconHalfHeight",             new ConfigValue(0.5f,                                                                       "2. Kill Feed", "2.4 Dimensions", "2.4.2 icon half-height") },
+                { "iconHalfHeight",             new ConfigValue(0.35f,                                                                      "2. Kill Feed", "2.4 Dimensions", "2.4.2 icon half-height") },
                 { "x",                          new ConfigValue(0.175f,                                                                     "2. Kill Feed", "2.5 Position", "2.5.1 x") },
                 { "y",                          new ConfigValue(0.95f,                                                                      "2. Kill Feed", "2.5 Position", "2.5.2 y") },
                 { "horizontal",                 new ConfigValue(0.0f,                                                                       "2. Kill Feed", "2.6 Spacing", "2.6.1 horizontal") },
@@ -377,6 +377,7 @@ namespace Oxide.Plugins
                     { "shotgun.waterpipe", "1/1b/Waterpipe_Shotgun_icon.png" },
                     { "shotgun.double", "3/3f/Double_Barrel_Shotgun_icon.png" },
                     { "smg.2", "9/95/Custom_SMG_icon.png" },
+                    { "smg.mp5", "http://i.imgur.com/38vtmPD.png" },
                     { "smg.thompson", "4/4e/Thompson_icon.png" },
                     { "spear.stone", "0/0a/Stone_Spear_icon.png" },
                     { "spear.wooden", "f/f2/Wooden_Spear_icon.png" },
@@ -760,7 +761,7 @@ namespace Oxide.Plugins
             if (xSpacing != 0.0f)
             {
                 bool positive = xSpacing > 0.0f;
-                horizontalSpacing = positive ? xSpacing + width : xSpacing - width;
+                horizontalSpacing = positive ? xSpacing + halfWidth : xSpacing - halfWidth;
             }
             else
             {
@@ -771,7 +772,7 @@ namespace Oxide.Plugins
             if (ySpacing != 0.0f)
             {
                 bool positive = ySpacing > 0.0f;
-                verticalSpacing = positive ? ySpacing + _height : ySpacing - _height;
+                verticalSpacing = positive ? ySpacing + _halfHeight : ySpacing - _halfHeight;
             }
             else
             {
@@ -1282,7 +1283,7 @@ namespace Oxide.Plugins
                         needsFormatting = true;
                         name = entity.ToPlayer().displayName;
                     }
-                    else if (entity.ToPlayer().userID < 76560000000000000L || entity.ToPlayer().userID > 0L)
+                    else if (entity.ToPlayer().userID < 76560000000000000L || entity.ToPlayer().userID > 0L)    // hitEntity (player) is actually a npc and his name needs to be formatted
                     {
                         needsFormatting = true;
                         name = entity.ToPlayer().displayName;
@@ -1606,13 +1607,15 @@ namespace Oxide.Plugins
 
             StringBuilder builder = new StringBuilder(formatting);
             builder.Replace("{initiator}", "<color=" + initiatorColor + ">" + initiatorName + "</color>");
-            builder.Replace("{hitBone}", "<color=" + infoColor + ">" + hitBone + "</color>");
-            builder.Replace("{distance}", "<color=" + infoColor + ">" + distance + "</color>");
+            if (hitBone.Length != 0) builder.Replace("{hitBone}", "<color=" + infoColor + ">" + hitBone + "</color>");
+            else builder.Replace("{hitBone}", "");
+            if (distance.Length != 0) builder.Replace("{distance}", "<color=" + infoColor + ">" + distance + "</color>");
+            else builder.Replace("{distance}", "");
             builder.Replace("{hitEntity}", "<color=" + hitEntityColor + ">" + hitEntityName + "</color>");
 
             string[] strings = builder.ToString().Split(new string[] { "{weapon}" }, StringSplitOptions.None);
-            string leftHandString = strings[0];
-            string rightHandString = strings[1];
+            string leftHandString = strings[0].Trim(' ');
+            string rightHandString = strings[1].Trim(' ');
 
             CuiElementContainer container = new CuiElementContainer();
 
@@ -1625,7 +1628,7 @@ namespace Oxide.Plugins
                     {
                         new CuiRawImageComponent
                         {
-                            Sprite = "assets/content/textures/generic/fulltransparent.tga"
+                            Color = "1.0 1.0 1.0 0.0"
                         },
                         new CuiRectTransformComponent
                         {
@@ -1668,7 +1671,6 @@ namespace Oxide.Plugins
                     {
                         new CuiRawImageComponent
                         {
-                            Sprite = "assets/content/textures/generic/fulltransparent.tga",
                             Png = weaponID,
                             FadeIn = fadeIn
                         },

@@ -4,9 +4,7 @@
     "author": "Calytic",
     "version": "3.0.8",
     "configuration": true,
-    "suggest": {
-        "DeadPlayersList": "*"
-    },
+    "suggest": {},
     "language": "cs",
     "games": [
         "rust"

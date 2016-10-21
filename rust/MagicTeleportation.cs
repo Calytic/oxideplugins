@@ -4,10 +4,9 @@ using Oxide.Core;
 using UnityEngine;
 using Oxide.Core.Plugins;
 using Rust;
-using System.Reflection;
 namespace Oxide.Plugins
 {
-    [Info("MagicTeleportation", "Norn", 0.9, ResourceId = 1404)]
+    [Info("MagicTeleportation", "Norn", 1.0, ResourceId = 1404)]
     [Description("Teleportation system.")]
     public class MagicTeleportation : RustPlugin
     {
@@ -16,9 +15,6 @@ namespace Oxide.Plugins
 
         [PluginReference]
         Plugin BuildingOwners;
-
-        [PluginReference]
-        Plugin DeadPlayersList;
 
         class StoredData
         {
@@ -248,21 +244,27 @@ namespace Oxide.Plugins
                     }
                 }
             }
+            if (Config["GeneralMessages", "TeleportInterrupted"] != null) PrintToChatEx(player, Config["GeneralMessages", "TeleportInterrupted"].ToString());
+            CancelTeleport(player);
+            return null;
+        }
+        bool CancelTeleport(BasePlayer player)
+        {
             if (TELEPORT_QUEUE.ContainsKey(player.userID))
             {
                 try
                 {
                     TELEPORT_QUEUE[player.userID].Destroy();
                     TELEPORT_QUEUE.Remove(player.userID);
-                    if (Config["GeneralMessages", "TeleportInterrupted"] != null) PrintToChatEx(player, Config["GeneralMessages", "TeleportInterrupted"].ToString());
                     UnfreezePlayer(player.userID);
+                    return true;
                 }
                 catch
                 {
                     //Puts("DEBUG: OnEntityTakeDamage(): Failed to kill " + player.displayName + "'s teleport timer.");
                 }
             }
-            return null;
+            return false;
         }
         void OnEntityDeath(BaseCombatEntity entity, HitInfo info)
         {
@@ -307,18 +309,17 @@ namespace Oxide.Plugins
                 Deployable refund_item = entity.GetComponentInParent<Deployable>();
                 if (refund_item != null)
                 {
-                    if (deployedToItem.ContainsKey(refund_item.gameObject.name)) player.inventory.GiveItem(deployedToItem[refund_item.gameObject.name], 1, true);
+                    var RefundItem = ItemManager.FindItemDefinition(deployedToItem[refund_item.gameObject.name]); Item i = null;
+                    if (deployedToItem.ContainsKey(refund_item.gameObject.name)) i = ItemManager.CreateByItemID(RefundItem.itemid, 1);
+                    if (i != null) { if (!i.MoveToContainer(player.inventory.containerMain)) { i.Drop(player.eyes.position, player.eyes.BodyForward() * 2f); } }
                 }
             }
         }
         private void OnEntityBuilt(Planner planner, GameObject gameObject)
         {
             BaseEntity e = gameObject.ToBaseEntity();
-            BasePlayer player = planner.ownerPlayer;
-            if (!(e is BaseEntity) || player == null)
-            {
-                return;
-            }
+            BasePlayer player = planner.GetOwnerPlayer();
+            if (!(e is BaseEntity) || player == null) { return; }
             if (MTData.Entities != null)
             {
                 foreach (var entry in MTData.Entities)
@@ -454,7 +455,7 @@ namespace Oxide.Plugins
             }
             else if (args[0] == Config["Commands", "Entities"].ToString())
             {
-                
+
                 if (player.net.connection.authLevel >= Convert.ToInt32(Config["General", "AuthLevel"]))
                 {
                     if (args.Length < 2)
@@ -480,7 +481,6 @@ namespace Oxide.Plugins
                                     {
                                         if (item.itemid == itemdef.Value)
                                         {
-                                            Puts(itemdef.Key + " - " + itemdef.Value);
                                             HomeEntities z = new HomeEntities();
                                             z.bEnabled = true;
                                             z.tPrefab_name = itemdef.Key;
@@ -723,6 +723,13 @@ namespace Oxide.Plugins
                     }
                 }
             }
+            else if (args[0] == Config["Commands", "CancelTeleport"].ToString()) // Cancel Teleport
+            {
+                if (CancelTeleport(player))
+                {
+                    PrintToChatEx(player, Config["GeneralMessages", "TeleportCancelled"].ToString());
+                }
+            }
             else if (args[0] == Config["Commands", "Home"].ToString()) // Home Teleport
             {
                 if (args.Length == 1)
@@ -944,13 +951,7 @@ namespace Oxide.Plugins
                 Config["Dependencies", "BuildingOwners"] = false;
                 SaveConfig();
             }
-            if (!DeadPlayersList && Convert.ToBoolean(Config["Dependencies", "DeadPlayersList"]))
-            {
-                Puts("[DeadPlayersList][696]: Plugin has not been found! [ DeadPlayersList : false ]");
-                Config["Dependencies", "DeadPlayersList"] = false;
-                SaveConfig();
-            }
-            Puts("[Building Owners][682]: [Enabled: " + Config["Dependencies", "BuildingOwners"].ToString() + "] | [Dead Players List][696]: [Enabled: " + Config["Dependencies", "DeadPlayersList"] + "]");
+            Puts("[Building Owners][682]: [Enabled: " + Config["Dependencies", "BuildingOwners"].ToString() + "]");
         }
         void SyncHomesEx(BasePlayer player)
         {
@@ -975,7 +976,7 @@ namespace Oxide.Plugins
                         {
                             if (entry.Value.bEnabled)
                             {
-                                if (entry.Value.tPrefab_name == bag.LookupPrefabName())
+                                if (entry.Value.tPrefab_name == bag.PrefabName)
                                 {
                                     int bag_id = (int)bag.net.ID;
                                     if (MTData.PlayerData[player.userID].HomesLocs.ContainsKey(bag_id))
@@ -1057,11 +1058,6 @@ namespace Oxide.Plugins
 
             player = BasePlayer.FindSleeping(userId);
             if (player) return player.displayName + " (Sleeping)";
-            if (DeadPlayersList)
-            {
-                string name = DeadPlayersList?.Call("GetPlayerName", userId) as string;
-                if (name != null) return name + " (Dead)";
-            }
             return "Unknown";
         }
         private void GetDeployedItemOwner(BasePlayer player, SleepingBag ditem)
@@ -1141,6 +1137,7 @@ namespace Oxide.Plugins
 
             Config["Commands", "Main"] = "t"; // Main Command
             Config["Commands", "Home"] = "home"; // Home Teleport
+            Config["Commands", "CancelTeleport"] = "cancel"; // Cancel Teleport
             Config["Commands", "Public"] = "list"; // Public Teleports
             Config["Commands", "CreateTeleport"] = "create"; // Create Public Teleports - sub command
             Config["Commands", "RemoveTeleport"] = "remove";
@@ -1148,8 +1145,9 @@ namespace Oxide.Plugins
 
             // --- [ MESSAGES ] ---
 
-            Config["GeneralMessages", "Usage"] = "<color=#33CCFF>USAGE:</color> /" + Config["Commands", "Main"].ToString() + " <" + Config["Commands", "Home"].ToString() + " | " + Config["Commands", "Public"].ToString() + ">";
+            Config["GeneralMessages", "Usage"] = "<color=#33CCFF>USAGE:</color> /" + Config["Commands", "Main"].ToString() + " <" + Config["Commands", "Home"].ToString() + " | " + Config["Commands", "Public"].ToString()+ " | " + Config["Commands", "CancelTeleport"].ToString() + ">";
             Config["GeneralMessages", "DBCleared"] = "You have <color=#FF3300>cleared</color> the Magic Homes database.";
+            Config["GeneralMessages", "TeleportCancelled"] = "You have <color=#FF3300>cancelled</color> your teleport.";
             Config["GeneralMessages", "NoAuthLevel"] = "You <color=#FF3300>do not</color> have access to this command.";
             Config["GeneralMessages", "HomeDestroyed"] = "You have <color=#FF0000>destroyed</color> your home (<color=#FFFF00>{home}</color>).";
             Config["GeneralMessages", "MaxHomes"] = "You have reached your maximum allowed homes. ({max_homes})";
