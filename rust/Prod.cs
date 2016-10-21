@@ -10,10 +10,9 @@ using Oxide.Game.Rust.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("Prod", "Reneb", "2.2.4", ResourceId = 683)]
+    [Info("Prod", "Reneb", "2.2.5", ResourceId = 683)]
     class Prod : RustPlugin
     { 
-
         private int prodAuth;
         private string helpProd;
         private string noAccess;
@@ -226,7 +225,7 @@ namespace Oxide.Plugins
             if (player)
                 return player.displayName + " (Sleeping)";
 
-            var iplayer = covalence.Players.GetPlayer(userId.ToString());
+            var iplayer = covalence.Players.FindPlayer(userId.ToString());
             if (iplayer != null)
                 return iplayer.Name + " (Dead)";
 

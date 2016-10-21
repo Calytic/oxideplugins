@@ -7,7 +7,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("CommandRateLimiter", "Calytic", "0.0.7", ResourceId = 1812)]
+    [Info("CommandRateLimiter", "Calytic", "0.0.9", ResourceId = 1812)]
     public class CommandRateLimiter : CovalencePlugin
     {
         private int KickAfter;
@@ -76,9 +76,7 @@ namespace Oxide.Plugins
             }
 
             IPlayer player = null;
-#if RUST
-            player = covalence.Players.GetPlayer(arg.Player().UserIDString);
-#endif
+            player = covalence.Players.FindPlayerById(arg.Player().UserIDString);
             if (player == null) return null;
 
             if (player.IsConnected == false) return null;

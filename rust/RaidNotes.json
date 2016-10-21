@@ -2,7 +2,7 @@
     "name": "RaidNotes",
     "description": "Broadcasts raid activity to chat",
     "author": "Calytic",
-    "version": "0.0.1",
+    "version": "0.0.3",
     "configuration": true,
     "suggest": {
         "Clans": "*"
