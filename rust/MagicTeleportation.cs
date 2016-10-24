@@ -6,7 +6,7 @@ using Oxide.Core.Plugins;
 using Rust;
 namespace Oxide.Plugins
 {
-    [Info("MagicTeleportation", "Norn", 1.0, ResourceId = 1404)]
+    [Info("MagicTeleportation", "Norn", 1.1, ResourceId = 1404)]
     [Description("Teleportation system.")]
     public class MagicTeleportation : RustPlugin
     {
@@ -244,8 +244,11 @@ namespace Oxide.Plugins
                     }
                 }
             }
-            if (Config["GeneralMessages", "TeleportInterrupted"] != null) PrintToChatEx(player, Config["GeneralMessages", "TeleportInterrupted"].ToString());
-            CancelTeleport(player);
+            if (TELEPORT_QUEUE.ContainsKey(player.userID))
+            {
+                if (Config["GeneralMessages", "TeleportInterrupted"] != null) PrintToChatEx(player, Config["GeneralMessages", "TeleportInterrupted"].ToString());
+                CancelTeleport(player);
+            }
             return null;
         }
         bool CancelTeleport(BasePlayer player)
@@ -674,30 +677,18 @@ namespace Oxide.Plugins
                                     {
                                         if (item.iAuthLevel == 0 || player.net.connection.authLevel >= item.iAuthLevel)
                                         {
-                                            if (!d.uCooldownEnabled)
+                                            if (Convert.ToBoolean(Config["TPSettings", "SanityCheck"]))
                                             {
-                                                if (Convert.ToBoolean(Config["TPSettings", "SanityCheck"]))
+                                                string reason = IsTeleportationCapable(player);
+                                                if (reason != "continue")
                                                 {
-                                                    string reason = IsTeleportationCapable(player);
-                                                    if (reason != "continue")
-                                                    {
-                                                        if (reason.Length >= 1) PrintToChatEx(player, reason);
-                                                        return;
-                                                    }
-
+                                                    if (reason.Length >= 1) PrintToChatEx(player, reason);
+                                                    return;
                                                 }
-                                                foundcount++;
-                                                item.iCount++;
-                                                InitTeleport(player, Convert.ToSingle(item.fX), Convert.ToSingle(item.fY), Convert.ToSingle(item.fZ), false, true, item.tTitle, item.tDescription, count, Convert.ToInt32(Config["TPSettings", "Cooldown"]));
-
                                             }
-                                            else
-                                            {
-
-                                                string parsed_config = Config["TPSettings", "TPCooldown"].ToString();
-                                                parsed_config = parsed_config.Replace("{cooldown}", Convert.ToInt32(Config["TPSettings", "Cooldown"]).ToString());
-                                                if (parsed_config.Length >= 1) PrintToChatEx(player, parsed_config);
-                                            }
+                                            foundcount++;
+                                            item.iCount++;
+                                            InitTeleport(player, Convert.ToSingle(item.fX), Convert.ToSingle(item.fY), Convert.ToSingle(item.fZ), false, true, item.tTitle, item.tDescription, count, Convert.ToInt32(Config["TPSettings", "Cooldown"]));
                                         }
                                         else
                                         {

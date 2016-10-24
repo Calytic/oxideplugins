@@ -1,0 +1,15 @@
+{
+    "name": "BeautyRestart",
+    "description": "Restart the server with a cooldown GUI timer",
+    "author": "Reynostrum",
+    "version": "1.0.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

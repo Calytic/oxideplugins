@@ -2,7 +2,7 @@
     "name": "Visual Cupboard Radius",
     "description": "Allows Authorized Players to Visually See Building Privildge Radius of Tool Cupboards",
     "author": "Colon Blow",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "configuration": true,
     "language": "cs",
     "games": [

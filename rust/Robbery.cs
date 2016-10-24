@@ -6,7 +6,7 @@ using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("Robbery", "Wulf/lukespragg", "3.1.3", ResourceId = 736)]
+    [Info("Robbery", "Wulf/lukespragg", "4.0.0", ResourceId = 736)]
     [Description("Players can steal money, points, and/or items from other players")]
 
     class Robbery : RustPlugin
@@ -24,33 +24,53 @@ namespace Oxide.Plugins
         [PluginReference] Plugin ZoneManager;
 
         readonly Hash<string, float> cooldowns = new Hash<string, float>();
+
         const string permKilling = "robbery.killing";
         const string permMugging = "robbery.mugging";
         const string permPickpocket = "robbery.pickpocket";
         const string permProtection = "robbery.protection";
+
         bool clanProtection;
         bool friendProtection;
         bool itemStealing;
         bool moneyStealing;
+        bool pointStealing;
+
         float percentAwake;
         float percentSleeping;
         int usageCooldown;
 
         protected override void LoadDefaultConfig()
         {
-            Config["ClanProtection"] = clanProtection = GetConfig("ClanProtection", true);
-            Config["FriendProtection"] = friendProtection = GetConfig("FriendProtection", true);
-            Config["ItemStealing"] = itemStealing = GetConfig("ItemStealing", true);
-            Config["MoneyStealing"] = moneyStealing = GetConfig("MoneyStealing", true);
-            Config["PercentAwake"] = percentAwake = GetConfig("PercentAwake", 25f);
-            Config["PercentSleeping"] = percentSleeping = GetConfig("PercentSleeping", 50f);
-            Config["UsageCooldown"] = usageCooldown = GetConfig("UsageCooldown", 30);
+            // Options
+            Config["Clan Protection (true/false)"] = clanProtection = GetConfig("Clan Protection (true/false)", true);
+            Config["Friend Protection (true/false)"] = friendProtection = GetConfig("Friend Protection (true/false)", true);
+            Config["Item Stealing (true/false)"] = itemStealing = GetConfig("Item Stealing (true/false)", true);
+            Config["Money Stealing (true/false)"] = moneyStealing = GetConfig("Money Stealing (true/false)", true);
+            Config["Point Stealing (true/false)"] = pointStealing = GetConfig("Point Stealing (true/false)", true);
+
+            // Settings
+            Config["Cooldown (Seconds, 0 to Disable)"] = usageCooldown = GetConfig("Cooldown (Seconds, 0 to Disable)", 30);
+            Config["Percent from Awake (0 - 100)"] = percentAwake = GetConfig("Percent from Awake (0 - 100)", 25f);
+            Config["Percent from Sleeping (0 - 100)"] = percentSleeping = GetConfig("Percent from Sleeping (0 - 100)", 50f);
+
+            // Cleanup
+            Config.Remove("ClanProtection");
+            Config.Remove("FriendProtection");
+            Config.Remove("ItemStealing");
+            Config.Remove("MoneyStealing");
+            Config.Remove("PercentAwake");
+            Config.Remove("PercentSleeping");
+            Config.Remove("PointStealing");
+            Config.Remove("UsageCooldown");
+
             SaveConfig();
         }
         void Init()
         {
             LoadDefaultConfig();
             LoadDefaultMessages();
+
             permission.RegisterPermission(permKilling, this);
             permission.RegisterPermission(permMugging, this);
             permission.RegisterPermission(permPickpocket, this);
@@ -146,44 +166,43 @@ namespace Oxide.Plugins
 
         #endregion
 
-        #region Money/Point Stealing
+        #region Point Stealing
+
+        void StealPoints(BasePlayer victim, BasePlayer attacker)
+        {
+            // ServerRewards plugin support - http://oxidemod.org/plugins/serverrewards.1751/
+            if (ServerRewards)
+            {
+                var balance = (int)ServerRewards.Call("CheckPoints", victim.userID);
+                var points = victim.IsSleeping() ? Math.Floor(balance * (percentSleeping / 100)) : Math.Floor(balance * (percentAwake / 100));
+
+                if (points > 0)
+                {
+                    ServerRewards.Call("TakePoints", victim.userID, points);
+                    ServerRewards.Call("AddPoints", attacker.userID, points);
+                    PrintToChat(attacker, Lang("StolePoints", attacker.UserIDString, points, victim.displayName));
+                }
+                else
+                    PrintToChat(attacker, Lang("StoleNothing", attacker.UserIDString, victim.displayName));
+            }
+        }
+
+        #endregion
+
+        #region Money Stealing
 
         void StealMoney(BasePlayer victim, BasePlayer attacker)
         {
             // Economics plugin support - http://oxidemod.org/plugins/economics.717/
             if (Economics)
             {
-                // Check if victim's balance is greater than 0
                 var balance = (double)Economics.Call("GetPlayerMoney", victim.userID);
-
-                // Calculate amount based on victim's balance
                 var money = victim.IsSleeping() ? Math.Floor(balance * (percentSleeping / 100)) : Math.Floor(balance * (percentAwake / 100));
 
                 if (money > 0)
                 {
-                    // Transfer money from victim to attacker
                     Economics.Call("Transfer", victim.userID, attacker.userID, money);
                     PrintToChat(attacker, Lang("StoleMoney", attacker.UserIDString, money, victim.displayName));
-                }
-                else
-                    PrintToChat(attacker, Lang("StoleNothing", attacker.UserIDString, victim.displayName));
-            }
-
-            // ServerRewards plugin support - http://oxidemod.org/plugins/serverrewards.1751/
-            if (ServerRewards)
-            {
-                // Check if victim's balance is greater than 0
-                var balance = (int)ServerRewards.Call("CheckPoints", victim.userID);
-
-                // Calculate amount based on victim's balance
-                var points = victim.IsSleeping() ? Math.Floor(balance * (percentSleeping / 100)) : Math.Floor(balance * (percentAwake / 100));
-
-                if (points > 0)
-                {
-                    // Transfer points from victim to attacker
-                    ServerRewards.Call("TakePoints", victim.userID, points);
-                    ServerRewards.Call("AddPoints", attacker.userID, points);
-                    PrintToChat(attacker, Lang("StolePoints", attacker.UserIDString, points, victim.displayName));
                 }
                 else
                     PrintToChat(attacker, Lang("StoleNothing", attacker.UserIDString, victim.displayName));
@@ -192,15 +211,11 @@ namespace Oxide.Plugins
             // UEconomics plugin support - http://oxidemod.org/plugins/ueconomics.2129/
             if (UEconomics)
             {
-                // Check if victim's balance is greater than 0
                 var balance = (int)UEconomics.Call("GetPlayerMoney", victim.UserIDString);
-
-                // Calculate amount based on victim's balance
                 var money = victim.IsSleeping() ? Math.Floor(balance * (percentSleeping / 100)) : Math.Floor(balance * (percentAwake / 100));
 
                 if (money > 0)
                 {
-                    // Transfer money from victim to attacker
                     UEconomics.Call("Withdraw", victim.UserIDString, money);
                     UEconomics.Call("Deposit", attacker.UserIDString, money);
                     PrintToChat(attacker, Lang("StoleMoney", attacker.UserIDString, money, victim.displayName));
@@ -220,11 +235,9 @@ namespace Oxide.Plugins
             var attackerInv = attacker.inventory.containerMain;
             if (victimInv == null || attackerInv == null) return;
 
-            // Get random inventory slot from victim and check attacker for inventory space
             var item = victimInv.GetSlot(UnityEngine.Random.Range(1, victimInv.capacity));
             if (item != null && !attackerInv.IsFull())
             {
-                // Transfer item from victim to attacker
                 item.MoveToContainer(attackerInv);
                 PrintToChat(attacker, Lang("StoleItem", attacker.UserIDString, item.amount, item.info.displayName.english, victim.displayName));
             }
@@ -241,7 +254,6 @@ namespace Oxide.Plugins
             // Event Manager plugin support - http://oxidemod.org/plugins/event-manager.740/
             if (EventManager)
             {
-                // Check if victim is in event with no looting
                 if (!((bool)EventManager.Call("isPlaying", victim))) return false;
                 PrintToChat(attacker, Lang("NoLootZone", attacker.UserIDString));
                 return true;
@@ -250,7 +262,6 @@ namespace Oxide.Plugins
             // Zone Manager plugin support - http://oxidemod.org/plugins/zones-manager.739/
             if (ZoneManager)
             {
-                // Check if victim is in zone with no looting
                 var noLooting = Enum.Parse(ZoneManager.GetType().GetNestedType("ZoneFlags"), "noplayerloot", true);
                 if (!((bool)ZoneManager.Call("HasPlayerFlag", victim, noLooting))) return false;
                 PrintToChat(attacker, Lang("NoLootZone", attacker.UserIDString));
@@ -270,7 +281,7 @@ namespace Oxide.Plugins
             if (friendProtection && Friends)
             {
                 // Check if victim is friend of attacker
-                if (!((bool)Friends.Call("AreFriendsS", attacker.UserIDString, victim.UserIDString))) return false;
+                if (!((bool)Friends.Call("AreFriends", attacker.userID, victim.userID))) return false;
                 PrintToChat(attacker, Lang("IsFriend", attacker.UserIDString));
                 return true;
             }
@@ -296,11 +307,8 @@ namespace Oxide.Plugins
             // Clans plugin support - http://oxidemod.org/plugins/rust-io-clans.842/
             if (clanProtection && Clans)
             {
-                // Get clans of victim and attacker
                 var victimClan = (string)Clans.Call("GetClanOf", victim.UserIDString);
                 var attackerClan = (string)Clans.Call("GetClanOf", attacker.UserIDString);
-
-                // Check if clans are the same
                 if (victimClan == null || attackerClan == null || !victimClan.Equals(attackerClan)) return false;
                 PrintToChat(attacker, Lang("IsClanmate", attacker.UserIDString));
                 return true;
@@ -309,7 +317,6 @@ namespace Oxide.Plugins
             // Factions plugin support - http://oxidemod.org/plugins/factions.1919/
             if (clanProtection && Factions)
             {
-                // Check if factions are the same
                 if (!((bool)Factions.Call("CheckSameFaction", attacker.userID, victim.userID))) return false;
                 PrintToChat(attacker, Lang("IsClanmate", attacker.UserIDString));
                 return true;
@@ -322,22 +329,19 @@ namespace Oxide.Plugins
 
         #region Killing
 
-        void OnUserDeath(BaseEntity entity, HitInfo info)
+        void OnEntityDeath(BaseEntity entity, HitInfo info)
         {
-            // Check for valid victim and attacker
             var victim = entity as BasePlayer;
             var attacker = info?.Initiator as BasePlayer;
             if (victim == null || attacker == null) return;
             if (victim == attacker) return;
 
-            // Check if the attacker has permission
             if (!permission.UserHasPermission(attacker.UserIDString, permKilling)) return;
-
-            // Check for zone/friend/clan exclusions
+            if (permission.UserHasPermission(victim.UserIDString, permProtection)) return;
             if (InNoLootZone(victim, attacker) || IsFriend(victim, attacker) || IsClanmate(victim, attacker)) return;
 
-            // Transfer the booty if enabled
             if (moneyStealing) StealMoney(victim, attacker);
+            if (pointStealing) StealPoints(victim, attacker);
         }
 
         #endregion
@@ -346,22 +350,17 @@ namespace Oxide.Plugins
 
         void OnEntityTakeDamage(BaseEntity entity, HitInfo info)
         {
-            // Check for valid victim and attacker
             var victim = entity?.ToPlayer();
             var attacker = info?.Initiator?.ToPlayer();
             if (victim == null || attacker == null) return;
             if (victim == attacker) return;
 
-            // Ignore gunshots, only allow melee essentially
             if (info.IsProjectile()) return;
 
-            // Check if the attacker has permission
             if (!permission.UserHasPermission(attacker.UserIDString, permMugging)) return;
-
-            // Check for zone/friend/clan exclusions
+            if (permission.UserHasPermission(victim.UserIDString, permProtection)) return;
             if (InNoLootZone(victim, attacker) || IsFriend(victim, attacker) || IsClanmate(victim, attacker)) return;
 
-            // Check if attacker needs a cooldown
             if (!cooldowns.ContainsKey(attacker.UserIDString)) cooldowns.Add(attacker.UserIDString, 0f);
             if (usageCooldown != 0 && cooldowns[attacker.UserIDString] + usageCooldown > Interface.Oxide.Now)
             {
@@ -369,11 +368,10 @@ namespace Oxide.Plugins
                 return;
             }
 
-            // Transfer the booty if enabled
             if (itemStealing) StealItem(victim, attacker);
             if (moneyStealing) StealMoney(victim, attacker);
+            if (pointStealing) StealPoints(victim, attacker);
 
-            // Set the cooldown time
             cooldowns[attacker.UserIDString] = Interface.Oxide.Now;
         }
 
@@ -383,22 +381,17 @@ namespace Oxide.Plugins
 
         void OnPlayerInput(BasePlayer attacker, InputState input)
         {
-            // Listen for 'use' key only
             if (!input.WasJustPressed(BUTTON.USE)) return;
-
-            // Check if the attacker has permission
             if (!permission.UserHasPermission(attacker.UserIDString, permPickpocket)) return;
 
-            // Check for valid target victim
             var ray = new Ray(attacker.eyes.position, attacker.eyes.HeadForward());
             var entity = FindObject(ray, 1);
             var victim = entity?.ToPlayer();
             if (victim == null) return;
 
-            // Check for zone/friend/clan exclusions
+            if (permission.UserHasPermission(victim.UserIDString, permProtection)) return;
             if (InNoLootZone(victim, attacker) || IsFriend(victim, attacker) || IsClanmate(victim, attacker)) return;
 
-            // Make sure victim isn't looking
             var victimToAttacker = (attacker.transform.position - victim.transform.position).normalized;
             if (Vector3.Dot(victimToAttacker, victim.eyes.HeadForward().normalized) > 0)
             {
@@ -406,14 +399,12 @@ namespace Oxide.Plugins
                 return;
             }
 
-            // Make sure attacker isn't holding an item
             if (attacker.GetActiveItem()?.GetHeldEntity() != null)
             {
                 PrintToChat(attacker, Lang("CantHoldItem", attacker.UserIDString));
                 return;
             }
 
-            // Check if attacker needs a cooldown
             if (!cooldowns.ContainsKey(attacker.UserIDString)) cooldowns.Add(attacker.UserIDString, 0f);
             if (usageCooldown != 0 && cooldowns[attacker.UserIDString] + usageCooldown > Interface.Oxide.Now)
             {
@@ -421,11 +412,10 @@ namespace Oxide.Plugins
                 return;
             }
 
-            // Transfer the booty if enabled
             if (itemStealing) StealItem(victim, attacker);
             if (moneyStealing) StealMoney(victim, attacker);
+            if (pointStealing) StealPoints(victim, attacker);
 
-            // Set the cooldown time
             cooldowns[attacker.UserIDString] = Interface.Oxide.Now;
         }
 

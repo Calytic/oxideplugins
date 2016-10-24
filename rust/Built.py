@@ -8,7 +8,7 @@ class Built:
 		self.Title = "Built"
 		self.Description = "Provides entity owner information."
 		self.Author = "sqroot"
-		self.Version = V(1, 3, 1)
+		self.Version = V(1, 3, 2)
 		self.ResourceId = 1702
 
 	def send_msg(self, player, msg):
@@ -28,7 +28,7 @@ class Built:
 			return
 		owner_id = closest.OwnerID
 		if owner_id != 0:
-			p = covalence.Players.GetPlayer(str(owner_id))
+			p = covalence.Players.FindPlayerById(str(owner_id))
 			self.send_msg(player, "%s (%s)" % (p.Name if p else "Unknown", owner_id))
 		else:
 			self.send_msg(player, "No owner found.")

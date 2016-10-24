@@ -12,7 +12,7 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("Kill Feed", "Tuntenfisch", "1.14.26", ResourceId = 1433)]
+    [Info("Kill Feed", "Tuntenfisch", "1.15.0", ResourceId = 1433)]
     [Description("Displays a basic Kill Feed on screen!")]
     public class KillFeed : RustPlugin
     {
@@ -22,6 +22,8 @@ namespace Oxide.Plugins
         const float _halfHeight = _height / 2f;
 
         static int _debugging;
+
+        static char _formattingCharacter = 'Â§';
 
         static List<string> debugLog;
 
@@ -308,7 +310,7 @@ namespace Oxide.Plugins
                 { "printEntriesToConsole",      new ConfigValue(false,                                                                      "1. General", "1.4 Monitoring", "1.4.2 print entries to console") },
                 { "debugging",                  new ConfigValue(0,                                                                          "1. General", "1.4 Monitoring", "1.4.3 debugging") },
 
-                { "formatting",                 new ConfigValue("{initiator}          {hitBone}{weapon}{distance}          {hitEntity}",    "2. Kill Feed", "2.1 formatting") },
+                { "formatting",                 new ConfigValue("{initiator}Â§{hitBone}Â§{distance}Â§{hitEntity}",                             "2. Kill Feed", "2.1 formatting") },
                 { "numberOfEntries",            new ConfigValue(3,                                                                          "2. Kill Feed", "2.2 number of entries") },
                 { "destroyAfter",               new ConfigValue(30.0f,                                                                      "2. Kill Feed", "2.3 destroy after") },
                 { "width",                      new ConfigValue(0.3f,                                                                       "2. Kill Feed", "2.4 Dimensions", "2.4.1 width") },
@@ -485,7 +487,7 @@ namespace Oxide.Plugins
                     '(',
                     ')',
                     '<',
-                    '>',
+                    '>'
                 };
                 return characters;
             }
@@ -801,6 +803,7 @@ namespace Oxide.Plugins
 
             foreach (char c in GetConfig<List<char>>(ref saveConfig, DefaultConfig.values["AllowedSpecialCharacters"]))
             {
+                if (c == _formattingCharacter) continue;
                 allowedCharacters[c] = true;
             }
 
@@ -864,6 +867,27 @@ namespace Oxide.Plugins
                     str = str.Substring(str.IndexOf("]") + 1).Trim();
                 }
                 return str;
+            }
+
+            /// <summary>
+            /// Removes special characters from a string.
+            /// </summary>
+            /// <param name="str"> The string that should be modified.</param>
+            /// <param name="bannedCharacters"> The characters that are banned.</param>
+            /// <returns> The string with all non allowed characters removed.</returns>
+            public static string RemoveSpecialCharacters(string str, params char[] bannedCharacters)
+            {
+                char[] buffer = new char[str.Length];
+                int index = 0;
+                foreach (char c in str)
+                {
+                    if (!bannedCharacters.Contains(c))
+                    {
+                        buffer[index] = c;
+                        index++;
+                    }
+                }
+                return new string(buffer, 0, index);
             }
 
             /// <summary>
@@ -1102,6 +1126,7 @@ namespace Oxide.Plugins
             }
             else
             {
+                username = StringHelper.RemoveSpecialCharacters(username, _formattingCharacter);
                 username = StringHelper.TrimToSize(username, numberOfCharacters);
             }
             return username;
@@ -1596,26 +1621,15 @@ namespace Oxide.Plugins
         /// <returns> A list containing all UI elements.</returns>
         CuiElementContainer GetKillFeedEntry(EntryData entryData)
         {
-            string initiatorName = entryData.initiatorInfo.name;
-            string initiatorColor = entryData.initiatorColor;
-            string hitBone = entryData.hitBone;
-            string infoColor = entryData.infoColor;
-            string weaponID = entryData.weaponInfo.weaponID;
-            string distance = entryData.distance;
-            string hitEntityName = entryData.needsFormatting ? FormatUsername(entryData.hitEntityInfo.name) : entryData.hitEntityInfo.name;
-            string hitEntityColor = entryData.hitEntityColor;
-
             StringBuilder builder = new StringBuilder(formatting);
-            builder.Replace("{initiator}", "<color=" + initiatorColor + ">" + initiatorName + "</color>");
-            if (hitBone.Length != 0) builder.Replace("{hitBone}", "<color=" + infoColor + ">" + hitBone + "</color>");
-            else builder.Replace("{hitBone}", "");
-            if (distance.Length != 0) builder.Replace("{distance}", "<color=" + infoColor + ">" + distance + "</color>");
-            else builder.Replace("{distance}", "");
-            builder.Replace("{hitEntity}", "<color=" + hitEntityColor + ">" + hitEntityName + "</color>");
+            builder.Replace("{initiator}", "<color=" + entryData.initiatorColor + ">" + entryData.initiatorInfo.name + "</color>");
+            builder.Replace("{hitBone}", "<color=" + entryData.infoColor + ">" + entryData.hitBone + "</color>");
+            builder.Replace("{distance}", "<color=" + entryData.infoColor + ">" + entryData.distance + "</color>");
+            builder.Replace("{hitEntity}", "<color=" + entryData.hitEntityColor + ">" + (entryData.needsFormatting ? FormatUsername(entryData.hitEntityInfo.name) : entryData.hitEntityInfo.name) + "</color>");
 
-            string[] strings = builder.ToString().Split(new string[] { "{weapon}" }, StringSplitOptions.None);
-            string leftHandString = strings[0].Trim(' ');
-            string rightHandString = strings[1].Trim(' ');
+            string[] splitStrings = builder.ToString().Split(new char[] { _formattingCharacter }, 4, StringSplitOptions.None);
+            string[] stringElements = { "", "", "", "" };
+            Array.Copy(splitStrings, stringElements, splitStrings.Length);
 
             CuiElementContainer container = new CuiElementContainer();
 
@@ -1638,20 +1652,42 @@ namespace Oxide.Plugins
                     }
             };
 
-            CuiElement leftHandElement = new CuiElement
+            CuiElement outerLeftHandElement = new CuiElement
             {
-                Name = "{0} leftHandString",
+                Name = "{0} outerLeftHandString",
                 Parent = "{0} feedEntry",
                 FadeOut = fadeOut,
                 Components =
                 {
                     new CuiTextComponent
                     {
-                        Text = leftHandString,
+                        Text = stringElements[0],
+                        Font = font,
+                        FontSize = fontSize,
+                        Align = TextAnchor.MiddleLeft,
+                        FadeIn = fadeIn,
+                    },
+                    new CuiRectTransformComponent
+                    {
+                        AnchorMin = "0.0 0.0",
+                        AnchorMax = 0.5f - iconHalfWidth + " 1.0"
+                    }
+                }
+            };
+
+            CuiElement innerLeftHandElement = new CuiElement
+            {
+                Name = "{0} innerLeftHandString",
+                Parent = "{0} feedEntry",
+                FadeOut = fadeOut,
+                Components =
+                {
+                    new CuiTextComponent
+                    {
+                        Text = stringElements[1],
                         Font = font,
                         FontSize = fontSize,
                         Align = TextAnchor.MiddleRight,
-                        Color = infoColor,
                         FadeIn = fadeIn,
                     },
                     new CuiRectTransformComponent
@@ -1671,7 +1707,7 @@ namespace Oxide.Plugins
                     {
                         new CuiRawImageComponent
                         {
-                            Png = weaponID,
+                            Png = entryData.weaponInfo.weaponID,
                             FadeIn = fadeIn
                         },
                         new CuiRectTransformComponent
@@ -1682,20 +1718,42 @@ namespace Oxide.Plugins
                     }
             };
 
-            CuiElement rightHandElement = new CuiElement
+            CuiElement outerRightHandElement = new CuiElement
             {
-                Name = "{0} rightHandString",
+                Name = "{0} outerRightHandString",
                 Parent = "{0} feedEntry",
                 FadeOut = fadeOut,
                 Components =
                 {
                     new CuiTextComponent
                     {
-                        Text = rightHandString,
+                        Text = stringElements[3],
+                        Font = font,
+                        FontSize = fontSize,
+                        Align = TextAnchor.MiddleRight,
+                        FadeIn = fadeIn,
+                    },
+                    new CuiRectTransformComponent
+                    {
+                        AnchorMin = 0.5f + iconHalfWidth + " 0.0",
+                        AnchorMax = "1.0 1.0",
+                    }
+                }
+            };
+
+            CuiElement innerRightHandElement = new CuiElement
+            {
+                Name = "{0} innerRightHandString",
+                Parent = "{0} feedEntry",
+                FadeOut = fadeOut,
+                Components =
+                {
+                    new CuiTextComponent
+                    {
+                        Text = stringElements[2],
                         Font = font,
                         FontSize = fontSize,
                         Align = TextAnchor.MiddleLeft,
-                        Color = infoColor,
                         FadeIn = fadeIn,
                     },
                     new CuiRectTransformComponent
@@ -1713,15 +1771,18 @@ namespace Oxide.Plugins
                     Distance = "1.0 1.0",
                     Color = "0.0 0.0 0.0 1.0"
                 };
-
-                leftHandElement.Components.Add(outline);
-                rightHandElement.Components.Add(outline);
+                outerLeftHandElement.Components.Add(outline);
+                innerLeftHandElement.Components.Add(outline);
+                outerRightHandElement.Components.Add(outline);
+                innerRightHandElement.Components.Add(outline);
             }
 
             container.Add(feedEntryElement);
-            container.Add(leftHandElement);
+            container.Add(outerLeftHandElement);
+            container.Add(innerLeftHandElement);
             container.Add(weaponElement);
-            container.Add(rightHandElement);
+            container.Add(outerRightHandElement);
+            container.Add(innerRightHandElement);
 
             return container;
         }

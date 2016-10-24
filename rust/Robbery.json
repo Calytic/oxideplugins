@@ -2,7 +2,7 @@
     "name": "Robbery",
     "description": "Players can steal money, points, and\/or items from other players",
     "author": "Wulf",
-    "version": "3.1.3",
+    "version": "4.0.0",
     "configuration": true,
     "suggest": {
         "Clans": "*",

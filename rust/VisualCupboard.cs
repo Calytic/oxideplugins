@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using Oxide.Core.Plugins;
 namespace Oxide.Plugins
 {
-     	[Info("VisualCupboard", "Colon Blow", "1.0.6", ResourceId = 2030)]
+     	[Info("VisualCupboard", "Colon Blow", "1.0.7", ResourceId = 2030)]
     	class VisualCupboard : RustPlugin
      	{
 		void OnServerInitialized() { serverInitialized = true; }
@@ -248,7 +248,7 @@ namespace Oxide.Plugins
            	 if (player)
                 return player.displayName;
 
-           	 var iplayer = covalence.Players.GetPlayer(userId.ToString());
+           	 var iplayer = covalence.Players.FindPlayer(userId.ToString());
             	if (iplayer != null)
                 return iplayer.Name;
 
