@@ -5,13 +5,10 @@ using System.Linq;
 using Oxide.Core.Libraries.Covalence;
 using Newtonsoft.Json.Linq;
 using System;
-using Oxide.Core.Libraries;
-using System.Reflection;
-
 
 namespace Oxide.Plugins
 {
-    [Info("Clans", "k1lly0u", "0.1.28", ResourceId = 2087)]
+    [Info("Clans", "k1lly0u", "0.1.31", ResourceId = 2087)]
     class Clans : CovalencePlugin
     {
         #region Fields        
@@ -41,7 +38,7 @@ namespace Oxide.Plugins
             FillClanList();            
             Initiated = true;
             SaveLoop();
-            foreach (var player in players.All)
+            foreach (var player in players.Connected)
                 OnUserConnected(player);
         }
         void Unload() => SaveData();
@@ -64,8 +61,8 @@ namespace Oxide.Plugins
                             if (configData.Options.ShowJoinMessage)
                                 clan.Broadcast(string.Format(msg("playerCon"), player.Name));
                         }
-                        if (clanData.outstandingMessages.ContainsKey(player.Id))
-                            Reply(player, string.Format(msg("outstandingMsgs", player.Id), clanData.outstandingMessages[player.Id].Count));
+                        //if (clanData.outstandingMessages.ContainsKey(player.Id))
+                            //Reply(player, string.Format(msg("outstandingMsgs", player.Id), clanData.outstandingMessages[player.Id].Count));
                     }
                 });
             }                     
@@ -119,13 +116,7 @@ namespace Oxide.Plugins
                 return clan;
             return null;
         }
-
-        void AddDelayMessage(string id, string message)
-        {
-            if (!clanData.outstandingMessages.ContainsKey(id))
-                clanData.outstandingMessages.Add(id, new List<string>());
-            clanData.outstandingMessages[id].Add(message);
-        }
+       
         void Reply(IPlayer player, string message, string message2 = null)
         {
             var formatMsg = $"{configData.Messaging.MSG}{message}</color>";
@@ -138,6 +129,29 @@ namespace Oxide.Plugins
             var message = $"{configData.Messaging.MSG}{msg}</color>".Replace("{0}", $"</color>{configData.Messaging.Main}{arg}</color>{configData.Messaging.MSG}");
             if (message.StartsWith("</color>")) message = message.Substring(9).Trim();            
             player.Reply(message);
+        }
+        private IPlayer FindPlayer(IPlayer player, string arg)
+        {
+            var targets = from p in players.All
+                         where (p.Name.ToLower().Contains(arg.ToLower()) ? true : p.Id == arg)
+                         select p;
+
+            if (targets.Count() == 0)
+            {
+                if (player != null)
+                    player.Reply(msg("noPlayers", player.Id));
+                return null;
+            }
+            if (targets.Count() > 1)
+            {
+                if (player != null)
+                    player.Reply(msg("multiPlayers", player.Id));
+                return null;
+            }
+            if (targets.Single() != null)
+                return targets.Single();
+            else player.Reply(msg("noPlayers", player.Id));
+            return null;
         }
         #endregion
 
@@ -250,28 +264,28 @@ namespace Oxide.Plugins
                 Reply(player, "", msg("noClanData", player.Id));
             }
         }
-        [Command("cmessage")]
-        void cmdCMessage(IPlayer player, string command, string[] args)
-        {
-            if (Initiated)
-            {
-                if (clanData.outstandingMessages.ContainsKey(player.Id))
-                {
-                    if (args.Length > 0 && args[0].ToLower() == "clear")
-                    {
-                        clanData.outstandingMessages.Remove(player.Id);
-                        Reply(player, "", msg("clearedMsg", player.Id));
-                        return;
-                    }
-                    foreach (var msg in clanData.outstandingMessages[player.Id])
-                    {
-                        Reply(player, "", msg);
-                    }
-                    Reply(player, "", msg("clearSyn", player.Id));
-                }
-                else Reply(player, "", msg("noOM", player.Id));
-            }
-        }
+        //[Command("cmessage")]
+        //void cmdCMessage(IPlayer player, string command, string[] args)
+        //{
+        //    if (Initiated)
+        //    {
+        //        if (clanData.outstandingMessages.ContainsKey(player.Id))
+        //        {
+        //            if (args.Length > 0 && args[0].ToLower() == "clear")
+        //            {
+        //                clanData.outstandingMessages.Remove(player.Id);
+        //                Reply(player, "", msg("clearedMsg", player.Id));
+        //                return;
+        //            }
+        //            foreach (var msg in clanData.outstandingMessages[player.Id])
+        //            {
+        //                Reply(player, "", msg);
+        //            }
+        //            Reply(player, "", msg("clearSyn", player.Id));
+        //        }
+        //        else Reply(player, "", msg("noOM", player.Id));
+        //    }
+        //}
         [Command("clanhelp")]
         void cmdClanHelp(IPlayer player, string command, string[] args)
         {
@@ -363,10 +377,11 @@ namespace Oxide.Plugins
                         clan.invitedPlayers.Remove(player.Id);
                         return;
                     }
+                    clan.Broadcast(string.Format(msg("hasJoined"), player.Name));
                     clan.members.Add(player.Id, player.Name);
                     clan.invitedPlayers.Remove(player.Id);
                     playerClans.Add(player.Id, clan.clanTag);
-                    Reply(player, tag, msg("joinSucc", player.Id));
+                    Reply(player, tag, msg("joinSucc", player.Id));                    
                     ClanUpdate(clan.clanTag);
                 }
                 else Reply(player, tag, msg("noInvite", player.Id));
@@ -421,7 +436,7 @@ namespace Oxide.Plugins
                         ReplyKey(player, msg("invCancelled", player.Id), targetName);
                     return;
                 }
-                var target = players.FindPlayer(args[1]);
+                var target = FindPlayer(player, args[1]);
                 if (target != null)
                 {
                     if (IsClanMember(target.Id))
@@ -434,10 +449,7 @@ namespace Oxide.Plugins
                     ReplyKey(player, "You have invited {0} to join your clan", target.Name);
                     ClanUpdate(clan.clanTag);
                     return;
-                }
-                else
-                    Reply(player, "", msg("noPlayerName", player.Id
-                   ));
+                }                
             }
             else Reply(player, "", msg("notInClan", player.Id));
         }
@@ -484,10 +496,10 @@ namespace Oxide.Plugins
                         Reply(player, string.Format(msg("kickSucc", player.Id), targetName));
                         ClanUpdate(clan.clanTag);
 
-                        var targetPlayer = players.GetPlayer(target);
-                        if (targetPlayer != null)
+                        var targetPlayer = players.FindPlayer(target);
+                        if (targetPlayer != null && targetPlayer.IsConnected)
                             Reply(targetPlayer, clan.clanTag, msg("kicked"));
-                        else AddDelayMessage(target, string.Format(msg("kicked"), clan.clanTag));
+                        //else AddDelayMessage(target, string.Format(msg("kicked"), clan.clanTag));
                         return true;
                     }
                     else
@@ -521,15 +533,14 @@ namespace Oxide.Plugins
                 }
 
                 clan.moderators.Add(target);
-                clan.members.Add(target, targetName);
 
                 Reply(player, targetName, msg("promSucc", player.Id));
                 ClanUpdate(clan.clanTag);
 
-                var targetPlayer = players.GetPlayer(target);
-                if (targetPlayer != null)
+                var targetPlayer = players.FindPlayer(target);
+                if (targetPlayer != null && targetPlayer.IsConnected)
                     ReplyKey(targetPlayer, msg("beenProm", targetPlayer.Id), player.Name);
-                else AddDelayMessage(target, string.Format(msg("beenProm"), player.Name));
+                //else AddDelayMessage(target, string.Format(msg("beenProm"), player.Name));
                 return true;
             }
             else { Reply(player, "", msg("notInClan", player.Id)); return null; }
@@ -547,10 +558,10 @@ namespace Oxide.Plugins
                     Reply(player, string.Format(msg("demSucc", player.Id), targetName));
                     ClanUpdate(clan.clanTag);
 
-                    var targetPlayer = players.GetPlayer(target);
-                    if (targetPlayer != null)
+                    var targetPlayer = players.FindPlayer(target);
+                    if (targetPlayer != null && targetPlayer.IsConnected)
                         ReplyKey(targetPlayer, msg("beenDem", targetPlayer.Id), player.Name);
-                    else AddDelayMessage(target, string.Format(msg("beenDem"), player.Name));
+                    //else AddDelayMessage(target, string.Format(msg("beenDem"), player.Name));
 
                     return true;
                 }
@@ -570,10 +581,10 @@ namespace Oxide.Plugins
                     {
                         if (member.Key != player.Id)
                         {
-                            var targetPlayer = players.GetPlayer(member.Key);
-                            if (targetPlayer != null)
+                            var targetPlayer = players.FindPlayer(member.Key);
+                            if (targetPlayer != null && targetPlayer.IsConnected)
                                 ReplyKey(targetPlayer, msg("beenDisb", targetPlayer.Id), player.Name);
-                            else AddDelayMessage(member.Key, string.Format(msg("beenDisb"), player.Name));
+                            //else AddDelayMessage(member.Key, string.Format(msg("beenDisb"), player.Name));
                         }
                         playerClans.Remove(member.Key);
                     }
@@ -638,10 +649,10 @@ namespace Oxide.Plugins
                                         Reply(player, targetClan.clanTag, msg("allyReq", player.Id));
                                         ClanUpdate(clan.clanTag);
 
-                                        var targetOwner = players.GetPlayer(targetClan.ownerID);
-                                        if (targetOwner != null)
+                                        var targetOwner = players.FindPlayer(targetClan.ownerID);
+                                        if (targetOwner != null && targetOwner.IsConnected)
                                             ReplyKey(targetOwner, msg("reqAlliance", targetOwner.Id), clan.clanTag);
-                                        else AddDelayMessage(targetClan.ownerID, string.Format(msg("reqAlliance"), clan.clanTag));
+                                        //else AddDelayMessage(targetClan.ownerID, string.Format(msg("reqAlliance"), clan.clanTag));
                                     }
                                     else Reply(player, args[2], msg("invitePending", player.Id));
                                 }
@@ -668,10 +679,10 @@ namespace Oxide.Plugins
                                         Reply(player, targetClan.clanTag, msg("allyAcc", player.Id));
                                         ClanUpdate(clan.clanTag);
 
-                                        var targetOwner = players.GetPlayer(targetClan.ownerID);
-                                        if (targetOwner != null)
+                                        var targetOwner = players.FindPlayer(targetClan.ownerID);
+                                        if (targetOwner != null && targetOwner.IsConnected)
                                             ReplyKey(targetOwner, msg("allyAccSucc", targetOwner.Id), clan.clanTag);
-                                        else AddDelayMessage(targetClan.ownerID, string.Format(msg("allyAccSucc"), clan.clanTag));
+                                        //else AddDelayMessage(targetClan.ownerID, string.Format(msg("allyAccSucc"), clan.clanTag));
                                     }
                                     else Reply(player, args[2], msg("noAllyInv", player.Id));
                                 }
@@ -687,10 +698,10 @@ namespace Oxide.Plugins
                                         Reply(player, targetClan.clanTag, msg("allyDec", player.Id));
                                         ClanUpdate(clan.clanTag);
 
-                                        var targetOwner = players.GetPlayer(targetClan.ownerID);
-                                        if (targetOwner != null)
+                                        var targetOwner = players.FindPlayer(targetClan.ownerID);
+                                        if (targetOwner != null && targetOwner.IsConnected)
                                             ReplyKey(targetOwner, msg("allyDecSucc", targetOwner.Id), clan.clanTag);
-                                        else AddDelayMessage(targetClan.ownerID, string.Format(msg("allyDecSucc"), clan.clanTag));
+                                        //else AddDelayMessage(targetClan.ownerID, string.Format(msg("allyDecSucc"), clan.clanTag));
                                     }
                                     else Reply(player, args[2], msg("noAllyInv", player.Id));
                                 }
@@ -707,10 +718,10 @@ namespace Oxide.Plugins
                                         Reply(player, targetClan.clanTag, msg("allyCan", player.Id));
                                         ClanUpdate(clan.clanTag);
 
-                                        var targetOwner = players.GetPlayer(targetClan.ownerID);
-                                        if (targetOwner != null)
+                                        var targetOwner = players.FindPlayer(targetClan.ownerID);
+                                        if (targetOwner != null && targetOwner.IsConnected)
                                             ReplyKey(targetOwner, msg("allyCanSucc", targetOwner.Id), clan.clanTag);
-                                        else AddDelayMessage(targetClan.ownerID, string.Format(msg("allyCanSucc"), clan.clanTag));
+                                        //else AddDelayMessage(targetClan.ownerID, string.Format(msg("allyCanSucc"), clan.clanTag));
                                     }
                                     else Reply(player, args[2], msg("noAlly", player.Id));
                                 }
@@ -897,10 +908,10 @@ namespace Oxide.Plugins
                 if (!string.IsNullOrEmpty(newOwner))
                 {
                     ownerID = newOwner;
-                    var target = clans.players.GetPlayer(newOwner);
-                    if (target != null)
+                    var target = clans.players.FindPlayer(newOwner);
+                    if (target != null && target.IsConnected)
                         clans.Reply(target, clans.msg("ownerProm", target.Id));
-                    else clans.AddDelayMessage(newOwner, clans.msg("ownerProm"));
+                    //else clans.AddDelayMessage(newOwner, clans.msg("ownerProm"));
                     clans.Reply(player, clanTag, clans.msg("leaveSucc", target.Id));
                 }
                 else
@@ -966,8 +977,8 @@ namespace Oxide.Plugins
             {
                 foreach (var member in members)
                 {
-                    IPlayer target = clans.players.FindConnectedPlayer(member.Value);
-                    if (target != null)
+                    IPlayer target = clans.players.FindPlayer(member.Value);
+                    if (target != null && target.IsConnected)
                         target.Reply($"{clans.configData.Messaging.ClanChat}|{sender}|</color> :{clans.configData.Messaging.MSG} {message}</color>");
                 }
             }
@@ -1007,7 +1018,7 @@ namespace Oxide.Plugins
         class StoredData
         {
             public Dictionary<string, Clan> data = new Dictionary<string, Clan>();
-            public Dictionary<string, List<string>> outstandingMessages = new Dictionary<string, List<string>>();
+            //public Dictionary<string, List<string>> outstandingMessages = new Dictionary<string, List<string>>();
         }
         #endregion
 
@@ -1103,6 +1114,9 @@ namespace Oxide.Plugins
             {"memHelp", "{0} - Display member commands"},
             {"modHelp", "{0} - Display moderator commands"},
             {"ownHelp", "{0} - Display owner commands"},
+            {"hasJoined", "{0} has joined the clan" },
+            {"noPlayers", "Unable to find a player with the name or ID" },
+            {"multiPlayers", "Multiple players found with that name" }
         };
         #endregion
     }

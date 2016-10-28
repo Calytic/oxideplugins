@@ -2,14 +2,14 @@
     "name": "Babel",
     "description": "Plugin API for translating messages using free or paid translation services",
     "author": "Wulf",
-    "version": "0.2.0",
-    "configuration": false,
+    "version": "0.3.3",
+    "configuration": true,
     "language": "cs",
     "games": [
-        "Universal"
+        "universal"
     ],
     "keywords": [
         "oxide",
-        "Universal"
+        "universal"
     ]
 }

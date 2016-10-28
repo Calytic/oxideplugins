@@ -1,8 +1,8 @@
 {
-    "name": "Insults",
-    "description": "Insult yourself or another player.",
+    "name": "Position",
+    "description": "Shows players their positions.",
     "author": "Spicy",
-    "version": "1.0.3",
+    "version": "1.0.0",
     "configuration": false,
     "language": "cs",
     "games": [

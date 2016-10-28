@@ -2,7 +2,7 @@
     "name": "Player Inmations",
     "description": "Stores player IPs , usernames, positions, last seen, first connection ...",
     "author": "Reneb",
-    "version": "1.2.6",
+    "version": "1.2.7",
     "configuration": true,
     "require": {
         "PlayerDatabase": "*"

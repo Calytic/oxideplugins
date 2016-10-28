@@ -5,7 +5,7 @@ using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("Private Messages", "PaiN", "0.2", ResourceId = 0)]
+    [Info("Private Messages", "PaiN", "0.3.1", ResourceId = 2046)]
     class PrivateMessages : CovalencePlugin
     {
         [PluginReference]
@@ -78,7 +78,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            IPlayer target = players.FindConnectedPlayer(args[0]) ?? null;
+            IPlayer target = players.FindPlayer(args[0]) ?? null;
 
             if (target == null)
             {
@@ -138,7 +138,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            IPlayer LastSender = players.GetConnectedPlayer(LastPerson.FirstOrDefault(x => x.Value == player.Id).Key);
+            IPlayer LastSender = players.FindPlayer(LastPerson.FirstOrDefault(x => x.Value == player.Id).Key);
 
             if (LastSender == null)
             {

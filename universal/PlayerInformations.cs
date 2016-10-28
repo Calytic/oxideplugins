@@ -8,7 +8,7 @@ using Newtonsoft.Json;
 
 namespace Oxide.Plugins
 {
-    [Info("PlayerInformations", "Reneb", "1.2.6")]
+    [Info("PlayerInformations", "Reneb", "1.2.7")]
     [Description("Logs players informations.")]
     public class PlayerInformations : CovalencePlugin
     {
@@ -120,7 +120,7 @@ namespace Oxide.Plugins
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         void OnServerInitialized()
         {
-            if(PlayerDatabase == null)
+            if (PlayerDatabase == null)
             {
                 timer.Once(0.01f, () => Interface.Oxide.UnloadPlugin("PlayerInformations"));
                 return;
@@ -150,7 +150,7 @@ namespace Oxide.Plugins
 
         void StartRecordTimeAll()
         {
-            foreach (IPlayer player in players.GetAllPlayers().Where(x => x.IsConnected))
+            foreach (IPlayer player in players.Connected)
             {
                 StartRecordTime(player.Id);
             }
@@ -164,17 +164,17 @@ namespace Oxide.Plugins
 
         void EndRecordTimeAll()
         {
-            foreach (IPlayer player in players.GetAllPlayers().Where(x => x.IsConnected))
+            foreach (IPlayer player in players.Connected)
             {
                 EndRecordTime(player.Id);
             }
         }
 
-        bool IsConnected(string steamid) { return players.GetConnectedPlayer(steamid) != null ? true : false; }
+        bool IsConnected(string steamid) { return players.Connected.Where(x => x.Id == steamid).Count() > 0; }
 
         UnityEngine.Vector3 FindPosition(string steamid)
         {
-            var player = players.GetConnectedPlayer(steamid);
+            var player = players.FindPlayer(steamid);
             if (player == null) return default(UnityEngine.Vector3);
             return new UnityEngine.Vector3(player.Position().X, player.Position().Y, player.Position().Z);
         }
@@ -204,7 +204,7 @@ namespace Oxide.Plugins
             string answer = CMD_chatIps(player.Id, args);
             player.Reply(answer);
         }
-        
+
         [Command("lastseen")]
         void cmdChatLastseen(IPlayer player, string command, string[] args)
         {
@@ -269,7 +269,7 @@ namespace Oxide.Plugins
             string answer = CMD_chatLastPosition(player.Id, args);
             player.Reply(answer);
         }
-        
+
         void SendHelpText(IPlayer player) { player.Reply(HelpText(player.Id)); }
 
         string HelpText(string steamid)
@@ -298,7 +298,7 @@ namespace Oxide.Plugins
             if (TPuse)
                 StartRecordTime(steamid);
         }
-        
+
         void OnPlayerLeave(IPlayer player)
         {
             var steamid = player.Id.ToString();
@@ -308,7 +308,7 @@ namespace Oxide.Plugins
             if (TPuse)
                 EndRecordTime(steamid);
             if (LPuse)
-                RecordPosition(steamid, player.IsConnected ? player.Position().X.ToString() : "0" , player.IsConnected ? player.Position().Y.ToString() : "0", player.IsConnected ? player.Position().Z.ToString() : "0");
+                RecordPosition(steamid, player.IsConnected ? player.Position().X.ToString() : "0", player.IsConnected ? player.Position().Y.ToString() : "0", player.IsConnected ? player.Position().Z.ToString() : "0");
         }
 
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -356,8 +356,8 @@ namespace Oxide.Plugins
         {
             if (steamid == "server_console") return true;
 
-            var player = players.GetConnectedPlayer(steamid);
-            if (player != null)
+            var player = players.FindPlayer(steamid);
+            if (player != null && player.IsConnected)
             {
                 if (player.IsAdmin) return true;
 #if RUST
@@ -381,7 +381,7 @@ namespace Oxide.Plugins
             var IPlist = new List<string>();
 
             var success = PlayerDatabase?.Call("GetPlayerData", steamid, "IPs");
-            
+
             if (success is List<string>)
                 IPlist = (List<string>)success;
 
@@ -389,7 +389,7 @@ namespace Oxide.Plugins
 
             if (IPlist.Count >= IPmaxLogs)
             {
-                for(int i = 0; i < (IPlist.Count - IPmaxLogs + 1); i ++)
+                for (int i = 0; i < (IPlist.Count - IPmaxLogs + 1); i++)
                 {
                     IPlist.RemoveAt(0);
                 }
@@ -416,7 +416,7 @@ namespace Oxide.Plugins
             {
                 IPlist = JsonConvert.DeserializeObject<List<string>>((string)success);
             }
-                
+
             if (IPlist.Count == 0)
             {
                 return GetMsg("No logs for this player.", steamid);
@@ -472,7 +472,7 @@ namespace Oxide.Plugins
         }
 
 
-        
+
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         /// Last Seen Related
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -506,7 +506,7 @@ namespace Oxide.Plugins
             var name = (string)PlayerDatabase.Call("GetPlayerData", findplayer.ToString(), "name") ?? "Unknown";
             return string.Format("{0} - {1} was last seen: {2}", name, findplayer.ToString(), TimeMinToString((string)success));
         }
-        
+
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         /// First Connection
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -543,7 +543,7 @@ namespace Oxide.Plugins
             var name = (string)PlayerDatabase.Call("GetPlayerData", findplayer.ToString(), "name") ?? "Unknown";
             return string.Format("{0} - {1} first connected: {2}", name, findplayer.ToString(), TimeMinToString((string)success));
         }
-        
+
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         /// Record Names
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -600,7 +600,7 @@ namespace Oxide.Plugins
             }
             return replyanswer;
         }
-        
+
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         /// Record Time Played
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -645,7 +645,7 @@ namespace Oxide.Plugins
                 tplayed += LogTime() - recordPlayTime[steamid];
             return string.Format("{0} - {1} played: {2}", name, findplayer.ToString(), SecondsToString(tplayed.ToString()));
         }
-        
+
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         /// Position Related
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

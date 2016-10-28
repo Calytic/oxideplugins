@@ -9,7 +9,7 @@ using System;
 
 namespace Oxide.Plugins
 {
-    [Info("Better Chat", "LaserHydra", "4.2.8", ResourceId = 979)]
+    [Info("Better Chat", "LaserHydra", "4.2.11", ResourceId = 979)]
     [Description("Customize chat colors, formatting, prefix and more")]
     public class BetterChat : CovalencePlugin
     {
@@ -31,6 +31,8 @@ namespace Oxide.Plugins
 
             internal void Update(IPlayer player)
             {
+                mute.Update();
+
                 if (steamID != player.Id || name != player.Name)
                 {
                     name = player.Name;
@@ -46,12 +48,12 @@ namespace Oxide.Plugins
                 }
             }
 
-            static internal Player Find(IPlayer player) => Plugin.Players.Find((p) => p.steamID == player.Id);
-            static internal Player Find(string steamID) => Plugin.Players.Find((p) => p.steamID == steamID);
+            internal static Player Find(IPlayer player) => Plugin.Players.Find((p) => p.steamID == player.Id);
+            internal static Player Find(string steamID) => Plugin.Players.Find((p) => p.steamID == steamID);
 
-            static internal Player Create(IPlayer player) => Create(player.Id, player.Name);
+            internal static Player Create(IPlayer player) => Create(player.Id, player.Name);
 
-            static internal Player Create(string id, string name = "unknown")
+            internal static Player Create(string id, string name = "unknown")
             {
                 Player pl = new Player();
 
@@ -64,9 +66,9 @@ namespace Oxide.Plugins
                 return pl;
             }
 
-            static internal Player LoadOrCreate(IPlayer player) => LoadOrCreate(player.Id, player.Name);
+            internal static Player LoadOrCreate(IPlayer player) => LoadOrCreate(player.Id, player.Name);
 
-            static internal Player LoadOrCreate(string id, string name = "unknown")
+            internal static Player LoadOrCreate(string id, string name = "unknown")
             {
                 Player pl = null;
                 Plugin.LoadData(ref pl, $"BetterChat/Players/{id}");
@@ -79,7 +81,7 @@ namespace Oxide.Plugins
                 return pl;
             }
 
-            static internal Player FindOrCreate(IPlayer player)
+            internal static Player FindOrCreate(IPlayer player)
             {
                 Player pl = Find(player);
 
@@ -89,7 +91,7 @@ namespace Oxide.Plugins
                 return pl;
             }
 
-            static internal Player FindOrCreate(string id)
+            internal static Player FindOrCreate(string id)
             {
                 Player pl = Find(id);
 
@@ -130,7 +132,7 @@ namespace Oxide.Plugins
 
             internal string steamID = "0";
             internal Player player => Player.Find(steamID);
-            internal IPlayer IPlayer => Plugin.covalence.Players.GetPlayer(steamID);
+            internal IPlayer IPlayer => Plugin.covalence.Players.FindPlayer(steamID);
 
             internal void Updated()
             {
@@ -760,7 +762,7 @@ namespace Oxide.Plugins
 
         #region Formatting Helpers
 
-        //[Command("global.test")]
+        //[Command("test")]
         //void TestCmd(IPlayer player, string cmd, string[] args) => ReplaceTaggedNames(string.Join(" ", args));
 
         string ReplaceTaggedNames(string input)
@@ -883,7 +885,7 @@ namespace Oxide.Plugins
             SendChatMessage(player, GetMsg("No Longer Ignoring Player").Replace("{player}", target.Name));
         }
 
-        [Command("muteglobal", "global.muteglobal"), Permission("betterchat.mute")]
+        [Command("muteglobal"), Permission("betterchat.mute")]
         void cmdMuteGlobal(IPlayer player, string cmd, string[] args)
         {
             globalMute = true;
@@ -892,7 +894,7 @@ namespace Oxide.Plugins
             Puts(GetMsg("Muted Global"));
         }
 
-        [Command("unmuteglobal", "global.unmuteglobal"), Permission("betterchat.mute")]
+        [Command("unmuteglobal"), Permission("betterchat.mute")]
         void cmdUnmuteGlobal(IPlayer player, string cmd, string[] args)
         {
             globalMute = false;
@@ -901,7 +903,7 @@ namespace Oxide.Plugins
             Puts(GetMsg("Unmuted Global"));
         }
 
-        [Command("mute", "global.mute"), Permission("betterchat.mute")]
+        [Command("mute"), Permission("betterchat.mute")]
         void cmdMute(IPlayer player, string cmd, string[] args)
         {
             if (args.Length == 0)
@@ -945,7 +947,7 @@ namespace Oxide.Plugins
             }
         }
 
-        [Command("unmute", "global.unmute"), Permission("betterchat.mute")]
+        [Command("unmute"), Permission("betterchat.mute")]
         void cmdUnmute(IPlayer player, string cmd, string[] args)
         {
             if (args.Length == 0)
@@ -970,7 +972,7 @@ namespace Oxide.Plugins
             pl.mute.Unmute();
         }
 
-        [Command("chat", "global.chat"), Permission("betterchat.admin")]
+        [Command("chat"), Permission("betterchat.admin")]
         void cmdBetterChat(IPlayer player, string cmd, string[] args)
         {
             if (args.Length == 0)
@@ -1352,9 +1354,6 @@ namespace Oxide.Plugins
         {
             Player pl = Player.FindOrCreate(player);
 
-            if (pl == null)
-                PrintWarning("PLAYER IS NULL!");
-
             if (GetConfig(false, "Word Filter", "Enabled"))
                 message = FilterText(message);
 
@@ -1362,7 +1361,7 @@ namespace Oxide.Plugins
             if (message == string.Empty || message.Length < General_MinimalChars)
                 return false;
 
-            pl.mute.Update();
+            pl.Update(player);
 
             // Is global mute active?
             if (globalMute)
@@ -1475,7 +1474,7 @@ namespace Oxide.Plugins
         {
             if (IsParseableTo<ulong>(nameOrID))
             {
-                IPlayer result = covalence.Players.GetAllPlayers().ToList().Find((p) => p.Id == nameOrID);
+                IPlayer result = covalence.Players.All.ToList().Find((p) => p.Id == nameOrID);
 
                 if (result == null)
                     SendChatMessage(player, $"Could not find player with ID '{nameOrID}'");

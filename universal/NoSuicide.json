@@ -2,7 +2,7 @@
     "name": "NoSuicide",
     "description": "Stops players from suiciding\/killing themselves",
     "author": "Wulf",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "configuration": false,
     "language": "cs",
     "games": [

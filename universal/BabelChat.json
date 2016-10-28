@@ -2,7 +2,7 @@
     "name": "BabelChat",
     "description": "Translates chat messages to each player's language preference or default language",
     "author": "Wulf",
-    "version": "0.2.1",
+    "version": "0.3.0",
     "configuration": true,
     "suggest": {
         "AntiAds": "*",

@@ -1,8 +1,8 @@
 {
-    "name": "ReportBot",
-    "description": "Forwards server reports to their owners via Steam.",
-    "author": "Spicy",
-    "version": "1.0.5",
+    "name": "Rusted.store",
+    "description": "Donation and payment platform",
+    "author": "",
+    "version": "1.0.2",
     "configuration": true,
     "language": "cs",
     "games": [

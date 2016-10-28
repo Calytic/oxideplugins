@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("PickupLines", "Spicy", "1.0.1")]
+    [Info("PickupLines", "Spicy", "1.0.2")]
     [Description("Send lovely pickup lines to yourself or other players.")]
 
     class PickupLines : CovalencePlugin
@@ -51,7 +51,7 @@ namespace Oxide.Plugins
                 targetPlayer = player;
             else
             {
-                IEnumerable<IPlayer> targetList = players.FindConnectedPlayers(args[0]);
+                IEnumerable<IPlayer> targetList = players.FindPlayers(args[0]);
 
                 if (targetList.Count() < 1)
                 {
@@ -65,7 +65,7 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                targetPlayer = players.FindConnectedPlayer(args[0]);
+                targetPlayer = players.FindPlayer(args[0]);
             }
 
             string pickupLineURL = "http://www.pickuplinegen.com";

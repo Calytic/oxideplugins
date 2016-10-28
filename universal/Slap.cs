@@ -12,7 +12,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("Slap", "Wulf/lukespragg", "1.0.0", ResourceId = 1458)]
+    [Info("Slap", "Wulf/lukespragg", "1.2.0", ResourceId = 1458)]
     [Description("Sometimes players just need to be slapped around a bit")]
 
     class Slap : CovalencePlugin
@@ -21,13 +21,20 @@ namespace Oxide.Plugins
 
         readonly Hash<string, float> cooldowns = new Hash<string, float>();
         const string permUse = "slap.use";
+
+        int cooldown;
         int damageAmount;
-        int usageCooldown;
 
         protected override void LoadDefaultConfig()
         {
-            Config["DamageAmount"] = damageAmount = GetConfig("DamageAmount", 5);
-            Config["UsageCooldown"] = usageCooldown = GetConfig("UsageCooldown", 30);
+            // Settings
+            Config["Cooldown (Seconds, 0 to Disable)"] = cooldown = GetConfig("Cooldown (Seconds, 0 to Disable)", 30);
+            Config["Damage Amount (0 to Disable)"] = damageAmount = GetConfig("Damage Amount (0 to Disable)", 5);
+
+            // Cleanup
+            Config.Remove("DamageAmount");
+            Config.Remove("UsageCooldown");
+
             SaveConfig();
         }
 
@@ -48,7 +55,7 @@ namespace Oxide.Plugins
             lang.RegisterMessages(new Dictionary<string, string>
             {
                 ["CommandUsage"] = "Usage: {0} <name or id> <amount> (amount is optional)",
-                ["Cooldown"] = "Wait a bit before attempting to slap again",
+                ["Cooldown"] = "Wait a bit before attempting to slap again", // TODO: Use {0} for slap
                 ["NotAllowed"] = "You are not allowed to use the '{0}' command",
                 ["PlayerNotFound"] = "Player '{0}' was not found",
                 ["PlayerSlapped"] = "{0} got slapped!",
@@ -61,7 +68,7 @@ namespace Oxide.Plugins
                 ["CommandUsage"] = "UtilisationÂ : {0} <nom ou id> <amount> (montant est facultatif)",
                 ["Cooldown"] = "Attendre un peu avant de tenter de frapper Ã  nouveau",
                 ["NotAllowed"] = "Vous nâÃªtes pas autorisÃ© Ã  utiliser la commande Â«Â {0}Â Â»",
-                ["PlayerNotFound"] = "Player Â«Â {0}Â Â» nâa pas Ã©tÃ© trouvÃ©e.",
+                ["PlayerNotFound"] = "Player Â«Â {0}Â Â» nâa pas Ã©tÃ© trouvÃ©e",
                 ["PlayerSlapped"] = "{0} a giflÃ©Â !",
                 ["YouGotSlapped"] = "Vous lâa giflÃ©Â !"
             }, this, "fr");
@@ -120,13 +127,13 @@ namespace Oxide.Plugins
             }
 
             if (!cooldowns.ContainsKey(player.Id)) cooldowns.Add(player.Id, 0f);
-            if (usageCooldown != 0 && cooldowns[player.Id] + usageCooldown > Interface.Oxide.Now)
+            if (cooldown != 0 && cooldowns[player.Id] + cooldown > Interface.Oxide.Now)
             {
                 player.Reply(Lang("Cooldown", player.Id));
                 return;
             }
 
-            var target = players.FindPlayer(args[0]) ?? players.GetPlayer(args[0]);
+            var target = players.FindPlayer(args[0]);
             if (target == null)
             {
                 player.Reply(Lang("PlayerNotFound", player.Id, args[0]));
@@ -134,7 +141,7 @@ namespace Oxide.Plugins
             }
 
             timer.Repeat(0.6f, args.Length == 2 ? Convert.ToInt32(args[1]) : 1, () => SlapPlayer(target));
-            player.Reply(Lang("PlayerSlapped", player.Id, target.Name));
+            if (!target.Equals(player)) player.Reply(Lang("PlayerSlapped", player.Id, target.Name));
             target.Message(Lang("YouGotSlapped", target.Id));
             cooldowns[player.Id] = Interface.Oxide.Now;
         }
@@ -147,7 +154,6 @@ namespace Oxide.Plugins
         {
             var r = new System.Random();
             var pos = player.Position();
-
 #if RUST
             var basePlayer = (BasePlayer)player.Object;
 
@@ -170,16 +176,19 @@ namespace Oxide.Plugins
             var effect = effects[r.Next(effects.Length)];
             Effect.server.Run($"assets/bundled/prefabs/fx/{effect}.prefab", basePlayer.transform.position, UnityEngine.Vector3.zero);
 #endif
-
             if (damageAmount > 0f) player.Hurt(damageAmount);
             player.Teleport(pos.X + r.Next(-3, 3), pos.Y + r.Next(1, 3), pos.Z + r.Next(-3, 3));
         }
 
         #endregion
 
+        #region Helpers
+
         T GetConfig<T>(string name, T value) => Config[name] == null ? value : (T)Convert.ChangeType(Config[name], typeof(T));
 
         string Lang(string key, string id = null, params object[] args) => string.Format(lang.GetMessage(key, this, id), args);
+
+        #endregion
     }
 }
 

@@ -2,7 +2,7 @@
     "name": "Healer",
     "description": "Allows players with permission to heal themselves or others",
     "author": "Wulf",
-    "version": "2.2.1",
+    "version": "2.4.0",
     "configuration": true,
     "language": "cs",
     "games": [

@@ -2,17 +2,17 @@
     "name": "Private Messages",
     "description": "This plugin allows you to send private messages to players.",
     "author": "PaiN",
-    "version": "0.2",
+    "version": "0.3.1",
     "configuration": true,
     "suggest": {
         "AntiAds": "*"
     },
     "language": "cs",
     "games": [
-        "Universal"
+        "universal"
     ],
     "keywords": [
         "oxide",
-        "Universal"
+        "universal"
     ]
 }

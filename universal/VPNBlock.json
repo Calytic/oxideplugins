@@ -2,14 +2,14 @@
     "name": "VPNBlock",
     "description": "Automatically kick players using VPN",
     "author": "Calytic",
-    "version": "0.0.21",
+    "version": "0.0.3",
     "configuration": false,
     "language": "cs",
     "games": [
-        "Universal"
+        "universal"
     ],
     "keywords": [
         "oxide",
-        "Universal"
+        "universal"
     ]
 }

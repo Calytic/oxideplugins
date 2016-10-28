@@ -1,9 +1,9 @@
 {
-    "name": "Insults",
-    "description": "Insult yourself or another player.",
+    "name": "ProfanityFilter",
+    "description": "Filters profanity.",
     "author": "Spicy",
-    "version": "1.0.3",
-    "configuration": false,
+    "version": "1.0.0",
+    "configuration": true,
     "language": "cs",
     "games": [
         "universal"

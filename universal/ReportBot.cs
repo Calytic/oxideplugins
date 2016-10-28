@@ -5,7 +5,7 @@ using System.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("ReportBot", "Spicy", "1.0.4")]
+    [Info("ReportBot", "Spicy", "1.0.5")]
     [Description("Allows server reports to be sent over Steam to server owners.")]
 
     class ReportBot : CovalencePlugin
@@ -75,7 +75,7 @@ namespace Oxide.Plugins
                 return;
             }
 
-            IEnumerable<IPlayer> targetList = players.FindConnectedPlayers(args[0]);
+            IEnumerable<IPlayer> targetList = players.FindPlayers(args[0]);
 
             if (targetList.Count() < 1)
             {
@@ -89,7 +89,7 @@ namespace Oxide.Plugins
                 return;
             }
 
-            IPlayer target = players.FindConnectedPlayer(args[0]);
+            IPlayer target = players.FindPlayer(args[0]);
 
             float playerX, playerY, playerZ;
             player.Position(out playerX, out playerY, out playerZ);

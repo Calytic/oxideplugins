@@ -1,28 +1,29 @@
-// Reference: Facepunch.SQLite
-
 using System;
 using System.Collections.Generic;
 using Oxide.Core;
 using Oxide.Core.Configuration;
 using Oxide.Core.Libraries.Covalence;
+using Oxide.Ext.SQLite.Libraries;
+using Oxide.Ext.MySql.Libraries;
 using Newtonsoft.Json.Linq;
+using Oxide.Core.Database;
 using Newtonsoft.Json;
-using Facepunch;
 using System.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("PlayerDatabase", "Reneb", "1.4.1")]
+    [Info("PlayerDatabase", "Reneb", "1.5.3")]
     class PlayerDatabase : CovalencePlugin
     {
         List<string> changedPlayersData = new List<string>();
 
-        DataType dataType = DataType.SQLite;
+        DataType dataType = DataType.Files;
 
         enum DataType
         {
             Files,
-            SQLite
+            SQLite,
+            MySql
         }
 
         ////////////////////////////////////////////////////////////
@@ -30,6 +31,15 @@ namespace Oxide.Plugins
         ////////////////////////////////////////////////////////////
 
         static int dataTypeCfg = 1;
+
+        static string sqlitename = "playerdatabase.db";
+
+        static string sql_host = "localhost";
+        static int sql_port = 3306;
+        static string sql_db = "rust";
+        static string sql_user = "root";
+        static string sql_pass = "toor";
+
 
         protected override void LoadDefaultConfig() { }
 
@@ -43,7 +53,13 @@ namespace Oxide.Plugins
 
         void Init()
         {
-            CheckCfg<int>("Data Type : 0 (Files) or 1 (SQLite)", ref dataTypeCfg);
+            CheckCfg<int>("Data Type : 0 (Files) or 1 (SQLite) or 2 (MySQL)", ref dataTypeCfg);
+            CheckCfg<string>("SQLite - Database Name", ref sqlitename);
+            CheckCfg<string>("MySQL - Host", ref sql_host);
+            CheckCfg<int>("MySQL - Port", ref sql_port);
+            CheckCfg<string>("MySQL - Database Name", ref sql_db);
+            CheckCfg<string>("MySQL - Username", ref sql_user);
+            CheckCfg<string>("MySQL - Password", ref sql_pass);
             dataType = (DataType)dataTypeCfg;
             SaveConfig();
             SetupDatabase();
@@ -56,14 +72,15 @@ namespace Oxide.Plugins
         void FatalError(string msg)
         {
             Interface.Oxide.LogError(msg);
+            if (dataType == DataType.MySql) Sql_conn.Con.Close();
             timer.Once(0.01f, () => Interface.Oxide.UnloadPlugin("PlayerDatabase"));
         }
 
         string GetMsg(string key, object steamid = null) => lang.GetMessage(key, this, steamid == null ? null : steamid.ToString());
 
-        List<string> KnownPlayers() => dataType == DataType.SQLite ? sqlData.Keys.ToList() : storedData.knownPlayers.ToList();
+        List<string> KnownPlayers() => dataType == DataType.SQLite ? sqliteData.Keys.ToList() : dataType == DataType.MySql ? sqlData.Keys.ToList() : storedData.knownPlayers.ToList();
 
-        bool isKnownPlayer(string userid) => dataType == DataType.SQLite ? sqlData.ContainsKey(userid) : storedData.knownPlayers.Contains(userid);
+        bool isKnownPlayer(string userid) => dataType == DataType.SQLite ? sqliteData.ContainsKey(userid) : dataType == DataType.MySql ? sqlData.ContainsKey(userid) : storedData.knownPlayers.Contains(userid);
 
         List<string> GetAllKnownPlayers() => KnownPlayers();
 
@@ -152,14 +169,14 @@ namespace Oxide.Plugins
         {
             switch (dataType)
             {
-                case DataType.Files:
-                    LoadFiles();
-                    break;
                 case DataType.SQLite:
                     LoadSQLite();
                     break;
+                case DataType.MySql:
+                    LoadMySQL();
+                    break;
                 default:
-                    FatalError("Wrong DataType");
+                    LoadFiles();
                     break;
             }
         }
@@ -181,13 +198,17 @@ namespace Oxide.Plugins
 
         void LoadPlayer(string userid)
         {
-            if (dataType == DataType.Files)
-            {
-                LoadPlayerData(userid);
-            }
-            else if (dataType == DataType.SQLite)
+            if (dataType == DataType.SQLite)
             {
                 LoadPlayerSQLite(userid);
+            }
+            else if (dataType == DataType.MySql)
+            {
+                LoadPlayerSQL(userid);
+            }
+            else
+            {
+                LoadPlayerData(userid);
             }
         }
 
@@ -201,16 +222,20 @@ namespace Oxide.Plugins
             {
                 try
                 {
-                    if (dataType == DataType.Files)
-                    {
-                        SavePlayerData(userid);
-                    }
-                    else if (dataType == DataType.SQLite)
+                    if (dataType == DataType.SQLite)
                     {
                         SavePlayerSQLite(userid);
                     }
+                    else if (dataType == DataType.MySql)
+                    {
+                        SavePlayerSQL(userid);
+                    }
+                    else
+                    {
+                        SavePlayerData(userid);
+                    }
                 }
-                catch(Exception e)
+                catch (Exception e)
                 {
                     Interface.Oxide.LogWarning(e.Message);
                 }
@@ -228,21 +253,28 @@ namespace Oxide.Plugins
         void SetPlayerData(string userid, string key, object data)
         {
             if (!isKnownPlayer(userid)) LoadPlayer(userid);
-
-            if (dataType == DataType.Files)
-            {
-                var profile = playersData[userid];
-
-                profile[key] = JsonConvert.SerializeObject(data);
-                playersData[userid] = profile;
-            }
-            else if (dataType == DataType.SQLite)
+            if (dataType == DataType.SQLite)
             {
                 if (!isValidColumn(key))
                 {
                     CreateNewColumn(key);
                 }
+                sqliteData[userid][key] = JsonConvert.SerializeObject(data);
+            }
+            else if (dataType == DataType.MySql)
+            {
+                if (!isValidColumn2(key))
+                {
+                    CreateNewColumn2(key);
+                }
                 sqlData[userid][key] = JsonConvert.SerializeObject(data);
+            }
+            else
+            {
+                var profile = playersData[userid];
+
+                profile[key] = JsonConvert.SerializeObject(data);
+                playersData[userid] = profile;
             }
 
             if (!changedPlayersData.Contains(userid))
@@ -253,37 +285,51 @@ namespace Oxide.Plugins
         {
             if (!isKnownPlayer(userid)) return null;
 
-            if (dataType == DataType.Files)
+            if (dataType == DataType.SQLite)
+            {
+                if (!isValidColumn(key)) return null;
+                if (sqliteData[userid] == null) return null;
+                if (sqliteData[userid][key] == null) return null;
+                return (string)sqliteData[userid][key];
+            }
+            else if (dataType == DataType.MySql)
+            {
+                if (!isValidColumn2(key)) return null;
+                if (sqlData[userid] == null) return null;
+                if (sqlData[userid][key] == null) return null;
+                return (string)sqlData[userid][key];
+            }
+            else
             {
                 var profile = playersData[userid];
                 if (profile[key] == null) return null;
                 return (string)profile[key];
             }
-            else if (dataType == DataType.SQLite)
-            {
-                if (!isValidColumn(key)) return null;
-                if (sqlData[userid] == null) return null;
-                return (string)sqlData[userid][key];
-            }
-            return null;
         }
         object GetPlayerData(string userid, string key)
         {
             if (!isKnownPlayer(userid)) return null;
 
-            if (dataType == DataType.Files)
+            if (dataType == DataType.SQLite)
+            {
+                if (!isValidColumn(key)) return null;
+                if (sqliteData[userid] == null) return null;
+                if (sqliteData[userid][key] == null) return null;
+                return JsonConvert.DeserializeObject((string)sqliteData[userid][key]);
+            }
+            else if (dataType == DataType.MySql)
+            {
+                if (!isValidColumn2(key)) return null;
+                if (sqlData[userid] == null) return null;
+                if (sqlData[userid][key] == null) return null;
+                return JsonConvert.DeserializeObject((string)sqlData[userid][key]);
+            }
+            else
             {
                 var profile = playersData[userid];
                 if (profile[key] == null) return null;
                 return JsonConvert.DeserializeObject((string)profile[key]);
             }
-            else if (dataType == DataType.SQLite)
-            {
-                if (!isValidColumn(key)) return null;
-                if (sqlData[userid] == null) return null;
-                return JsonConvert.DeserializeObject((string)sqlData[userid][key]);
-            }
-            return null;
         }
 
 
@@ -346,17 +392,18 @@ namespace Oxide.Plugins
         // SQLite
         ////////////////////////////////////////////////////////////
 
-        SQLite storedSql;
+        Ext.SQLite.Libraries.SQLite Sqlite = Interface.GetMod().GetLibrary<Ext.SQLite.Libraries.SQLite>();
+        Connection Sqlite_conn;
 
         List<string> sqliteColumns = new List<string>();
 
-        Dictionary<string, Hash<string, string>> sqlData = new Dictionary<string, Hash<string, string>>();
+        Dictionary<string, Hash<string, string>> sqliteData = new Dictionary<string, Hash<string, string>>();
 
         bool isValidColumn(string column) => sqliteColumns.Contains(column);
 
         void CreateNewColumn(string column)
         {
-            storedSql.Execute(string.Format("ALTER TABLE PlayerDatabase ADD COLUMN '{0}' TEXT", column));
+            Sqlite.Insert(Core.Database.Sql.Builder.Append(string.Format("ALTER TABLE PlayerDatabase ADD COLUMN '{0}' TEXT", column)), Sqlite_conn);
             sqliteColumns.Add(column);
         }
 
@@ -364,102 +411,188 @@ namespace Oxide.Plugins
         {
             try
             {
-                storedSql = new SQLite();
-                if (!storedSql.Open("playerdatabase"))
+                Sqlite_conn = Sqlite.OpenDb(sqlitename, this);
+                if (Sqlite_conn == null)
                 {
                     FatalError("Couldn't open the SQLite PlayerDatabase. ");
                     return;
                 }
-                storedSql.Execute("CREATE TABLE IF NOT EXISTS PlayerDatabase ( id INTEGER NOT NULL PRIMARY KEY UNIQUE, userid TEXT );", new object[0]);
-                IntPtr intPtr = storedSql.Query("PRAGMA table_info(PlayerDatabase);");
-                if (intPtr == IntPtr.Zero)
+                Sqlite.Insert(Core.Database.Sql.Builder.Append("CREATE TABLE IF NOT EXISTS PlayerDatabase ( id INTEGER NOT NULL PRIMARY KEY UNIQUE, userid TEXT );"), Sqlite_conn);
+                Sqlite.Query(Core.Database.Sql.Builder.Append("PRAGMA table_info(PlayerDatabase);"), Sqlite_conn, list =>
                 {
-                    FatalError("Couldn't get columns. Database might be corrupted.");
-                    return;
-                }
-                while (storedSql.StepRow(intPtr))
-                {
-                    sqliteColumns.Add(storedSql.GetColumnValue<string>(intPtr, 1, null));
-                }
-                storedSql.QueryFinalize(intPtr);
+                    if (list == null)
+                    {
+                        FatalError("Couldn't get columns. Database might be corrupted.");
+                        return;
+                    }
+                    foreach (var entry in list)
+                    {
+                        sqliteColumns.Add((string)entry["name"]);
+                    }
 
-                IntPtr intPtr2 = storedSql.Query("SELECT userid from PlayerDatabase");
-                if (intPtr2 == IntPtr.Zero)
+                });
+                Sqlite.Query(Core.Database.Sql.Builder.Append("SELECT userid from PlayerDatabase"), Sqlite_conn, list =>
                 {
-                    return;
-                }
-                while (storedSql.StepRow(intPtr2))
-                {
-                    string steamid = storedSql.GetColumnValue<string>(intPtr2, 0, "0");
-                    if (steamid != "0")
-                        sqlData.Add(steamid, new Hash<string, string>());
-                }
-                storedSql.QueryFinalize(intPtr2);
+                    if (list == null) return;
+                    foreach (var entry in list)
+                    {
+                        string steamid = (string)entry["userid"];
+                        if (steamid != "0")
+                            sqliteData.Add(steamid, new Hash<string, string>());
+                    }
+                });
             }
-            catch (Exception e) {
+            catch (Exception e)
+            {
                 FatalError(e.Message);
             }
         }
 
         void LoadPlayerSQLite(string userid)
         {
-            IntPtr intPtr = storedSql.Query("SELECT * from PlayerDatabase WHERE userid == ?1", new object[]
-               {
-                    userid
-               });
-
-
-            if (!sqlData.ContainsKey(userid)) sqlData.Add(userid, new Hash<string, string>());
-            if (intPtr == IntPtr.Zero)
+            if (!sqliteData.ContainsKey(userid)) { sqliteData.Add(userid, new Hash<string, string>()); }
+            bool newplayer = true;
+            Sqlite.Query(Core.Database.Sql.Builder.Append(string.Format("SELECT * from PlayerDatabase WHERE userid == {0}", userid)), Sqlite_conn, list =>
             {
-                return;
-            }
-
-            while (storedSql.StepRow(intPtr))
-            {
-                Interface.Oxide.LogWarning(intPtr.ToString());
-                for (int i = 2; i < storedSql.Columns(intPtr); i++)
+                if (list != null)
                 {
-                    sqlData[userid][sqliteColumns[i]] = storedSql.GetColumnValue<string>(intPtr, i, string.Empty);
+                    foreach (var entry in list)
+                    {
+                        foreach (var p in entry)
+                        {
+                            sqliteData[userid][p.Key] = (string)p.Value;
+
+                        }
+                        newplayer = false;
+                    }
                 }
-            }
-            if (sqlData[userid].Count == 0)
-            {
-                sqlData[userid]["userid"] = userid;
-                storedSql.Execute("BEGIN TRANSACTION");
-                storedSql.Insert("INSERT OR REPLACE INTO PlayerDatabase ( userid ) VALUES ( ?1 )", new object[] { userid });
-                storedSql.Execute("END TRANSACTION");
+                if (newplayer)
+                {
+                    sqliteData[userid]["userid"] = userid;
+                    Sqlite.Insert(Core.Database.Sql.Builder.Append(string.Format("INSERT OR REPLACE INTO PlayerDatabase ( userid ) VALUES ( {0} )", userid)), Sqlite_conn);
 
-                changedPlayersData.Add(userid);
-            }
-
-            storedSql.QueryFinalize(intPtr);
+                    changedPlayersData.Add(userid);
+                }
+            });
         }
 
         void SavePlayerSQLite(string userid)
         {
-            storedSql.Execute("BEGIN TRANSACTION");
-            var values = sqlData[userid];
+            var values = sqliteData[userid];
+            var i = values.Count;
 
             string arg = string.Empty;
+            var parms = new List<object>();
             foreach (var c in values)
             {
-                arg += string.Format("{0}`{1}` = '{2}'", arg == string.Empty ? string.Empty : ",", c.Key, c.Value);
+                arg += string.Format("{0}`{1}` = @{2}", arg == string.Empty ? string.Empty : ",", c.Key, parms.Count.ToString());
+                parms.Add( c.Value);
             }
 
-            storedSql.Insert(string.Format("UPDATE PlayerDatabase SET {0} WHERE userid = {1}", arg, userid));
-            storedSql.Execute("END TRANSACTION", new object[0]);
+            Sqlite.Insert(Core.Database.Sql.Builder.Append(string.Format("UPDATE PlayerDatabase SET {0} WHERE userid = {1}", arg, userid), parms.ToArray()), Sqlite_conn);
         }
 
 
-        
+        ////////////////////////////////////////////////////////////
+        // MySQL
+        ////////////////////////////////////////////////////////////
 
-        
+        Ext.MySql.Libraries.MySql Sql = Interface.GetMod().GetLibrary<Ext.MySql.Libraries.MySql>();
+        Connection Sql_conn;
 
-        
+        List<string> sqlColumns = new List<string>();
 
-       
+        Dictionary<string, Hash<string, string>> sqlData = new Dictionary<string, Hash<string, string>>();
 
-        
+        bool isValidColumn2(string column) => sqlColumns.Contains(column);
+
+        void CreateNewColumn2(string column)
+        {
+            Sql.Insert(Core.Database.Sql.Builder.Append(string.Format("ALTER TABLE `playerdatabase` ADD `{0}` LONGTEXT", column)), Sql_conn);
+            sqlColumns.Add(column);
+        }
+
+        void LoadMySQL()
+        {
+            try
+            {
+                Sql_conn = Sql.OpenDb(sql_host, sql_port, sql_db, sql_user, sql_pass, this);
+                if (Sql_conn == null || Sql_conn.Con == null)
+                {
+                    FatalError("Couldn't open the SQLite PlayerDatabase: " + Sql_conn.Con.State.ToString());
+                    return;
+                }
+                Sql.Insert(Core.Database.Sql.Builder.Append("CREATE TABLE IF NOT EXISTS playerdatabase ( `id` int(11) NOT NULL, `userid` VARCHAR(17) NOT NULL );"), Sql_conn);
+                Sql.Query(Core.Database.Sql.Builder.Append("desc playerdatabase;"), Sql_conn, list =>
+                {
+                    if (list == null)
+                    {
+                        FatalError("Couldn't get columns. Database might be corrupted.");
+                        return;
+                    }
+                    foreach (var entry in list)
+                    {
+                        sqlColumns.Add((string)entry["Field"]);
+                    }
+
+                });
+                Sql.Query(Core.Database.Sql.Builder.Append("SELECT userid from playerdatabase"), Sql_conn, list =>
+                {
+                    if (list == null) return;
+                    foreach (var entry in list)
+                    {
+                        string steamid = (string)entry["userid"];
+                        if (steamid != "0")
+                            sqlData.Add(steamid, new Hash<string, string>());
+                    }
+                });
+            }
+            catch (Exception e)
+            {
+                FatalError(e.Message);
+            }
+        }
+
+        void LoadPlayerSQL(string userid)
+        {
+            if (!sqlData.ContainsKey(userid)) sqlData.Add(userid, new Hash<string, string>());
+            bool newplayer = true;
+            Sql.Query(Core.Database.Sql.Builder.Append(string.Format("SELECT * from playerdatabase WHERE `userid` = '{0}'", userid)), Sql_conn, list =>
+            {
+                if (list != null)
+                {
+                    foreach (var entry in list)
+                    {
+                        foreach (var p in entry)
+                        {
+                            sqlData[userid][p.Key] = (string)p.Value;
+                        }
+                        newplayer = false;
+                    }
+                }
+                if (newplayer)
+                {
+                    sqlData[userid]["userid"] = userid;
+                    Sql.Insert(Core.Database.Sql.Builder.Append(string.Format("INSERT IGNORE INTO playerdatabase ( userid ) VALUES ( {0} )", userid)), Sql_conn);
+
+                    changedPlayersData.Add(userid);
+                }
+            });
+        }
+
+        void SavePlayerSQL(string userid)
+        {
+            var values = sqlData[userid];
+
+            string arg = string.Empty;
+            var parms = new List<object>();
+            foreach (var c in values)
+            {
+                arg += string.Format("{0}`{1}` = @{2}", arg == string.Empty ? string.Empty : ",", c.Key, parms.Count.ToString());
+                parms.Add(c.Value);
+            }
+
+            Sql.Insert(Core.Database.Sql.Builder.Append(string.Format("UPDATE playerdatabase SET {0} WHERE userid = {1}", arg, userid), parms.ToArray()), Sql_conn);
+        }
     }
 }

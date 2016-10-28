@@ -2,7 +2,7 @@
     "name": "Better Chat",
     "description": "Customize chat colors, formatting, prefix and more",
     "author": "LaserHydra",
-    "version": "4.2.8",
+    "version": "4.2.11",
     "configuration": true,
     "language": "cs",
     "games": [

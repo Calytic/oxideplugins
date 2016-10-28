@@ -2,7 +2,7 @@
     "name": "Clans",
     "description": "Universal clans with alliance support",
     "author": "k1lly0u",
-    "version": "0.1.28",
+    "version": "0.1.31",
     "configuration": true,
     "require": {
         "BetterChat": "*"

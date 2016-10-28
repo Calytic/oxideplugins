@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("Insults", "Spicy", "1.0.2")]
+    [Info("Insults", "Spicy", "1.0.3")]
     [Description("Send insults to yourself or other players.")]
 
     class Insults : CovalencePlugin
@@ -51,7 +51,7 @@ namespace Oxide.Plugins
                 targetPlayer = player;
             else
             {
-                IEnumerable<IPlayer> targetList = players.FindConnectedPlayers(args[0]);
+                IEnumerable<IPlayer> targetList = players.FindPlayers(args[0]);
 
                 if (targetList.Count() < 1)
                 {
@@ -65,7 +65,7 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                targetPlayer = players.FindConnectedPlayer(args[0]);
+                targetPlayer = players.FindPlayer(args[0]);
             }
 
             string insultURL = "http://insultgenerator.org";

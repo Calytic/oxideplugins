@@ -7,7 +7,7 @@ using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("Playtime Tracker", "k1lly0u", "0.1.2", ResourceId = 2125)]
+    [Info("Playtime Tracker", "k1lly0u", "0.1.31", ResourceId = 2125)]
     class PlaytimeTracker : CovalencePlugin
     {
         #region Fields
@@ -132,13 +132,13 @@ namespace Oxide.Plugins
             ResetTimer(player, true);
         }
         void ResetTimer(IPlayer player, bool isNew = false)
-        {
+        {            
             AddTime(player);
             if (isNew)
             {                
-                updateTimers.Add(player.Id, timer.Once(300, () => ResetTimer(player)));
+                updateTimers.Add(player.Id, timer.Once(60, () => ResetTimer(player)));
             }
-            else updateTimers[player.Id] = timer.Once(300, () => ResetTimer(player));            
+            else updateTimers[player.Id] = timer.Once(60, () => ResetTimer(player));            
         }
         void CheckForData(IPlayer player)
         {
@@ -173,12 +173,17 @@ namespace Oxide.Plugins
         
         void AddPosition(IPlayer player)
         {
+            if (player?.Position() == null)
+                return;
             if (!posCache.ContainsKey(player.Id))
                 posCache.Add(player.Id, player.Position());
             else posCache[player.Id] = player.Position();
         }
+        
         bool CheckPosition(IPlayer player)
         {
+            if (player?.Position() == null)
+                return false;
             if (posCache.ContainsKey(player.Id))
             {
                 if (posCache[player.Id] == player.Position())
@@ -282,10 +287,10 @@ namespace Oxide.Plugins
             {
                 if (args.Length >= 1)
                 {
-                    var target = players.FindConnectedPlayer(args[0]);
+                    var target = players.FindPlayer(args[0]);
                     if (target != null)
                     {
-                        var time = GetPlayTime(player.Id);
+                        var time = GetPlayTime(target.Id);
                         if (time != null)
                         {
                             player.Reply($"{target.Name} {GetPlaytimeClock((double)time)}");

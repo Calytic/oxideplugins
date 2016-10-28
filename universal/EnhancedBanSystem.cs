@@ -1,14 +1,18 @@
+using Newtonsoft.Json;
+using Oxide.Core;
+using Oxide.Ext.MySql;
+using Oxide.Ext.SQLite;
+using Oxide.Core.Configuration;
+using Oxide.Core.Database;
+using Oxide.Core.Libraries.Covalence;
+using Oxide.Core.Plugins;
 using System;
 using System.Collections.Generic;
-using Oxide.Core;
-using Oxide.Core.Plugins;
-using Oxide.Core.Libraries.Covalence;
 using System.Linq;
-using Newtonsoft.Json;
 
 namespace Oxide.Plugins
 {
-    [Info("Enhanced Ban System", "Reneb, initially by Domestos", "4.0.10")]
+    [Info("EnhancedBanSystem", "Reneb", "5.0.8", ResourceId = 1951)]
     class EnhancedBanSystem : CovalencePlugin
     {
         [PluginReference]
@@ -18,24 +22,1119 @@ namespace Oxide.Plugins
         // Static fields
         ////////////////////////////////////////////////////////////
         static DateTime epoch = new DateTime(1970, 1, 1, 0, 0, 0);
+        char[] ipChrArray = new char[] { '.' };
 
-        static string ipPattern = @"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b";
-        static System.Text.RegularExpressions.Regex regex = new System.Text.RegularExpressions.Regex(ipPattern);
+        static BanSystem banSystem;
+
+        static Hash<int, BanData> cachedBans = new Hash<int, BanData>();
+
+        static List<int> wasBanned = new List<int>();
 
         ////////////////////////////////////////////////////////////
-        // Static Methods
+        // Config fields
         ////////////////////////////////////////////////////////////
 
-        static double LogTime() { return DateTime.UtcNow.Subtract(epoch).TotalSeconds; }
+        static string Platform = "Steam";
+        static string Server = "1.1.1.1:28015";
+        static string Game = "Rust";
 
-        string GetMsg(string key, object steamid = null) { return lang.GetMessage(key, this, steamid == null ? null : steamid.ToString()); }
+        string PermissionBan = "enhancedbansystem.ban";
+        string PermissionUnban = "enhancedbansystem.unban";
+        string PermissionBanlist = "enhancedbansystem.banlist";
+        string PermissionKick = "enhancedbansystem.kick";
 
-        string NormalizeIP(string ip) { if (!ip.Contains(":")) return ip; return ip.Substring(0, ip.LastIndexOf(":")); }
+        static bool SQLite_use = false;
+        static string SQLite_DB = "banlist.db";
 
-        bool hasPermission(IPlayer player, string permissionName) { 
-        	if (player.IsAdmin) return true; 
-        	return permission.UserHasPermission(player.Id.ToString(), permissionName); 
+        static bool MySQL_use = false;
+        static string MySQL_Host = "localhost";
+        static int MySQL_Port = 3306;
+        static string MySQL_DB = "banlist";
+        static string MySQL_User = "root";
+        static string MySQL_Pass = "toor";
+
+        static bool PlayerDatabase_use = false;
+        static string PlayerDatabase_IPFile = "EnhancedBanSystem_IPs.json";
+
+        static bool Files_use = false;
+
+        static bool WebAPI_use = false;
+        static string WebAPI_Ban_Request = "http://webpage.com/api.php?action=ban&pass=mypassword&id={id}&steamid={steamid}&name={name}&ip={ip}&reason={reason}&source={source}&game={game}&platform={platform}&server={server}&tempban={expiration}";
+        static string WebAPI_Unban_Request = "http://webpage.com/api.php?action=unban&pass=mypassword&steamid={steamid}&name={name}&ip={ip}&name={name}&source={source}";
+        static string WebAPI_IsBanned_Request = "http://webpage.com/api.php?action=isbanned&pass=mypassword&id={id}&update={update}&steamid={steamid}&ip={ip}&time={time}&name={name}&game=Rust&server=rust.kortal.org:28015";
+        static string WebAPI_Banlist_Request = "http://webpage.com/banlist.php?startid={startid}";
+
+        static bool Native_use = false;
+
+        static string BanDefaultReason = "Banned";
+        static string BanEvadeReason = "Ban Evade";
+
+        static bool Kick_Broadcast = true;
+        static bool Kick_Log = true;
+        static bool Kick_OnBan = true;
+
+        static bool Ban_Broadcast = true;
+        static bool Ban_Log = true;
+
+        static bool Ban_Escape = true;
+
+        static bool Log_Denied = true;
+
+        protected override void LoadDefaultConfig() { }
+
+        private void CheckCfg<T>(string Key, ref T var)
+        {
+            if (Config[Key] is T)
+                var = (T)Config[Key];
+            else
+                Config[Key] = var;
         }
+
+        void Init()
+        {
+            CheckCfg<string>("Server Info - Platform", ref Platform);
+            CheckCfg<string>("Server Info - Game", ref Game);
+            CheckCfg<string>("Server Info - IP:PORT", ref Server);
+
+            CheckCfg<string>("Permissions - Ban", ref PermissionBan);
+            CheckCfg<string>("Permissions - Unban", ref PermissionUnban);
+            CheckCfg<string>("Permissions - Banlist", ref PermissionBanlist);
+            CheckCfg<string>("Permissions - Kick", ref PermissionKick);
+
+            CheckCfg<bool>("DataType - SQLite - use", ref SQLite_use);
+            CheckCfg<string>("DataType - SQLite - Database Filename", ref SQLite_DB);
+
+            CheckCfg<bool>("DataType - MySQL - use", ref MySQL_use);
+            CheckCfg<string>("DataType - MySQL - Host", ref MySQL_Host);
+            CheckCfg<int>("DataType - MySQL - Port", ref MySQL_Port);
+            CheckCfg<string>("DataType - MySQL - Database", ref MySQL_DB);
+            CheckCfg<string>("DataType - MySQL - User", ref MySQL_User);
+            CheckCfg<string>("DataType - MySQL - Pass", ref MySQL_Pass);
+
+            CheckCfg<bool>("DataType - Files - use", ref Files_use);
+
+            CheckCfg<bool>("DataType - PlayerDatabase - use", ref PlayerDatabase_use);
+            CheckCfg<string>("DataType - PlayerDatabase - IP Filename", ref PlayerDatabase_IPFile);
+
+            CheckCfg<bool>("DataType - WebAPI - use", ref WebAPI_use);
+            CheckCfg<string>("DataType - WebAPI - Host", ref WebAPI_Ban_Request);
+            CheckCfg<string>("DataType - WebAPI - Unban", ref WebAPI_Unban_Request);
+            CheckCfg<string>("DataType - WebAPI - IsBanned", ref WebAPI_IsBanned_Request);
+            CheckCfg<string>("DataType - WebAPI - Banlist", ref WebAPI_Banlist_Request);
+
+            CheckCfg<bool>("DataType - Native - use", ref Native_use);
+
+            CheckCfg<bool>("Ban - Evade", ref Ban_Escape);
+            CheckCfg<string>("Ban - Default Reason", ref BanDefaultReason);
+            CheckCfg<string>("Ban - Evade Reason", ref BanEvadeReason);
+            CheckCfg<bool>("Ban - Broadcast", ref Ban_Broadcast);
+            CheckCfg<bool>("Ban - Log", ref Ban_Log);
+
+            CheckCfg<bool>("Kick - Broadcast", ref Kick_Broadcast);
+            CheckCfg<bool>("Kick - Log", ref Kick_Log);
+            CheckCfg<bool>("Kick - On Ban", ref Kick_OnBan);
+
+            CheckCfg<bool>("Denied Connection - Log", ref Log_Denied);
+
+            SaveConfig();
+
+            if (SQLite_use) banSystem |= BanSystem.SQLite;
+            if (MySQL_use) banSystem |= BanSystem.MySQL;
+            if (Native_use) banSystem |= BanSystem.Native;
+            if (PlayerDatabase_use) banSystem |= BanSystem.PlayerDatabase;
+            if (Files_use) banSystem |= BanSystem.Files;
+            if (WebAPI_use) banSystem |= BanSystem.WebAPI;
+
+            InitializeLang();
+        }
+
+        void InitializeLang()
+        {
+            lang.RegisterMessages(new Dictionary<string, string>
+            {
+                { "No matching player was found.\n", "No matching player was found.\n" },
+                { "You are temporarily banned from this server ({0}). {1} left", "You are temporarily banned from this server ({0}). {1} left" },
+                { "You are banned from this server ({0}).", "You are banned from this server ({0})." },
+                {"Loaded {0} bans\n\r","Loaded {0} bans\n\r" },
+                {"This ban already exists ({0}).","This ban already exists ({0})." },
+                {"Successfully added {0} to the banlist.","Successfully added {0} to the banlist." },
+                {"Multiple Bans Found:\n\r","Multiple Bans Found:\n\r" },
+                {"{0} matching bans were removed","{0} matching bans were removed" },
+                {"{0} - {1} isn't banned.\n","{0} - {1} isn't banned.\n" },
+                {"Loaded\n\r","Loaded\n\r" },
+                {"You don't have the permission to use this command.","You don't have the permission to use this command." },
+                {"Syntax: kick < Name | SteamID | IP | IP Range > < reason(optional) >","Syntax: kick < Name | SteamID | IP | IP Range > < reason(optional) >" },
+                {"Syntax: unban < Name | SteamID | IP | IP Range >","Syntax: unban < Name | SteamID | IP | IP Range >" },
+                {"Syntax: ban < Name | SteamID | IP | IP Range > < reason(optional) > < time in secondes(optional) > ","Syntax: ban < Name | SteamID | IP | IP Range > < reason(optional) > < time in secondes(optional) > " },
+                {"Syntax: banlist <BanSystem> <startid>","Syntax: banlist <BanSystem> <startid>" },
+                {"Avaible BanSystems:\n","Avaible BanSystems:\n" },
+                {"Wrong usage of /banlist","Wrong usage of /banlist" },
+                {"Index is out of range. Current bans recorded: {0}","Index is out of range. Current bans recorded: {0}" },
+                {"Banlist - {0}-{1}/{2}\n","Banlist - {0}-{1}/{2}\n" }
+            }, this);
+        }
+
+        ////////////////////////////////////////////////////////////
+        // ID Save
+        ////////////////////////////////////////////////////////////
+
+        static DynamicConfigFile Ban_ID_File;
+        static int Ban_ID = 0;
+
+        void Load_ID()
+        {
+            try
+            {
+                Ban_ID_File = Interface.GetMod().DataFileSystem.GetDatafile("EnhancedBanSystem_ID");
+                Ban_ID = (int)Ban_ID_File["id"];
+            }
+            catch
+            {
+                Ban_ID = 0;
+                Ban_ID_File["id"] = Ban_ID;
+                Save_ID();
+            }
+        }
+
+        void Save_ID()
+        {
+            Interface.GetMod().DataFileSystem.SaveDatafile("EnhancedBanSystem_ID");
+        }
+
+        static int GetNewID()
+        {
+            Ban_ID++;
+            Ban_ID_File["id"] = Ban_ID;
+            return Ban_ID;
+        }
+
+        ////////////////////////////////////////////////////////////
+        // Enum & Class
+        ////////////////////////////////////////////////////////////
+
+        enum BanSystem
+        {
+            Native = 1,
+            MySQL = 2,
+            SQLite = 4,
+            WebAPI = 8,
+            PlayerDatabase = 16,
+            Files = 32,
+        }
+
+        class BanData
+        {
+            public int id;
+            public string steamid;
+            public string ip;
+            public string name;
+            public string game;
+            public string server;
+            public string source;
+            public double date;
+            public double expire;
+            public string reason;
+            public string platform;
+
+            public BanData() { }
+
+            public BanData(object source, string userID, string name, string ip, string reason, double duration)
+            {
+                this.id = GetNewID();
+                this.source = source is IPlayer ? ((IPlayer)source).Name : source is string ? (string)source : "Console";
+                this.steamid = userID;
+                this.name = name;
+                this.ip = ip;
+                this.reason = reason;
+                this.expire = duration != 0.0 ? LogTime() + duration : 0.0;
+                this.date = LogTime();
+                this.platform = Platform;
+                this.game = Game;
+                this.server = Server;
+            }
+
+            public BanData(int id, string source, string userID, string name, string ip, string reason, string duration)
+            {
+                this.id = id;
+                this.source = source;
+                this.steamid = userID;
+                this.name = name;
+                this.ip = ip;
+                this.reason = reason;
+                this.expire = double.Parse(duration);
+                this.date = LogTime();
+                this.platform = Platform;
+                this.game = Game;
+                this.server = Server;
+            }
+
+            public string ToJson()
+            {
+                return JsonConvert.SerializeObject(this);
+            }
+
+            public override string ToString()
+            {
+                return string.Format("{0} - {1} - {2} - {3} - {4}", steamid, name, ip, reason, expire == 0.0 ? "Permanent" : expire < LogTime() ? "Expired" : string.Format("Temporary: {0}s", (expire - LogTime()).ToString()));
+            }
+        }
+
+        ////////////////////////////////////////////////////////////
+        // General Methods
+        ////////////////////////////////////////////////////////////
+
+        static double LogTime() => DateTime.UtcNow.Subtract(epoch).TotalSeconds;
+
+        string GetMsg(string key, object steamid = null) { return lang.GetMessage(key, this, steamid is IPlayer ? ((IPlayer)steamid).Id : steamid == null ? null : steamid.ToString()); }
+        //string GetMsg(string key, object steamid = null) { return key; }
+
+        bool hasPermission(IPlayer player, string permissionName)
+        {
+            if (player.IsAdmin) return true;
+            return permission.UserHasPermission(player.Id.ToString(), permissionName);
+        }
+
+        bool isIPAddress(string arg)
+        {
+            int subIP;
+            string[] strArray = arg.Split(ipChrArray);
+            if (strArray.Length != 4)
+            {
+                return false;
+            }
+            foreach (string str in strArray)
+            {
+                if (str.Length == 0)
+                {
+                    return false;
+                }
+                if (!int.TryParse(str, out subIP) && str != "*")
+                {
+                    return false;
+                }
+                if (!(str == "*" || (subIP >= 0 && subIP <= 255)))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        bool IPRange(string sourceIP, string targetIP)
+        {
+            string[] srcArray = sourceIP.Split(ipChrArray);
+            string[] trgArray = targetIP.Split(ipChrArray);
+            for (int i = 0; i < 4; i++)
+            {
+                if (srcArray[i] != trgArray[i] && srcArray[i] != "*")
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        bool RangeFromIP(string sourceIP, out string range1, out string range2, out string range3)
+        {
+            range1 = string.Empty;
+            range2 = string.Empty;
+            range3 = string.Empty;
+            if (sourceIP == string.Empty) return false;
+
+            string[] strArray = sourceIP.Split(ipChrArray);
+            if (strArray.Length != 4)
+            {
+                return false;
+            }
+
+            range1 = string.Format("{0}.*.*.*", strArray[0]);
+            range2 = string.Format("{0}.{1}.*.*", strArray[0], strArray[1]);
+            range3 = string.Format("{0}.{1}.{2}.*", strArray[0], strArray[1], strArray[2]);
+
+            return true;
+        }
+
+        List<IPlayer> FindPlayers(string userIDorNameorIP, object source, out string reason)
+        {
+            reason = string.Empty;
+            var FoundPlayers = players.FindPlayers(userIDorNameorIP).ToList();
+            if (FoundPlayers.Count == 0)
+            {
+                reason = GetMsg("No matching player was found.\n", source);
+            }
+            if (FoundPlayers.Count > 1)
+            {
+                foreach (var iplayer in FoundPlayers)
+                {
+                    reason += string.Format("{0} {1}\r\n", iplayer.Id, iplayer.Name);
+                }
+            }
+            return FoundPlayers;
+        }
+
+        List<IPlayer> FindConnectedPlayers(string userIDorNameorIP, object source, out string reason)
+        {
+            reason = string.Empty;
+            ulong steamid = 0L;
+            var FoundPlayers = new List<IPlayer>();
+            ulong.TryParse(userIDorNameorIP, out steamid);
+            if (isIPAddress(userIDorNameorIP))
+            {
+                FoundPlayers = players.All.Where(x => x.IsConnected).Where(w => IPRange(userIDorNameorIP, w.Address)).ToList();
+            }
+            else if (steamid != 0L)
+            {
+                var p = players.FindPlayer(userIDorNameorIP);
+                if (p != null && p.IsConnected)
+                {
+                    FoundPlayers.Add(p);
+                }
+            }
+            else
+            {
+                FoundPlayers = players.FindPlayers(userIDorNameorIP).Where(x => x.IsConnected).ToList();
+                if (FoundPlayers.Count > 1)
+                {
+                    foreach (var iplayer in FoundPlayers)
+                    {
+                        reason += string.Format("{0} {1}\r\n", iplayer.Id, iplayer.Name);
+                    }
+                }
+            }
+            if (FoundPlayers.Count == 0)
+            {
+                reason = GetMsg("No matching player was found.\n", source);
+            }
+            return FoundPlayers;
+        }
+
+        string GetPlayerIP(IPlayer iplayer)
+        {
+            if (iplayer.IsConnected) return iplayer.Address;
+            return GetPlayerIP(iplayer.Id);
+        }
+
+        string GetPlayerIP(string userID)
+        {
+            if (PlayerDatabase != null)
+            {
+                return (string)PlayerDatabase.Call("GetPlayerData", userID, "ip") ?? string.Empty;
+            }
+            return string.Empty;
+        }
+
+        string GetPlayerName(string userID)
+        {
+            if (PlayerDatabase != null)
+            {
+                return (string)PlayerDatabase.Call("GetPlayerData", userID, "name") ?? string.Empty;
+            }
+            return string.Empty;
+        }
+
+        string FormatTimeLeft(double timeleft)
+        {
+            var d = 0.0;
+            var h = 0.0;
+            var m = 0.0;
+            var s = 0.0;
+            if (timeleft >= 86400.0) { d = Math.Floor(timeleft / 86400.0); timeleft -= d * 86400.0; }
+            if (timeleft >= 3600) { h = Math.Floor(timeleft / 3600.0); timeleft -= h * 3600.0; }
+            if (timeleft >= 60) { m = Math.Floor(timeleft / 60.0); timeleft -= m * 60.0; }
+            if (timeleft >= 0) { s = Math.Floor(timeleft); }
+
+            return string.Format("{0}{1}{2}{3}", d > 0 ? $"{d.ToString()}d " : string.Empty, h > 0 ? $"{h.ToString()}h " : string.Empty, m > 0 ? $"{m.ToString()}m " : string.Empty, s > 0 ? $"{s.ToString()}s " : string.Empty);
+        }
+
+        bool HasDelayedAnswer() => BanSystemHasFlag(banSystem, BanSystem.MySQL) || BanSystemHasFlag(banSystem, BanSystem.SQLite) || (BanSystemHasFlag(banSystem, BanSystem.WebAPI));
+
+        bool BanSystemHasFlag(BanSystem b, BanSystem t) => (b & t) == t;
+
+        string FormatReturn(BanSystem system, string msg, params object[] args) => string.Format("{0}: {1}", system.ToString(), string.Format(msg, args));
+
+        void SendReply(object source, string msg)
+        {
+            if (source is IPlayer) ((IPlayer)source).Reply(msg);
+            else if (source is string) return;
+            else Interface.Oxide.LogInfo(msg);
+        }
+
+        public static string ToShortString(TimeSpan timeSpan)
+        {
+            return string.Format("{0:00}:{1:00}:{2:00}", (int)timeSpan.TotalHours, timeSpan.Minutes, timeSpan.Seconds);
+        }
+
+        ////////////////////////////////////////////////////////////
+        // Oxide Hooks
+        ////////////////////////////////////////////////////////////
+
+
+        void OnServerInitialized()
+        {
+            Load_ID();
+            string returnstring = string.Empty;
+
+            if (BanSystemHasFlag(banSystem, BanSystem.PlayerDatabase))
+            {
+                returnstring += PlayerDatabase_Load();
+            }
+            if (BanSystemHasFlag(banSystem, BanSystem.Files))
+            {
+                returnstring += Files_Load();
+            }
+            if (BanSystemHasFlag(banSystem, BanSystem.MySQL))
+            {
+                returnstring += MySQL_Load();
+            }
+            if (BanSystemHasFlag(banSystem, BanSystem.SQLite))
+            {
+                returnstring += SQLite_Load();
+            }
+            if (BanSystemHasFlag(banSystem, BanSystem.WebAPI))
+            {
+                returnstring += WebAPI_Load();
+            }
+            if (BanSystemHasFlag(banSystem, BanSystem.Native))
+            {
+                returnstring += Native_Load();
+            }
+
+            permission.RegisterPermission(PermissionBan, this);
+            permission.RegisterPermission(PermissionBanlist, this);
+            permission.RegisterPermission(PermissionKick, this);
+            permission.RegisterPermission(PermissionUnban, this);
+
+            Interface.Oxide.LogInfo(returnstring);
+        }
+
+
+        void OnServerSave()
+        {
+            Save_ID();
+            if (BanSystemHasFlag(banSystem, BanSystem.PlayerDatabase))
+            {
+                Save_PlayerDatabaseIP();
+            }
+            if (BanSystemHasFlag(banSystem, BanSystem.Files))
+            {
+                Save_Files();
+            }
+            if (BanSystemHasFlag(banSystem, BanSystem.MySQL))
+            {
+                // Nothing to save
+            }
+            if (BanSystemHasFlag(banSystem, BanSystem.SQLite))
+            {
+                // Nothing to save
+            }
+            if (BanSystemHasFlag(banSystem, BanSystem.WebAPI))
+            {
+                // Nothing to save
+            }
+        }
+
+        object CanUserLogin(string name, string steamid, string ip)
+        {
+            BanData bd = null;
+#if RUST
+            using (TimeWarning.New("CanUserLogin", 0.01f))
+            {
+#endif
+            if (isBanned_NonDelayed(name, steamid, ip, Ban_Escape, out bd))
+            {
+                if (bd != null && bd.expire != 0.0)
+                {
+                    return string.Format(GetMsg("You are temporarily banned from this server ({0}). {1} left", steamid), bd.reason, FormatTimeLeft(bd.expire - LogTime()));
+                }
+                return string.Format(GetMsg("You are banned from this server ({0}).", steamid), bd == null ? string.Empty : bd.reason);
+            }
+#if RUST
+            }
+#endif
+            return null;
+        }
+
+        void OnUserConnected(IPlayer player)
+        {
+#if RUST
+            using (TimeWarning.New("OnUserConnected", 0.01f))
+            {
+#endif
+            if (player == null) return;
+            string ip = player.Address;
+            string name = player.Name;
+            string steamid = player.Id;
+
+            isBanned_Delayed(name, steamid, ip, Ban_Escape);
+#if RUST
+            }
+#endif
+        }
+
+        ////////////////////////////////////////////////////////////
+        // Files
+        ////////////////////////////////////////////////////////////
+
+        static StoredData storedData;
+
+        class StoredData
+        {
+            public HashSet<string> Banlist = new HashSet<string>();
+
+            public StoredData() { }
+        }
+
+        string Files_Load()
+        {
+            try
+            {
+                storedData = Interface.GetMod().DataFileSystem.ReadObject<StoredData>("EnhancedBanSystem");
+            }
+            catch
+            {
+                storedData = new StoredData();
+            }
+            foreach (var b in storedData.Banlist)
+            {
+                var bd = JsonConvert.DeserializeObject<BanData>(b);
+                if (!cachedBans.ContainsKey(bd.id))
+                    cachedBans.Add(bd.id, bd);
+            }
+            return FormatReturn(BanSystem.Files, GetMsg("Loaded {0} bans\n\r", null), storedData.Banlist.Count.ToString());
+        }
+
+        void Save_Files()
+        {
+            Interface.GetMod().DataFileSystem.WriteObject("EnhancedBanSystem", storedData);
+        }
+
+        string Files_UpdateBan(BanData bandata)
+        {
+            if (!cachedBans.ContainsKey(bandata.id)) return FormatReturn(BanSystem.Files, "No such ban id {0}", bandata.id);
+
+            storedData.Banlist.Remove(cachedBans[bandata.id].ToJson());
+            cachedBans.Remove(bandata.id);
+
+            storedData.Banlist.Add(bandata.ToJson());
+
+            if (!cachedBans.ContainsKey(bandata.id))
+                cachedBans.Add(bandata.id, bandata);
+
+            return FormatReturn(BanSystem.Files, GetMsg("Successfully updated {0} in the banlist."), bandata.ToString());
+        }
+
+        string Files_ExecuteBan(BanData bandata)
+        {
+
+            var f = cachedBans.Values.Where(x => x.ip == bandata.ip).Where(x => x.steamid == bandata.steamid).ToList();
+            if (f.Count > 0)
+            {
+                return FormatReturn(BanSystem.Files, GetMsg("This ban already exists ({0})."), f[0].ToString());
+            }
+            storedData.Banlist.Add(bandata.ToJson());
+
+            if (!cachedBans.ContainsKey(bandata.id))
+                cachedBans.Add(bandata.id, bandata);
+
+            return FormatReturn(BanSystem.Files, GetMsg("Successfully added {0} to the banlist."), bandata.ToString());
+        }
+
+        string Files_RawUnban(List<BanData> unbanList)
+        {
+            int i = 0;
+            foreach (var u in unbanList)
+            {
+                var json = u.ToJson();
+                if (storedData.Banlist.Contains(json))
+                {
+                    i++;
+                    storedData.Banlist.Remove(json);
+                }
+            }
+            return FormatReturn(BanSystem.Files, GetMsg("{0} matching bans were removed"), i.ToString());
+        }
+
+        string Files_ExecuteUnban(string steamid, string name, string ip, out List<BanData> unbanList)
+        {
+            unbanList = new List<BanData>();
+            if (ip != string.Empty)
+            {
+                unbanList = cachedBans.Values.Where(x => x.ip == ip).ToList();
+            }
+            else if (steamid != string.Empty)
+            {
+                unbanList = cachedBans.Values.Where(x => x.steamid == steamid).ToList();
+            }
+            else
+            {
+                unbanList = cachedBans.Values.Where(x => x.name == name).ToList();
+                if (unbanList.Count == 0)
+                {
+                    var lname = name.ToLower();
+                    unbanList = cachedBans.Values.Where(x => x.name.ToLower().Contains(lname)).ToList();
+                    if (unbanList.Count > 1)
+                    {
+                        var ret = FormatReturn(BanSystem.Files, GetMsg("Multiple Bans Found:\n\r"));
+                        foreach (var b in unbanList)
+                        {
+                            ret += string.Format("{0} - {1} - {2}\n\r", b.steamid, b.name, b.reason);
+                        }
+                        return ret;
+                    }
+                }
+            }
+            return Files_RawUnban(unbanList);
+        }
+
+        bool Files_IsBanned(string steamid, string ip, out BanData bandata)
+        {
+            bandata = null;
+            double cTime = LogTime();
+            bool permanent = false;
+            List<BanData> unbanList = new List<BanData>();
+            List<BanData> list = new List<BanData>();
+            {
+                // check by ID then IP
+                var b_steamid = cachedBans.Values.Where(x => x.steamid == steamid).ToList();
+                var b_steamid_ip = b_steamid.Where(w => w.ip == ip).ToList();
+
+                foreach (var b in b_steamid_ip)
+                {
+                    if (b.expire != 0.0 && cTime >= b.expire)
+                    {
+                        unbanList.Add(b);
+                    }
+                    else
+                    {
+                        if (b.expire == 0.0)
+                        {
+                            permanent = true;
+                        }
+                        if (b.ip == ip)
+                        {
+                            bandata = b;
+                        }
+                    }
+                }
+                if (unbanList.Count > 0)
+                {
+                    Files_RawUnban(unbanList);
+                    foreach (var u in unbanList)
+                    {
+                        b_steamid_ip.Remove(u);
+                    }
+                    unbanList.Clear();
+                }
+                foreach (var b in b_steamid)
+                {
+                    if (b.expire != 0.0 && cTime >= b.expire)
+                    {
+                        unbanList.Add(b);
+                    }
+                    else
+                    {
+                        if (b.expire == 0.0)
+                        {
+                            permanent = true;
+                        }
+                        if (b.ip == ip)
+                        {
+                            bandata = b;
+                        }
+                    }
+                }
+                if (unbanList.Count > 0)
+                {
+                    Files_RawUnban(unbanList);
+                    foreach (var u in unbanList)
+                    {
+                        b_steamid.Remove(u);
+                    }
+                    unbanList.Clear();
+                }
+                if (bandata == null)
+                {
+                    if (b_steamid_ip.Count > 0)
+                    {
+                        bandata = b_steamid_ip[0];
+                    }
+                    else if (b_steamid.Count > 0)
+                    {
+                        bandata = b_steamid[0];
+                    }
+                }
+            }
+            if (bandata == null && !permanent)
+            {
+                // check by IP & IP Range
+                list = cachedBans.Values.Where(x => IPRange(x.ip, ip)).ToList();
+                foreach (var b in list)
+                {
+                    if (b.expire != 0.0 && cTime >= b.expire)
+                    {
+                        unbanList.Add(b);
+                    }
+                    else
+                    {
+                        if (b.expire == 0.0)
+                        {
+                            permanent = true;
+                        }
+                    }
+                }
+                if (unbanList.Count > 0)
+                {
+                    Files_RawUnban(unbanList);
+                    foreach (var u in unbanList)
+                    {
+                        list.Remove(u);
+                    }
+                    unbanList.Clear();
+                }
+                if (list.Count > 0)
+                {
+                    bandata = list[0];
+                }
+            }
+            if (bandata != null && bandata.expire != 0.0 && permanent)
+            {
+                bandata.expire = 0.0;
+                Files_UpdateBan(bandata);
+            }
+            return bandata != null;
+        }
+
+        string Files_Banlist(object source, int startid)
+        {
+            if (startid > cachedBans.Count)
+            {
+                return FormatReturn(BanSystem.Files, "Index is out of range. Current bans recorded: {0}", cachedBans.Count.ToString());
+            }
+
+            int i = -1;
+            int max = startid + 9;
+
+            string returnstring = FormatReturn(BanSystem.Files, GetMsg("Banlist - {0}-{1}/{2}\n"), startid.ToString(), max.ToString(), cachedBans.Count.ToString());
+
+
+            var bans = from pair in cachedBans orderby pair.Key descending select pair;
+
+            foreach (KeyValuePair<int, BanData> b in bans)
+            {
+                i++;
+                if (i < startid) continue;
+                if (i > max) break;
+                returnstring += b.ToString() + "\n";
+
+            }
+
+            return returnstring;
+        }
+
+        ////////////////////////////////////////////////////////////
+        // PlayerDatabase
+        ////////////////////////////////////////////////////////////
+
+        static StoredIPData storedIPData;
+
+        class StoredIPData
+        {
+            public HashSet<string> Banlist = new HashSet<string>();
+
+            public StoredIPData() { }
+        }
+
+        string PlayerDatabase_Load()
+        {
+            if (PlayerDatabase == null) return FormatReturn(BanSystem.PlayerDatabase, "Missing plugin: oxidemod.org/threads/playerdatabase.18409/");
+            try
+            {
+                storedIPData = Interface.GetMod().DataFileSystem.ReadObject<StoredIPData>(PlayerDatabase_IPFile);
+            }
+            catch
+            {
+                storedIPData = new StoredIPData();
+            }
+            foreach (var b in storedIPData.Banlist)
+            {
+                var bd = JsonConvert.DeserializeObject<BanData>(b);
+                if (!cachedBans.ContainsKey(bd.id))
+                    cachedBans.Add(bd.id, bd);
+            }
+            var getKnownPlayers = (List<string>)PlayerDatabase.Call("GetAllKnownPlayers");
+            if (getKnownPlayers == null) return FormatReturn(BanSystem.PlayerDatabase, "Error P01");
+
+            int i = 0;
+            List<BanData> list = new List<BanData>();
+            foreach (var steamid in getKnownPlayers)
+            {
+                var success = PlayerDatabase.Call("GetPlayerDataRaw", steamid, "Banned");
+                if (!(success is string)) continue;
+                list = JsonConvert.DeserializeObject<List<BanData>>((string)success);
+                foreach (var b in list)
+                {
+                    i++;
+                    if (!cachedBans.ContainsKey(b.id))
+                        cachedBans.Add(b.id, b);
+                }
+            }
+            return FormatReturn(BanSystem.PlayerDatabase, GetMsg("Loaded {0} bans\n\r"), i.ToString());
+        }
+
+        void Save_PlayerDatabaseIP()
+        {
+            Interface.GetMod().DataFileSystem.WriteObject(PlayerDatabase_IPFile, storedIPData);
+        }
+
+
+        string PlayerDatabase_ExecuteBan(BanData bandata)
+        {
+            if (bandata.steamid != string.Empty)
+            {
+                List<BanData> list = new List<BanData>();
+                var success = PlayerDatabase.Call("GetPlayerDataRaw", bandata.steamid, "Banned");
+                if (success is string)
+                {
+                    list = JsonConvert.DeserializeObject<List<BanData>>((string)success);
+                }
+
+                var f = list.Where(x => x.ip == bandata.ip).ToList();
+                if (f.Count > 0)
+                {
+                    return FormatReturn(BanSystem.PlayerDatabase, GetMsg("This ban already exists ({0})."), f[0].ToString());
+                }
+                f.Add(bandata);
+                PlayerDatabase.Call("SetPlayerData", bandata.steamid, "Banned", f);
+            }
+            else
+            {
+                var f2 = cachedBans.Values.Where(x => x.ip == bandata.ip).Where(x => x.steamid == string.Empty).ToList();
+                if (f2.Count > 0)
+                {
+                    return FormatReturn(BanSystem.PlayerDatabase, GetMsg("This ban already exists ({0})."), f2[0].ToString());
+                }
+                storedIPData.Banlist.Add(bandata.ToJson());
+            }
+            if (!cachedBans.ContainsKey(bandata.id))
+                cachedBans.Add(bandata.id, bandata);
+            return FormatReturn(BanSystem.PlayerDatabase, GetMsg("Successfully added {0} to the banlist."), bandata.ToString());
+        }
+
+        string PlayerDatabase_UpdateBan(BanData bandata, double expire)
+        {
+            if (bandata.steamid == string.Empty)
+            {
+                if (cachedBans.ContainsKey(bandata.id))
+                {
+                    var json = bandata.ToJson();
+                    if (storedIPData.Banlist.Contains(json))
+                    {
+                        cachedBans.Remove(bandata.id);
+                        storedIPData.Banlist.Remove(json);
+                        bandata.expire = expire;
+                        storedIPData.Banlist.Add(bandata.ToJson());
+                        cachedBans.Add(bandata.id, bandata);
+                        return FormatReturn(BanSystem.Files, GetMsg("Successfully updated {0} in the banlist."), bandata.ToString());
+                    }
+                }
+            }
+            else
+            {
+                List<BanData> list = new List<BanData>();
+                bandata.expire = expire;
+                var b_steamid = PlayerDatabase.Call("GetPlayerDataRaw", bandata.steamid, "Banned");
+                if (b_steamid is string)
+                {
+                    list = JsonConvert.DeserializeObject<List<BanData>>((string)b_steamid);
+                }
+                if (list.Count > 0)
+                {
+                    foreach (var b in list)
+                    {
+                        b.expire = expire;
+                    }
+                    PlayerDatabase.Call("SetPlayerData", bandata.steamid, "Banned", list);
+                    return FormatReturn(BanSystem.Files, GetMsg("Successfully updated {0} in the banlist."), bandata.ToString());
+                }
+            }
+            return string.Empty;
+        }
+
+        string PlayerDatabase_RawUnban(List<BanData> unbanList)
+        {
+            int i = 0;
+            foreach (var u in unbanList)
+            {
+                if (u.steamid == string.Empty)
+                {
+                    var json = u.ToJson();
+                    if (storedIPData.Banlist.Contains(json))
+                    {
+                        i++;
+                        storedIPData.Banlist.Remove(json);
+                    }
+                }
+                else
+                {
+                    i++;
+                    PlayerDatabase.Call("SetPlayerData", u.steamid, "Banned", new List<BanData>());
+                }
+            }
+            return FormatReturn(BanSystem.PlayerDatabase, GetMsg("{0} matching bans were removed"), i.ToString());
+        }
+
+        string PlayerDatabase_ExecuteUnban(string steamid, string name, string ip, out List<BanData> unbanList)
+        {
+            unbanList = new List<BanData>();
+            if (ip != string.Empty)
+            {
+                unbanList = cachedBans.Values.Where(x => x.ip == ip).ToList();
+            }
+            else if (steamid != string.Empty)
+            {
+                unbanList = cachedBans.Values.Where(x => x.steamid == steamid).ToList();
+            }
+            else
+            {
+                unbanList = cachedBans.Values.Where(x => x.name == name).ToList();
+                if (unbanList.Count == 0)
+                {
+                    var lname = name.ToLower();
+                    unbanList = cachedBans.Values.Where(x => x.name.ToLower().Contains(lname)).ToList();
+                    if (unbanList.Count > 1)
+                    {
+                        var ret = FormatReturn(BanSystem.PlayerDatabase, GetMsg("Multiple Bans Found:\n\r"));
+                        foreach (var b in unbanList)
+                        {
+                            ret += string.Format("{0} - {1} - {2}\n\r", b.steamid, b.name, b.reason);
+                        }
+                        return ret;
+                    }
+                }
+            }
+            return PlayerDatabase_RawUnban(unbanList);
+        }
+
+        bool PlayerDatabase_IsBanned(string steamid, string ip, out BanData bandata)
+        {
+            bandata = null;
+            BanData possibleData = null;
+            double cTime = LogTime();
+            bool permanent = false;
+            List<BanData> unbanList = new List<BanData>();
+            List<BanData> list = new List<BanData>();
+            {
+                // check by ID then IP
+                var b_steamid = PlayerDatabase.Call("GetPlayerDataRaw", steamid, "Banned");
+                if (b_steamid is string)
+                {
+                    list = JsonConvert.DeserializeObject<List<BanData>>((string)b_steamid);
+                }
+                foreach (var b in list)
+                {
+                    if (b.expire != 0.0 && cTime >= b.expire)
+                    {
+                        unbanList.Add(b);
+                    }
+                    else
+                    {
+                        if (b.expire == 0.0)
+                        {
+                            permanent = true;
+                        }
+                        if (b.ip == ip)
+                        {
+                            bandata = b;
+                        }
+                    }
+                }
+                if (unbanList.Count > 0)
+                {
+                    PlayerDatabase_RawUnban(unbanList);
+                    foreach (var b in unbanList)
+                    {
+                        list.Remove(b);
+                    }
+                    unbanList.Clear();
+                }
+
+                if (list.Count > 0 && bandata == null)
+                {
+                    possibleData = list[0];
+                }
+            }
+            {
+                // check by IP & IP Range
+                list = cachedBans.Values.Where(x => IPRange(x.ip, ip)).ToList();
+                foreach (var b in list)
+                {
+                    if (b.expire != 0.0 && cTime >= b.expire)
+                    {
+                        unbanList.Add(b);
+                    }
+                    else
+                    {
+                        if (b.expire == 0.0)
+                        {
+                            permanent = true;
+                        }
+                    }
+                }
+                if (unbanList.Count > 0)
+                {
+                    PlayerDatabase_RawUnban(unbanList);
+                    foreach (var b in unbanList)
+                    {
+                        list.Remove(b);
+                    }
+                    unbanList.Clear();
+                }
+                if (list.Count > 0 && bandata == null && possibleData == null)
+                {
+                    possibleData = list[0];
+                }
+            }
+            if (bandata == null && possibleData != null)
+            {
+                bandata = possibleData;
+            }
+            if (bandata != null && bandata.expire != 0.0 && permanent)
+            {
+                PlayerDatabase_UpdateBan(bandata, 0.0);
+            }
+            return bandata != null;
+        }
+
+        string PlayerDatabase_Banlist(object source, int startid)
+        {
+            if (startid > cachedBans.Count)
+            {
+                return FormatReturn(BanSystem.PlayerDatabase, GetMsg("Index is out of range. Current bans recorded: {0}"), cachedBans.Count.ToString());
+            }
+
+            int i = -1;
+            int max = startid + 9;
+
+            string returnstring = FormatReturn(BanSystem.PlayerDatabase, GetMsg("Banlist - {0}-{1}/{2}\n"), startid.ToString(), max.ToString(), cachedBans.Count.ToString());
+
+
+            var bans = from pair in cachedBans orderby pair.Key descending select pair;
+
+            foreach (KeyValuePair<int, BanData> b in bans)
+            {
+                i++;
+                if (i < startid) continue;
+                if (i > max) break;
+                returnstring += b.ToString() + "\n";
+
+            }
+
+            return returnstring;
+        }
+
+        ////////////////////////////////////////////////////////////
+        // WebAPI
+        ////////////////////////////////////////////////////////////
 
         string FormatOnlineBansystem(string line, Dictionary<string, string> args)
         {
@@ -46,738 +1145,1126 @@ namespace Oxide.Plugins
             return line;
         }
 
-        ////////////////////////////////////////////////////////////
-        // Configs
-        ////////////////////////////////////////////////////////////
-
-        string PermissionBan = "enhancedbansystem.ban";
-        string PermissionUnban = "enhancedbansystem.unban";
-        string PermissionBanlist = "enhancedbansystem.banlist";
-        string PermissionKick = "enhancedbansystem.kick";
-        string OnlineWebRequestBanLine = "http://webpage.com/api.php?action=ban&pass=mypassword&steamid={steamid}&name={name}&ip={ip}&reason={reason}&source={source}&tempban={expiration}";
-        string OnlineWebRequestUnbanLine = "http://webpage.com/api.php?action=unban&pass=mypassword&steamid={steamid}&name={name}&ip={ip}&name={name}&source={source}";
-        string OnlineWebRequestIsbanned = "http://webpage.com/api.php?action=isbanned&pass=mypassword&steamid={steamid}&ip={ip}&time={time}&name={name}";
-        string OnlineWebRequestBanlist = "http://webpage.com/banlist.php";
-        string OnlineWebRequestIsbannedYes = "1";
-        string OnlineWebRequestIsbannedNo = "0";
-        string BanDefaultReason = "Banned";
-        bool BroadcastKick = true;
-        bool BroadcastBan = true;
-        string BroadcastBanMessage = "{0} was banned from the server ({1})";
-        string BroadcastKickMessage = "{0} was kicked from the server ({1})";
-        int Bansystem = 1;
-
-        protected override void LoadDefaultConfig() { }
-
-        private void CheckCfg<T>(string Key, ref T var)
+        string WebAPI_ExecuteBan(object source, BanData bandata)
         {
-            if (Config[Key] is T) 
-                var = (T)Config[Key];
-            else
-                Config[Key] = var;
-        }
-
-        void Init()
-        { 
-            CheckCfg<int>("BanSystem - 0: Both System, 1: LocalData, 2: OnlineWebRequest", ref Bansystem);
-            CheckCfg<string>("Bans - Permission", ref PermissionBan);
-            CheckCfg<bool>("Bans - Broadcast", ref BroadcastBan);
-            CheckCfg<string>("Bans - Broadcast Message", ref BroadcastBanMessage);
-            CheckCfg<string>("Bans - Default Reason", ref BanDefaultReason);
-            CheckCfg<string>("Unban - Permission", ref PermissionUnban);
-            CheckCfg<string>("Kick - Permission", ref PermissionKick);
-            CheckCfg<bool>("Kick - Broadcast", ref BroadcastKick);
-            CheckCfg<string>("Kick - Broadcast Message", ref BroadcastKickMessage);
-            CheckCfg<string>("Banlist - Permission", ref PermissionBanlist);
-            CheckCfg<string>("Online Banlist - Ban line request", ref OnlineWebRequestBanLine);
-            CheckCfg<string>("Online Banlist - Unban line request", ref OnlineWebRequestUnbanLine);
-            CheckCfg<string>("Online Banlist - Check if banned request", ref OnlineWebRequestIsbanned);
-            CheckCfg<string>("Online Banlist - Check if banned request - answer yes", ref OnlineWebRequestIsbannedYes);
-            CheckCfg<string>("Online Banlist - Check if banned request - answer no", ref OnlineWebRequestIsbannedNo);
-            CheckCfg<string>("Online Banlist - Banlist page", ref OnlineWebRequestBanlist);
-
-            SaveConfig();
-        }
-
-        ////////////////////////////////////////////////////////////
-        // Log Management
-        ////////////////////////////////////////////////////////////
-
-        static StoredData storedData;
-        static Hash<string, BanData> banLogs = new Hash<string, BanData>();
-        static Hash<string, List<BanData>> bannedIPs = new Hash<string, List<BanData>>();
-
-        void UpdateBannedIPs()
-        {
-            bannedIPs.Clear();
-            foreach (KeyValuePair<string, BanData> pair in banLogs)
+            webrequest.EnqueueGet(FormatOnlineBansystem(WebAPI_Ban_Request, new Dictionary<string, string> { { "{id}", bandata.id.ToString() }, { "{steamid}", bandata.steamid }, { "{name}", bandata.name }, { "{ip}", bandata.ip }, { "{reason}", bandata.reason }, { "{source}", bandata.source }, { "{expiration}", bandata.expire.ToString() }, { "{game}", bandata.game }, { "{platform}", bandata.platform }, { "{server}", bandata.server } }), (code, response) =>
             {
-                foreach (string ip in pair.Value.IPs)
+                if (response == null && code == 200)
                 {
-                    if (!bannedIPs.ContainsKey(ip))
-                        bannedIPs.Add(ip, new List<BanData>());
-                    if (!bannedIPs[ip].Contains(pair.Value))
-                        bannedIPs[ip].Add(pair.Value);
+                    response = FormatReturn(BanSystem.WebAPI, "Couldn't contact the WebAPI");
                 }
-            }
-        }
-
-        class StoredData
-        {
-            public HashSet<BanData> BanLogs = new HashSet<BanData>();
-            public StoredData()
-            {
-            }
-        }
-
-        void OnServerSave()
-        {
-            SaveData();
-        }
-
-        void SaveData()
-        {
-            Interface.GetMod().DataFileSystem.WriteObject("EnhancedBanSystem", storedData);
-        }
-
-        void LoadData()
-        {
-            banLogs.Clear();
-            try
-            {
-                storedData = Interface.GetMod().DataFileSystem.ReadObject<StoredData>("EnhancedBanSystem");
-            }
-            catch
-            {
-                storedData = new StoredData();
-            }
-            foreach (var thelog in storedData.BanLogs)
-            {
-                banLogs[thelog.steamID] = thelog;
-            }
-        }
-
-        public class BanData
-        {
-            public string steamID;
-            public string reason;
-            public string name;
-            public string date;
-            public List<string> IPs;
-            public int expiration;
-            public string source;
-
-            public BanData() { }
-
-            public BanData(string steamID, string reason, string name, List<string> IP, int duration, string source)
-            {
-                this.steamID = steamID;
-                this.reason = reason;
-                this.name = name;
-                this.IPs = IP;
-                this.expiration = duration < 1 ? 0 : Convert.ToInt32(LogTime()) + duration;
-                this.date = LogTime().ToString();
-            }
-        }
-
-        ////////////////////////////////////////////////////////////
-        // Oxide Hooks
-        ////////////////////////////////////////////////////////////
-
-        void Loaded()
-        {
-            permission.RegisterPermission(PermissionBan, this);
-            permission.RegisterPermission(PermissionUnban, this);
-            permission.RegisterPermission(PermissionBanlist, this);
-            permission.RegisterPermission(PermissionKick, this);
-            LoadData();
-            UpdateBannedIPs();
-
-            lang.RegisterMessages(new Dictionary<string, string>
-            {
-                { "You don't have the permission to use this command.","You don't have the permission to use this command." },
-                { "{0} - {1} is already banned.","{0} - {1} is already banned." },
-                { "This IP is already banned.","This IP is already banned." },
-                {  "No bans matching this ip.", "No bans matching this ip." },
-                {  "No bans matching this steamid.", "No bans matching this steamid." },
-                { "No bans matching this name.","No bans matching this name." },
-                {"Multiple bans matching this name:\r\n","Multiple bans matching this name:\r\n" },
-                {  "{0} {1} was successfully unbanned.", "{0} {1} was successfully unbanned." },
-                { "Syntax: ban <Name|SteamID|IP> <reason (optional)> <time in secondes (optional>", "Syntax: ban <Name|SteamID|IP> <reason (optional)> <time in secondes (optional>" },
-                { "Syntax: player.ban <Name|SteamID|IP> <reason (optional)> <time in secondes (optional>", "Syntax: player.ban <Name|SteamID|IP> <reason (optional)> <time in secondes (optional>" },
-                { "{0} {1} was successfully banned from the server ({2})", "{0} {1} was successfully banned from the server ({2})" },
-                { "{0} {1} was successfully tempbanned from the server ({2}) for {3} secs","{0} {1} was successfully tempbanned from the server ({2}) for {3} secs" },
-                {"You are banned from this server ({0})", "You are banned from this server ({0})" },
-                { "You are tempbanned from this server ({0})", "You are tempbanned from this server ({0})" },
-                { "Syntax: unban <Name|SteamID|IP>","Syntax: unban <Name|SteamID|IP>" },
-                 { "Syntax: player.unban <Name|SteamID|IP>","Syntax: player.unban <Name|SteamID|IP>" },
-                {"Syntax: kick <Name|SteamID|IP> <reason(optional)>","Syntax: kick <Name|SteamID|IP> <reason(optional)>" },
-                {"Syntax: player.kick <Name|SteamID|IP> <reason(optional)>","Syntax: player.kick <Name|SteamID|IP> <reason(optional)>" },
-                {"No player matching this name was found.","No player matching this name was found." },
-                {"Command Sent, waiting for an answer","Command Sent, waiting for an answer" },
-                {"You are banned from this server.","You are banned from this server." }
+                if (source is IPlayer) ((IPlayer)source).Reply(response);
+                else Interface.Oxide.LogInfo(response);
             }, this);
+
+            return string.Empty;
         }
 
-        void OnUserConnected(IPlayer player)
+        string WebAPI_ExecuteUnban(object source, string steamid, string name, string ip)
         {
-            string reason = string.Empty;
-            string steamid = player.Id.ToString();
-            string name = player.Name.ToString();
-            string ip = NormalizeIP(player.Address);
-
-            /*
-            if (Bansystem == 0 || Bansystem == 1)
+            webrequest.EnqueueGet(FormatOnlineBansystem(WebAPI_Unban_Request, new Dictionary<string, string> { { "{steamid}", steamid }, { "{name}", name }, { "{ip}", ip } }), (code, response) =>
             {
-                if (isBanned(steamid, name, ip, out reason, out expiration))
+                if (response == null && code == 200)
                 {
-                    timer.Once(0.01f, () => player.ConnectedPlayer.Kick(expiration == 0 ? string.Format(GetMsg("You are banned from this server ({0})", steamid), reason) : string.Format(GetMsg("You are tempbanned from this server ({0})", steamid), reason)));
+                    response = FormatReturn(BanSystem.WebAPI, "Couldn't contact the WebAPI");
                 }
-            }*/
+                if (source is IPlayer) ((IPlayer)source).Reply(response);
+                else Interface.Oxide.LogInfo(response);
+            }, this);
 
-            if (Bansystem == 0 || Bansystem == 2)
-            {
-                webrequest.EnqueueGet(FormatOnlineBansystem(OnlineWebRequestIsbanned, new Dictionary<string, string> { { "{steamid}", steamid }, { "{name}", name }, { "{ip}", ip }, { "{source}", steamid }, { "{time}", LogTime().ToString() } }), (code, response) =>
-                {
-                    if (response != null || code != 200)
-                    {
-                        if (response == OnlineWebRequestIsbannedYes)
-                            timer.Once(0.01f, () => player.Kick(GetMsg("You are banned from this server.", steamid)));
-                    }
-                }, this);
-            }
+            return string.Empty;
         }
 
-        object CanUserLogin(string name, string steamid, string ip)
+        string WebAPI_IsBanned(BanData bandata, bool update)
         {
-            if (Bansystem == 0 || Bansystem == 1)
+            webrequest.EnqueueGet(FormatOnlineBansystem(WebAPI_IsBanned_Request, new Dictionary<string, string> { { "{id}", bandata.id.ToString() }, { "{steamid}", bandata.steamid }, { "{name}", bandata.name }, { "{ip}", bandata.ip }, { "{source}", "EBS" }, { "{update}", update.ToString() }, { "{time}", LogTime().ToString() } }), (code, response) =>
             {
-                string reason = string.Empty;
-                int expiration = 0;
-                if (isBanned(steamid, name, ip, out reason, out expiration))
+                if (response != null || code != 200)
                 {
-                    return expiration == 0 ? string.Format(GetMsg("You are banned from this server ({0})", steamid), reason) : string.Format(GetMsg("You are tempbanned from this server ({0})", steamid), reason);
-                }
-            }
-            return null;
-        }
-
-        ////////////////////////////////////////////////////////////
-        // Players Management
-        ////////////////////////////////////////////////////////////
-
-        List<string> FindOnlinePlayers(string arg)
-        {
-            var name = arg.ToLower();
-            var liststeamids = new List<string>();
-            ulong steamid = 0L;
-            if (arg.Length == 17 && ulong.TryParse(arg, out steamid))
-            {
-                liststeamids.Add(steamid.ToString());
-            }
-            else if (regex.IsMatch(arg))
-            {
-                foreach (var player in players.GetAllPlayers().Where(x => x.IsConnected)) { if (NormalizeIP(player.Address) == arg && !liststeamids.Contains(player.Id.ToString())) liststeamids.Add(player.Id.ToString()); }
-            }
-            else
-            {
-                foreach (var player in players.GetAllPlayers().Where(x => x.IsConnected)) { if (player.Name.ToString().ToLower().Contains(name) && !liststeamids.Contains(player.Id.ToString())) liststeamids.Add(player.Id.ToString()); }
-            }
-            return liststeamids;
-        }
-
-        List<string> FindPlayers(string arg)
-        {
-            ulong steamid = 0L;
-            if (arg.Length == 17 && ulong.TryParse(arg, out steamid)) return new List<string> { steamid.ToString() };
-
-            List<string> results = new List<string>();
-            string searchip = string.Empty;
-            string searchname = arg.ToLower();
-
-            if (regex.IsMatch(arg))
-                searchip = arg;
-
-            var liststeamids = new List<string>();
-
-            foreach (var player in players.GetAllPlayers()) { if (!liststeamids.Contains(player.Id.ToString())) liststeamids.Add(player.Id.ToString()); }
-            if (PlayerDatabase) { foreach (var userid in (PlayerDatabase.Call("GetAllKnownPlayers") as HashSet<string>)) { if (!liststeamids.Contains(userid)) liststeamids.Add(userid); } }
-
-            foreach (var userid in liststeamids)
-            {
-                if (searchip != string.Empty)
-                {
-                    if (PlayerDatabase)
-                    {
-                        var success = PlayerDatabase.Call("GetPlayerDataRaw", userid, "IPs");
-                        if (success is string)
-                        {
-                            var ips = JsonConvert.DeserializeObject<List<string>>((string)success);
-                            if (ips != null && ips.Contains(searchip) && !results.Contains(userid)) results.Add(userid);
-                        }
-                    }
-                    else
-                    {
-                        var gplayer = players.GetPlayer(userid);
-                        if (gplayer != null && gplayer.IsConnected && NormalizeIP(gplayer.Address) == searchip && !results.Contains(userid)) results.Add(userid);
-                    }
+                    if (response == "false" || response == "0")
+                        return;
+                    timer.Once(0.01f, () => Kick(null, bandata.steamid, response == "true" || response == "1" ? "Banned" : response, false));
                 }
                 else
                 {
+                    Interface.Oxide.LogWarning("WebAPI couldn't be contacted or is not valid");
+                }
+            }, this);
 
-                    var g2player = players.GetPlayer(userid);
-                    if (g2player != null && g2player.Name.ToString().ToLower().Contains(searchname) && !results.Contains(userid)) results.Add(userid);
-                    if (PlayerDatabase && g2player == null)
+            return string.Empty;
+        }
+
+        string WebAPI_Banlist(object source, int startid)
+        {
+            webrequest.EnqueueGet(FormatOnlineBansystem(WebAPI_Banlist_Request, new Dictionary<string, string> { { "{startid}", startid.ToString() } }), (code, response) =>
+            {
+                if (response != null || code != 200)
+                {
+                    SendReply(source, response);
+                }
+            }, this);
+
+            return string.Empty;
+        }
+
+        string WebAPI_Load()
+        {
+            return FormatReturn(BanSystem.WebAPI, GetMsg("Loaded\n\r"));
+        }
+
+        ////////////////////////////////////////////////////////////
+        // SQLite
+        ////////////////////////////////////////////////////////////
+
+        Ext.SQLite.Libraries.SQLite Sqlite = Interface.GetMod().GetLibrary<Ext.SQLite.Libraries.SQLite>();
+        Connection Sqlite_conn;
+
+        string SQLite_Load()
+        {
+            var returnstring = string.Empty;
+            try
+            {
+                Sqlite_conn = Sqlite.OpenDb(SQLite_DB, this);
+                if (Sqlite_conn == null)
+                {
+                    returnstring = FormatReturn(BanSystem.SQLite, "Couldn't open the SQLite.");
+                }
+                else
+                {
+                    Sqlite.Insert(Core.Database.Sql.Builder.Append("CREATE TABLE IF NOT EXISTS EnhancedBanSystem ( id INTEGER NOT NULL PRIMARY KEY UNIQUE, steamid TEXT, name TEXT, ip TEXT, reason TEXT, source TEXT, game TEXT, platform TEXT, server TEXT, expire INTEGER );"), Sqlite_conn);
+                    returnstring = FormatReturn(BanSystem.SQLite, GetMsg("Loaded\n\r"));
+                }
+            }
+            catch (Exception e)
+            {
+                returnstring = e.Message;
+            }
+            return FormatReturn(BanSystem.SQLite, returnstring);
+        }
+
+
+        string SQLite_RawBan(BanData bandata)
+        {
+            try
+            {
+                Sqlite.Insert(Core.Database.Sql.Builder.Append("INSERT OR REPLACE INTO EnhancedBanSystem ( id, steamid, name, ip, reason, source, game, platform, server, expire ) VALUES ( @0, @1, @2, @3, @4, @5, @6, @7, @8, @9 )", bandata.id, bandata.steamid, bandata.name, bandata.ip, bandata.reason, bandata.source, bandata.game, bandata.platform, bandata.server, (int)bandata.expire), Sqlite_conn);
+            }
+            catch (Exception e)
+            {
+                return e.Message;
+            }
+            return FormatReturn(BanSystem.SQLite, GetMsg("Successfully added {0} to the banlist."), bandata.ToString());
+        }
+
+        string SQLite_ExecuteBan(object source, BanData bandata)
+        {
+            var sqlString = bandata.steamid == string.Empty ? Core.Database.Sql.Builder.Append("SELECT * from EnhancedBanSystem WHERE `ip` == @0 ", bandata.ip) : Core.Database.Sql.Builder.Append("SELECT * from EnhancedBanSystem WHERE `steamid` == @0 AND `ip` == @1 ", bandata.steamid, bandata.ip);
+
+            Sqlite.Query(sqlString, Sqlite_conn, list =>
+            {
+                if (list != null)
+                {
+                    foreach (var entry in list)
                     {
-                        var name = (string)PlayerDatabase.Call("GetPlayerData", userid, "name") ?? string.Empty;
-                        if (name != string.Empty && name.ToLower().Contains(searchname) && !results.Contains(userid)) results.Add(userid);
+                        var bd = new BanData(int.Parse(entry["id"].ToString()), (string)entry["source"], (string)entry["steamid"], (string)entry["name"], (string)entry["ip"], (string)entry["reason"], entry["expire"].ToString());
+                        var response = FormatReturn(BanSystem.SQLite, GetMsg("This ban already exists ({0})."), bd.ToString());
+                        SendReply(source, response);
+                        return;
                     }
                 }
-            }
+                var reponse2 = SQLite_RawBan(bandata);
+                if (source is IPlayer) ((IPlayer)source).Reply(reponse2);
+                else Interface.Oxide.LogInfo(reponse2);
+            });
 
-            return results;
+            return string.Empty;
         }
 
-        string UserIDToName(string userid)
+        void SQLite_RawUnban(object source, List<long> unbanList)
         {
-            var name = string.Empty;
-            if (PlayerDatabase)
+            foreach (var id in unbanList)
             {
-                name = (string)PlayerDatabase.Call("GetPlayerData", userid, "name") ?? string.Empty;
+                Sqlite.Insert(Core.Database.Sql.Builder.Append("DELETE from EnhancedBanSystem WHERE `id` = @0", id), Sqlite_conn);
             }
-            if (name == string.Empty)
-            {
-                var gplayer = players.GetPlayer(userid);
-                if (gplayer != null) name = gplayer.Name.ToString();
-            }
-            if (name == string.Empty) name = "Unknown Error 1";
-            return name;
+            var returnstring = FormatReturn(BanSystem.SQLite, GetMsg("{0} matching bans were removed"), unbanList.Count.ToString());
+            SendReply(source, returnstring);
         }
 
-        Dictionary<string, object> GetPlayerData(string steamid)
+        string SQLite_ExecuteUnban(object source, string steamid, string name, string ip)
         {
-            var playerinfo = new Dictionary<string, object> { { "steamid", steamid }, { "IPs", new List<string>() }, { "name", string.Empty } };
-
-            if (PlayerDatabase)
+            List<long> unbanList = new List<long>();
+            if (ip != string.Empty || steamid != string.Empty)
             {
-                var name = (string)PlayerDatabase.Call("GetPlayerData", steamid, "name") ?? string.Empty;
-                playerinfo["name"] = name;
-
-                var playerIPs = new List<string>();
-                var successs = PlayerDatabase.Call("GetPlayerDataRaw", steamid, "IPs");
-                if (successs is string)
+                var sqlString = ip != string.Empty ? Core.Database.Sql.Builder.Append("SELECT * from EnhancedBanSystem WHERE `ip` == @0 ", ip) : Core.Database.Sql.Builder.Append("SELECT * from EnhancedBanSystem WHERE `steamid` == @0", steamid);
+                Sqlite.Query(sqlString, Sqlite_conn, list =>
                 {
-                    playerIPs = JsonConvert.DeserializeObject<List<string>>((string)successs);
-                }
-                foreach (var ip in playerIPs) { ((List<string>)playerinfo["IPs"]).Add(ip); }
+                    if (list != null)
+                    {
+                        foreach (var entry in list)
+                        {
+                            unbanList.Add((long)entry["id"]);
+                        }
+                    }
+                    SQLite_RawUnban(source, unbanList);
+                });
             }
-            var iplayer = players.GetPlayer(steamid);
-            if (iplayer != null)
+            else
             {
-                if ((string)playerinfo["name"] == string.Empty) playerinfo["name"] = iplayer.Name.ToString();
-                if (((List<string>)playerinfo["IPs"]).Count == 0 && iplayer.IsConnected) ((List<string>)playerinfo["IPs"]).Add(NormalizeIP(iplayer.Address.ToString()));
+                Sqlite.Query(Core.Database.Sql.Builder.Append("SELECT * from EnhancedBanSystem WHERE `name` LIKE @0", "%" + name + "%"), Sqlite_conn, list =>
+                {
+                    List<Dictionary<string, object>> f = new List<Dictionary<string, object>>();
+                    if (list != null)
+                    {
+                        foreach (var entry in list)
+                        {
+                            f.Add(entry);
+                            unbanList.Add((long)entry["id"]);
+                        }
+                    }
+                    if (unbanList.Count > 1)
+                    {
+                        var ret = FormatReturn(BanSystem.SQLite, GetMsg("Multiple Bans Found:\n\r"));
+                        foreach (var e in f)
+                        {
+                            ret += string.Format("{0} - {1} - {2}\n\r", (string)e["steamid"], (string)e["name"], (string)e["reason"]);
+                        }
+                        if (source is IPlayer) ((IPlayer)source).Reply(ret);
+                        else Interface.Oxide.LogInfo(ret);
+                        return;
+                    }
+                    SQLite_RawUnban(source, unbanList);
+                });
             }
-            return playerinfo;
+            return string.Empty;
         }
+
+        void SQLite_UpdateBan(BanData bandata)
+        {
+            Sqlite.Insert(Core.Database.Sql.Builder.Append("UPDATE EnhancedBanSystem SET `steamid`= @1, `name`= @2, `ip`= @3,`reason`= @4,`source`=@5, `game`= @6, `platform`= @7,`server`= @8, `expire`= @9 WHERE `id` = @0", bandata.id, bandata.steamid, bandata.name, bandata.ip, bandata.reason, bandata.source, bandata.game, bandata.platform, bandata.server, (int)bandata.expire), Sqlite_conn);
+        }
+
+        void SQLite_IsBanned(BanData bandata, bool update)
+        {
+            bandata.reason = BanEvadeReason;
+
+            double cTime = LogTime();
+            List<long> unbanList = new List<long>();
+            Dictionary<string, object> match = new Dictionary<string, object>();
+
+            Sqlite.Query(Core.Database.Sql.Builder.Append("SELECT * from EnhancedBanSystem WHERE `steamid` == @0", bandata.steamid), Sqlite_conn, list =>
+            {
+
+                var l = new List<Dictionary<string, object>>();
+                if (list != null)
+                {
+                    foreach (var entry in list)
+                    {
+                        var expire = (long)entry["expire"];
+                        if (expire != 0.0 && cTime >= expire)
+                        {
+                            unbanList.Add((long)entry["id"]);
+                        }
+                        else
+                        {
+                            if ((string)entry["ip"] == bandata.ip)
+                            {
+                                match = entry;
+                            }
+                            l.Add(entry);
+                        }
+                    }
+                }
+                if (unbanList.Count > 0)
+                {
+                    SQLite_RawUnban("EBS", unbanList);
+                    unbanList.Clear();
+                }
+                var l2 = l.Where(x => (long)x["expire"] == 0l).ToList();
+                if (l2.Count == 0)
+                {
+                    string range1;
+                    string range2;
+                    string range3;
+                    if (RangeFromIP(bandata.ip, out range1, out range2, out range3))
+                    {
+                        Sqlite.Query(Core.Database.Sql.Builder.Append("SELECT * from EnhancedBanSystem WHERE `ip` == @0 OR `ip` == @1 OR `ip` == @2 OR `ip` == @3", bandata.ip, range1, range2, range3), Sqlite_conn, list2 =>
+                        {
+                            if (list2 != null)
+                            {
+                                foreach (var entry in list2)
+                                {
+                                    var expire = (long)entry["expire"];
+                                    if (expire != 0.0 && cTime >= expire)
+                                    {
+                                        unbanList.Add((long)entry["id"]);
+                                    }
+                                    else
+                                    {
+                                        if (!l.Contains(entry))
+                                            l.Add(entry);
+                                    }
+                                }
+                            }
+                            if (l.Count > 0)
+                            {
+                                l2 = l.Where(x => (long)x["expire"] == 0l).ToList();
+                                bandata.expire = l2.Count > 0 ? 0.0 : match.ContainsKey("expire") ? (long)(match["expire"]) : (long)(l[0]["expire"]);
+                                if (match.ContainsKey("expire"))
+                                {
+                                    if ((long)(match["expire"]) != bandata.expire)
+                                    {
+                                        var bd = new BanData(int.Parse(match["id"].ToString()), (string)match["source"], (string)match["steamid"], (string)match["name"], (string)match["ip"], (string)match["reason"], match["expire"].ToString());
+                                        bd.expire = bandata.expire;
+                                        SQLite_UpdateBan(bd);
+                                    }
+                                }
+                                else if (update) ExecuteBan("EBS", bandata, false);
+                                timer.Once(0.1f, () => Kick(null, bandata.steamid, match.ContainsKey("reason") ? (string)match["reason"] : (string)l[0]["reason"], false));
+                            }
+                        });
+                    }
+                }
+                if (l.Count > 0)
+                {
+                    bandata.expire = l2.Count > 0 ? 0.0 : match.ContainsKey("expire") ? (long)(match["expire"]) : (long)(l[0]["expire"]);
+                    if (match.ContainsKey("expire"))
+                    {
+                        if ((long)(match["expire"]) != bandata.expire)
+                        {
+                            var bd = new BanData(int.Parse(match["id"].ToString()), (string)match["source"], (string)match["steamid"], (string)match["name"], (string)match["ip"], (string)match["reason"], match["expire"].ToString());
+                            SQLite_UpdateBan(bd);
+                        }
+                    }
+                    else if (update) ExecuteBan("EBS", bandata, false);
+                    timer.Once(0.1f, () => Kick(null, bandata.steamid, match.ContainsKey("reason") ? (string)match["reason"] : (string)l[0]["reason"], false));
+                }
+            });
+        }
+
+        string SQLite_Banlist(object source, int startid)
+        {
+            Sqlite.Query(Core.Database.Sql.Builder.Append("SELECT * from EnhancedBanSystem ORDER BY id DESC"), Sqlite_conn, list =>
+            {
+                int i = -1;
+                int max = startid + 9;
+                string replystring = string.Empty;
+                if (list != null)
+                {
+                    replystring += FormatReturn(BanSystem.SQLite, GetMsg("Banlist - {0}-{1}/{2}\n"), startid.ToString(), max.ToString(), list.Count.ToString());
+                    foreach (var entry in list)
+                    {
+                        i++;
+                        if (i < startid) continue;
+                        if (i > max) break;
+                        var bd = new BanData(int.Parse(entry["id"].ToString()), (string)entry["source"], (string)entry["steamid"], (string)entry["name"], (string)entry["ip"], (string)entry["reason"], entry["expire"].ToString());
+                        replystring += bd.ToString() + "\n";
+                    }
+                    SendReply(source, replystring);
+                }
+            });
+            return string.Empty;
+        }
+
+        ////////////////////////////////////////////////////////////
+        // MySQL
+        ////////////////////////////////////////////////////////////
+
+        Ext.MySql.Libraries.MySql Sql = Interface.GetMod().GetLibrary<Ext.MySql.Libraries.MySql>();
+        Connection Sql_conn;
+
+        string MySQL_Load()
+        {
+            string returnstring = string.Empty;
+            try
+            {
+                Sql_conn = Sql.OpenDb(MySQL_Host, MySQL_Port, MySQL_DB, MySQL_User, MySQL_Pass, this);
+                if (Sql_conn == null || Sql_conn.Con == null)
+                {
+                    returnstring = FormatReturn(BanSystem.MySQL, "Couldn't open the MySQL PlayerDatabase: {0} ", Sql_conn.Con.State.ToString());
+                }
+                else
+                {
+                    Sql.Insert(Core.Database.Sql.Builder.Append("CREATE TABLE IF NOT EXISTS enhancedbansystem ( `id` int(11) NOT NULL, `steamid` VARCHAR(17),`name` VARCHAR(25),`ip` VARCHAR(15),`reason` VARCHAR(25),`source` VARCHAR(25), `game` VARCHAR(25) , `platform` VARCHAR(25), `server` VARCHAR(25), `expire` int(11) );"), Sql_conn);
+                    returnstring = FormatReturn(BanSystem.MySQL, GetMsg("Loaded\n\r"));
+                }
+            }
+            catch (Exception e)
+            {
+                returnstring = FormatReturn(BanSystem.MySQL, e.Message);
+            }
+            return returnstring;
+        }
+
+        string MySQL_RawBan(BanData bandata)
+        {
+            try
+            {
+                Sql.Insert(Core.Database.Sql.Builder.Append("INSERT IGNORE INTO enhancedbansystem ( `id`, `steamid`,`name`,`ip`,`reason`,`source`,`game`,`platform`, `server`, `expire` ) VALUES ( @0, @1, @2, @3, @4, @5, @6, @7, @8, @9 )", bandata.id, bandata.steamid, bandata.name, bandata.ip, bandata.reason, bandata.source, bandata.game, bandata.platform, bandata.server, (int)bandata.expire), Sql_conn);
+            }
+            catch (Exception e)
+            {
+                return e.Message;
+            }
+            return FormatReturn(BanSystem.MySQL, GetMsg("Successfully added {0} to the banlist."), bandata.ToString());
+        }
+
+        void MySQL_UpdateBan(BanData bandata)
+        {
+            Sqlite.Insert(Core.Database.Sql.Builder.Append("UPDATE EnhancedBanSystem SET `steamid`= @1, `name`= @2, `ip`= @3,`reason`= @4,`source`=@5, `game`= @6, `platform`= @7,`server`= @8, `expire`= @9 WHERE `id` = @0", bandata.id, bandata.steamid, bandata.name, bandata.ip, bandata.reason, bandata.source, bandata.game, bandata.platform, bandata.server, (int)bandata.expire), Sqlite_conn);
+        }
+
+        void MySQL_RawUnban(object source, List<int> unbanList)
+        {
+            foreach (var id in unbanList)
+            {
+                Sql.Insert(Core.Database.Sql.Builder.Append("DELETE from enhancedbansystem WHERE `id` = @0", id), Sql_conn);
+            }
+            var returnstring = FormatReturn(BanSystem.SQLite, GetMsg("{0} matching bans were removed"), unbanList.Count.ToString());
+            SendReply(source, returnstring);
+        }
+        string MySQL_ExecuteBan(object source, BanData bandata)
+        {
+            var sqlString = bandata.steamid == string.Empty ? Core.Database.Sql.Builder.Append("SELECT * from enhancedbansystem WHERE `ip` = @0 ", bandata.ip) : Core.Database.Sql.Builder.Append("SELECT * from enhancedbansystem WHERE `steamid` = @0 AND `ip` = @1 ", bandata.steamid, bandata.ip);
+            Sql.Query(sqlString, Sql_conn, list =>
+            {
+                if (list != null)
+                {
+                    foreach (var entry in list)
+                    {
+                        var bd = new BanData(int.Parse(entry["id"].ToString()), (string)entry["source"], (string)entry["steamid"], (string)entry["name"], (string)entry["ip"], (string)entry["reason"], entry["expire"].ToString());
+                        var response = FormatReturn(BanSystem.MySQL, GetMsg("This ban already exists ({0})."), bd.ToString());
+                        SendReply(source, response);
+                        return;
+                    }
+                }
+                var reponse2 = MySQL_RawBan(bandata);
+                SendReply(source, reponse2);
+            });
+
+            return string.Empty;
+        }
+
+        string MySQL_ExecuteUnban(object source, string steamid, string name, string ip)
+        {
+            int i = 0;
+            List<int> unbanList = new List<int>();
+            if (ip != string.Empty || steamid != string.Empty)
+            {
+                var sqlString = ip != string.Empty ? Core.Database.Sql.Builder.Append("SELECT * from enhancedbansystem WHERE `ip` = @0 ", ip) : Core.Database.Sql.Builder.Append("SELECT * from enhancedbansystem WHERE `steamid` = @0", steamid);
+                Sql.Query(sqlString, Sql_conn, list =>
+                {
+                    if (list != null)
+                    {
+                        foreach (var entry in list)
+                        {
+                            unbanList.Add((int)entry["id"]);
+                            i++;
+                        }
+                    }
+                    MySQL_RawUnban(source, unbanList);
+                });
+            }
+            else
+            {
+                Sql.Query(Core.Database.Sql.Builder.Append("SELECT * from enhancedbansystem WHERE `name` LIKE @0", "%" + name + "%"), Sql_conn, list =>
+                {
+                    List<Dictionary<string, object>> f = new List<Dictionary<string, object>>();
+                    if (list != null)
+                    {
+                        foreach (var entry in list)
+                        {
+                            f.Add(entry);
+                            unbanList.Add((int)entry["id"]);
+                            i++;
+                        }
+                    }
+                    if (unbanList.Count > 1)
+                    {
+                        string ret = FormatReturn(BanSystem.MySQL, GetMsg("Multiple Bans Found:\n\r"));
+                        foreach (var e in f)
+                        {
+                            ret += string.Format("{0} - {1} - {2}\n\r", (string)e["steamid"], (string)e["name"], (string)e["reason"]);
+                        }
+                        if (source is IPlayer) ((IPlayer)source).Reply(ret);
+                        else Interface.Oxide.LogInfo(ret);
+                        return;
+                    }
+                    else
+                    {
+                        MySQL_RawUnban(source, unbanList);
+                    }
+                });
+            }
+            return string.Empty;
+        }
+
+        void MySQL_IsBanned(BanData bandata, bool update)
+        {
+            List<int> unbanList = new List<int>();
+            double cTime = LogTime();
+            Dictionary<string, object> match = new Dictionary<string, object>();
+
+            Sql.Query(Core.Database.Sql.Builder.Append("SELECT * from enhancedbansystem WHERE `steamid` = @0", bandata.steamid), Sql_conn, list =>
+            {
+                var l = new List<Dictionary<string, object>>();
+                if (list != null)
+                {
+                    foreach (var entry in list)
+                    {
+                        var expire = (int)entry["expire"];
+                        if (expire != 0 && cTime >= expire)
+                        {
+                            unbanList.Add((int)entry["id"]);
+                        }
+                        else
+                        {
+                            if ((string)entry["ip"] == bandata.ip)
+                            {
+                                match = entry;
+                            }
+                            l.Add(entry);
+                        }
+                    }
+                }
+                if (unbanList.Count > 0)
+                {
+                    MySQL_RawUnban("EBS", unbanList);
+                    unbanList.Clear();
+                }
+                var l2 = l.Where(x => (int)x["expire"] == 0).ToList();
+                if (l2.Count == 0)
+                {
+                    string range1;
+                    string range2;
+                    string range3;
+                    if (RangeFromIP(bandata.ip, out range1, out range2, out range3))
+                    {
+                        Sql.Query(Core.Database.Sql.Builder.Append("SELECT * from enhancedbansystem WHERE `ip` = @0 OR `ip` = @1 OR `ip` = @2 OR `ip` = @3", bandata.ip, range1, range2, range3), Sql_conn, list2 =>
+                        {
+                            if (list2 != null)
+                            {
+                                foreach (var entry in list2)
+                                {
+                                    var expire = (int)entry["expire"];
+                                    if (expire != 0 && cTime >= double.Parse(expire.ToString()))
+                                    {
+                                        unbanList.Add((int)entry["id"]);
+                                    }
+                                    else
+                                    {
+                                        if (!l.Contains(entry))
+                                            l.Add(entry);
+                                    }
+                                }
+                            }
+                            if (l.Count > 0)
+                            {
+                                bandata.expire = l2.Count > 0 ? 0.0 : match.ContainsKey("expire") ? (int)(match["expire"]) : (int)(l[0]["expire"]);
+                                if (match.ContainsKey("expire"))
+                                {
+                                    if (double.Parse(match["expire"].ToString()) != bandata.expire)
+                                    {
+                                        var bd = new BanData(int.Parse(match["id"].ToString()), (string)match["source"], (string)match["steamid"], (string)match["name"], (string)match["ip"], (string)match["reason"], match["expire"].ToString());
+                                        MySQL_UpdateBan(bd);
+                                    }
+                                }
+                                else if (update) ExecuteBan("EBS", bandata, false);
+                                timer.Once(0.1f, () => Kick(null, bandata.steamid, match.ContainsKey("reason") ? (string)match["reason"] : (string)l[0]["reason"]));
+                            }
+                        });
+                    }
+                }
+                if (l.Count > 0)
+                {
+                    bandata.expire = l2.Count > 0 ? 0.0 : match.ContainsKey("expire") ? double.Parse(match["expire"].ToString()) : double.Parse(l[0]["expire"].ToString());
+                    if (match.ContainsKey("expire"))
+                    {
+                        if (double.Parse(match["expire"].ToString()) != bandata.expire)
+                        {
+                            var bd = new BanData(int.Parse(match["id"].ToString()), (string)match["source"], (string)match["steamid"], (string)match["name"], (string)match["ip"], (string)match["reason"], match["expire"].ToString());
+                            MySQL_UpdateBan(bd);
+                        }
+                    }
+                    else if (update) ExecuteBan("EBS", bandata, false);
+                    timer.Once(0.1f, () => Kick(null, bandata.steamid, match.ContainsKey("reason") ? (string)match["reason"] : (string)l[0]["reason"], false));
+                }
+            });
+        }
+
+        string MySQL_Banlist(object source, int startid)
+        {
+            Sql.Query(Core.Database.Sql.Builder.Append("SELECT * from enhancedbansystem ORDER BY id DESC"), Sql_conn, list =>
+            {
+                int i = -1;
+                int max = startid + 9;
+                string replystring = string.Empty;
+                if (list != null)
+                {
+                    replystring += FormatReturn(BanSystem.MySQL, GetMsg("Banlist - {0}-{1}/{2}\n"), startid.ToString(), max.ToString(), list.Count.ToString());
+                    foreach (var entry in list)
+                    {
+                        i++;
+                        if (i < startid) continue;
+                        if (i > max) break;
+                        var bd = new BanData(int.Parse(entry["id"].ToString()), (string)entry["source"], (string)entry["steamid"], (string)entry["name"], (string)entry["ip"], (string)entry["reason"], entry["expire"].ToString());
+                        replystring += bd.ToString() + "\n";
+
+                    }
+                    SendReply(source, replystring);
+                }
+            });
+            return string.Empty;
+        }
+
+        ////////////////////////////////////////////////////////////
+        // Native
+        ////////////////////////////////////////////////////////////
+
+        string Native_Load()
+        {
+            return FormatReturn(BanSystem.Native, GetMsg("Loaded\n\r"));
+        }
+        string Native_ExecuteBan(BanData bandata)
+        {
+            if (bandata.steamid == string.Empty) return FormatReturn(BanSystem.Native, "Can't ban by IP.");
+
+            var iplayer = players.FindPlayer(bandata.steamid);
+            if (iplayer == null) return FormatReturn(BanSystem.Native, GetMsg("No matching player was found.\n"));
+
+            if (iplayer.IsBanned) return FormatReturn(BanSystem.Native, GetMsg("This ban already exists ({0})."), iplayer.Id.ToString());
+
+            TimeSpan duration = bandata.expire == 0.0 ? default(TimeSpan) : TimeSpan.Parse((bandata.expire - LogTime()).ToString());
+
+            iplayer.Ban(bandata.reason, duration);
+            return FormatReturn(BanSystem.Native, GetMsg("Successfully added {0} to the banlist."), bandata.steamid.ToString());
+        }
+
+        string Native_ExecuteUnban(string steamid, string name)
+        {
+            if (steamid == string.Empty)
+            {
+                if (name == string.Empty) return string.Empty;
+                var f = players.FindPlayers(name).Where(x => x.IsBanned).ToList();
+                if (f.Count == 0)
+                {
+                    return FormatReturn(BanSystem.Native, GetMsg("No matching player was found.\n"));
+                }
+                if (f.Count > 1)
+                {
+                    var ret = string.Empty;
+                    foreach (var p in f)
+                    {
+                        ret += string.Format("{0} - {1}\n", p.Id, p.Name);
+                    }
+                    return ret;
+                }
+                steamid = f[0].Id;
+            }
+            var b = players.FindPlayer(steamid);
+            if (b == null)
+            {
+                return FormatReturn(BanSystem.Native, GetMsg("No matching player was found.\n"));
+            }
+            if (!b.IsBanned)
+            {
+                return FormatReturn(BanSystem.Native, GetMsg("{0} - {1} isn't banned.\n"), b.Id, b.Name);
+            }
+            b.Unban();
+            return FormatReturn(BanSystem.Native, "1 matching bans were removed");
+        }
+
+        bool Native_IsBanned(string steamid)
+        {
+            var b = players.FindPlayer(steamid);
+            if (b == null)
+            {
+                return false;
+            }
+            return b.IsBanned;
+        }
+
+        string Native_Banlist(object source, int startid)
+        {
+            int i = -1;
+            int max = startid + 9;
+
+            var banlist = players.All.Where(x => x.IsBanned).ToList();
+
+            string returnstring = FormatReturn(BanSystem.Native, GetMsg("Banlist - {0}-{1}/{2}\n"), startid.ToString(), max.ToString(), banlist.Count.ToString());
+
+            foreach (IPlayer b in banlist)
+            {
+                i++;
+                if (i < startid) continue;
+                if (i > max) break;
+                returnstring += string.Format("{0} - {1} - {2}", b.Id, b.Name, ToShortString(b.BanTimeRemaining));
+            }
+
+            return returnstring;
+        }
+
 
         ////////////////////////////////////////////////////////////
         // Kick
         ////////////////////////////////////////////////////////////
 
-        string Kick(object source, string target, string reason, bool isBan)
+        string Kick(object source, string target, string reason, bool shouldBroadcast = true)
         {
-            var foundplayers = FindOnlinePlayers(target);
-            if (foundplayers.Count == 0) { return GetMsg("No player matching this name was found.", source is IPlayer ? ((IPlayer)source).Id.ToString() : null); }
-            if (!regex.IsMatch(target) && foundplayers.Count > 1) { var returnmsg = string.Empty; foreach (var userid in foundplayers) { returnmsg += string.Format("{0} - {1}\r\n", userid, players.GetPlayer(userid).Name.ToString()); } return returnmsg; }
+            string r = string.Empty;
+            var foundplayers = FindConnectedPlayers(target, source, out r);
+            if (r != string.Empty)
+            {
+                return r;
+            }
 
             var returnkick = string.Empty;
-            foreach (string steamid in foundplayers)
+            foreach (var iplayer in foundplayers)
             {
-                returnkick += ExecuteKick(source, foundplayers[0], reason, isBan) + "\r\n";
+                returnkick += ExecuteKick(source, iplayer, reason, shouldBroadcast) + "\r\n";
             }
+
             return returnkick;
         }
-        string Kick(object source, string[] args)
+        string TryKick(object source, string[] args)
         {
             string target = args[0];
             string reason = args.Length > 1 ? args[1] : "Kicked";
-            return Kick(source, target, reason, false);
+            return Kick(source, target, reason);
         }
 
-        string ExecuteKick(object source, string steamid, string reason, bool isBan)
+        string ExecuteKick(object source, IPlayer player, string reason, bool shouldBroadcast = true)
         {
-            var player = players.GetConnectedPlayer(steamid);
-            if (player == null) { return GetMsg("Error, this player doesn't seem to be connected", source is IPlayer ? ((IPlayer)source).Id.ToString() : null); }
+            if (shouldBroadcast && Kick_Broadcast)
+                server.Broadcast(string.Format(GetMsg("{0} was kicked from the server ({1})", null), player.Name.ToString(), reason));
 
-            if (isBan) { if (BroadcastBan) server.Broadcast(string.Format(BroadcastBanMessage, player.Name.ToString(), reason)); }
-            else if (BroadcastKick) server.Broadcast(string.Format(BroadcastKickMessage, player.Name.ToString(), reason));
+            if (Kick_Log)
+                Interface.Oxide.LogWarning(string.Format(GetMsg("{0} was kicked from the server ({1})", null), player.Name.ToString(), reason));
 
             player.Kick(reason);
-            return string.Format(GetMsg("{0} was kicked from the server ({1})", source is IPlayer ? ((IPlayer)source).Id.ToString() : null), player.Name.ToString(), reason);
-        }
 
-        ////////////////////////////////////////////////////////////
-        // Bans
-        ////////////////////////////////////////////////////////////
-
-        string MultipleBans(object source, List<string> steamids, string reason, int duration)
-        {
-            var answer = string.Empty;
-            foreach (string userid in steamids) { answer += Ban(source, userid, reason, duration) + "\r\n"; }
-            return answer;
-        }
-        string Ban(object source, string steamid, string reason, int duration)
-        {
-            var playerdatacompiled = GetPlayerData(steamid);
-            string answermsg = string.Empty;
-
-            string name = playerdatacompiled["name"] as string;
-
-            List<string> ips = playerdatacompiled["IPs"] as List<string>;
-
-            if (Bansystem == 0 || Bansystem == 2)
-            {
-
-                webrequest.EnqueueGet(FormatOnlineBansystem(OnlineWebRequestBanLine, new Dictionary<string, string> { { "{steamid}", steamid }, { "{name}", name }, { "{ip}", ips.Count > 0 ? ips[ips.Count - 1] : string.Empty }, { "{reason}", reason }, { "{source}", source is IPlayer ? ((IPlayer)source).Name.ToString() : "Console" }, { "{expiration}", (duration + Convert.ToInt32(LogTime())).ToString() } }), (code, response) =>
-                {
-                    if (response != null || code != 200)
-                    {
-                        if (source is IPlayer) ((IPlayer)source).Reply(response);
-                        else Interface.Oxide.LogInfo(response);
-                    }
-                }, this);
-            }
-
-            if (Bansystem == 0 || Bansystem == 1)
-            {
-                if (banLogs[steamid] != null && duration == 0)
-                {
-                    answermsg = string.Format(GetMsg("{0} - {1} is already banned.", source is IPlayer ? ((IPlayer)source).Id.ToString() : null), steamid, name);
-                }
-                else
-                {
-                    foreach (string ip in ips)
-                    {
-                        if (ip != string.Empty && ip.Length > 5)
-                        {
-                            if (banLogs[ip] != null)
-                            {
-                                Unban(null, ip);
-                            }
-                        }
-                    }
-                    answermsg = ExecuteBan(source, steamid, steamid, name, ips, reason, duration);
-                }
-            }
-            Kick(source, ips.Count != 0 ? ips[ips.Count - 1] : steamid, reason, true);
-            return answermsg;
-        }
-
-        string ExecuteBan(object source, string key, string steamid, string name, List<string> ips, string reason, int duration)
-        {
-            banLogs[key] = new BanData(steamid, reason, name, ips, duration, source is IPlayer ? ((IPlayer)source).Name.ToString() : "Console");
-            storedData.BanLogs.Add(banLogs[key]);
-            UpdateBannedIPs();
-
-            return duration == 0 ? string.Format(GetMsg("{0} {1} was successfully banned from the server ({2})", source is IPlayer ? ((IPlayer)source).Id.ToString() : null), steamid == string.Empty ? ips[0] : steamid, steamid == string.Empty ? string.Empty : name, reason) : string.Format(GetMsg("{0} {1} was successfully tempbanned from the server ({2}) for {3} secs", source is IPlayer ? ((IPlayer)source).Id.ToString() : null), steamid == string.Empty ? ips[0] : steamid, steamid == string.Empty ? string.Empty : name, reason, duration.ToString());
-        }
-
-        string BanIP(object source, string ip, string reason, int duration)
-        {
-            string answermsg = string.Empty;
-
-            if (Bansystem == 0 || Bansystem == 2)
-            {
-                webrequest.EnqueueGet(FormatOnlineBansystem(OnlineWebRequestBanLine, new Dictionary<string, string> { { "{steamid}", string.Empty }, { "{name}", string.Empty }, { "{ip}", ip }, { "{reason}", reason }, { "{source}", source is IPlayer ? ((IPlayer)source).Name.ToString() : "Console" }, { "{expiration}", (duration + Convert.ToInt32(LogTime())).ToString() } }), (code, response) =>
-                {
-                    if (response != null || code != 200)
-                    {
-                        if (source is IPlayer) ((IPlayer)source).Reply(response);
-                        else Interface.Oxide.LogInfo(response);
-                    }
-                }, this);
-            }
-            if (Bansystem == 0 || Bansystem == 1)
-            {
-                if (bannedIPs.ContainsKey(ip))
-                {
-                    answermsg = GetMsg("This IP is already banned.", source is IPlayer ? ((IPlayer)source).Id.ToString() : null);
-                }
-                else
-                {
-                    answermsg = ExecuteBan(source, ip, string.Empty, string.Empty, new List<string> { ip }, reason, duration);
-                }
-            }
-            Kick(source, ip, reason, true);
-            return answermsg;
-        }
-
-        bool isBanned(string steamid, string name, string ip, out string reason, out int expiration)
-        {
-            reason = string.Empty;
-            expiration = -1;
-            if (steamid != string.Empty && steamid != "0" && banLogs[steamid] != null)
-            {
-                reason = banLogs[steamid].reason;
-                expiration = banLogs[steamid].expiration;
-                if (LogTime() >= expiration && expiration != 0)
-                {
-                    Interface.Oxide.LogInfo(string.Format("[Enhanced Ban System] {0} ban expired", steamid));
-                    Unban(null, steamid);
-                    return false;
-                }
-                if (ip != string.Empty && !banLogs[steamid].IPs.Contains(ip))
-                {
-                    storedData.BanLogs.Remove(banLogs[steamid]);
-                    banLogs[steamid].IPs.Add(ip);
-                    storedData.BanLogs.Add(banLogs[steamid]);
-                    Interface.Oxide.LogInfo(string.Format("[Enhanced Ban System] {0} was added to the ban of {1}", ip, steamid));
-                }
-                return true;
-            }
-
-            if (ip != string.Empty && bannedIPs.ContainsKey(ip))
-            {
-                foreach (var bandata in bannedIPs[ip])
-                {
-                    if (bandata.reason != string.Empty)
-                        reason = bandata.reason;
-                    if (bandata.expiration == 0)
-                        expiration = bandata.expiration;
-                    else if (bandata.expiration != 0 && expiration != 0)
-                        expiration = bandata.expiration;
-                }
-                if (expiration == -1) expiration = 0;
-                int timeleft = expiration - Convert.ToInt32(LogTime());
-                Unban(null, ip);
-                if (expiration != 0 && timeleft <= 0) { Interface.Oxide.LogInfo(string.Format("[Enhanced Ban System] {0} - {1} ban expired", ip, steamid)); return false; }
-                ExecuteBan(null, steamid, steamid, name, new List<string> { ip }, reason, expiration == 0 ? 0 : timeleft);
-                Interface.Oxide.LogInfo(string.Format("[Enhanced Ban System] {0} ban was updated to match {1} steamid", ip, steamid));
-                return true;
-            }
-            return false;
-        }
-
-        string TryBan(object source, string[] args)
-        {
-            string ipaddress = regex.IsMatch(args[0]) ? args[0] : string.Empty;
-            string steamid = string.Empty;
-            string name = string.Empty;
-
-            string reason = args.Length > 1 ? args[1] : BanDefaultReason;
-            int duration = 0;
-            if (args.Length > 2) int.TryParse(args[2], out duration);
-
-            var foundplayers = FindPlayers(args[0]);
-            if (ipaddress != string.Empty)
-            {
-                if (foundplayers.Count == 0) { return BanIP(source, ipaddress, reason, duration); }
-                else { return MultipleBans(source, foundplayers, reason, duration); }
-            }
-            else
-            {
-                if (foundplayers.Count == 0) return GetMsg("No player matching this name was found.", source is IPlayer ? ((IPlayer)source).Id.ToString() : null);
-                if (foundplayers.Count > 1) { var returnstring = string.Empty; foreach (string userid in foundplayers) { returnstring += string.Format("{0} {1}\r\n", userid, UserIDToName(userid)); } return returnstring; }
-                return Ban(source, foundplayers[0], reason, duration);
-            }
+            return string.Format(GetMsg("{0} was kicked from the server ({1})", source), player.Name.ToString(), reason);
         }
 
 
         ////////////////////////////////////////////////////////////
-        // Unbans
+        // IsBanned
         ////////////////////////////////////////////////////////////
 
-        string Unban(object source, string arg)
+        bool isBanned_NonDelayed(string name, string steamid, string ip, bool update, out BanData bandata)
         {
-            var returnstring = string.Empty;
-            ulong steamid = 0L;
-            var searchkey = arg;
-            string ip = regex.IsMatch(arg) ? arg : string.Empty;
-            if (arg.Length == 17) ulong.TryParse(arg, out steamid);
-
-            if (Bansystem == 0 || Bansystem == 1)
+            bool denied = false;
+            bandata = null;
+            if (!denied && BanSystemHasFlag(banSystem, BanSystem.Native))
             {
-                bool canBan = false;
-                if (ip != string.Empty) { if (!bannedIPs.ContainsKey(arg)) { returnstring = GetMsg("No bans matching this ip.", source is IPlayer ? ((IPlayer)source).Id.ToString() : null); } else { canBan = true; } }
-                else if (steamid != 0L) { if (banLogs[arg] == null) { returnstring = GetMsg("No bans matching this steamid.", source is IPlayer ? ((IPlayer)source).Id.ToString() : null); } else canBan = true; }
-                else
+                if (Native_IsBanned(steamid))
                 {
-                    var lowername = arg.ToLower();
-                    var foundPlayers = new List<string>();
-
-                    foreach (KeyValuePair<string, BanData> bandata in banLogs) { if (bandata.Value.name.ToLower().Contains(lowername)) foundPlayers.Add(bandata.Value.steamID); }
-
-                    if (foundPlayers.Count == 0) returnstring = GetMsg("No bans matching this name.", source is IPlayer ? ((IPlayer)source).Id.ToString() : null);
-                    else if (foundPlayers.Count > 1)
-                    {
-                        returnstring += GetMsg("Multiple bans matching this name:\r\n", source is IPlayer ? ((IPlayer)source).Id.ToString() : null);
-                        foreach (var userid in foundPlayers) { returnstring += string.Format("{0} - {1} - {2}\r\n", userid, banLogs[userid].name, banLogs[userid].reason); }
-                    }
-                    else
-                    {
-                        canBan = true;
-                        searchkey = foundPlayers[0];
-                    }
-                }
-                if (canBan)
-                {
-                    var unbanList = new List<string>();
-                    unbanList.Add(searchkey);
-                    for (int i = 0; ; i++)
-                    {
-                        if (i >= unbanList.Count) break;
-                        foreach (var match in FindMultipleBans(unbanList[i]))
-                        {
-                            if (!unbanList.Contains(match))
-                                unbanList.Add(match);
-                        }
-                    }
-
-                    foreach (var key in unbanList) { ExecuteUnban(key); }
-                    UpdateBannedIPs();
-                    returnstring = string.Format(GetMsg("{0} {1} was successfully unbanned.", source is IPlayer ? ((IPlayer)source).Id.ToString() : null), searchkey, string.Empty);
+                    if (Log_Denied)
+                        Interface.Oxide.LogInfo(string.Format("Native: {0} - {1} - {2} was rejected from the server", steamid, name, ip));
+                    denied = true;
                 }
             }
-            if (Bansystem == 0 || Bansystem == 2)
+            if (!denied && BanSystemHasFlag(banSystem, BanSystem.PlayerDatabase))
             {
-                webrequest.EnqueueGet(FormatOnlineBansystem(OnlineWebRequestUnbanLine, new Dictionary<string, string> { { "{steamid}", steamid != 0L ? steamid.ToString() : string.Empty }, { "{name}", (steamid == 0L && ip == string.Empty) ? arg : string.Empty }, { "{ip}", ip }, { "{source}", source is IPlayer ? ((IPlayer)source).Id.ToString() : "0" } }), (code, response) =>
+                if (PlayerDatabase_IsBanned(steamid, ip, out bandata))
                 {
-                    if (response != null || code != 200)
-                    {
-                        if (source is IPlayer) ((IPlayer)source).Reply(response);
-                        else Interface.Oxide.LogInfo(response);
-                    }
-                }, this);
+                    if (Log_Denied)
+                        Interface.Oxide.LogInfo(string.Format("PlayerDatabase: {0} - {1} - {2} was rejected from the server", steamid, name, ip));
+                    denied = true;
+                }
             }
-            
-            return returnstring;
+            if (!denied && BanSystemHasFlag(banSystem, BanSystem.Files))
+            {
+                if (Files_IsBanned(steamid, ip, out bandata))
+                {
+                    if (Log_Denied)
+                        Interface.Oxide.LogInfo(string.Format("Files: {0} - {1} - {2} was rejected from the server", steamid, name, ip));
+                    denied = true;
+                }
+            }
+            if (update && denied)
+            {
+                if (bandata != null && (bandata.ip != ip || bandata.steamid != steamid))
+                    PrepareBan("EBS", steamid, name, ip, BanEvadeReason, bandata.expire == 0.0 ? 0.0 : bandata.expire - LogTime(), false);
+                else if (bandata == null)
+                    PrepareBan("EBS", steamid, name, ip, BanEvadeReason, 0.0, false);
+            }
+            return bandata != null;
         }
 
-        void ExecuteUnban(string key)
+        void isBanned_Delayed(string name, string steamid, string ip, bool update)
         {
-            if (banLogs[key] != null)
+            var partialBan = new BanData("EBS", steamid, name, ip, string.Empty, 0.0);
+            if (BanSystemHasFlag(banSystem, BanSystem.SQLite))
             {
-                storedData.BanLogs.Remove(banLogs[key]);
-                banLogs.Remove(key);
+                SQLite_IsBanned(partialBan, update);
             }
-        }
-
-        List<string> FindMultipleBans(string arg)
-        {
-            var returnlist = new List<string>();
-            if (banLogs[arg] != null)
+            if (BanSystemHasFlag(banSystem, BanSystem.MySQL))
             {
-                foreach (var ip in banLogs[arg].IPs)
-                {
-                    if (!returnlist.Contains(ip))
-                        returnlist.Add(ip);
-                }
+                MySQL_IsBanned(partialBan, update);
             }
-            if (bannedIPs.ContainsKey(arg))
+            if (BanSystemHasFlag(banSystem, BanSystem.WebAPI))
             {
-                foreach (var key in bannedIPs[arg])
-                {
-                    if (!returnlist.Contains(key.steamID))
-                        returnlist.Add(key.steamID);
-                }
+                WebAPI_IsBanned(partialBan, update);
             }
-            return returnlist;
         }
 
         ////////////////////////////////////////////////////////////
         // Banlist
         ////////////////////////////////////////////////////////////
 
-        string Banlist(int startid)
+        string TryBanlist(object source, string[] args)
         {
-            string returnmsg = string.Empty;
-            if (Bansystem == 0 || Bansystem == 2)
+            int startID = 0;
+            BanSystem bs;
+            if (args != null && args.Length > 1)
             {
-                returnmsg += OnlineWebRequestBanlist;
+                int.TryParse(args[1], out startID);
             }
-            if (Bansystem == 0 || Bansystem == 1)
+            switch (args[0].ToLower())
             {
-                returnmsg += string.Format("Banlist - {0}/{1}\r\n", startid.ToString(), banLogs.Count.ToString());
-                int i = 0;
-                foreach (KeyValuePair<string, BanData> pair in banLogs)
-                {
-                    if (i >= startid)
-                    {
-                        returnmsg += string.Format("{0} - {1} {2} banned for {3} - expires {4}\r\n", i.ToString(), pair.Key, pair.Value.name, pair.Value.reason, pair.Value.expiration.ToString());
-                    }
-                    if (i > startid + 10) break;
-                    i++;
-                }
+                case "files":
+                    bs = BanSystem.Files;
+                    break;
+                case "mysql":
+                    bs = BanSystem.MySQL;
+                    break;
+                case "native":
+                    bs = BanSystem.Native;
+                    break;
+                case "playerdatabase":
+                    bs = BanSystem.PlayerDatabase;
+                    break;
+                case "sqlite":
+                    bs = BanSystem.SQLite;
+                    break;
+                case "webapi":
+                    bs = BanSystem.WebAPI;
+                    break;
+                default:
+                    return GetMsg("Wrong usage of /banlist", source);
             }
-            return returnmsg;
+
+            return Banlist(source, bs, startID);
+        }
+
+        string Banlist(object source, BanSystem bs, int startID)
+        {
+            switch (bs)
+            {
+                case BanSystem.Files:
+                    return Files_Banlist(source, startID);
+                case BanSystem.MySQL:
+                    return MySQL_Banlist(source, startID);
+                case BanSystem.Native:
+                    return Native_Banlist(source, startID);
+                case BanSystem.PlayerDatabase:
+                    return PlayerDatabase_Banlist(source, startID);
+                case BanSystem.SQLite:
+                    return SQLite_Banlist(source, startID);
+                case BanSystem.WebAPI:
+                    return WebAPI_Banlist(source, startID);
+                default:
+                    return string.Empty;
+            }
         }
 
         ////////////////////////////////////////////////////////////
-        // Chat commands
+        // Ban
         ////////////////////////////////////////////////////////////
 
-        [Command("ban")]
+
+        string TryBan(object source, string[] args)
+        {
+            string ipaddress = isIPAddress(args[0]) ? args[0] : string.Empty;
+            string steamid = string.Empty;
+            string name = string.Empty;
+            string errorreason = string.Empty;
+            ulong userID = 0L;
+
+            string reason = args.Length > 1 ? args[1] : BanDefaultReason;
+            double duration = 0.0;
+            if (args.Length > 2) double.TryParse(args[2], out duration);
+
+
+            if (ipaddress != string.Empty)
+            {
+                return BanIP(source, ipaddress, reason, duration);
+            }
+            else
+            {
+                var foundplayers = FindPlayers(args[0], source, out errorreason);
+                if (errorreason != string.Empty)
+                {
+                    if (ulong.TryParse(args[0], out userID))
+                    {
+                        return BanID(source, args[0], reason, duration);
+                    }
+                    return errorreason;
+                }
+                return BanPlayer(source, foundplayers[0], reason, duration);
+            }
+        }
+
+        string BanIP(object source, string ip, string reason, double duration)
+        {
+            return PrepareBan(source, string.Empty, string.Empty, ip, reason, duration, Kick_OnBan);
+        }
+
+        string BanID(object source, string steamid, string reason, double duration)
+        {
+            string name = GetPlayerName(steamid);
+            string ipaddress = GetPlayerIP(steamid);
+
+            return PrepareBan(source, steamid, name, ipaddress, reason, duration, Kick_OnBan);
+        }
+
+        string BanPlayer(object source, IPlayer player, string reason, double duration)
+        {
+            var address = GetPlayerIP(player);
+
+            return PrepareBan(source, player.Id, player.Name, address, reason, duration, Kick_OnBan);
+        }
+
+        string PrepareBan(object source, string userID, string name, string ip, string reason, double duration, bool kick)
+        {
+            var bandata = new BanData(source, userID, name, ip, reason, duration);
+
+            return ExecuteBan(source, bandata, kick);
+        }
+        string ExecuteBan(object source, BanData bandata, bool kick)
+        {
+            if (wasBanned.Contains(bandata.id)) return string.Empty;
+
+            string returnstring = string.Empty;
+            if (BanSystemHasFlag(banSystem, BanSystem.PlayerDatabase))
+            {
+                returnstring += PlayerDatabase_ExecuteBan(bandata);
+            }
+            if (BanSystemHasFlag(banSystem, BanSystem.Files))
+            {
+                returnstring += Files_ExecuteBan(bandata);
+            }
+            if (BanSystemHasFlag(banSystem, BanSystem.MySQL))
+            {
+                returnstring += MySQL_ExecuteBan(source, bandata);
+            }
+            if (BanSystemHasFlag(banSystem, BanSystem.SQLite))
+            {
+                returnstring += SQLite_ExecuteBan(source, bandata);
+            }
+            if (BanSystemHasFlag(banSystem, BanSystem.WebAPI))
+            {
+                returnstring += WebAPI_ExecuteBan(source, bandata);
+            }
+            if (BanSystemHasFlag(banSystem, BanSystem.Native))
+            {
+                //For the time being temp bans wont be handled by native
+                returnstring += Native_ExecuteBan(bandata);
+            }
+
+            if (Ban_Broadcast && bandata.name != string.Empty)
+                server.Broadcast(string.Format(GetMsg("{0} was {2} banned from the server ({1})"), bandata.name, bandata.reason, bandata.expire == 0.0 ? GetMsg("permanently") : GetMsg("temporarily")));
+
+            if (Ban_Log && (source is IPlayer) && ((IPlayer)source).Id != "server_console")
+                Interface.Oxide.LogWarning(returnstring);
+
+            if (kick)
+                Kick(source, bandata.steamid != string.Empty ? bandata.steamid : bandata.ip, "Banned");
+
+            wasBanned.Add(bandata.id);
+
+            return returnstring;
+        }
+
+        ////////////////////////////////////////////////////////////
+        // Unban
+        ////////////////////////////////////////////////////////////
+
+        string ExecuteUnban(object source, string steamid, string name, string ip)
+        {
+            string returnstring = string.Empty;
+            List<BanData> unbanList = new List<BanData>();
+            List<BanData> unbanList2 = new List<BanData>();
+
+            if (BanSystemHasFlag(banSystem, BanSystem.PlayerDatabase))
+            {
+                returnstring += PlayerDatabase_ExecuteUnban(steamid, name, ip, out unbanList);
+            }
+            if (BanSystemHasFlag(banSystem, BanSystem.Files))
+            {
+                returnstring += Files_ExecuteUnban(steamid, name, ip, out unbanList2);
+            }
+            if (BanSystemHasFlag(banSystem, BanSystem.MySQL))
+            {
+                returnstring += MySQL_ExecuteUnban(source, steamid, name, ip);
+            }
+            if (BanSystemHasFlag(banSystem, BanSystem.SQLite))
+            {
+                returnstring += SQLite_ExecuteUnban(source, steamid, name, ip);
+            }
+            if (BanSystemHasFlag(banSystem, BanSystem.WebAPI))
+            {
+                returnstring += WebAPI_ExecuteUnban(source, steamid, name, ip);
+            }
+            if (BanSystemHasFlag(banSystem, BanSystem.Native))
+            {
+                returnstring += Native_ExecuteUnban(steamid, name);
+            }
+
+            foreach (var b in unbanList)
+            {
+                if (cachedBans.ContainsKey(b.id))
+                    cachedBans.Remove(b.id);
+            }
+            foreach (var b in unbanList2)
+            {
+                if (cachedBans.ContainsKey(b.id))
+                    cachedBans.Remove(b.id);
+            }
+
+            return returnstring;
+        }
+
+        string TryUnBan(object source, string[] args)
+        {
+            string ipaddress = isIPAddress(args[0]) ? args[0] : string.Empty;
+            string steamid = string.Empty;
+            ulong userID = 0L;
+            string name = string.Empty;
+            string errorreason = string.Empty;
+
+            if (ipaddress != string.Empty)
+            {
+                return ExecuteUnban(source, string.Empty, string.Empty, ipaddress);
+            }
+            else
+            {
+                ulong.TryParse(args[0], out userID);
+                return ExecuteUnban(source, userID != 0L ? args[0] : string.Empty, userID == 0L ? args[0] : string.Empty, string.Empty);
+            }
+        }
+
+
+        ////////////////////////////////////////////////////////////
+        // Commands
+        ////////////////////////////////////////////////////////////
+
+        [Command("ban", "player.ban")]
         void cmdBan(IPlayer player, string command, string[] args)
         {
-            if (!hasPermission(player, PermissionBan)) { player.Reply(GetMsg("You don't have the permission to use this command.", player.Id.ToString())); return; }
-            if (args == null || (args.Length < 1)) { player.Reply(GetMsg("Syntax: ban < Name | SteamID | IP > < reason(optional) > < time in secondes(optional > ", player.Id.ToString())); return; }
-            try { player.Reply(TryBan(player, args)); } catch { }
+            if (!hasPermission(player, PermissionBan))
+            {
+                player.Reply(GetMsg("You don't have the permission to use this command.", player.Id.ToString()));
+                return;
+            }
+            if (args == null || (args.Length < 1))
+            {
+                player.Reply(GetMsg("Syntax: ban < Name | SteamID | IP | IP Range > < reason(optional) > < time in secondes(optional) > ", player.Id.ToString()));
+                return;
+            }
+            try
+            {
+                player.Reply(TryBan(player, args));
+            }
+            catch (Exception e)
+            {
+                player.Reply("ERROR:" + e.Message);
+            }
         }
-        [Command("banlist")]
+
+        [Command("banlist", "player.banlist")]
         void cmdBanlist(IPlayer player, string command, string[] args)
         {
-            if (!hasPermission(player, PermissionBanlist)) { player.Reply(GetMsg("You don't have the permission to use this command.", player.Id.ToString())); return; }
-            int startid = 0;
-            if (args != null && (args.Length > 0)) { int.TryParse(args[0], out startid); }
-            try { player.Reply(Banlist(startid)); } catch { }
+            if (!hasPermission(player, PermissionBanlist))
+            {
+                player.Reply(GetMsg("You don't have the permission to use this command.", player.Id.ToString()));
+                return;
+            }
+            if (args == null || args.Length == 0)
+            {
+                string replystring = GetMsg("Syntax: banlist <BanSystem> <startid>", player.Id.ToString()) + "\n";
+                replystring += GetMsg("Avaible BanSystems:\n", player.Id.ToString());
+                if (BanSystemHasFlag(banSystem, BanSystem.Files))
+                {
+                    replystring += "Files\n";
+                }
+                if (BanSystemHasFlag(banSystem, BanSystem.MySQL))
+                {
+                    replystring += "MySQL\n";
+                }
+                if (BanSystemHasFlag(banSystem, BanSystem.Native))
+                {
+                    replystring += "Native\n";
+                }
+                if (BanSystemHasFlag(banSystem, BanSystem.PlayerDatabase))
+                {
+                    replystring += "PlayerDatabase\n";
+                }
+                if (BanSystemHasFlag(banSystem, BanSystem.SQLite))
+                {
+                    replystring += "SQLite\n";
+                }
+                if (BanSystemHasFlag(banSystem, BanSystem.WebAPI))
+                {
+                    replystring += "WebAPI\n";
+                }
+                player.Reply(replystring);
+                return;
+            }
+            try
+            {
+                player.Reply(TryBanlist(player, args));
+            }
+            catch (Exception e)
+            {
+                player.Reply("ERROR:" + e.Message);
+            }
         }
-        [Command("kick")]
+
+        [Command("kick", "player.kick")]
         void cmdKick(IPlayer player, string command, string[] args)
         {
-            if (!hasPermission(player, PermissionKick)) { player.Reply(GetMsg("You don't have the permission to use this command.", player.Id.ToString())); return; }
-            if (args == null || (args.Length < 1)) { player.Reply(GetMsg("Syntax: kick <Name|SteamID|IP> <reason(optional)>", player.Id.ToString())); return; }
-            try { player.Reply(Kick(player, args)); } catch { }
+            if (!hasPermission(player, PermissionKick))
+            {
+                player.Reply(GetMsg("You don't have the permission to use this command.", player.Id.ToString()));
+                return;
+            }
+            if (args == null || (args.Length < 1))
+            {
+                player.Reply(GetMsg("Syntax: kick < Name | SteamID | IP | IP Range > < reason(optional) >", player.Id.ToString()));
+                return;
+            }
+            try
+            {
+                player.Reply(TryKick(player, args));
+            }
+            catch (Exception e)
+            {
+                player.Reply("ERROR:" + e.Message);
+            }
         }
-        [Command("unban")]
+
+        [Command("unban", "player.unban")]
         void cmdUnban(IPlayer player, string command, string[] args)
         {
-            if (!hasPermission(player, PermissionUnban)) { player.Reply(GetMsg("You don't have the permission to use this command.", player.Id.ToString())); return; }
-            if (args == null || (args.Length < 1)) { player.Reply(GetMsg("Syntax: unban <Name|SteamID|IP>", player.Id.ToString())); return; }
-            try { player.Reply(Unban(player, args[0])); } catch { }
-        }
-
-        ////////////////////////////////////////////////////////////
-        // Console commands
-        ////////////////////////////////////////////////////////////
-
-        [Command("player.ban")]
-        void ccmdBan(IPlayer player, string command, string[] args)
-        {
-            if (!hasPermission(player, PermissionBan)) { player.Reply(GetMsg("You don't have the permission to use this command.", player.Id.ToString())); return; }
-            if (args == null || (args.Length < 1)) { player.Reply(GetMsg("Syntax: player.ban < Name | SteamID | IP > < reason(optional) > < time in secondes(optional > ", player.Id.ToString())); return; }
-            try { player.Reply(TryBan(player, args)); } catch { }
-        }
-        [Command("player.banlist")]
-        void ccmdBanlist(IPlayer player, string command, string[] args)
-        {
-            if (!hasPermission(player, PermissionBanlist)) { player.Reply(GetMsg("You don't have the permission to use this command.", player.Id.ToString())); return; }
-            int startid = 0;
-            if (args != null && (args.Length > 0)) { int.TryParse(args[0], out startid); }
-            try { player.Reply(Banlist(startid)); } catch { }
-        }
-        [Command("player.kick")]
-        void ccmdKick(IPlayer player, string command, string[] args)
-        {
-            if (!hasPermission(player, PermissionKick)) { player.Reply(GetMsg("You don't have the permission to use this command.", player.Id.ToString())); return; }
-            if (args == null || (args.Length < 1)) { player.Reply(GetMsg("Syntax: kick <Name|SteamID|IP> <reason(optional)>", player.Id.ToString())); return; }
-            try { player.Reply(Kick(player, args)); } catch { }
-        }
-        [Command("player.unban")]
-        void ccmdUnban(IPlayer player, string command, string[] args)
-        {
-            if (!hasPermission(player, PermissionUnban)) { player.Reply(GetMsg("You don't have the permission to use this command.", player.Id.ToString())); return; }
-            if (args == null || (args.Length < 1)) { player.Reply(GetMsg("Syntax: player.unban <Name|SteamID|IP>", player.Id.ToString())); return; }
-            try { player.Reply(Unban(player, args[0])); } catch { }
+            if (!hasPermission(player, PermissionUnban))
+            {
+                player.Reply(GetMsg("You don't have the permission to use this command.", player.Id.ToString()));
+                return;
+            }
+            if (args == null || (args.Length < 1))
+            {
+                player.Reply(GetMsg("Syntax: unban < Name | SteamID | IP | IP Range >", player.Id.ToString()));
+                return;
+            }
+            try
+            {
+                player.Reply(TryUnBan(player, args));
+            }
+            catch (Exception e)
+            {
+                player.Reply("ERROR:" + e.Message);
+            }
         }
     }
 }

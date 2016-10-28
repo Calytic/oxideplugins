@@ -2,7 +2,7 @@
     "name": "PlayerDatabase",
     "description": "Big database with light weight way to save it to prevent lag",
     "author": "Reneb",
-    "version": "1.4.1",
+    "version": "1.5.3",
     "configuration": false,
     "language": "cs",
     "games": [

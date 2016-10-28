@@ -1,9 +1,12 @@
 {
-    "name": "Whitelist",
-    "description": "Restricts server access to whitelisted players with permission",
+    "name": "LangGen",
+    "description": "Generates language files using the default language strings",
     "author": "Wulf",
-    "version": "3.3.0",
+    "version": "0.1.0",
     "configuration": true,
+    "require": {
+        "Babel": "*"
+    },
     "language": "cs",
     "games": [
         "universal"

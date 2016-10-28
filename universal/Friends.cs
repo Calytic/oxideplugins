@@ -44,7 +44,7 @@ interface IBattleLinkFriends // BattleLink integration interface for reference
 
 namespace Oxide.Plugins
 {
-    [Info("Friends", "dcode", "2.4.0", ResourceId = 2120)]
+    [Info("Friends", "dcode", "2.5.0", ResourceId = 2120)]
     [Description("Universal friends plugin.")]
     public class Friends : CovalencePlugin, IBattleLinkFriends
     {
@@ -249,16 +249,17 @@ namespace Oxide.Plugins
         IPlayer findPlayer(string nameOrId, out bool multipleMatches)
         {
             multipleMatches = false;
-            var players = covalence.Players.GetAllPlayers();
 
             // First pass: Check for unique player id
-            foreach (var player in players)
-                if (player.Id == nameOrId)
+            {
+                var player = covalence.Players.FindPlayerById(nameOrId);
+                if (player != null)
                     return player;
+            }
 
             // Second pass: Check for exact name
             IPlayer found = null;
-            foreach (var player in players)
+            foreach (var player in covalence.Players.All)
             {
                 if (player.Name == nameOrId)
                 {
@@ -274,7 +275,7 @@ namespace Oxide.Plugins
                 return found;
 
             // Third pass: Check for partial name
-            foreach (var player in players)
+            foreach (var player in covalence.Players.All)
             {
                 if (player.Name.Contains(nameOrId))
                 {
@@ -287,6 +288,26 @@ namespace Oxide.Plugins
                 }
             }
             return found;
+        }
+
+        HashSet<string> registeredCommands = new HashSet<string>();
+
+        void registerCommand(string cmd, Action<IPlayer, string, string[]> callback)
+        {
+            if (registeredCommands.Contains(cmd))
+                return;
+            covalence.RegisterCommand(cmd, this, (caller, cmd_, args) => {
+                callback(caller, cmd_, args);
+                return true;
+            });
+            registeredCommands.Add(cmd);
+        }
+
+        void unregisterCommands()
+        {
+            foreach (var cmd in registeredCommands)
+                covalence.UnregisterCommand(cmd, this);
+            registeredCommands.Clear();
         }
 
         #endregion
@@ -330,10 +351,23 @@ namespace Oxide.Plugins
                     }
                 }
             }
+            if (configData.EnablePrivateChat) {
+                registerCommand("pm", cmdPrivateChat);
+                registerCommand("m" , cmdPrivateChat);
+            }
+            if (configData.EnableFriendChat) {
+                registerCommand("fm", cmdFriendChat);
+                registerCommand("f" , cmdFriendChat);
+            }
+            if (configData.EnablePrivateChat || configData.EnableFriendChat) {
+                registerCommand("rm", cmdReplyChat);
+                registerCommand("r" , cmdReplyChat);
+            }
         }
 
         void Unload()
         {
+            unregisterCommands();
             if (saveDataBatchedTimer != null)
                 saveDataImmediate();
         }
@@ -354,7 +388,7 @@ namespace Oxide.Plugins
                 {
                     foreach (var friendId in data.Friends)
                     {
-                        var friend = covalence.Players.GetPlayer(friendId);
+                        var friend = covalence.Players.FindPlayerById(friendId);
                         if (friend != null && friend.IsConnected)
                             friend.Message(_("FriendOnlineNotification", friend), player.Name);
                     }
@@ -374,7 +408,7 @@ namespace Oxide.Plugins
             if (configData.SendOnlineNotification && friendsData.TryGetValue(player.Id, out data))
                 foreach (var friendId in data.Friends)
                 {
-                    var friend = covalence.Players.GetPlayer(friendId);
+                    var friend = covalence.Players.FindPlayerById(friendId);
                     if (friend != null && friend.IsConnected)
                         friend.Message(_("FriendOfflineNotification", friend), player.Name);
                 }
@@ -398,7 +432,7 @@ namespace Oxide.Plugins
                 foreach (var friendId in data.Friends)
                 {
                     // Sort friends by online status and name (must be mutual friends to show online status)
-                    var friend = covalence.Players.GetPlayer(friendId);
+                    var friend = covalence.Players.FindPlayerById(friendId);
                     if (friend != null)
                     {
                         if (friend.IsConnected && HasFriend(friend.Id, player.Id))
@@ -505,7 +539,6 @@ namespace Oxide.Plugins
 
         readonly Dictionary<string, string> replyTo = new Dictionary<string, string>();
 
-        [Command("fm", "f")]
         void cmdFriendChat(IPlayer player, string command, string[] args)
         {
             if (!configData.EnableFriendChat)
@@ -535,7 +568,7 @@ namespace Oxide.Plugins
             int recipientCount = 0;
             foreach (var friendId in data.Friends)
             {
-                var friend = covalence.Players.GetPlayer(friendId);
+                var friend = covalence.Players.FindPlayerById(friendId);
                 if (friend != null && friend.IsConnected)
                 {
                     PlayerData friendData;
@@ -558,7 +591,6 @@ namespace Oxide.Plugins
 
         readonly static Regex leadingDoubleQuotedNameEx = new Regex("^\"(?:\\?.)*?\"", RegexOptions.Compiled);
 
-        [Command("pm", "m")]
         void cmdPrivateChat(IPlayer player, string command, string[] args)
         {
             if (!configData.EnablePrivateChat)
@@ -620,7 +652,6 @@ namespace Oxide.Plugins
             );
         }
 
-        [Command("rm", "r")]
         void cmdReplyChat(IPlayer player, string command, string[] args)
         {
             if (!(configData.EnablePrivateChat || configData.EnableFriendChat))
@@ -639,7 +670,7 @@ namespace Oxide.Plugins
             string recipientId;
             if (!replyTo.TryGetValue(player.Id, out recipientId))
                 return;
-            var recipient = covalence.Players.GetPlayer(recipientId);
+            var recipient = covalence.Players.FindPlayerById(recipientId);
             if (recipient == null)
             {
                 player.Reply(_("PlayerNotFound", player));
@@ -712,7 +743,7 @@ namespace Oxide.Plugins
 
         public string GetPlayerNameInternal(string playerId)
         {
-            var iplayer = covalence.Players.GetPlayer(playerId);
+            var iplayer = covalence.Players.FindPlayerById(playerId);
             if (iplayer == null)
             {
                 PlayerData data;
@@ -746,11 +777,11 @@ namespace Oxide.Plugins
 
         public bool AddFriendInternal(string playerId, string friendId)
         {
-            var player = covalence.Players.GetPlayer(playerId);
+            var player = covalence.Players.FindPlayerById(playerId);
             if (player == null)
                 return false;
             string friendName = null;
-            var friendOrNull = covalence.Players.GetPlayer(friendId);
+            var friendOrNull = covalence.Players.FindPlayerById(friendId);
             if (friendOrNull == null)
             {
                 PlayerData friendData;
@@ -792,10 +823,10 @@ namespace Oxide.Plugins
 
         public bool RemoveFriendInternal(string playerId, string friendId)
         {
-            var player = covalence.Players.GetPlayer(playerId);
+            var player = covalence.Players.FindPlayerById(playerId);
             if (player == null)
                 return false;
-            var friendOrNull = covalence.Players.GetPlayer(friendId);
+            var friendOrNull = covalence.Players.FindPlayerById(friendId);
             PlayerData data;
             if (friendsData.TryGetValue(playerId, out data) && data.Friends.Remove(friendId))
             {
