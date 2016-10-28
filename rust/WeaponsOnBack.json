@@ -1,0 +1,15 @@
+{
+    "name": "Weapons On Back",
+    "description": "Renders the player's best weapon on their back, and best sidearm on their hip",
+    "author": "",
+    "version": "0.07",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

@@ -2,12 +2,13 @@ using System.Collections.Generic;
 using System.Text;
 using Oxide.Core.Configuration;
 using Oxide.Core;
+using UnityEngine;
 
 namespace Oxide.Plugins
 {
     //Body part scaling from k1lly0u's plugin, with permission (thanks, k1lly0u)
     //Further code cleanup/improvement with help of k1lly0u
-    [Info("Weapon Damage Scaler", "Shady", "1.0.6", ResourceId = 1594)]
+    [Info("Weapon Damage Scaler", "Shady", "1.0.7", ResourceId = 1594)]
     [Description("Scale damage per weapon/ammo type, and per body part.")]
     internal class WeaponDamageScaler : RustPlugin
     {        
@@ -32,8 +33,9 @@ namespace Oxide.Plugins
         {
             weaponData.Weapons.Clear();
             weaponData.AmmoTypes.Clear();
-            foreach (ItemDefinition definition in ItemManager.itemList)
+            for(int i = 0; i < ItemManager.itemList.Count; i++)
             {
+                var definition = ItemManager.itemList[i];
                 if (definition != null)
                 {
                     if (definition.category == ItemCategory.Weapon || definition.category == ItemCategory.Tool || definition.category == ItemCategory.Ammunition)
@@ -44,14 +46,13 @@ namespace Oxide.Plugins
                     else if (definition.category == ItemCategory.Ammunition)
                         weaponData.AmmoTypes.Add(definition.shortname, 1.0f);
                 }
-            }            
+            }      
             SaveData();        
         }
         private Dictionary<string, float> CreateBodypartList()
         {
             Dictionary<string, float> newData = new Dictionary<string, float>();
-            foreach (var entry in Bodyparts)
-                newData.Add(entry, 1.0f);
+            for (int i = 0; i < Bodyparts.Length; i++) newData.Add(Bodyparts[i], 1.0f);
             return newData;
         }
         void SaveData() => wData.WriteObject(weaponData);
@@ -65,7 +66,7 @@ namespace Oxide.Plugins
             }
             catch
             {
-                Puts("Unable to load data, creating new datafile");
+                PrintWarning("Unable to load data, creating new datafile!");
                 weaponData = new WeaponData();                
             }
         }
@@ -177,15 +178,14 @@ namespace Oxide.Plugins
                 {
                     TimedExplosive c4 = entity?.GetComponent<TimedExplosive>() ?? null;
                     if (c4 != null)
-                        foreach (var damage in c4.damageTypes)
-                            damage.amount *= weaponData.Weapons["explosive.timed"].GlobalModifier;
+                        for (int i = 0; i < c4.damageTypes.Count; i++) c4.damageTypes[i].amount += weaponData.Weapons["explosive.timed"].GlobalModifier;
                 }
             }
         }
 
         private void OnRocketLaunched(BasePlayer player, BaseEntity entity)
         {
-            var explosive = entity as TimedExplosive;
+            var explosive = entity?.GetComponent<TimedExplosive>() ?? null;
             if (!explosive) return;
 
             var damageMod = 1.0f;
@@ -193,54 +193,46 @@ namespace Oxide.Plugins
             if (entity.ShortPrefabName.Contains("rocket_hv") && weaponData.AmmoTypes.ContainsKey("ammo.rocket.hv")) damageMod = weaponData.AmmoTypes["ammo.rocket.hv"];
             if (entity.ShortPrefabName.Contains("rocket_fire") && weaponData.AmmoTypes.ContainsKey("ammo.rocket.fire")) damageMod = weaponData.AmmoTypes["ammo.rocket.fire"];
             if (damageMod != 1.0f)
-                foreach (var damage in explosive.damageTypes)
-                    damage.amount *= damageMod;
+                for (int i = 0; i < explosive.damageTypes.Count; i++) explosive.damageTypes[i].amount += damageMod;
         }
 
         void OnEntityTakeDamage(BaseCombatEntity entity, HitInfo hitInfo)
         {
             if (entity == null || hitInfo == null || hitInfo?.Initiator == null) return;
-
-            if (hitInfo?.Initiator is BasePlayer)
+            var attacker = hitInfo?.Initiator?.GetComponent<BasePlayer>() ?? null;
+            var victim = entity?.GetComponent<BasePlayer>() ?? null;
+            if (attacker != null)
             {
                 if ((bool)Config["UseGlobalDamageScaler"])
                 {
                     hitInfo.damageTypes.ScaleAll(float.Parse(Config["GlobalDamageScaler"].ToString()));
                     return;
                 }
-                if ((bool)Config["PlayersOnly"])
-                {
-                    if (entity is BasePlayer)
-                        if (entity as BasePlayer != null || hitInfo != null)
-                            ScaleDealtDamage(hitInfo);
-                    return;
-                }
+                if ((bool)Config["PlayersOnly"] && victim != null) ScaleDealtDamage(hitInfo);
                 else ScaleDealtDamage(hitInfo);
             }
         }
         private void ScaleDealtDamage(HitInfo hitInfo)
         {
             string bodypart = StringPool.Get(hitInfo.HitBone) ?? string.Empty;
-            if (string.IsNullOrEmpty(bodypart)) return;
 
-            float ammoMod = 1.0f;
-
-            BaseProjectile heldWeapon = hitInfo?.Weapon?.GetItem()?.GetHeldEntity() as BaseProjectile ?? null;
-            if (heldWeapon != null)
-                if (weaponData.AmmoTypes.ContainsKey(heldWeapon.primaryMagazine?.ammoType?.shortname))
-                    ammoMod = weaponData.AmmoTypes[heldWeapon.primaryMagazine?.ammoType?.shortname];
-
+            var ammoMod = 1.0f;
+            var heldWeapon = hitInfo?.Weapon?.GetItem()?.GetHeldEntity()?.GetComponent<BaseProjectile>() ?? null;
+            var ammoName = heldWeapon?.primaryMagazine?.ammoType?.shortname ?? string.Empty;
+            if (weaponData.Weapons.ContainsKey(ammoName)) ammoMod = weaponData.Weapons[ammoName].GlobalModifier;
             string weapon = hitInfo?.Weapon?.GetItem()?.info?.shortname ?? string.Empty;
             if (string.IsNullOrEmpty(weapon)) return;
 
+
             if (InList(weapon, bodypart))
             {
-                float globalMod = weaponData.Weapons[weapon].GlobalModifier;
-                float individualMod = weaponData.Weapons[weapon].IndividualParts[bodypart];
-                float totalMod = (globalMod + individualMod + ammoMod) / 3;
+                var globalMod = weaponData.Weapons[weapon].GlobalModifier;
+                var individualMod = weaponData.Weapons[weapon].IndividualParts[bodypart];
+                var totalMod = (globalMod + individualMod + ammoMod) - 2;
                 if (totalMod != 1.0f)
                     hitInfo.damageTypes.ScaleAll(totalMod);
             }
+            else if (ammoMod != 1.0f) hitInfo.damageTypes.ScaleAll(ammoMod);
         }
         #endregion
 
@@ -279,36 +271,43 @@ namespace Oxide.Plugins
         [ConsoleCommand("weapon.setscale")]
         private void ConsoleSetScale(ConsoleSystem.Arg arg)
         {
-            if (arg.connection != null)            
-                if (!CanExecute(arg.connection.player as BasePlayer, "setscale")) return;            
-
-            if (arg.Args == null || arg.Args.Length == 0 || arg.Args.Length == 1)
+            if (arg?.Player() != null) if (!CanExecute(arg.Player(), "setscale")) return;
+            var args = arg?.Args ?? null;
+            if (args == null || args.Length <= 1)
             {
                 SendReply(arg, GetMessage("invalidSyntax"));
                 return;
             }
+            
 
-            var engName = arg.Args[0].ToLower();
+            var engName = args[0].ToLower();
             var shortName = string.Empty;
 
-            foreach (var entry in weaponData.Weapons) // Search for shortname or display name
+            foreach (var entry in weaponData.Weapons)
             {
-                if (entry.Value.Name.ToLower().Contains(engName))
-                    shortName = entry.Key;
-                else if (entry.Key.Contains(engName))
+                if (entry.Value.Name.ToLower() == engName)
                 {
                     shortName = entry.Key;
-                    engName = entry.Value.Name.ToLower();
+                    break;
                 }
-            }            
+                else if (entry.Key.ToLower() == engName)
+                {
+                    shortName = entry.Key;
+                    break;
+                }
+            }
             if (string.IsNullOrEmpty(shortName))
             {
                 SendReply(arg, GetMessage("itemNotFound").Replace("{item}", engName));
                 return;
             }
             
-            float value = 0;
-            float.TryParse(arg.Args[1], out value);
+            var value = 0f;
+            if (!float.TryParse(args[1], out value))
+            {
+                SendReply(arg, GetMessage("invalidSyntax"));
+                return;
+            }
 
             if (shortName != null && value != 0)
             {
@@ -341,7 +340,7 @@ namespace Oxide.Plugins
         private void CmdSetScale(BasePlayer player, string command, string[] args)
         {
             if (!CanExecute(player, "setscale")) return;
-            if (args.Length == 0 || args.Length == 1)
+            if (args.Length <= 1)
             {
                 SendReply(player, GetMessage("invalidSyntax"));
                 return;
@@ -352,12 +351,15 @@ namespace Oxide.Plugins
 
             foreach (var entry in weaponData.Weapons)
             {
-                if (entry.Value.Name.ToLower().Contains(engName))
-                    shortName = entry.Key;
-                else if (entry.Key.Contains(engName))
+                if (entry.Value.Name.ToLower() == engName)
                 {
                     shortName = entry.Key;
-                    engName = entry.Value.Name.ToLower();
+                    break;
+                }
+                else if (entry.Key.ToLower() == engName)
+                {
+                    shortName = entry.Key;
+                    break;
                 }
             }
             if (string.IsNullOrEmpty(shortName))
@@ -366,8 +368,12 @@ namespace Oxide.Plugins
                 return;
             }
 
-            float value = 0;
-            float.TryParse(args[1], out value);
+            var value = 0f;
+            if (!float.TryParse(args[1], out value))
+            {
+                SendReply(player, GetMessage("invalidSyntax"));
+                return;
+            }
 
             if (shortName != null && value != 0)
             {

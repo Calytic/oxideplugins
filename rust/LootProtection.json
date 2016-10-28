@@ -2,7 +2,7 @@
     "name": "LootProtection",
     "description": "Protects players with permission from being looted by other players",
     "author": "Wulf",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "configuration": true,
     "language": "cs",
     "games": [

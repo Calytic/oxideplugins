@@ -20,7 +20,7 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("ZoneManager", "Reneb / Nogrod", "2.4.4", ResourceId = 739)]
+    [Info("ZoneManager", "Reneb / Nogrod", "2.4.6", ResourceId = 739)]
     public class ZoneManager : RustPlugin
     {
         private const string PermZone = "zonemanager.zone";
@@ -221,7 +221,12 @@ namespace Oxide.Plugins
                 gameObject.SetActive(Info.Enabled);
                 enabled = Info.Enabled;
 
-                if (ZoneManagerPlugin.HasZoneFlag(this, ZoneFlags.AutoLights))
+                if (ZoneManagerPlugin.HasZoneFlag(this, ZoneFlags.AlwaysLights))
+                {
+                    if (IsInvoking("CheckAlwaysLights")) CancelInvoke("CheckAlwaysLights");
+                    InvokeRepeating("CheckAlwaysLights", 5f, 60f);
+                }
+                else if (ZoneManagerPlugin.HasZoneFlag(this, ZoneFlags.AutoLights))
                 {
                     var currentTime = GetSkyHour();
 
@@ -293,6 +298,7 @@ namespace Oxide.Plugins
             private void OnDestroy()
             {
                 CancelInvoke("CheckLights");
+                CancelInvoke("CheckAlwaysLights");
                 ZoneManagerPlugin.OnZoneDestroy(this);
                 ZoneManagerPlugin = null;
                 Destroy(gameObject);
@@ -368,13 +374,23 @@ namespace Oxide.Plugins
                     lightsOn = true;
                 }
             }
+            private void CheckAlwaysLights()
+            {
+                if (ZoneManagerPlugin == null) return;
+                foreach (var building in buildings)
+                {
+                    var oven = building as BaseOven;
+                    if (oven == null || oven.IsInvoking("Cook")) continue;
+                    oven.SetFlag(BaseEntity.Flags.On, true);
+                }
+            }
 
             public void OnEntityKill(BaseCombatEntity entity)
             {
                 var player = entity as BasePlayer;
                 if (player != null)
                     players.Remove(player);
-                else if (!(entity is LootContainer) && !(entity is BaseHelicopter) && !(entity is BaseNPC))
+                else if (entity != null && !(entity is LootContainer) && !(entity is BaseHelicopter) && !(entity is BaseNPC))
                     buildings.Remove(entity);
             }
 
@@ -524,39 +540,42 @@ namespace Oxide.Plugins
 
         }
         [Flags]
-        public enum ZoneFlags// : long
+        public enum ZoneFlags : long
         {
-            None = 0,
-            AutoLights = 1,
-            Eject = 1 << 1,
-            PvpGod = 1 << 2,
-            PveGod = 1 << 3,
-            SleepGod = 1 << 4,
-            UnDestr = 1 << 5,
-            NoBuild = 1 << 6,
-            NoTp = 1 << 7,
-            NoChat = 1 << 8,
-            NoGather = 1 << 9,
-            NoPve = 1 << 10,
-            NoWounded = 1 << 11,
-            NoDecay = 1 << 12,
-            NoDeploy = 1 << 13,
-            NoKits = 1 << 14,
-            NoBoxLoot = 1 << 15,
-            NoPlayerLoot = 1 << 16,
-            NoCorpse = 1 << 17,
-            NoSuicide = 1 << 18,
-            NoRemove = 1 << 19,
-            NoBleed = 1 << 20,
-            KillSleepers = 1 << 21,
-            NpcFreeze = 1 << 22,
-            NoDrown = 1 << 23,
-            NoStability = 1 << 24,
-            NoUpgrade = 1 << 25,
-            EjectSleepers = 1 << 26,
-            NoPickup = 1 << 27,
-            NoCollect = 1 << 28,
-            NoDrop = 1 << 29
+            None = 0L,
+            AutoLights = 1L,
+            Eject = 1L << 1,
+            PvpGod = 1L << 2,
+            PveGod = 1L << 3,
+            SleepGod = 1L << 4,
+            UnDestr = 1L << 5,
+            NoBuild = 1L << 6,
+            NoTp = 1L << 7,
+            NoChat = 1L << 8,
+            NoGather = 1L << 9,
+            NoPve = 1L << 10,
+            NoWounded = 1L << 11,
+            NoDecay = 1L << 12,
+            NoDeploy = 1L << 13,
+            NoKits = 1L << 14,
+            NoBoxLoot = 1L << 15,
+            NoPlayerLoot = 1L << 16,
+            NoCorpse = 1L << 17,
+            NoSuicide = 1L << 18,
+            NoRemove = 1L << 19,
+            NoBleed = 1L << 20,
+            KillSleepers = 1L << 21,
+            NpcFreeze = 1L << 22,
+            NoDrown = 1L << 23,
+            NoStability = 1L << 24,
+            NoUpgrade = 1L << 25,
+            EjectSleepers = 1L << 26,
+            NoPickup = 1L << 27,
+            NoCollect = 1L << 28,
+            NoDrop = 1L << 29,
+			Kill = 1L << 30,
+            NoCup = 1L << 31,
+            AlwaysLights = 1L << 32
         }
 
         private bool HasZoneFlag(Zone zone, ZoneFlags flag)
@@ -619,7 +638,8 @@ namespace Oxide.Plugins
             for (var i = 0; i < collectibleEntities.Length; i++)
             {
                 var collectibleEntity = collectibleEntities[i];
-                if (collectibleEntity.GetComponent<Collider>() == null) collectibleEntity.gameObject.AddComponent<BoxCollider>();
+                var collider = collectibleEntity.GetComponent<Collider>() ?? collectibleEntity.gameObject.AddComponent<BoxCollider>();
+                collider.isTrigger = true;
             }
         }
 
@@ -730,6 +750,11 @@ namespace Oxide.Plugins
             var player = deployer.GetOwnerPlayer();
             if (player == null) return;
             if (HasPlayerFlag(player, ZoneFlags.NoDeploy) && !hasPermission(player, PermCanDeploy))
+            {
+                deployedEntity.Kill(BaseNetworkable.DestroyMode.Gib);
+                SendMessage(player, "You are not allowed to deploy here");
+            }
+            else if (HasPlayerFlag(player, ZoneFlags.NoCup) && deployedEntity.PrefabName.Contains("cupboard"))
             {
                 deployedEntity.Kill(BaseNetworkable.DestroyMode.Gib);
                 SendMessage(player, "You are not allowed to deploy here");
@@ -963,9 +988,9 @@ namespace Oxide.Plugins
                     }
                 }
             }
-            var npc = entity.GetComponent<NPCAI>();
-            if (npc != null)
-                npcNextTick.SetValue(npc, Time.time + 10f);
+            var npcai = entity.GetComponent<NPCAI>();
+            if (npcai != null)
+                npcNextTick.SetValue(npcai, Time.time + 10f);
         }
 
         /////////////////////////////////////////
@@ -1289,6 +1314,7 @@ namespace Oxide.Plugins
         /////////////////////////////////////////
         private object GetZoneRadius(string zoneID) => GetZoneByID(zoneID)?.Info.Radius;
         private object GetZoneSize(string zoneID) => GetZoneByID(zoneID)?.Info.Size;
+        private object GetZoneName(string zoneID) => GetZoneByID(zoneID)?.Info.Name;
         private object CheckZoneID(string zoneID) => GetZoneByID(zoneID)?.Info.Id;
         private object GetZoneIDs() => zoneObjects.ToList().ConvertAll(z => z.Info.Id).ToArray();
         private Vector3 GetZoneLocation(string zoneId) => GetZoneByID(zoneId)?.Info.Location ?? Vector3.zero;
@@ -1343,6 +1369,47 @@ namespace Oxide.Plugins
                 var flag = (ZoneFlags)Enum.Parse(typeof(ZoneFlags), flagString, true);
                 zone.disabledFlags &= ~flag;
                 UpdateAllPlayers();
+            }
+            catch
+            {
+            }
+        }
+
+        private bool HasFlag(string zoneId, string flagString)
+        {
+            try
+            {
+                var zone = GetZoneByID(zoneId);
+                var flag = (ZoneFlags) Enum.Parse(typeof(ZoneFlags), flagString, true);
+                if (HasZoneFlag(zone, flag))
+                    return true;
+            }
+            catch
+            {
+            }
+            return false;
+        }
+
+        private void AddFlag(string zoneId, string flagString)
+        {
+            try
+            {
+                var zone = GetZoneByID(zoneId);
+                var flag = (ZoneFlags) Enum.Parse(typeof(ZoneFlags), flagString, true);
+                AddZoneFlag(zone.Info, flag);
+            }
+            catch
+            {
+            }
+        }
+
+        private void RemoveFlag(string zoneId, string flagString)
+        {
+            try
+            {
+                var zone = GetZoneByID(zoneId);
+                var flag = (ZoneFlags) Enum.Parse(typeof(ZoneFlags), flagString, true);
+                RemoveZoneFlag(zone.Info, flag);
             }
             catch
             {
@@ -1441,6 +1508,7 @@ namespace Oxide.Plugins
             if (HasZoneFlag(zone, ZoneFlags.Eject)) EjectPlayer(zone, player);
             Interface.Oxide.CallHook("OnEnterZone", zone.Info.Id, player);
             //Puts("OnPlayerEnterZone: {0}", player.GetType());
+			if (HasPlayerFlag(player, ZoneFlags.Kill) && !isAdmin(player)) player.Die();
         }
 
         private void OnPlayerExitZone(Zone zone, BasePlayer player, bool all = false)
@@ -1512,7 +1580,11 @@ namespace Oxide.Plugins
                 npcZones[entity] = zones = new HashSet<Zone>();
             if (!zones.Add(zone)) return;
             if (HasZoneFlag(zone, ZoneFlags.NpcFreeze))
-                npcNextTick.SetValue(entity, 999999999999f);
+            {
+                var npcai = entity.GetComponent<NPCAI>();
+                if (npcai != null)
+                    npcNextTick.SetValue(npcai, 999999999999f);
+            }
             //Puts("OnNpcEnterZone: {0}", entity.GetType());
         }
 
@@ -1530,7 +1602,9 @@ namespace Oxide.Plugins
                 foreach (var zone1 in zones)
                 {
                     if (!HasZoneFlag(zone1, ZoneFlags.NpcFreeze)) continue;
-                    npcNextTick.SetValue(entity, Time.time);
+                    var npcai = entity.GetComponent<NPCAI>();
+                    if (npcai != null)
+                        npcNextTick.SetValue(npcai, Time.time);
                     break;
                 }
                 npcZones.Remove(entity);
@@ -1586,14 +1660,14 @@ namespace Oxide.Plugins
                 var block = entity as StabilityEntity;
                 if (block == null) return;
                 var prefab = GameManager.server.FindPrefab(PrefabAttribute.server.Find<Construction>(block.prefabID).fullName);
-                block.grounded = prefab.GetComponent<StabilityEntity>()?.grounded ?? false;
+                block.grounded = prefab?.GetComponent<StabilityEntity>()?.grounded ?? false;
             }
             if (pickup)
             {
                 var door = entity as Door;
                 if (door == null) return;
                 var prefab = GameManager.server.FindPrefab(PrefabAttribute.server.Find<Construction>(door.prefabID).fullName);
-                door.pickup.enabled = prefab.GetComponent<Door>()?.pickup.enabled ?? true;
+                door.pickup.enabled = prefab?.GetComponent<Door>()?.pickup.enabled ?? true;
             }
             //Puts("OnBuildingExitZone: {0}", entity.GetType());
         }

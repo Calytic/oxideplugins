@@ -2,12 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Oxide.Core;
+using UnityEngine;
 
 using IEnumerator = System.Collections.IEnumerator;
 
 namespace Oxide.Plugins
 {
-	[Info("SaveMyMap", "Fujikura", "0.3.2", ResourceId = 2111)] 
+	[Info("SaveMyMap", "Fujikura", "1.0.0", ResourceId = 2111)] 
 	class SaveMyMap : RustPlugin
 	{
 		bool Changed;
@@ -16,16 +17,16 @@ namespace Oxide.Plugins
 		bool Initialized;
 		string saveFolder;
 		bool loadReload;
+		string [] saveFolders;
 
-		string savePath;
 		int saveInterval;
 		int saveCustomAfter;
 		bool callOnServerSave;
 		float delayCallOnServerSave;
 		bool saveAfterLoadFile;
-		//bool logDefaultSavings;
 		bool allowOutOfDateSaves;
 		bool enableLoadOverride;
+		int numberOfSaves;
 
 		object GetConfig(string menu, string datavalue, object defaultValue)
 		{
@@ -48,15 +49,14 @@ namespace Oxide.Plugins
 
 		void LoadVariables()
 		{
-			savePath = Convert.ToString(GetConfig("Settings", "savePath", "/saves/"));
-			saveInterval = Convert.ToInt32(GetConfig("Settings", "saveInterval", 900));
+			saveInterval = Convert.ToInt32(GetConfig("Settings", "saveInterval", 1200));
 			saveCustomAfter = Convert.ToInt32(GetConfig("Settings", "saveCustomAfter", 1));
 			callOnServerSave = Convert.ToBoolean(GetConfig("Settings", "callOnServerSave", true));
 			delayCallOnServerSave = Convert.ToInt32(GetConfig("Settings", "delayCallOnServerSave", 3));
 			saveAfterLoadFile = Convert.ToBoolean(GetConfig("Settings", "saveAfterLoadFile", true));
 			enableLoadOverride = Convert.ToBoolean(GetConfig("Settings", "enableLoadOverride", true));
-			//logDefaultSavings = Convert.ToBoolean(GetConfig("Settings", "logDefaultSavings", true));
 			allowOutOfDateSaves = Convert.ToBoolean(GetConfig("Settings", "allowOutOfDateSaves", false));
+			numberOfSaves = Convert.ToInt32(GetConfig("Settings", "numberOfSaves", 10));
 
 			if (!Changed) return;
 			SaveConfig();
@@ -92,6 +92,7 @@ namespace Oxide.Plugins
 			LoadVariables();
 			LoadDefaultMessages();
 			Rounds = 0;
+			saveFolders = SaveFolders();
 		}
 
 		void Unload()
@@ -104,12 +105,11 @@ namespace Oxide.Plugins
 		{
 			saveRestore = SingletonComponent<SaveRestore>.Instance;
 			saveRestore.timedSave = false;
-			saveFolder = ConVar.Server.rootFolder +"/oxide" + savePath;
-			Interface.Oxide.DataFileSystem.SaveDatafile(Interface.Oxide.InstanceDirectory + savePath);
+			saveFolder = $"{ConVar.Server.rootFolder}/saves/{0}/";
 			timer.Every(saveInterval, SaveLoop);
 			Initialized = true;
 			Puts(lang.GetMessage("loadedinfo", this), saveInterval, saveCustomAfter);
-		}
+		}		
 		
 		void SaveLoop()
 		{
@@ -124,18 +124,17 @@ namespace Oxide.Plugins
 				if (!callOnServerSave) Interface.Oxide.DataFileSystem.WriteObject(this.Title, new List<object>(new object[] { ConVar.Server.rootFolder+"/"+SaveRestore.SaveFileName, "default" }) );
 				Rounds++;
 			} else {
-				string file = saveFolder + UnixTimeStampUTC().ToString() + "-"+ SaveRestore.SaveFileName;
+				string file = saveFolder + SaveRestore.SaveFileName;
 				if (callOnServerSave)
 					timer.Once(delayCallOnServerSave, () => Interface.CallHook("OnServerSave", file));
 				try {
+					SaveBackupCreate();
 					foreach (BaseEntity current in BaseEntity.saveList)
 						current.InvalidateNetworkCache();
 					IEnumerator custom = SaveRestore.Save(file, true);					
 					while (custom.MoveNext()) {}
 					if (!callOnServerSave) Interface.Oxide.DataFileSystem.WriteObject(this.Title, new List<object>(new object[] { file, "custom" }) );}
-				catch { 
-					PrintWarning(lang.GetMessage("dirnotfound", this)); 
-					Interface.Oxide.DataFileSystem.SaveDatafile(Interface.Oxide.InstanceDirectory + savePath); }
+				catch { PrintWarning(lang.GetMessage("dirnotfound", this)); }
 				Rounds = 0;
 			}
 		}
@@ -145,7 +144,6 @@ namespace Oxide.Plugins
 			string type;
 			if (file == null)
 			{
-				//if (!logDefaultSavings) return;
 				file = ConVar.Server.rootFolder+"/"+SaveRestore.SaveFileName;
 				type = "default";
 			}
@@ -184,11 +182,9 @@ namespace Oxide.Plugins
 				SendReply(arg, lang.GetMessage("alreadysaving", this, arg.connection != null ? arg.connection.userid.ToString() : null ));
 				return;
 			}
+			SaveBackupCreate();
 			string saveName;
-			if (arg.Args == null)
-				saveName = saveFolder + UnixTimeStampUTC().ToString() + "-"+ SaveRestore.SaveFileName;
-			else
-				saveName = saveFolder + arg.Args[0] + "-"+ SaveRestore.SaveFileName;
+			saveName = saveFolder + SaveRestore.SaveFileName;
 			try {
 				foreach (BaseEntity current in BaseEntity.saveList)
 					current.InvalidateNetworkCache();
@@ -196,9 +192,7 @@ namespace Oxide.Plugins
 				while (enumerator.MoveNext()) {}
 				Interface.Oxide.DataFileSystem.WriteObject(this.Title, new List<object>(new object[] { saveName, "custom" }) );
 				arg.ReplyWith(lang.GetMessage("customsavecomplete", this, arg.connection != null ? arg.connection.userid.ToString() : null )); }
-			catch {
-				PrintWarning(lang.GetMessage("dirnotfound", this)); 
-				Interface.Oxide.DataFileSystem.SaveDatafile(Interface.Oxide.InstanceDirectory + savePath); }
+			catch { PrintWarning(lang.GetMessage("dirnotfound", this)); }
 		}
 		
 		[ConsoleCommand("smm.loadmap")]
@@ -224,7 +218,8 @@ namespace Oxide.Plugins
 					SendReply(arg, lang.GetMessage("definefilename", this, arg.connection != null ? arg.connection.userid.ToString() : null ));
 					return;
 			}
-			if (arg.Args[0].Length <= 4 && arg.Args[0] != "last" )
+			int folderNumber = -1;
+			if (arg.Args[0].Length <= 4 && arg.Args[0] != "last" && !int.TryParse(arg.Args[0], out folderNumber))
 			{
 					SendReply(arg, lang.GetMessage("lastfilename", this, arg.connection != null ? arg.connection.userid.ToString() : null ));
 					return;
@@ -235,6 +230,10 @@ namespace Oxide.Plugins
 				List<string> filename = Interface.Oxide.DataFileSystem.ReadObject<List<string>>(this.Title);
 				if (filename != null)
 					file = filename.First();
+			}
+			else if (int.TryParse(arg.Args[0], out folderNumber))
+			{
+				file = $"{ConVar.Server.rootFolder}/saves/{folderNumber}/{SaveRestore.SaveFileName}";
 			}
 			if (file == "")
 				file = saveFolder + arg.Args[0];
@@ -258,7 +257,7 @@ namespace Oxide.Plugins
 			}
 		}
 
-		private Int32 UnixTimeStampUTC()
+		Int32 UnixTimeStampUTC()
 		{
 			Int32 unixTimeStamp;
 			DateTime currentTime = DateTime.Now;
@@ -267,6 +266,21 @@ namespace Oxide.Plugins
 			unixTimeStamp = (Int32)(zuluTime.Subtract(unixEpoch)).TotalSeconds;
 			return unixTimeStamp;
 		}
-
+		
+		string [] SaveFolders()
+		{
+			string [] dp = new string[numberOfSaves];
+			for (int i = 0; i < numberOfSaves; i++)
+			{
+				dp[i] = $"{ConVar.Server.rootFolder}/saves/{i}/";
+			}
+			return dp;
+		}
+		
+		void SaveBackupCreate()
+		{
+			DirectoryEx.Backup(SaveFolders());
+			ConVar.Server.GetServerFolder("saves/0/");
+		}
 	}
 }

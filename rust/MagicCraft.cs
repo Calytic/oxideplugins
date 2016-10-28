@@ -44,7 +44,7 @@ namespace Oxide.Plugins
         }
         void Loaded()
         {
-            if (!permission.PermissionExists("MagicCraft.able")) permission.RegisterPermission("MagicCraft.able", this);
+            permission.RegisterPermission("MagicCraft.able", this);
             lang.RegisterMessages(new Dictionary<string, string>
             {
                 ["CraftSuccess"] = "You have crafted <color=#66FF66>{0}</color> <color=#66FFFF>{1}</color>\n[Batch Amount: <color=#66FF66>{2}</color>]",
