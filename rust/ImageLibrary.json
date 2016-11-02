@@ -1,0 +1,15 @@
+{
+    "name": "ImageLibrary",
+    "description": "A Plugin to Manage External Images - For Devs",
+    "author": "{Midgard}Altimus Maximus",
+    "version": "1.0.0",
+    "configuration": false,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

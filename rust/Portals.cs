@@ -1,454 +1,529 @@
 using System.Collections.Generic;
-using System.Reflection;
-using System;
-using System.Data;
+using Newtonsoft.Json.Linq;
 using UnityEngine;
-using Oxide.Core.Plugins;
-using Oxide.Core;
 using System.Linq;
+using Oxide.Core;
+using System;
 using Rust;
-using Facepunch;
 
 namespace Oxide.Plugins
 {
-    [Info("Portals", "LaserHydra", "1.3.03", ResourceId = 1234)]
-    [Description("Create Portals and feel like in StarTrek")]
+    [Info("Portals", "LaserHydra", "2.0.1", ResourceId = 1234)]
+    [Description("Create portals and feel like in Star Trek")]
     class Portals : RustPlugin
     {
-        class StoredData
-        {
-            public Dictionary<string, object> PortalsBackup = new Dictionary<string, object>();
+        #region Global Declaration
 
-            public StoredData()
+        private List<PortalInfo> portals = new List<PortalInfo>();
+        public static Portals Instance = null;
+
+        #endregion
+
+        #region MonoBehaviour Classes
+
+        private class PortalPlayerHandler : MonoBehaviour
+        {
+            public Timer timer;
+            public BasePlayer player => gameObject.GetComponent<BasePlayer>();
+
+            public void Teleport(PortalEntity portal)
             {
-            }
-        }
-
-        StoredData storedData;
-
-        void Loaded()
-        {
-            LoadDefaultConfig();
-            storedData = Interface.GetMod().DataFileSystem.ReadObject<StoredData>("PortalsBackup");
-            timer.Repeat(Convert.ToInt32(Config["TeleportTimer"]), 0, Portal);
-            if(Config["Effects", "Enabled"].ToString() == "true") timer.Repeat(1.5F, 0, PortalFX);
-            if(!permission.PermissionExists("portals.admin")) permission.RegisterPermission("portals.admin", this);
-
-            foreach (var portal in Config)
-            {
-                string portalName = portal.Key.ToString();
-                if(portalName == "TeleportTimer" || portalName == "Effects" ) continue;
-
-                if(!permission.PermissionExists(Config[portalName, "Permission"].ToString())) permission.RegisterPermission(Config[portalName, "Permission"].ToString(), this);
-            }
-        }
-
-        protected override void LoadDefaultConfig()
-        {
-            if(Config["PresetPortal", "EntranceX"] == null) Config["PresetPortal", "EntranceX"] = 0;
-            if(Convert.ToInt32(Config["PresetPortal", "EntranceX"]) != 0) return;
-
-            if(Config["PresetPortal", "EntranceY"] == null) Config["PresetPortal", "EntranceY"] = 0;
-            if(Convert.ToInt32(Config["PresetPortal", "EntranceY"]) != 0) return;
-
-            if(Config["PresetPortal", "EntranceZ"] == null) Config["PresetPortal", "EntranceZ"] = 0;
-            if(Convert.ToInt32(Config["PresetPortal", "EntranceZ"]) != 0) return;
-
-            if(Config["PresetPortal", "ExitX"] == null) Config["PresetPortal", "ExitX"] = 0;
-            if(Convert.ToInt32(Config["PresetPortal", "ExitX"]) != 0) return;
-
-            if(Config["PresetPortal", "ExitY"] == null) Config["PresetPortal", "ExitY"] = 10;
-            if(Convert.ToInt32(Config["PresetPortal", "ExitY"]) != 10) return;
-
-            if(Config["PresetPortal", "ExitZ"] == null) Config["PresetPortal", "ExitZ"] = 0;
-            if(Convert.ToInt32(Config["PresetPortal", "ExitZ"]) != 0) return;
-
-            if(Config["PresetPortal", "OneWay"] == null) Config["PresetPortal", "OneWay"] = "false";
-            if(Config["PresetPortal", "OneWay"].ToString() != "false") return;
-
-            if(Config["PresetPortal", "Radius"] == null) Config["PresetPortal", "Radius"] = 2;
-            if(Convert.ToInt32(Config["PresetPortal", "Radius"]) != 2) return;
-
-            if(Config["PresetPortal", "Permission"] == null) Config["PresetPortal", "Permission"] = "portals.use";
-            if(Config["PresetPortal", "Permission"].ToString() != "portals.use") return;
-
-            if(Config["TeleportTimer"] == null) Config["TeleportTimer"] = 10;
-            if(Convert.ToInt32(Config["TeleportTimer"]) != 10) return;
-
-            if(Config["Effects", "Enabled"] == null) Config["Effects", "Enabled"] = "true";
-            if(Config["Effects", "Enabled"].ToString() != "true") return;
-
-            if(Config["Effects", "Height"] == null) Config["Effects", "Height"] = "2.5";
-            if(Config["Effects", "Height"].ToString() != "2.5") return;
-
-            if(Config["Effects", "Spacing"] == null) Config["Effects", "Spacing"] = "0.2";
-            if(Config["Effects", "Spacing"].ToString() != "0.2") return;
-            SaveConfig();
-        }
-
-        void PortalFX()
-        {
-            foreach (var portal in Config)
-            {
-                string portalName = portal.Key.ToString();
-                if(portalName == "TeleportTimer" || portalName == "Effects" ) continue;
-
-                for(float i = 0F ; i <= Config["Effects", "Height"].ToString().ToFloat() ; i = i + Config["Effects", "Spacing"].ToString().ToFloat())
+                if (portal.info.CanUse(player))
                 {
-                    var Entrance = new Vector3(Convert.ToInt32(Config[portalName, "EntranceX"]), Convert.ToInt32(Config[portalName, "EntranceY"]) + i, Convert.ToInt32(Config[portalName, "EntranceZ"]));
-                    var Exit = new Vector3(Convert.ToInt32(Config[portalName, "ExitX"]), Convert.ToInt32(Config[portalName, "ExitY"]) + i, Convert.ToInt32(Config[portalName, "ExitZ"]));
-                    Effect.server.Run("assets/prefabs/weapons/rocketlauncher/effects/pfx_fire_rocket_smokeout.prefab", Entrance, Vector3.up, null, true);
+                    PortalPoint otherPoint = portal.point.PointType == PortalPointType.Entrance ? portal.info.Exit : portal.info.Entrance;
 
-                    if(Config[portalName, "OneWay"].ToString() == "false")
-                    {
-                        Effect.server.Run("assets/prefabs/weapons/rocketlauncher/effects/pfx_fire_rocket_smokeout.prefab", Exit, Vector3.up, null, true);
-                    }
+                    Instance.Teleport(player, otherPoint.Location.Vector3);
+                    Interface.CallHook("OnPortalUsed", player, JObject.FromObject(portal.info), JObject.FromObject(portal.point));
                 }
             }
         }
 
-        void Portal()
+        private class PortalEntity : MonoBehaviour
         {
-            foreach (var portal in Config)
+            public PortalInfo info = new PortalInfo();
+            public PortalPoint point = new PortalPoint();
+
+            public static void Create(PortalInfo info, PortalPoint p)
             {
-                string portalName = portal.Key.ToString();
-                if(portalName == "TeleportTimer" || portalName == "Effects" ) continue;
+                p.GameObject = new GameObject();
 
-                var Entrance = new Vector3(Convert.ToInt32(Config[portalName, "EntranceX"]), Convert.ToInt32(Config[portalName, "EntranceY"]), Convert.ToInt32(Config[portalName, "EntranceZ"]));
-                var Exit = new Vector3(Convert.ToInt32(Config[portalName, "ExitX"]), Convert.ToInt32(Config[portalName, "ExitY"]), Convert.ToInt32(Config[portalName, "ExitZ"]));
+                PortalEntity portal = p.GameObject.AddComponent<PortalEntity>();
+                
+                p.Sphere = GameManager.server.CreateEntity("assets/prefabs/visualization/sphere.prefab", p.Location.Vector3, new Quaternion(), true).GetComponent<SphereEntity>();
+                p.Sphere.currentRadius = 2;
+                p.Sphere.lerpSpeed = 0f;
+                p.Sphere.Spawn();
 
-                foreach(BasePlayer current in BasePlayer.activePlayerList)
+                p.GameObject.transform.position = p.Location.Vector3;
+
+                portal.info = info;
+                portal.point = p;
+            }
+
+            public void OnTriggerExit(Collider coll)
+            {
+                GameObject go = coll.gameObject;
+
+                if (go.GetComponent<BasePlayer>())
                 {
-                    string uid = current.userID.ToString();
-                    int DisEntrance = Convert.ToInt32(Vector3.Distance(current.transform.position, Entrance));
-                    int DisExit = Convert.ToInt32(Vector3.Distance(current.transform.position, Exit));
+                    PortalPlayerHandler handler = go.GetComponent<PortalPlayerHandler>();
 
-                    if((bool)current.IsSleeping()) continue;
-                    if((bool)current.IsSpectating()) continue;
-                    if((bool)current.IsWounded()) continue;
-
-                    if(DisEntrance < Convert.ToInt32(Config[portalName, "Radius"]))
+                    if (handler && handler.timer != null && !handler.timer.Destroyed)
                     {
-                        if(!permission.UserHasPermission(uid, Config[portalName, "Permission"].ToString()))
-                        {
-                            SendChatMessage(current, "PORTALS", "You are not allowed to use this portal!");
-                            return;
-                        }
-
-                        SendChatMessage(current,"PORTALS", "Teleported!");
-                        ForcePlayerPosition(current, Exit);
-                    }
-                    else if (DisExit < Convert.ToInt32(Config[portalName, "Radius"]) && Config[portalName, "OneWay"].ToString() == "false")
-                    {
-                        if(!permission.UserHasPermission(uid, Config[portalName, "Permission"].ToString()))
-                        {
-                            SendChatMessage(current, "PORTALS", "You are not allowed to use this portal!");
-                            return;
-                        }
-
-                        SendChatMessage(current,"PORTALS", "Teleported!");
-                        ForcePlayerPosition(current, Entrance);
+                        handler.timer.Destroy();
+                        Instance.PrintToChat(handler.player, Instance.GetMsg("Teleportation Cancelled"));
                     }
                 }
             }
-        }
 
-        void BackupConfig()
-        {
-            storedData.PortalsBackup.Clear();
-            foreach (var portal in Config)
+            public void OnTriggerEnter(Collider coll)
             {
-                string portalName = portal.Key.ToString();
+                GameObject go = coll.gameObject;
 
-                storedData.PortalsBackup[portalName] = portal.Value;
-                continue;
+                if (go.GetComponent<BasePlayer>())
+                {
+                    PortalPlayerHandler handler = go.GetComponent<PortalPlayerHandler>();
+
+                    if (handler)
+                    {
+                        if (point.PointType == PortalPointType.Exit && info.OneWay)
+                            return;
+
+                        if (handler.player.IsSleeping())
+                            return;
+
+                        if (!info.CanUse(handler.player))
+                        {
+                            Instance.PrintToChat(handler.player, Instance.GetMsg("No Permission Portal"));
+                            return;
+                        }
+
+                        Instance.PrintToChat(handler.player, Instance.GetMsg("Teleporting").Replace("{time}", info.TeleportationTime.ToString()));
+                        handler.timer = Instance.timer.Once(info.TeleportationTime, () => handler.Teleport(this));
+                    }
+                }
             }
 
-            Interface.GetMod().DataFileSystem.WriteObject("PortalsBackup", storedData);
+            public void UpdateCollider()
+            {
+                BoxCollider coll;
+
+                if (gameObject.GetComponent<BoxCollider>())
+                    coll = gameObject.GetComponent<BoxCollider>();
+                else
+                    coll = gameObject.AddComponent<BoxCollider>();
+
+                coll.size = new Vector3(1, 2, 1);
+                coll.isTrigger = true;
+                coll.enabled = true;
+            }
+
+            public void Awake()
+            {
+                gameObject.name = "Portal";
+                gameObject.layer = (int)Layer.Reserved1;
+
+                var rigidbody = gameObject.AddComponent<Rigidbody>();
+                rigidbody.useGravity = false;
+                rigidbody.isKinematic = true;
+                rigidbody.detectCollisions = true;
+                rigidbody.collisionDetectionMode = CollisionDetectionMode.Discrete;
+
+                UpdateCollider();
+            }
         }
 
-        [ConsoleCommand("portals.wipe")]
-        void cmdWipePortals(ConsoleSystem.Arg arg)
+        private enum PortalPointType
         {
-            Dictionary<string, object> settings = new Dictionary<string, object>();
-            BasePlayer player = null;
+            Entrance,
+            Exit
+        }
 
-            if(arg.connection != null && arg.connection.player != null)
+        #endregion
+
+        #region Portal Classes
+
+        private class PortalInfo
+        {
+            public string ID;
+            public readonly PortalPoint Entrance = new PortalPoint { PointType = PortalPointType.Entrance };
+            public readonly PortalPoint Exit = new PortalPoint { PointType = PortalPointType.Exit };
+            public bool OneWay = true;
+            public float TeleportationTime = 5f;
+            public string RequiredPermission = "portals.use";
+
+            private bool _created;
+
+            private void Update()
             {
-                if(permission.UserHasPermission(arg.connection.userid.ToString(), "portals.admin") == false)
-                {
-                    player = (BasePlayer)arg.connection.player;
-                    player.SendConsoleCommand("echo 'You don't have permission to use this command!'");
+                Entrance.PointType = PortalPointType.Entrance;
+                Exit.PointType = PortalPointType.Exit;
+            }
+
+            public void ReCreate()
+            {
+                Remove();
+                Create();
+            }
+
+            public void Create()
+            {
+                Update();
+
+                PortalEntity.Create(this, Entrance);
+                PortalEntity.Create(this, Exit);
+
+                _created = true;
+            }
+
+            public void Remove()
+            {
+                if (!_created)
                     return;
-                }
+
+                Entrance.Sphere.Kill();
+                Exit.Sphere.Kill();
+
+                GameObject.Destroy(Entrance.GameObject);
+                GameObject.Destroy(Exit.GameObject);
             }
 
+            public bool CanUse(BasePlayer player) => Instance.permission.UserHasPermission(player.UserIDString, RequiredPermission);
 
-            foreach (var portal in Config)
+            public static PortalInfo Find(string ID) => Instance.portals.Find((p) => p.ID == ID);
+
+            public override int GetHashCode() => ID.GetHashCode();
+
+            public PortalInfo(string ID)
             {
-                string portalName = portal.Key.ToString();
-                if(portalName != "TeleportTimer" && portalName != "Effects" ) continue;
-
-                settings[portalName] = portal.Value;
-                continue;
+                this.ID = ID;
             }
 
-            BackupConfig();
-            Config.Clear();
-
-            foreach (var current in settings)
+            public PortalInfo()
             {
-                string name = current.Key.ToString();
-                Config[name] = current.Value;
-
-                continue;
             }
-
-            SaveConfig();
-            LoadDefaultConfig();
-
-            PrintWarning("Wiped all Portals!");
-            if(player != null) player.SendConsoleCommand("echo '<color=yellow>Wiped all Portals!</color>'");
         }
+
+        private class PortalPoint
+        {
+            public readonly Location Location = new Location();
+            internal PortalPointType PointType;
+            internal GameObject GameObject;
+            internal SphereEntity Sphere;
+        }
+
+        private class Location
+        {
+            public string _location = "0 0 0";
+
+            internal Vector3 Vector3
+            {
+                get
+                {
+                    float[] vars = (from var in _location.Split(' ') select Convert.ToSingle(var)).ToArray();
+
+                    return new Vector3(vars[0], vars[1], vars[2]);
+                }
+                set { _location = $"{value.x} {value.y} {value.z}"; }
+            }
+        }
+
+        #endregion
+
+        #region Oxide Hooks
+
+        private void OnServerInitialized()
+        {
+            Instance = this;
+
+            RegisterPerm("admin");
+            RegisterPerm("use");
+
+            LoadData(out portals);
+            LoadMessages();
+
+            foreach (PortalInfo portal in portals)
+            {
+                permission.RegisterPermission(portal.RequiredPermission, this);
+                portal.Create();
+            }
+
+            foreach (BasePlayer player in BasePlayer.activePlayerList)
+                OnPlayerInit(player);
+        }
+
+        private void Unloaded()
+        {
+            foreach (var portal in portals)
+                portal.Remove();
+
+            foreach (BasePlayer player in BasePlayer.activePlayerList)
+                OnPlayerDisconnected(player);
+        }
+
+        private void OnPlayerInit(BasePlayer player)
+        {
+            if (!player.gameObject.GetComponent<PortalPlayerHandler>())
+                player.gameObject.AddComponent<PortalPlayerHandler>();
+        }
+
+        private void OnPlayerDisconnected(BasePlayer player)
+        {
+            if (player.gameObject.GetComponent<PortalPlayerHandler>())
+                Component.Destroy(player.gameObject.GetComponent<PortalPlayerHandler>());
+        }
+
+        #endregion
+
+        #region Loading
+
+        private void LoadMessages()
+        {
+            lang.RegisterMessages(new Dictionary<string, string>
+            {
+                {"No Permission", "You don't have permission to use this command."},
+                {"No Permission Portal", "You don't have permission to use this portal."},
+                {"Invalid ID", "{ID} is no valid ID. The ID must be a valid number!"},
+                {"Portal Does Not Exist", "Portal {ID} does not exist."},
+                {"Portal Entrance Set", "Entrance for Portal {ID} was set at your current location."},
+                {"Portal Exit Set", "Exit for Portal {ID} was set at your current location."},
+                {"Portal Removed", "Portal {ID} was removed."},
+                {"Teleporting", "You entered a portal. You will be teleported in {time} seconds."},
+                {"Teleportation Cancelled", "Teleportation cancelled as you left the portal before the teleportation process finished."},
+                {"Portal List Empty", "There are no portals." },
+                {"Portal List", "Portals: {portals}" }
+            }, this);
+        }
+
+        #endregion
+
+        #region Commands
 
         [ChatCommand("portal")]
-        void cmdPortal(BasePlayer player, string cmd, string[] args)
+        private void cmdPortal(BasePlayer player, string cmd, string[] args)
         {
-            string uid = player.userID.ToString();
-            if(!permission.UserHasPermission(uid, "portals.admin"))
+            if (!HasPerm(player.userID, "admin"))
             {
-                SendChatMessage(player, "PORTALS", "You have no permission to use this command!");
+                SendReply(player, GetMsg("No Permission"));
                 return;
             }
 
-            if(args.Length == 0)
+            if (args.Length == 0)
             {
-                SendChatMessage(player, "PORTALS", "\n/portal list\n/portal set <PortalName> <entrance|exit|oneway>");
+                SendReply(player, "Syntax: /portal <entrance|exit|remove|list> <ID>");
                 return;
             }
 
-            if(args[0].ToLower() == "list")
+            string ID;
+            PortalInfo portal;
+
+            switch (args[0])
             {
-                foreach (var portal in Config)
-                {
-                    string portalName = portal.Key.ToString();
-                    if(portalName == "TeleportTimer" || portalName == "Effects" ) continue;
-                    var Entrance = new Vector3(Convert.ToInt32(Config[portalName, "EntranceX"]), Convert.ToInt32(Config[portalName, "EntranceY"]), Convert.ToInt32(Config[portalName, "EntranceZ"]));
-                    var Exit = new Vector3(Convert.ToInt32(Config[portalName, "ExitX"]), Convert.ToInt32(Config[portalName, "ExitY"]), Convert.ToInt32(Config[portalName, "ExitZ"]));
-                    string OneWay = (string)Config[portalName, "OneWay"];
-                    SendChatMessage(player, "PORTALS", "<color=cyan>-----> " + portalName + " <-----</color>\n" +
-                        "<color=cyan>Entrance:</color> " + Entrance.ToString() + "\n" +
-                        "<color=cyan>Exit:</color> " + Exit.ToString() + "\n" +
-                        "<color=cyan>OneWay:</color> " + OneWay);
-                }
-                return;
-            }
+                case "entrance":
 
-            if(args[0].ToLower() == "wipe")
-            {
-                Dictionary<string, object> settings = new Dictionary<string, object>();
+                    if (args.Length != 2)
+                    {
+                        SendReply(player, "Syntax: /portal entrance <ID>");
+                        return;
+                    }
 
-                foreach (var portal in Config)
-                {
-                    string portalName = portal.Key.ToString();
-                    if(portalName != "TeleportTimer" && portalName != "Effects" ) continue;
+                    ID = args[1];
 
-                    settings[portalName] = portal.Value;
-                    continue;
-                }
+                    portal = PortalInfo.Find(ID);
 
-                BackupConfig();
-                Config.Clear();
+                    if (portal == null)
+                    {
+                        portal = new PortalInfo(ID);
+                        portals.Add(portal);
+                    }
 
-                foreach (var current in settings)
-                {
-                    string name = current.Key.ToString();
-                    Config[name] = current.Value;
+                    portal.Entrance.Location.Vector3 = player.transform.position;
+                    portal.ReCreate();
 
-                    continue;
-                }
+                    SaveData(portals);
 
-                SaveConfig();
-                LoadDefaultConfig();
+                    SendReply(player, GetMsg("Portal Entrance Set").Replace("{ID}", args[1]));
 
-                SendChatMessage(player, "PORTALS", "Wiped all Portals!");
-            }
+                    break;
 
-            if(args[0].ToLower() == "set")
-            {
-                if(args.Length != 3 || args[2].ToLower() != "entrance" && args[2].ToLower() != "exit" && args[2].ToLower() != "oneway")
-                {
-                    SendChatMessage(player, "PORTALS", "Syntax: /portal set <PortalName> <entrance|exit|oneway>");
-                    return;
-                }
+                case "exit":
 
-                var pos = player.transform.position;
+                    if (args.Length != 2)
+                    {
+                        SendReply(player, "Syntax: /portal exit <ID>");
+                        return;
+                    }
 
-                if(args[2].ToLower() == "oneway")
-                {
-                    string onewayState = "false";
-                    if(Config[args[1], "OneWay"] == "true") onewayState = "false";
-                    else onewayState = "true";
+                    ID = args[1];
 
-                    Config[args[1], "OneWay"] = onewayState;
+                    portal = PortalInfo.Find(ID);
 
-                    SaveConfig();
-                    SendChatMessage(player, "PORTALS", "Set <color=cyan>ONE WAY</color> for Portal <color=cyan>" + args[1] + "</color> to " + onewayState);
-                }
+                    if (portal == null)
+                    {
+                        portal = new PortalInfo(ID);
+                        portals.Add(portal);
+                    }
 
-                if(args[2].ToLower() == "entrance")
-                {
-                    Config[args[1], "EntranceX"] = Convert.ToInt32(pos.x);
-                    Config[args[1], "EntranceY"] = Convert.ToInt32(pos.y + 0.5F);
-                    Config[args[1], "EntranceZ"] = Convert.ToInt32(pos.z);
-                    SaveConfig();
-                    SendChatMessage(player, "PORTALS", "Set <color=cyan>ENTRANCE</color> for Portal <color=cyan>" + args[1] + "</color>");
-                }
+                    portal.Exit.Location.Vector3 = player.transform.position;
+                    portal.ReCreate();
 
-                if(args[2].ToLower() == "exit")
-                {
-                    Config[args[1], "ExitX"] = Convert.ToInt32(pos.x);
-                    Config[args[1], "ExitY"] = Convert.ToInt32(pos.y + 0.5F);
-                    Config[args[1], "ExitZ"] = Convert.ToInt32(pos.z);
-                    SaveConfig();
-                    SendChatMessage(player, "PORTALS", "Set <color=cyan>EXIT</color> for Portal <color=cyan>" + args[1] + "</color>");
-                }
+                    SaveData(portals);
 
-                if(Config[args[1], "OneWay"] == null) Config[args[1], "OneWay"] = "false";
-                if(Config[args[1], "OneWay"].ToString() != "false") return;
+                    SendReply(player, GetMsg("Portal Exit Set").Replace("{ID}", args[1]));
 
-                if(Config[args[1], "Permission"] == null) Config[args[1], "Permission"] = "portals.use";
-                if(Config[args[1], "Permission"].ToString() != "portals.use") return;
+                    break;
 
-                if(Config[args[1], "Radius"] == null) Config[args[1], "Radius"] = 2;
-                if(Convert.ToInt32(Config[args[1], "Radius"]) != 2) return;
-                return;
+                case "remove":
+
+                    if (args.Length != 2)
+                    {
+                        SendReply(player, "Syntax: /portal remove <ID>");
+                        return;
+                    }
+
+                    ID = args[1];
+
+                    portal = PortalInfo.Find(ID);
+
+                    if (portal == null)
+                    {
+                        SendReply(player, GetMsg("Portal Does Not Exist").Replace("{ID}", args[1]));
+                        return;
+                    }
+
+                    portal.Remove();
+                    portals.Remove(portal);
+
+                    SaveData(portals);
+
+                    SendReply(player, GetMsg("Portal Removed").Replace("{ID}", args[1]));
+
+                    break;
+
+                case "list":
+
+                    string portalList = portals.Count == 0
+                        ? GetMsg("Portal List Empty")
+                        : GetMsg("Portal List").Replace("{portals}",
+                                string.Join("<color=#333> â </color>", portals.Select(p => $"<color=#C4FF00>{p.ID}</color>").ToArray()) );
+
+                    SendReply(player, portalList);
+
+                    break;
+
+                default:
+                    
+                    SendReply(player, "Syntax: /portal <entrance|exit|remove> <ID>");
+
+                    break;
             }
         }
 
-        #region UsefulMethods
-        //--------------------------->   Position forcing   <---------------------------//
+        #endregion
 
-        public void ForcePlayerPosition(BasePlayer player, Vector3 pos)
+        #region Helper
+
+        #region Teleportation Helper
+
+        private void Teleport(BasePlayer player, Vector3 position)
         {
-            PutToSleep(player);
-            player.transform.position = pos;
+            if (player.net?.connection != null)
+                player.ClientRPCPlayer(null, player, "StartLoading", null, null, null, null, null);
+            
+            player.StartSleeping();
+            player.MovePosition(position);
 
-            //    Thx to @Wulf for this line:
-            var LastPositionValue = typeof(BasePlayer).GetField("lastPositionValue", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
+            if (player.net?.connection != null)
+                player.SetPlayerFlag(BasePlayer.PlayerFlags.ReceivingSnapshot, true);
 
-            LastPositionValue.SetValue(player, player.transform.position);
-            player.ClientRPCPlayer(null, player, "ForcePositionTo", pos);
-            player.TransformChanged();
-
-            player.SetPlayerFlag(BasePlayer.PlayerFlags.ReceivingSnapshot, true);
             player.UpdateNetworkGroup();
-
             player.SendNetworkUpdateImmediate(false);
-            player.ClientRPCPlayer(null, player, "StartLoading");
+
+            if (player.net?.connection == null)
+                return;
+
+            try
+            {
+                player.ClearEntityQueue(null);
+            }
+            catch
+            {}
+
             player.SendFullSnapshot();
-            player.SetPlayerFlag(BasePlayer.PlayerFlags.ReceivingSnapshot, false);
-            player.ClientRPCPlayer(null, player, "FinishLoading" );
         }
 
-        void PutToSleep(BasePlayer player)
+        #endregion
+
+        #region Finding Helper
+
+        private BasePlayer GetPlayer(string searchedPlayer, BasePlayer player)
         {
-            player.SetPlayerFlag(BasePlayer.PlayerFlags.Sleeping, true);
-            if(BasePlayer.sleepingPlayerList.Contains(player) == false) BasePlayer.sleepingPlayerList.Add(player);
+            foreach (BasePlayer current in BasePlayer.activePlayerList)
+                if (current.displayName.ToLower() == searchedPlayer.ToLower())
+                    return current;
 
-            player.CancelInvoke("InventoryUpdate");
-            player.inventory.crafting.CancelAll(true);
-        }
+            List<BasePlayer> foundPlayers =
+                (from current in BasePlayer.activePlayerList
+                 where current.displayName.ToLower().Contains(searchedPlayer.ToLower())
+                 select current).ToList();
 
-        //--------------------------->   Player finding   <---------------------------//
-
-        BasePlayer GetPlayer(string searchedPlayer, BasePlayer executer, string prefix)
-        {
-            BasePlayer targetPlayer = null;
-            List<string> foundPlayers = new List<string>();
-            string searchedLower = searchedPlayer.ToLower();
-            foreach (BasePlayer player in BasePlayer.activePlayerList)
+            switch (foundPlayers.Count)
             {
-                string display = player.displayName;
-                string displayLower = display.ToLower();
+                case 0:
+                    SendReply(player, "The player can not be found.");
+                    break;
 
-                if (!displayLower.Contains(searchedLower))
-                {
-                    continue;
-                }
-                if (displayLower.Contains(searchedLower))
-                {
-                    foundPlayers.Add(display);
-                }
-            }
-            var matchingPlayers = foundPlayers.ToArray();
+                case 1:
+                    return foundPlayers[0];
 
-            if (matchingPlayers.Length == 0)
-            {
-                SendChatMessage(executer, prefix, "No matching players found!");
+                default:
+                    List<string> playerNames = (from current in foundPlayers select current.displayName).ToList();
+                    string players = string.Join(", ", playerNames.ToArray());
+                    SendReply(player, "Multiple matching players found: \n" + players);
+                    break;
             }
 
-            if (matchingPlayers.Length > 1)
-            {
-                SendChatMessage(executer, prefix, "Multiple players found:");
-                string multipleUsers = "";
-                foreach (string matchingplayer in matchingPlayers)
-                {
-                    if (multipleUsers == "")
-                    {
-                        multipleUsers = "<color=yellow>" + matchingplayer + "</color>";
-                        continue;
-                    }
-
-                    if (multipleUsers != "")
-                    {
-                        multipleUsers = multipleUsers + ", " + "<color=yellow>" + matchingplayer + "</color>";
-                    }
-
-                }
-                SendChatMessage(executer, prefix, multipleUsers);
-            }
-
-            if (matchingPlayers.Length == 1)
-            {
-                targetPlayer = BasePlayer.Find(matchingPlayers[0]);
-            }
-            return targetPlayer;
+            return null;
         }
 
-        //---------------------------->   Converting   <----------------------------//
+        #endregion
 
-        string ArrayToString(string[] array, int first)
+        #region Data Helper
+
+        private string DataFileName => Title.Replace(" ", string.Empty);
+
+        private void LoadData<T>(out T data, string filename = null) => data = Interface.Oxide.DataFileSystem.ReadObject<T>(filename == null ? DataFileName : $"{DataFileName}/{filename}");
+
+        private void SaveData<T>(T data, string filename = null) => Interface.Oxide.DataFileSystem.WriteObject(filename == null ? DataFileName : $"{DataFileName}/{filename}", data, true);
+
+        #endregion
+
+        #region Message Helper
+
+        private string GetMsg(string key, object userID = null) => lang.GetMessage(key, this, userID == null ? null : userID.ToString());
+
+        #endregion
+
+        #region Permission Helper
+
+        private void RegisterPerm(params string[] permArray)
         {
-            int count = 0;
-            string output = array[first];
-            foreach (string current in array)
-            {
-                if (count <= first)
-                {
-                    count++;
-                    continue;
-                }
+            string perm = string.Join(".", permArray);
 
-                output = output + " " + current;
-                count++;
-            }
-            return output;
+            permission.RegisterPermission($"{PermissionPrefix}.{perm}", this);
         }
 
-        //---------------------------->   Chat Sending   <----------------------------//
-
-        void BroadcastChat(string prefix, string msg)
+        private bool HasPerm(object uid, params string[] permArray)
         {
-            PrintToChat("<color=cyan>" + prefix + "</color>: " + msg);
+            string perm = string.Join(".", permArray);
+
+            return permission.UserHasPermission(uid.ToString(), $"{PermissionPrefix}.{perm}");
         }
 
-        void SendChatMessage(BasePlayer player, string prefix, string msg)
-        {
-            SendReply(player, "<color=cyan>" + prefix + "</color>: " + msg);
-        }
+        private string PermissionPrefix => this.Title.Replace(" ", "").ToLower();
 
-        //---------------------------------------------------------------------------//
+        #endregion
+
         #endregion
     }
 }

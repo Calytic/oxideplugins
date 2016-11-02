@@ -2,7 +2,7 @@
     "name": "Easy Airdrop",
     "description": "Call airdrops using simple commands",
     "author": "LaserHydra",
-    "version": "3.2.0",
+    "version": "3.2.2",
     "configuration": true,
     "language": "cs",
     "games": [

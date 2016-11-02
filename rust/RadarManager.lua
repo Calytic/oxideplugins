@@ -1,8 +1,8 @@
 PLUGIN.Title        = "Radar Manager"
 PLUGIN.Description  = "Shows clan members, mutual friends, attackers and hit mark locations to other players."
 PLUGIN.Author       = "InSaNe8472"
-PLUGIN.Version      = V(1,0,9)
-PLUGIN.ResourceID   = 1392
+PLUGIN.Version      = V(1,1,0)
+PLUGIN.ResourceId   = 1392
 
 local ClanPlugin = "Clans"
 local FriendPlugin = "Friends"
@@ -48,6 +48,7 @@ function PLUGIN:LoadDefaultConfig()
 	self.Config.Settings.EnforceHours = self.Config.Settings.EnforceHours or "false"
 	self.Config.Settings.StartHour = self.Config.Settings.StartHour or "0"
 	self.Config.Settings.EndHour = self.Config.Settings.EndHour or "23"
+	self.Config.Settings.MinDistance = self.Config.Settings.MinDistance or "5"
 	self.Config.Admin.ActiveTag = self.Config.Admin.ActiveTag or "<size=12><color=#cd422b>{player}</color> (<color=#ffd479>{location}</color>)</size>"
 	self.Config.Admin.SleepTag = self.Config.Admin.SleepTag or "(SLEEP) <size=12><color=#cd422b>{player}</color> (<color=#ffd479>{location}</color>)</size>"
 	self.Config.Admin.ActiveTagOffset = self.Config.Admin.ActiveTagOffset or "2"
@@ -78,7 +79,7 @@ function PLUGIN:LoadDefaultConfig()
 	self.Config.Hit.ShowClan = self.Config.Hit.ShowClan or "false"
 	self.Config.Hit.ShowFriend = self.Config.Hit.ShowFriend or "false"
 	self.Config.Hit.Radius = self.Config.Hit.Radius or "300"
-	self.Config.Hit.HitTimeout = self.Config.Hit.AttackTimeout or "5"
+	self.Config.Hit.HitTimeout = self.Config.Hit.HitTimeout or "5"
 	self.Config.Hit.TagTimeout = self.Config.Hit.TagTimeout or "0.5"
 	self.Config.Hit.Tag = self.Config.Hit.Tag or "<size=12><color=#F87217>{player}</color> - <color=#ffd479>{location}</color> ({range}m)</size>"
 	self.Config.Hit.TagOffset = self.Config.Hit.TagOffset or "2"
@@ -104,6 +105,7 @@ function PLUGIN:LoadDefaultConfig()
 	}
 	if not tonumber(self.Config.Settings.StartHour) or tonumber(self.Config.Settings.StartHour) < 0 or tonumber(self.Config.Settings.StartHour) > 23 then self.Config.Settings.StartHour = "0" end
 	if not tonumber(self.Config.Settings.EndHour) or tonumber(self.Config.Settings.EndHour) < 0 or tonumber(self.Config.Settings.EndHour) > 23 then self.Config.Settings.EndHour = "23" end
+	if not tonumber(self.Config.Settings.MinDistance) or tonumber(self.Config.Settings.MinDistance) < 1 then self.Config.Settings.MinDistance = "5" end
 	if not tonumber(self.Config.Admin.ActiveTagOffset) or tonumber(self.Config.Admin.ActiveTagOffset) < 1 then self.Config.Admin.ActiveTagOffset = "2" end
 	if not tonumber(self.Config.Admin.SleepTagOffset) or tonumber(self.Config.Admin.SleepTagOffset) < 1 then self.Config.Admin.SleepTagOffset = "1" end
 	if not tonumber(self.Config.Clan.Refresh) or tonumber(self.Config.Clan.Refresh) < 1 then self.Config.Clan.Refresh = "3" end
@@ -773,7 +775,8 @@ function PLUGIN:RefreshAdminRadar(player, radius, refresh, sleepers)
 	local players = global.BasePlayer.activePlayerList:GetEnumerator()
 	while players:MoveNext() do
 		if players.Current ~= player then
-			if UnityEngine.Vector3.Distance(players.Current.transform.position, player.transform.position) <= radius then
+			local CurRadius = UnityEngine.Vector3.Distance(players.Current.transform.position, player.transform.position)
+			if CurRadius <= radius and CurRadius >= tonumber(self.Config.Settings.MinDistance) then
 				local tag = players.Current.displayName
 				if self.Config.Admin.ShowLocation == "true" then
 					tag = tag.." (x"..tostring(players.Current.transform.position.x):match"([^.]*).(.*)".." y"..tostring(players.Current.transform.position.y):match"([^.]*).(.*)".." z"..tostring(players.Current.transform.position.z):match"([^.]*).(.*)"..")"
@@ -789,7 +792,8 @@ function PLUGIN:RefreshAdminRadar(player, radius, refresh, sleepers)
 		local players = global.BasePlayer.sleepingPlayerList:GetEnumerator()
 		while players:MoveNext() do
 			if players.Current ~= player then
-				if UnityEngine.Vector3.Distance(players.Current.transform.position, player.transform.position) <= radius then
+				local CurRadius = UnityEngine.Vector3.Distance(players.Current.transform.position, player.transform.position)
+				if CurRadius <= radius and CurRadius >= tonumber(self.Config.Settings.MinDistance) then
 					local loc = players.Current.transform.position.x..","..(players.Current.transform.position.y + tonumber(self.Config.Admin.SleepTagOffset))..","..players.Current.transform.position.z
 					local tagloc = "x"..tostring(players.Current.transform.position.x):match"([^.]*).(.*)".." y"..tostring(players.Current.transform.position.y):match"([^.]*).(.*)".." z"..tostring(players.Current.transform.position.z):match"([^.]*).(.*)"
 					local tag = FormatMessage(self.Config.Admin.SleepTag, { player = players.Current.displayName, location = tagloc })
@@ -830,7 +834,7 @@ function PLUGIN:RefreshClanRadar()
 								local _playerSteamID = rust.UserIDFromPlayer(_players.Current)
 								if not permission.UserHasPermission(_playerSteamID, "radarmanager.hide") then
 									local Range = UnityEngine.Vector3.Distance(_players.Current.transform.position, localPlayer.transform.position)
-									if Range <= tonumber(Radius) then
+									if Range <= tonumber(Radius) and Range >= tonumber(self.Config.Settings.MinDistance) then
 										if localClan and clans:Call("GetClanOf", _playerSteamID) == localClan then
 											local loc = _players.Current.transform.position.x..","..(_players.Current.transform.position.y + tonumber(self.Config.Clan.TagOffset))..",".._players.Current.transform.position.z
 											local tagloc = "x"..tostring(_players.Current.transform.position.x):match"([^.]*).(.*)".." y"..tostring(_players.Current.transform.position.y):match"([^.]*).(.*)".." z"..tostring(_players.Current.transform.position.z):match"([^.]*).(.*)"
@@ -877,7 +881,7 @@ function PLUGIN:RefreshFriendRadar()
 								local _playerSteamID = rust.UserIDFromPlayer(_players.Current)
 								if not permission.UserHasPermission(_playerSteamID, "radarmanager.hide") then
 									local Range = UnityEngine.Vector3.Distance(_players.Current.transform.position, localPlayer.transform.position)
-									if Range <= tonumber(Radius) then
+									if Range <= tonumber(Radius) and Range >= tonumber(self.Config.Settings.MinDistance) then
 										if friendsAPI:Call("AreFriendsS", playerSteamID, _playerSteamID) then
 											local loc = _players.Current.transform.position.x..","..(_players.Current.transform.position.y + tonumber(self.Config.Friend.TagOffset))..",".._players.Current.transform.position.z
 											local tagloc = "x"..tostring(_players.Current.transform.position.x):match"([^.]*).(.*)".." y"..tostring(_players.Current.transform.position.y):match"([^.]*).(.*)".." z"..tostring(_players.Current.transform.position.z):match"([^.]*).(.*)"
@@ -936,7 +940,7 @@ function PLUGIN:DrawAttackRadar(player)
 									UseTag = CustomTag
 								end
 								local Range = UnityEngine.Vector3.Distance(players.Current.transform.position, player.transform.position)
-								if Range <= tonumber(Radius) then
+								if Range <= tonumber(Radius) and Range >= tonumber(self.Config.Settings.MinDistance) then
 									local Access = true
 									if clans and self.Config.Attack.ShowClan == "false" then
 										if localClan and clans:Call("GetClanOf", playerSteamID) == localClan then Access = false end
@@ -988,7 +992,7 @@ function PLUGIN:OnPlayerAttack(attacker, info)
 										UseTag = CustomTag
 									end
 									local Range = UnityEngine.Vector3.Distance(info.HitEntity.transform.position, attacker.transform.position)
-									if Range <= tonumber(Radius) then
+									if Range <= tonumber(Radius) and Range >= tonumber(self.Config.Settings.MinDistance) then
 										local Access = true
 										if clans and self.Config.Hit.ShowClan == "false" then
 											local localClan = clans:Call("GetClanOf", _playerSteamID)
@@ -1026,20 +1030,20 @@ function PLUGIN:ProcessPlayerData(playerSteamID)
 		local playerSteamID = rust.UserIDFromPlayer(players.Current)
 		if PlayerAData[playerSteamID] then
 			for word in string.gmatch(PlayerAData[playerSteamID], "([^,]+)") do
-			local playerID, Timeout = tostring(word):match("([^:]+):([^:]+)")
-			if Timestamp - Timeout >= tonumber(self.Config.Attack.AttackTimeout) then
-				PlayerAData[playerSteamID] = tostring(PlayerAData[playerSteamID]):gsub(playerID..":"..Timeout..",", "")
+				local playerID, Timeout = tostring(word):match("([^:]+):([^:]+)")
+				if Timestamp - Timeout >= tonumber(self.Config.Attack.AttackTimeout) then
+					PlayerAData[playerSteamID] = tostring(PlayerAData[playerSteamID]):gsub(playerID..":"..Timeout..",", "")
+				end
 			end
 		end
-	end
-	if PlayerHData[playerSteamID] then
-		for word in string.gmatch(PlayerHData[playerSteamID], "([^,]+)") do
-			local playerID, Timeout = tostring(word):match("([^:]+):([^:]+)")
-			if Timestamp - Timeout >= tonumber(self.Config.Hit.HitTimeout) then
-				PlayerHData[playerSteamID] = tostring(PlayerHData[playerSteamID]):gsub(playerID..":"..Timeout..",", "")
+		if PlayerHData[playerSteamID] then
+			for word in string.gmatch(PlayerHData[playerSteamID], "([^,]+)") do
+				local playerID, Timeout = tostring(word):match("([^:]+):([^:]+)")
+				if Timestamp - Timeout >= tonumber(self.Config.Hit.HitTimeout) then
+					PlayerHData[playerSteamID] = tostring(PlayerHData[playerSteamID]):gsub(playerID..":"..Timeout..",", "")
+				end
 			end
 		end
-	end
 	end
 end
 

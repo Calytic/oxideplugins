@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using UnityEngine;
 using Oxide.Core;
 using Oxide.Plugins;
+using System;
 
 namespace Oxide.Plugins
 {
-    [Info("WeaponsShownOnBack", "Jake_Rich", 0.1)]
+    [Info("WeaponsShownOnBack", "Jake_Rich", 0.9)]
     [Description("Shows player's best two weapons holstered on their back")]
 
     public class WeaponsOnBack : RustPlugin
@@ -215,18 +216,48 @@ namespace Oxide.Plugins
             }
         } //Maybe add items to corpse instead? Could lag even worse if lots of bodies
 
-        int tickCount = 0;
+        int playersPerTick = 1;
+        int lastPlayerIndex = 0;
+        DateTime lastTimeCompleted = new DateTime(); //Shouldnt update more often then once every 2 seconds
         void OnTick()
         {
-            tickCount++;
-            if (tickCount >= 1)
+            playersPerTick = (BasePlayer.activePlayerList.Count / 20) + 1;
+            if (BasePlayer.activePlayerList.Count <= 0)
             {
-                foreach (WeaponData data in weaponData.Values)
-                {
-                    data.Update();
-                }
-                tickCount = 0;
+                return;
             }
+
+            for (int i = 0; i < BasePlayer.activePlayerList.Count; i++)
+            {
+                weaponData[BasePlayer.activePlayerList[i]].QuickUpdate();
+            }
+
+            for (int i = 0; i < playersPerTick; i++)
+            {
+                if (lastPlayerIndex >= BasePlayer.activePlayerList.Count)
+                {
+                    if (lastTimeCompleted.AddSeconds(2) > DateTime.Now) //Don't update players too often
+                    {
+                        return;
+                    }
+                    lastTimeCompleted = DateTime.Now.AddSeconds(2);
+                    lastPlayerIndex = 0;
+                }
+                if (!weaponData.ContainsKey(BasePlayer.activePlayerList[lastPlayerIndex]))
+                {
+                    if (BasePlayer.activePlayerList[lastPlayerIndex] != null)
+                    {
+                        weaponData.Add(BasePlayer.activePlayerList[lastPlayerIndex], new WeaponData(BasePlayer.activePlayerList[lastPlayerIndex]));
+                    }
+                    else
+                    {
+                        continue;
+                    }
+                }
+                weaponData[BasePlayer.activePlayerList[lastPlayerIndex]].Update();
+                lastPlayerIndex++;
+            }
+    
         }
 
         /*
@@ -472,28 +503,26 @@ namespace Oxide.Plugins
                 }
             }
 
-            private int updateCount = 0;
-            public void Update()
+            public void QuickUpdate()
             {
                 if (player.GetActiveItem() != oldActiveItem)
                 {
                     oldActiveItem = player.GetActiveItem();
                     UpdateGuns();
-                    updateCount = 0;
                     return;
                 }
-                updateCount++;
-                if (updateCount >= 10) //Every 2 seconds default update rate
-                {
-                    if (mainWeapon != null)
+            }
+
+            public void Update()
+            {
+
+                    /*if (mainWeapon != null)
                     {
                         //mainWeapon.transform.localRotation *= Quaternion.Euler(0f, 0f, -1f);
                         mainWeapon.SendNetworkUpdateImmediate();
                         //Write("Rotating", mainWeapon.transform.localRotation.eulerAngles);
-                    }
-                    updateCount = 0;
+                    }*/
                     UpdateGuns();
-                }
             }
         }
 

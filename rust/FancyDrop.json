@@ -2,7 +2,7 @@
     "name": "FancyDrop",
     "description": "The \"Next Level\" of a fancy airdrop-toolset",
     "author": "Fujikura",
-    "version": "2.1.13",
+    "version": "2.2.0",
     "configuration": true,
     "suggest": {
         "GUIAnnouncements": "*"

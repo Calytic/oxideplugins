@@ -13,7 +13,7 @@ using Oxide.Core;
 
 namespace Oxide.Plugins
 {
-	[Info("BetterLoot", "Fujikura/dcode", "2.8.1", ResourceId = 828)]
+	[Info("BetterLoot", "Fujikura/dcode", "2.9.0", ResourceId = 828)]
 	[Description("A complete re-implementation of the drop system")]
 	public class BetterLoot : RustPlugin
 	{
@@ -64,7 +64,7 @@ namespace Oxide.Plugins
 		Random rng = new Random();
 
 		bool initialized = false;
-		int updateScheduled = -1;
+		int lastMinute; 
 
 		List<ContainerToRefresh> refreshList = new List<ContainerToRefresh>();
 		DateTime lastRefresh = DateTime.MinValue;
@@ -139,6 +139,7 @@ namespace Oxide.Plugins
 		bool useCustomTableSupply;
 		bool refreshBarrels;
 		bool refreshCrates;
+		
 		Dictionary<string,object> rarityItemOverride = null;
 
 		object GetConfig(string menu, string datavalue, object defaultValue)
@@ -249,8 +250,63 @@ namespace Oxide.Plugins
 			{ "rocket.launcher", "ammo.rocket.basic" },
 			{ "rifle.ak", "ammo.rifle" },
 			{ "crossbow", "arrow.wooden" },
-			{ "rifle.lr300", "ammo.rifle" }
+			{ "rifle.lr300", "ammo.rifle" },
+			{ "smg.mp5", "ammo.pistol" }
 		};
+
+		void Init()
+		{
+			LoadVariables();
+			lastMinute = DateTime.UtcNow.Minute;
+		}
+		
+		void OnServerInitialized()
+		{
+			if (initialized)
+				return;
+			var itemList = ItemManager.itemList;
+			if (itemList == null || itemList.Count == 0)
+			{
+				NextTick(OnServerInitialized);
+				return;
+			}
+			UpdateInternals(listUpdatesOnLoaded);
+		}
+
+		void OnTick()
+		{
+			if (lastMinute == DateTime.UtcNow.Minute) return;
+			lastMinute = DateTime.UtcNow.Minute;
+
+			var now = DateTime.UtcNow;
+			int n = 0;
+			int m = 0;
+			var all = refreshList.ToArray();
+			refreshList.Clear();
+			foreach (var ctr in all) {
+				if (ctr.time < now) {
+					if (ctr.container.isDestroyed)
+					{ 
+						++m;
+						continue;
+					}
+					if (ctr.container.IsOpen())
+					{
+						refreshList.Add(ctr);
+						continue;
+					}
+					try {
+						PopulateContainer(ctr.container); // Will re-add
+						++n;
+					} catch (Exception ex) {
+						PrintError("Failed to refresh container: " + ContainerName(ctr.container) + ": " + ex.Message + "\n" + ex.StackTrace);
+					}
+				} else
+					refreshList.Add(ctr); // Re-add for later
+			}
+			if (n > 0 || m > 0)
+					if (listUpdatesOnRefresh) Puts("Refreshed " + n + " containers (" + m + " destroyed)");
+		}
 
 		void UpdateInternals(bool doLog)
 		{
@@ -500,17 +556,6 @@ namespace Oxide.Plugins
 				if (useCustomTableHeli && !excludeHeliCrate) { totalItemWeightHeli += (itemWeightsHeli[i] = ItemWeight(baseItemRarity, i) * itemsHeli[i].Count); }
 				if (useCustomTableSupply && includeSupplyDrop) { totalItemWeightSupply += (itemWeightsSupply[i] = ItemWeight(baseItemRarity, i) * itemsSupply[i].Count); }
 				}
-			/*		
-			if (doLog)
-			{
-				Puts(string.Format("Base item rarity is {0}.", baseItemRarity));
-				double total = 0;
-				for (var i = 0; i < 4; ++i) {
-					double prob = (1) * 100d * itemWeights[i] / totalItemWeight;
-					Puts(string.Format("There is a {0:0.000}% chance to get one of {1} " + RarityName(i) + " items (w={2}, {3}/{4}).", prob, items[i].Count, ItemWeight(baseItemRarity, i), itemWeights[i], totalItemWeight));
-					total += prob;
-				}
-			} */
 
 			foreach (var container in UnityEngine.Object.FindObjectsOfType<LootContainer>()) {
 				try {
@@ -576,23 +621,6 @@ namespace Oxide.Plugins
 				Puts($"No stacked LootContainer found.");
 		}
 
-		void OnServerInitialized() {
-			if (initialized)
-				return;
-			LoadVariables();
-			try {
-				if (delayPluginInit < 3)
-					updateScheduled = 3;
-				else
-					updateScheduled = delayPluginInit;
-
-				Puts($"Updating T-'{updateScheduled}' Ticks");
-			} catch (Exception ex) {
-				PrintError("OnServerInitialized failed: " + ex.Message);
-			}
-		}
-
-		// Asks the mighty RNG for an item
 		Item MightyRNG(string type) {
 			List<string> selectFrom;
 			int limit = 0;
@@ -893,14 +921,16 @@ namespace Oxide.Plugins
 			var n = UnityEngine.Random.Range(min,max);
 			container.inventory.capacity = n;
 			container.inventorySlots = n;
-			_xpAvailable.SetValue(container, giveXp);
+			try { _xpAvailable.SetValue(container, giveXp); } catch {}
 			if(giveXp)
 			{
-				if (minXp != maxXp)
-					container.xpLootedScale = UnityEngine.Random.Range(minXp,maxXp);
-				else
-					container.xpLootedScale = maxXp;
-				container.xpDestroyedScale = container.xpLootedScale;
+				try {
+					if (minXp != maxXp)
+						container.xpLootedScale = UnityEngine.Random.Range(minXp,maxXp);
+					else
+						container.xpLootedScale = maxXp;
+					container.xpDestroyedScale = container.xpLootedScale;
+				} catch {}
 			}
 
 			if (n > 18) container.panelName= "largewoodbox";
@@ -1076,54 +1106,6 @@ namespace Oxide.Plugins
 				}
 			} catch (Exception ex) {
 				PrintError("OnItemAddedToContainer failed: " + ex.Message);
-			}
-		}
-
-		void OnTick()
-		{
-			try {
-				if (updateScheduled == 0) {
-					updateScheduled = -1;
-					UpdateInternals(listUpdatesOnLoaded);
-				} else if (updateScheduled > 0) {
-					--updateScheduled;
-				}
-			} catch (Exception ex) {
-				PrintError("OnTick scheduled update failed: " + ex.Message);
-			}
-			try {
-				var now = DateTime.UtcNow;
-				if (lastRefresh < now.AddMinutes(-1)) {
-					lastRefresh = now;
-					int n = 0;
-					int m = 0;
-					var all = refreshList.ToArray();
-					refreshList.Clear();
-					foreach (var ctr in all) {
-						if (ctr.time < now) {
-							if (ctr.container.isDestroyed) { // Discard destroyed containers
-								++m;
-								continue;
-							}
-							if (ctr.container.IsOpen()) {
-								refreshList.Add(ctr); // Re-add for later if occupied
-								continue;
-							}
-							try {
-								PopulateContainer(ctr.container); // Will re-add
-								++n;
-							} catch (Exception ex) {
-								PrintError("Failed to refresh container: " + ContainerName(ctr.container) + ": " + ex.Message + "\n" + ex.StackTrace);
-							}
-						} else
-							refreshList.Add(ctr); // Re-add for later
-					}
-
-					if (n > 0 || m > 0)
-						if (listUpdatesOnRefresh) Puts("Refreshed " + n + " containers (" + m + " destroyed)");
-				}
-			} catch (Exception ex) {
-				PrintError("OnTick scheduled refresh failed: " + ex.Message);
 			}
 		}
 
@@ -1392,7 +1374,7 @@ namespace Oxide.Plugins
 			if (pluginEnabled && storedSupplyDrop.ItemList.Count > 0 && !includeSupplyDrop && !useCustomTableSupply)
 				Puts("SupplyDrop > loot population is disabled by 'includeSupplyDrop'");
 			if (pluginEnabled && storedSupplyDrop.ItemList.Count > 0 && !includeSupplyDrop && useCustomTableSupply)
-				Puts("SupplyDrop > 'useCustomTableSupply' is enabled, but loot population is disabled by 'includeSupplyDrop'");
+				Puts("SupplyDrop > 'useCustomTableSupply' enabled, but loot population inactive by 'includeSupplyDrop'");
 			if (storedSupplyDrop.ItemList.Count == 0)
 			{
 				includeSupplyDrop = false;
@@ -1453,7 +1435,7 @@ namespace Oxide.Plugins
 			if (pluginEnabled && storedHeliCrate.ItemList.Count > 0 && excludeHeliCrate && !useCustomTableHeli)
 				Puts("HeliCrate > loot population is disabled by 'excludeHeliCrate'");
 			if (pluginEnabled && storedHeliCrate.ItemList.Count > 0 && excludeHeliCrate && useCustomTableHeli)
-				Puts("HeliCrate > 'useCustomTableHeli' is enabled, but loot population is disabled by 'excludeHeliCrate'");
+				Puts("HeliCrate > 'useCustomTableHeli' enabled, but loot population inactive by 'excludeHeliCrate'");
 			if (storedHeliCrate.ItemList.Count == 0)
 			{
 				excludeHeliCrate = true;

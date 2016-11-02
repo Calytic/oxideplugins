@@ -13,6 +13,7 @@ namespace Oxide.Plugins
     [Info("Prod", "Reneb", "2.2.5", ResourceId = 683)]
     class Prod : RustPlugin
     { 
+
         private int prodAuth;
         private string helpProd;
         private string noAccess;
@@ -26,7 +27,7 @@ namespace Oxide.Plugins
         private string boxCode;
 
         private FieldInfo serverinput;
-        private FieldInfo codelockwhitelist;
+        private FieldInfo codelockwhitelist; 
         private FieldInfo codenum;
         private FieldInfo npcnextTick;
         private FieldInfo meshinstances;
@@ -160,11 +161,8 @@ namespace Oxide.Plugins
                 return;
             }
 
-            var deployable = target.GetComponentInParent<Deployable>();
-            if (deployable)
             {
                 GetDeployableCode(player, target);
-                return;
             }
             
         }
@@ -298,22 +296,23 @@ namespace Oxide.Plugins
         }
         private void Dump(BaseEntity col)
         {
+            Debug.Log(col.GetComponent<StabilityEntity>().ToString());
             Debug.Log("==================================================");
             Debug.Log(col.ToString() + " " + LayerMask.LayerToName(col.gameObject.layer).ToString());
             Debug.Log("========= NORMAL ===========");
             foreach(UnityEngine.Component com in col.GetComponents(typeof(UnityEngine.Component)) )
             {
-                Debug.Log(com.ToString());
+                Debug.Log(com.GetType().ToString() + " " + com.ToString());
             }
             Debug.Log("========= PARENT ===========");
             foreach (UnityEngine.Component com in col.GetComponentsInParent(typeof(UnityEngine.Component)))
             {
-                Debug.Log(com.ToString());
+                Debug.Log(com.GetType().ToString() + " " + com.ToString());
             }
             Debug.Log("========= CHILDREN ===========");
             foreach (UnityEngine.Component com in col.GetComponentsInChildren(typeof(UnityEngine.Component)))
             {
-                Debug.Log(com.ToString());
+                Debug.Log(com.GetType().ToString() + " " + com.ToString());
             }
         }
         private BaseEntity DoRay(Vector3 Pos, Vector3 Aim)

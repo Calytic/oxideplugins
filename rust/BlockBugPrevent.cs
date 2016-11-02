@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("BlockBugPrevent", "sami37", "1.0.0")]
+    [Info("BlockBugPrevent", "sami37", "1.0.0", ResourceId = 2166)]
     [Description("Prevent foundation block build on another foundation.")]
     public class BlockBugPrevent : RustPlugin
     {

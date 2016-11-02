@@ -9,7 +9,7 @@ using System.IO;
 
 namespace Oxide.Plugins
 {
-    [Info("Copy Paste", "Reneb", "3.0.12", ResourceId = 5981)]
+    [Info("Copy Paste", "Reneb", "3.0.17", ResourceId = 5981)]
     class CopyPaste : RustPlugin
     {
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -88,7 +88,7 @@ namespace Oxide.Plugins
         // Copy
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-        bool isValid(BaseEntity entity) { return entity.GetComponentInParent<BuildingBlock>() || entity.GetComponentInParent<Deployable>() || entity.GetComponentInParent<Spawnable>(); }
+        bool isValid(BaseEntity entity) { return entity.GetComponentInParent<BuildingBlock>() || entity.GetComponentInParent<BaseCombatEntity>() || entity.GetComponentInParent<Spawnable>(); }
 
         void TryCopyLock(BaseEntity lockableEntity, IDictionary<string, object> housedata)
         {
@@ -145,7 +145,7 @@ namespace Oxide.Plugins
                             if (!checkFrom.Contains(entity.transform.position)) checkFrom.Add(entity.transform.position);
 
                             if (!saveBuildings && entity.GetComponentInParent<BuildingBlock>() != null) continue;
-                            if (!saveDeployables && entity.GetComponentInParent<Deployable>() != null) continue;
+                            if (!saveDeployables && (entity.GetComponentInParent<BuildingBlock>() == null && entity.GetComponent<BaseCombatEntity>() != null)) continue;
                             rawData.Add(EntityData(entity, sourcePos, sourceRot, entity.transform.position, entity.transform.rotation.ToEulerAngles(), RotationCorrection, saveInventories));
                         }
                     }
@@ -182,7 +182,7 @@ namespace Oxide.Plugins
                             if (!checkFrom.Contains(entity.transform.position)) checkFrom.Add(entity.transform.position);
 
                             if (!saveBuildings && entity.GetComponentInParent<BuildingBlock>() != null) continue;
-                            if (!saveDeployables && entity.GetComponentInParent<Deployable>() != null) continue;
+                            if (!saveDeployables && (entity.GetComponentInParent<BuildingBlock>() == null && entity.GetComponent<BaseCombatEntity>() != null)) continue;
 
                             rawData.Add(EntityData(entity, sourcePos, sourceRot, entity.transform.position, entity.transform.rotation.ToEulerAngles(), RotationCorrection, saveInventories));
                         }
@@ -730,124 +730,133 @@ namespace Oxide.Plugins
             var pastedEntities = new List<BaseEntity>();
             foreach(var data in entities)
             {
-                var prefabname = (string)data["prefabname"];
-                var skinid = (int)data["skinid"];
-                var pos = (Vector3)data["position"];
-                var rot = (Quaternion)data["rotation"];
-
-                bool isplaced = false;
-                if (checkPlaced)
+                try
                 {
-                    foreach (var col in Physics.OverlapSphere(pos, 1f))
+                    var prefabname = (string)data["prefabname"];
+                    var skinid = (int)data["skinid"];
+                    var pos = (Vector3)data["position"];
+                    var rot = (Quaternion)data["rotation"];
+
+                    bool isplaced = false;
+                    if (checkPlaced)
                     {
-                        var ent = col.GetComponentInParent<BaseEntity>();
-                        if (ent != null)
+                        foreach (var col in Physics.OverlapSphere(pos, 1f))
                         {
-                            if (ent.PrefabName == prefabname && ent.transform.position == pos && ent.transform.rotation == rot)
+                            var ent = col.GetComponentInParent<BaseEntity>();
+                            if (ent != null)
                             {
-                                isplaced = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                if (isplaced) continue;
-
-                var entity = GameManager.server.CreateEntity(prefabname, pos, rot, true);
-                if (entity != null)
-                {
-                    entity.transform.position = pos;
-                    entity.transform.rotation = rot;
-                    entity.SendMessage("SetDeployedBy", player, SendMessageOptions.DontRequireReceiver);
-
-                    var buildingblock = entity.GetComponentInParent<BuildingBlock>();
-                    if (buildingblock != null)
-                    {
-                        buildingblock.blockDefinition = PrefabAttribute.server.Find<Construction>(buildingblock.prefabID);
-                        buildingblock.SetGrade((BuildingGrade.Enum)data["grade"]);
-                        if(unassignid)
-                        {
-                            buildingid = (uint)newbuildingid.Invoke(buildingblock, null);
-                            unassignid = false;
-                        }
-                        buildingblock.buildingID = buildingid;
-                    }
-                    entity.skinID = skinid;
-                    entity.Spawn();
-
-                    bool killed = false;
-                   
-                    if (killed) continue;
-
-                    var basecombat = entity.GetComponentInParent<BaseCombatEntity>();
-                    if (basecombat != null)
-                    {
-                        basecombat.ChangeHealth(basecombat.MaxHealth());
-                    }
-
-                    if (entity.HasSlot(BaseEntity.Slot.Lock))
-                    {
-                        TryPasteLock(entity, data);
-                    }
-
-                    var box = entity.GetComponentInParent<StorageContainer>();
-                    if (box != null)
-                    {
-                        inventoryClear.Invoke(box.inventory, null);
-                        var items = data["items"] as List<object>;
-                        var itemlist = new List<ItemAmount>();
-                        foreach (var itemDef in items)
-                        {
-                            var item = itemDef as Dictionary<string, object>;
-                            var itemid = Convert.ToInt32(item["id"]);
-                            var itemamount = Convert.ToInt32(item["amount"]);
-                            var itemskin = Convert.ToInt32(item["skinid"]);
-                            var itemcondition = Convert.ToSingle(item["condition"]);
-
-                            var i = ItemManager.CreateByItemID(itemid, itemamount, itemskin);
-                            i.condition = itemcondition;
-                            
-                            if(item.ContainsKey("magazine"))
-                            {
-                                var magazine = item["magazine"] as Dictionary<string, object>;
-                                var ammotype = int.Parse(magazine.Keys.ToArray()[0]);
-                                var ammoamount = int.Parse(magazine[ammotype.ToString()].ToString());
-                                var heldent = i.GetHeldEntity();
-                                if(heldent != null)
+                                if (ent.PrefabName == prefabname && ent.transform.position == pos && ent.transform.rotation == rot)
                                 {
-                                    var projectiles = heldent.GetComponent<BaseProjectile>();
-                                    if(projectiles != null)
-                                    {
-                                        projectiles.primaryMagazine.ammoType = ItemManager.FindItemDefinition(ammotype);
-                                        projectiles.primaryMagazine.contents = ammoamount;
-                                    }
+                                    isplaced = true;
+                                    break;
                                 }
                             }
-
-                            i?.MoveToContainer(box.inventory).ToString();
-                        };
-                    }
-
-                    var sign = entity.GetComponentInParent<Signage>();
-                    if (sign != null)
-                    {
-                        var signData = data["sign"] as Dictionary<string, object>;
-                        if (signData.ContainsKey("texture"))
-                        {
-                            var stream = new MemoryStream();
-                            var stringSign = Convert.FromBase64String(signData["texture"].ToString());
-                            stream.Write(stringSign, 0, stringSign.Length);
-                            sign.textureID = FileStorage.server.Store(stream, FileStorage.Type.png, sign.net.ID);
-                            stream.Position = 0;
-                            stream.SetLength(0);
                         }
-                        if (Convert.ToBoolean(signData["locked"]))
-                            sign.SetFlag(BaseEntity.Flags.Locked, true);
-                        sign.SendNetworkUpdate();
                     }
 
-                    pastedEntities.Add(entity);
+                    if (isplaced) continue;
+
+                    var entity = GameManager.server.CreateEntity(prefabname, pos, rot, true);
+                    if (entity != null)
+                    {
+                        entity.transform.position = pos;
+                        entity.transform.rotation = rot;
+                        entity.SendMessage("SetDeployedBy", player, SendMessageOptions.DontRequireReceiver);
+
+                        var buildingblock = entity.GetComponentInParent<BuildingBlock>();
+                        if (buildingblock != null)
+                        {
+                            buildingblock.blockDefinition = PrefabAttribute.server.Find<Construction>(buildingblock.prefabID);
+                            buildingblock.SetGrade((BuildingGrade.Enum)data["grade"]);
+                            if (unassignid)
+                            {
+                                buildingid = (uint)newbuildingid.Invoke(buildingblock, null);
+                                unassignid = false;
+                            }
+                            buildingblock.buildingID = buildingid;
+                        }
+                        entity.skinID = skinid;
+                        entity.Spawn();
+
+                        bool killed = false;
+
+                        if (killed) continue;
+
+                        var basecombat = entity.GetComponentInParent<BaseCombatEntity>();
+                        if (basecombat != null)
+                        {
+                            basecombat.ChangeHealth(basecombat.MaxHealth());
+                        }
+
+                        if (entity.HasSlot(BaseEntity.Slot.Lock))
+                        {
+                            TryPasteLock(entity, data);
+                        }
+
+                        var box = entity.GetComponentInParent<StorageContainer>();
+                        if (box != null)
+                        {
+                            inventoryClear.Invoke(box.inventory, null);
+                            var items = data["items"] as List<object>;
+                            var itemlist = new List<ItemAmount>();
+                            foreach (var itemDef in items)
+                            {
+                                var item = itemDef as Dictionary<string, object>;
+                                var itemid = Convert.ToInt32(item["id"]);
+                                var itemamount = Convert.ToInt32(item["amount"]);
+                                var itemskin = Convert.ToInt32(item["skinid"]);
+                                var itemcondition = Convert.ToSingle(item["condition"]);
+
+                                var i = ItemManager.CreateByItemID(itemid, itemamount, itemskin);
+                                if (i != null)
+                                {
+                                    i.condition = itemcondition;
+
+                                    if (item.ContainsKey("magazine"))
+                                    {
+                                        var magazine = item["magazine"] as Dictionary<string, object>;
+                                        var ammotype = int.Parse(magazine.Keys.ToArray()[0]);
+                                        var ammoamount = int.Parse(magazine[ammotype.ToString()].ToString());
+                                        var heldent = i.GetHeldEntity();
+                                        if (heldent != null)
+                                        {
+                                            var projectiles = heldent.GetComponent<BaseProjectile>();
+                                            if (projectiles != null)
+                                            {
+                                                projectiles.primaryMagazine.ammoType = ItemManager.FindItemDefinition(ammotype);
+                                                projectiles.primaryMagazine.contents = ammoamount;
+                                            }
+                                        }
+                                    }
+                                    i?.MoveToContainer(box.inventory).ToString();
+                                }
+                            };
+                        }
+
+                        var sign = entity.GetComponentInParent<Signage>();
+                        if (sign != null)
+                        {
+                            var signData = data["sign"] as Dictionary<string, object>;
+                            if (signData.ContainsKey("texture"))
+                            {
+                                var stream = new MemoryStream();
+                                var stringSign = Convert.FromBase64String(signData["texture"].ToString());
+                                stream.Write(stringSign, 0, stringSign.Length);
+                                sign.textureID = FileStorage.server.Store(stream, FileStorage.Type.png, sign.net.ID);
+                                stream.Position = 0;
+                                stream.SetLength(0);
+                            }
+                            if (Convert.ToBoolean(signData["locked"]))
+                                sign.SetFlag(BaseEntity.Flags.Locked, true);
+                            sign.SendNetworkUpdate();
+                        }
+
+                        pastedEntities.Add(entity);
+                    }
+                }
+                catch(Exception e)
+                {
+                    PrintError(string.Format("Trying to paste {0} send this error: {1}", data["prefabname"].ToString(), e.Message));
                 }
             }
             return pastedEntities;

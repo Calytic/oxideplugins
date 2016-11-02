@@ -4,7 +4,7 @@ using Network;
 
 namespace Oxide.Plugins
 {
-    [Info("ProtocolKickInfo", "Fujikura", "1.0.0")]
+    [Info("ProtocolKickInfo", "Fujikura", "1.0.1", ResourceId = 2041)]
     class ProtocolKickInfo : RustPlugin
     {
 		

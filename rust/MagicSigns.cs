@@ -6,9 +6,10 @@ using System.Text.RegularExpressions;
 using UnityEngine;
 using System.Collections;
 using System.Linq;
+using System.IO;
 namespace Oxide.Plugins
 {
-    [Info("MagicSigns", "Norn", 0.3, ResourceId = 1446)]
+    [Info("MagicSigns", "Norn", 0.4, ResourceId = 1446)]
     [Description("Random signs.")]
     public class MagicSigns : RustPlugin
     {
@@ -16,16 +17,20 @@ namespace Oxide.Plugins
         private readonly WebRequests scrapeQueue = Interface.GetMod().GetLibrary<WebRequests>("WebRequests");
         static GameObject WebObject;
         static UnityWeb UWeb;
+        uint MaxSize = 2048U;
         class QueueItem
         {
             public string url;
             public Signage sign;
             public BasePlayer sender;
-            public QueueItem(string ur, BasePlayer se, Signage si)
+            public bool raw;
+
+            public QueueItem(string ur, BasePlayer se, Signage si, bool raw)
             {
                 url = ur;
                 sender = se;
                 sign = si;
+                this.raw = raw;
             }
         }
         class UnityWeb : MonoBehaviour
@@ -33,42 +38,63 @@ namespace Oxide.Plugins
             internal static bool ConsoleLog = true;
             internal static string ConsoleLogMsg = "Player[{steam} {name}] loaded {id} image from {url}!";
             internal static int MaxActiveLoads = 3;
-            static List<QueueItem> QueueList = new List<QueueItem>();
+            private Queue<QueueItem> QueueList = new Queue<QueueItem>();
             static byte ActiveLoads = 0;
+            private MemoryStream stream = new MemoryStream();
+            byte JPGCompression = 85;
 
-            public void Add(string url, BasePlayer player, Signage s)
+            public void Add(string url, BasePlayer player, Signage s, bool raw)
             {
-                QueueList.Add(new QueueItem(url, player, s));
+                QueueList.Enqueue(new QueueItem(url, player, s, raw));
                 if (ActiveLoads < MaxActiveLoads)
                     Next();
             }
 
             void Next()
             {
+                if (QueueList.Count <= 0) return;
                 ActiveLoads++;
-                QueueItem qi = QueueList[0];
-                QueueList.RemoveAt(0);
-                WWW www = new WWW(qi.url);
-                StartCoroutine(WaitForRequest(www, qi));
+                StartCoroutine(WaitForRequest(QueueList.Dequeue()));
             }
 
-            IEnumerator WaitForRequest(WWW www, QueueItem info)
+            private void ClearStream()
             {
-                yield return www;
-                BasePlayer player = info.sender;
-                if (www.error == null)
-                {
-                      Signage sign = info.sign;
-                      if (sign.textureID > 0U)
-                      FileStorage.server.Remove(sign.textureID, FileStorage.Type.png, sign.net.ID);
-                     sign.textureID = FileStorage.server.Store(www.bytes, FileStorage.Type.png, sign.net.ID, 0U);
-                     sign.SendNetworkUpdate(BasePlayer.NetworkQueue.Update);
-                }
-                ActiveLoads--;
-                if (QueueList.Count > 0)
-                    Next();
+                stream.Position = 0;
+                stream.SetLength(0);
             }
-        }
+            byte[] GetImageBytes(WWW www)
+            {
+                var tex = www.texture;
+                byte[] img;
+                img = tex.EncodeToJPG(JPGCompression);
+                DestroyImmediate(tex);
+                return img;
+            }
+            IEnumerator WaitForRequest(QueueItem info)
+            {
+                using (var www = new WWW(info.url))
+                {
+                    yield return www;
+                    var player = info.sender;
+                    if (www.error == null)
+                    {
+
+                        var img = info.raw ? www.bytes : GetImageBytes(www);
+                            var sign = info.sign;
+                            if (sign.textureID > 0U)
+                                FileStorage.server.Remove(sign.textureID, FileStorage.Type.png, sign.net.ID);
+                            ClearStream();
+                            stream.Write(img, 0, img.Length);
+                            sign.textureID = FileStorage.server.Store(stream, FileStorage.Type.png, sign.net.ID);
+                            ClearStream();
+                            sign.SendNetworkUpdate();
+                            Interface.Oxide.CallHook("OnSignUpdated", sign, player);
+                    }
+                    ActiveLoads--;
+                    Next();
+                }
+            }
+    }
         List<string> ScrapedImages = new List<string>();
         private void ParseScrapeResponse(int code, string response)
         {
@@ -81,23 +107,25 @@ namespace Oxide.Plugins
             foreach (Match m in Regex.Matches(response, "<img.+?src=[\"'](.+?)[\"'].+?>", RegexOptions.IgnoreCase | RegexOptions.Multiline))
             {
                 string src = m.Groups[1].Value;
-                if(src.Length >= 1 && src != "images/loading.gif" && src.EndsWith(".jpg"))
+                if(src.Length >= 1 && src.EndsWith(".jpg")) // Parsing scraped html
                 {
-                    src.Replace("http://4walled.cc/thumb/", "http://4walled.cc/src/");
-                    ScrapedImages.Add(src);
+                    string modified = src.Insert(0, "http:");
+                    modified = modified.Remove(modified.Trim().Length - 5);
+                    modified += ".jpg";
+                    ScrapedImages.Add(modified);
                     count++;
                 }
             }
             string tags = Config["Image", "Tags"].ToString(); if (tags.Length == 0) { tags = "Random Pool"; }
-            string aspect = Config["Image", "Aspect"].ToString(); if (aspect.Length == 0) { aspect = "All"; }
-            string safeforwork = Config["Image", "SafeForWork"].ToString(); if (safeforwork.Length == 0) { safeforwork = "All (18+)"; }
-            if (count != 0) { Puts("Scraped " + count.ToString() + " images [ Tags: "+ tags + " ] [ Aspect: " + aspect + " ] [ Safe For Work: " + safeforwork + " ]"); if (!INIT) { INIT = true; } }
+            if (count != 0) { Puts("Scraped " + count.ToString() + " images [ Tags: "+ tags + " ]"); if (!INIT) { INIT = true; } }
         }
         private void PopulateImageList()
         {
             INIT = false;
             ScrapedImages.Clear();
-            scrapeQueue.EnqueueGet("http://4walled.cc/search.php?tags="+ System.Uri.EscapeDataString(Config["Image", "Tags"].ToString()) +"&board=&width_aspect="+ Config["Image", "Aspect"].ToString() +"&searchstyle=larger&sfw="+ Config["Image", "SafeForWork"].ToString() +"&search=random", (code, response) => ParseScrapeResponse(code, response), this);
+            string type = "q_type=png"; // Temporary png tag to prevent animated jpg
+            string search_string = "http://imgur.com/search/time?"+type+"&q=" + System.Uri.EscapeDataString(Config["Image", "Tags"].ToString());
+            scrapeQueue.EnqueueGet(search_string, (code, response) => ParseScrapeResponse(code, response), this);
         }
         protected override void LoadDefaultConfig()
         {
@@ -108,8 +136,6 @@ namespace Oxide.Plugins
 
             Config["General", "AuthLevel"] = 2;
 
-            Config["Image", "Aspect"] = "";
-            Config["Image", "SafeForWork"] = "";
             Config["Image", "Tags"] = "";
 
             Config["Messages", "NoAuth"] = "You <color=red>don't</color> have the required authorization level to use this command.";
@@ -124,54 +150,12 @@ namespace Oxide.Plugins
             {
                 if (args.Length == 0 || args.Length > 2)
                 {
-                    PrintToChat(player, "<color=yellow>ADMIN:</color> /ms <tags | aspect | sfw | <color=red>wipe</color>>");
+                    PrintToChat(player, "<color=yellow>ADMIN:</color> /ms <tags | <color=red>wipe</color>>");
                     if (Config["Image", "Tags"] != null)
                     {
                         string tags = null;
                         if(Config["Image", "Tags"].ToString().Length == 0){tags = "None. [<color=green>Random</color>]";}else{tags = Config["Image", "Tags"].ToString();}
                         if(tags != null) PrintToChat(player, "<color=yellow>Current Tags:</color> " + tags + ".");
-                    }
-                }
-                else if (args[0] == "sfw")
-                {
-                    if (args.Length == 1)
-                    {
-                        if (Config["Image", "SafeForWork"] != null)
-                        {
-                            string aspect = null;
-                            if (Config["Image", "SafeForWork"].ToString().Length == 0) { aspect = "All"; } else { aspect = Config["Image", "SafeForWork"].ToString(); }
-                            if (aspect != null) PrintToChat(player, "<color=yellow>Safe For Work:</color> " + aspect + ".");
-                        }
-                        PrintToChat(player, "<color=yellow>USAGE:</color> /ms sfw <new_sfw>\n(e.g. /ms sfw <new_sfw> (\"<color=green>All</color>\" to return to all images).");
-                    }
-                    else
-                    {
-                        if (args[1].Length >= 1)
-                        {
-                            if (args[1].ToLower() == "all") { Config["Image", "SafeForWork"] = ""; PrintToChat(player, "You have updated Magic Signs sfw: <color=yellow>All Images</color>."); } else { Config["Image", "SafeForWork"] = args[1]; PrintToChat(player, "You have updated Magic Signs sfw: <color=yellow>" + Config["Image", "SafeForWork"].ToString() + "</color>."); }
-                            SaveConfig();
-                        }
-                    }
-                }
-                else if (args[0] == "aspect")
-                {
-                    if (args.Length == 1)
-                    {
-                        if (Config["Image", "Aspect"] != null)
-                        {
-                            string aspect = null;
-                            if (Config["Image", "Aspect"].ToString().Length == 0) { aspect = "All"; } else { aspect = Config["Image", "Aspect"].ToString(); }
-                            if (aspect != null) PrintToChat(player, "<color=yellow>Current Aspect:</color> " + aspect + ".");
-                        }
-                        PrintToChat(player, "<color=yellow>USAGE:</color> /ms aspect <aspect>\n(e.g. /ms aspect <aspect> (etc \"<color=yellow>1920x177</color>\" or \"<color=green>All</color>\" to return to all ratios).");
-                    }
-                    else
-                    {
-                        if (args[1].Length >= 1)
-                        {
-                            if (args[1].ToLower() == "all") { Config["Image", "Aspect"] = ""; PrintToChat(player, "You have updated Magic Signs aspect: <color=yellow>All Ratios</color>."); } else { Config["Image", "Aspect"] = args[1]; PrintToChat(player, "You have updated Magic Signs aspect: <color=yellow>" + Config["Image", "Aspect"].ToString() + "</color>."); }
-                            SaveConfig();
-                        }
                     }
                 }
                 else if (args[0] == "tags")
@@ -222,8 +206,8 @@ namespace Oxide.Plugins
         {
             if (INIT != false)
             {
-                BasePlayer player = planner.ownerPlayer;
-                if (permission.UserHasPermission(player.userID.ToString(), "can.ms"))
+                BasePlayer player = planner.GetOwnerPlayer();
+                if (permission.UserHasPermission(player.userID.ToString(), "magicsigns.able"))
                 {
                     BaseEntity e = gameObject.ToBaseEntity();
                     if (!(e is BaseEntity) || player == null) { return; }
@@ -232,7 +216,7 @@ namespace Oxide.Plugins
                         if (!Cooldown.ContainsKey(player.userID))
                         {
                             int id = GetRandomInt(0, ScrapedImages.Count);
-                            UWeb.Add(ScrapedImages[id], player, e.GetComponent<Signage>());
+                            UWeb.Add(ScrapedImages[id], player, e.GetComponent<Signage>(), false);
                             ScrapedImages.Remove(ScrapedImages[id]);
                             if (player.net.connection.authLevel < 1) { InitCooldown(player); }
                             if (ScrapedImages.Count == 0) { Puts(player.displayName + " has used the last image in the list, scraping more..."); PopulateImageList(); }
@@ -247,6 +231,7 @@ namespace Oxide.Plugins
             }
             return;
         }
+
         void Unload()
         {
             GameObject.Destroy(WebObject);
@@ -285,7 +270,7 @@ namespace Oxide.Plugins
         }
         void Loaded()
         {
-            if (!permission.PermissionExists("can.ms")) permission.RegisterPermission("can.ms", this);
+            if (!permission.PermissionExists("magicsigns.able")) permission.RegisterPermission("magicsigns.able", this);
         }
         Timer COOLDOWN_TIMER = null;
         void OnServerInitialized()

@@ -2,7 +2,7 @@
     "name": "Friends API",
     "description": "An API to manage a friend list",
     "author": "Nogrod",
-    "version": "2.0.0",
+    "version": "2.1.2",
     "configuration": true,
     "language": "cs",
     "games": [

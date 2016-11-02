@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 
 namespace Oxide.Plugins
 {
-    [Info("WaterDisconnect", "Wulf/lukespragg", "2.0.0", ResourceId = 2122)]
+    [Info("WaterDisconnect", "Wulf/lukespragg", "2.1.0", ResourceId = 2122)]
     [Description("Hurts or kills players that log out underwater")]
 
     class WaterDisconnect : CovalencePlugin
@@ -18,6 +19,7 @@ namespace Oxide.Plugins
 
         int damageAmount;
         int damageEvery;
+        int waterPercent;
 
         protected override void LoadDefaultConfig()
         {
@@ -29,6 +31,7 @@ namespace Oxide.Plugins
             // Settings
             Config["Damage Amount (1 - 500)"] = damageAmount = GetConfig("Damage Amount (1 - 500)", 10);
             Config["Damage Every (Seconds)"] = damageEvery = GetConfig("Damage Every (Seconds)", 10);
+            Config["Underwater Percent (1 - 100)"] = waterPercent = GetConfig("Underwater Percent (1 - 100)", 75);
 
             SaveConfig();
         }
@@ -43,11 +46,14 @@ namespace Oxide.Plugins
 
         #region Game Hooks
 
+        readonly FieldInfo modelStateInfo = typeof(BasePlayer).GetField("modelState", BindingFlags.Instance | BindingFlags.NonPublic);
         readonly Dictionary<ulong, Timer> timers = new Dictionary<ulong, Timer>();
 
         void OnPlayerDisconnected(BasePlayer player)
         {
-            if (!player.IsHeadUnderwater() || permission.UserHasPermission(player.UserIDString, permExclude)) return;
+            var modelState = modelStateInfo.GetValue(player) as ModelState;
+            if (!(modelState != null && modelState.waterLevel > (waterPercent / 100f))) return;
+            if (permission.UserHasPermission(player.UserIDString, permExclude)) return;
 
             if (hurtOnLogout)
             {
@@ -55,10 +61,15 @@ namespace Oxide.Plugins
                 {
                     timers[player.userID] = timer.Every(damageEvery, () =>
                     {
-                        if (player.IsDead()) timers[player.userID].Destroy();
-                        player.Hurt(damageAmount);
+                        if (player.IsDead() && timers.ContainsKey(player.userID))
+                            timers[player.userID].Destroy();
+                        else
+                            player.Hurt(damageAmount);
                     });
+                    return;
                 }
+
+                player.Hurt(damageAmount);
             }
             else if (killOnLogout) player.Kill();
         }

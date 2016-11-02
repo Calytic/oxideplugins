@@ -7,19 +7,16 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Net;
-
 using Oxide.Core;
 using Oxide.Core.Configuration;
 using Oxide.Core.Plugins;
-
 using IEnumerator = System.Collections.IEnumerator;
 using UnityEngine;
-
 using Newtonsoft.Json;
 
 namespace Oxide.Plugins
 {
-	[Info("FancyDrop", "Fujikura", "2.1.13", ResourceId = 1934)]
+	[Info("FancyDrop", "Fujikura", "2.2.0", ResourceId = 1934)]
 	[Description("The Next Level of a fancy airdrop-toolset")]
 	class FancyDrop : RustPlugin
 	{
@@ -41,6 +38,8 @@ namespace Oxide.Plugins
 		Vector3 lastDropPos;
 		float lastDropRadius = 0;
 		Vector3 lastLootPos;
+		int lastMinute;
+		double lastHour;
 
 		string msgConsoleDropSpawn;
 		string msgConsoleDropLanded;
@@ -53,6 +52,22 @@ namespace Oxide.Plugins
 
 		ExportData dropLoot = null;
 		TableData dropTable = null;
+		
+		static Dictionary<string, object> defaultRealTimers()
+		{
+			var dp = new Dictionary<string, object>();
+			dp.Add("16:00","massdrop 3");
+			dp.Add("18:00","toplayer *");
+			return dp;
+		}
+		
+		static Dictionary<string, object> defaultServerTimers()
+		{
+			var dp = new Dictionary<string, object>();
+			dp.Add("6","massdrop 3");
+			dp.Add("18","massdropto 0 0 5 100");
+			return dp;
+		}
 
 		static Dictionary<string,object> defaultDrop()
 		{
@@ -306,6 +321,12 @@ namespace Oxide.Plugins
 		int neededAuthLvl;
 		bool lockDirectDrop;
 		string version;
+		
+		bool useRealtimeTimers;
+		bool useGametimeTimers;
+		bool logTimersToConsole;
+		Dictionary<string, object> realTimers = new Dictionary<string, object>();
+		Dictionary<string, object> serverTimers = new Dictionary<string, object>();
 
 		bool notifyByChatAdminCalls;
 		bool notifyDropGUI;
@@ -385,7 +406,6 @@ namespace Oxide.Plugins
 			                      },this);
 		}
 
-
 		void LoadVariables()
 		{
 			Puts("Loading configuration variables");
@@ -435,6 +455,12 @@ namespace Oxide.Plugins
 				Config["Generic","version"] =  this.Version.ToString();
 				Changed = true;
 			}
+			
+			useRealtimeTimers = Convert.ToBoolean(GetConfig("Timers", "use RealTime", false));
+			useGametimeTimers = Convert.ToBoolean(GetConfig("Timers", "use ServerTime", false));
+			logTimersToConsole = Convert.ToBoolean(GetConfig("Timers", "log to console", true));
+			realTimers = (Dictionary<string, object>)GetConfig("Timers", "RealTime", defaultRealTimers());
+			serverTimers = (Dictionary<string, object>)GetConfig("Timers", "ServerTime", defaultServerTimers());
 
 			supplyDropLight = Convert.ToBoolean(GetConfig("DropLight", "use SupplyDrop Light", true));
 			dropLightFrequency = Convert.ToSingle(GetConfig("DropLight", "Frequency for blinking", 0.25));
@@ -995,6 +1021,38 @@ namespace Oxide.Plugins
 				if (!setupDropDefault.TryGetValue(pair.Key, out value))
 					setupDropDefault.Add(pair.Key, checkdefaults[pair.Key]);
 			initialized = true;
+		}
+		
+		void OnTick()
+		{
+			if (useRealtimeTimers) OnTickReal();
+			if (useGametimeTimers) OnTickServer();
+		}
+
+		void OnTickReal()
+		{
+			if (lastMinute == DateTime.UtcNow.Minute) return;
+			lastMinute = DateTime.UtcNow.Minute;
+			if (realTimers.ContainsKey(DateTime.Now.ToString("HH:mm")))
+			{
+				string runCmd = (string)realTimers[DateTime.Now.ToString("HH:mm")];
+				if (logTimersToConsole)
+					Puts($"Run real timer: ({DateTime.Now.ToString("HH:mm")}) {runCmd}");
+				ConsoleSystem.Run.Server.Quiet("ad." + runCmd);
+			}
+		}
+		
+		void OnTickServer()
+		{
+			if (lastHour == Math.Floor(TOD_Sky.Instance.Cycle.Hour)) return;
+			lastHour = Math.Floor(TOD_Sky.Instance.Cycle.Hour);
+			if (serverTimers.ContainsKey(lastHour.ToString()))
+			{
+				string runCmd = (string)serverTimers[lastHour.ToString()];
+				if (logTimersToConsole)
+					Puts($"Run server timer: ({lastHour}) {runCmd}");
+				ConsoleSystem.Run.Server.Quiet("ad." + runCmd);
+			}
 		}
 
 		#endregion ServerHooks

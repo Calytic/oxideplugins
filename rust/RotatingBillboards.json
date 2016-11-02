@@ -1,8 +1,8 @@
 {
-    "name": "Magic Craft",
-    "description": "Alternative crafting system",
-    "author": "Norn",
-    "version": "0.2.5",
+    "name": "Rotating Billboards",
+    "description": "Create signs that rotate on the spot",
+    "author": "k1lly0u",
+    "version": "0.1.0",
     "configuration": true,
     "language": "cs",
     "games": [

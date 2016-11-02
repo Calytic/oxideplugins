@@ -19,7 +19,7 @@ using Oxide.Game.Rust.Cui;
 
 namespace Oxide.Plugins
 {
-    [Info("EasyVote", "Exel80", "1.1.53", ResourceId = 2102)]
+    [Info("EasyVote", "Exel80", "1.2.3", ResourceId = 2102)]
     [Description("Making voting super easy and smooth!")]
     class EasyVote : RustPlugin
     {
@@ -27,15 +27,14 @@ namespace Oxide.Plugins
         // http://oxidemod.org/members/mjsu.99205/
 
         //TODO: Add next to the HighestVoter ID what group player earn => HighestVoter: ID:GROUP
-        //TODO: Add cooldown to NextMonth() check
-        //TODO: Fix reward list
 
         #region Initializing
-        public bool DEBUG = false; // Dev mod
-        public bool Voted = false; // If voted, overide NoRewards.
-        public bool NoRewards = false; // If no voted, then print "NoRewards"
-        public StringBuilder RList = new StringBuilder();
-        public List<int> numberMax = new List<int>();
+        private bool DEBUG = false; // Dev mod
+        private bool Voted = false; // If voted, overide NoRewards.
+        private bool NoRewards = false; // If no voted, then print "NoRewards"
+        private DateTime Cooldown = DateTime.Now; // Datetime cooldown
+        private StringBuilder RList = new StringBuilder();
+        private List<int> numberMax = new List<int>();
         string Lang(string key, string id = null, params object[] args) => string.Format(lang.GetMessage(key, this, id), args);
 
         // {"Claim reward URL", "Get vote status URL", "Server link to chat URL"}
@@ -47,6 +46,32 @@ namespace Oxide.Plugins
 
         private void Loaded()
         {
+            #region Language Setup
+            lang.RegisterMessages(new Dictionary<string, string>
+            {
+                ["ClaimError"] = "Something went wrong! We got <color=red>{0} error</color> from <color=yellow>{1}</color>. Please try again later!",
+                ["ClaimReward"] = "You just received your vote reward(s). Enjoy!",
+                ["EarnReward"] = "When you are voted. Type <color=yellow>/claim</color> to earn your reward(s)!",
+                ["RewardList"] = "<color=cyan>Player reward, when voted</color> <color=orange>{0}</color> <color=cyan>time(s).</color>",
+                ["Received"] = "You have received {0}x {1}",
+                ["Highest"] = "<color=cyan>The player with the highest number of votes per month gets a free</color> <color=yellow>{0}</color><color=cyan> rank for 1 month.</color> <color=yellow>/vote</color> Vote now to get free rank!",
+                ["HighestCongrats"] = "<color=yellow>{0}</color> <color=cyan>was highest voter past month</color><color=cyan>. He earned free</color> <color=yellow>{1}</color> <color=cyan>rank for 1 month. Vote now to earn it next month!</color>",
+                ["ThankYou"] = "Thank you for voting {0} time(s)",
+                ["NoRewards"] = "You do not have any new rewards avaliable \n Please type <color=yellow>/vote</color> and go to the website to vote and receive your reward",
+                ["RemeberClaim"] = "You haven't yet claimed your reward from voting server! Use <color=cyan>/claim</color> to claim your reward! \n You have to claim your reward in <color=yellow>24h</color>! Otherwise it will be gone!",
+                ["GlobalAnnouncment"] = "<color=yellow>{0}</color><color=cyan> has voted </color><color=yellow>{1}</color><color=cyan> time(s) and just received their rewards. Find out where to vote by typing</color><color=yellow> /vote</color>\n<color=cyan>To see a list of avaliable rewards type</color><color=yellow> /reward list</color>",
+                ["money"] = "{0} has been desposited into your account",
+                ["rp"] = "You have gained {0} reward points",
+                ["addlvl"] = "You have gained {0} level(s)",
+                ["addgroup"] = "You have been added to group {0} {1}",
+                ["grantperm"] = "You have been given permission {0} {1}",
+                ["zlvl-wc"] = "You have gained {0} woodcrafting level(s)",
+                ["zlvl-mg"] = "You have gained {0} mining level(s)",
+                ["zlvl-s"] = "You have gained {0} skinning level(s)",
+                ["zlvl-c"] = "You have gained {0} crafting level(s)"
+            }, this);
+            #endregion
+
             _storedData = Interface.GetMod().DataFileSystem.ReadObject<StoredData>("EasyVote");
             LoadConfigValues();
             BuildRewardList();
@@ -61,32 +86,6 @@ namespace Oxide.Plugins
 
             // Checking if month is changed
             NextMonth();
-
-            #region Language Setup
-            lang.RegisterMessages(new Dictionary<string, string>
-            {
-                ["ClaimError"] = "Something went wrong! We got <color=red>{0} error</color> from <color=yellow>{1}</color>. Please try again later!",
-                ["ClaimReward"] = "You just received your vote reward(s). Enjoy!",
-                ["EarnReward"] = "When you are voted. Type <color=cyan>/reward</color> to earn your reward(s)!",
-                ["RewardList"] = "<color=cyan>Player reward, when voted</color> <color=orange>{0}</color> <color=cyan>time(s).</color>",
-                ["Received"] = "You have received {0}x {1}",
-                ["Highest"] = "<color=cyan>The player with the highest number of votes per month gets a free</color> <color=yellow>{0}</color><color=cyan> rank for 1 month.</color> <color=yellow>/vote</color> Vote now to get free rank!",
-                ["HighestCongrats"] = "<color=yellow>{0}</color> <color=cyan>was highest voter past month</color><color=cyan>. He earned free</color> <color=yellow>{1}</color> <color=cyan>rank for 1 month. Vote now to earn it next month!</color>",
-                ["ThankYou"] = "Thank you for voting {0} time(s)",
-                ["NoRewards"] = "You do not have any new rewards avaliable \n Please type <color=yellow>/vote</color> and go to the website to vote and receive your reward",
-                ["RemeberClaim"] = "You haven't yet claimed your reward from voting server! Use <color=cyan>/reward</color> to claim your reward! \n You have to claim your reward in <color=yellow>24h</color>! Otherwise it will be gone!",
-                ["GlobalAnnouncment"] = "<color=yellow>{0}</color><color=cyan> has voted </color><color=yellow>{1}</color><color=cyan> time(s) and just received their rewards. Find out where to vote by typing</color><color=yellow> /vote</color>\n<color=cyan>To see a list of avaliable rewards type</color><color=yellow> /reward list</color>",
-                ["money"] = "{0} has been desposited into your account",
-                ["rp"] = "You have gained {0} reward points",
-                ["addlvl"] = "You have gained {0} level(s)",
-                ["addgroup"] = "You have been added to group {0} {1}",
-                ["grantperm"] = "You have been given permission {0} {1}",
-                ["zlvl-wc"] = "You have gained {0} woodcrafting level(s)",
-                ["zlvl-mg"] = "You have gained {0} mining level(s)",
-                ["zlvl-s"] = "You have gained {0} skinning level(s)",
-                ["zlvl-c"] = "You have gained {0} crafting level(s)"
-            }, this);
-            #endregion
         }
         #endregion
 
@@ -160,28 +159,66 @@ namespace Oxide.Plugins
 
             Chat(player, Lang("EarnReward", player.UserIDString));
         }
+        [ChatCommand("claim")]
+        void cmdClaim(BasePlayer player, string command, string[] args)
+        {
+            var timeout = 5500f; // Timeout (in milliseconds)
+
+            if (IsEmpty(_config.Settings["RustServersKEY"].ToString()))
+            {
+                string _RustServer = String.Format(RustServers[0], _config.Settings["RustServersKEY"], player.userID);
+                webrequest.EnqueueGet(_RustServer, (code, response) => ClaimReward(code, response, player, "RustServers"), this, null, timeout);
+                _Debug(player, _RustServer);
+            }
+            if (IsEmpty(_config.Settings["TopRustServersKEY"].ToString()))
+            {
+                string _TopRustServers = String.Format(TopRustServers[0], _config.Settings["TopRustServersKEY"], player.userID);
+                webrequest.EnqueueGet(_TopRustServers, (code, response) => ClaimReward(code, response, player, "TopRustServers"), this, null, timeout);
+                _Debug(player, _TopRustServers);
+            }
+            if (IsEmpty(_config.Settings["BeancanKEY"].ToString()))
+            {
+                string _Beancan = String.Format(BeancanIO[0], _config.Settings["BeancanKEY"], player.userID);
+                webrequest.EnqueueGet(_Beancan, (code, response) => ClaimReward(code, response, player, "BeancanIO"), this, null, timeout);
+                _Debug(player, _Beancan);
+            }
+
+            timer.Once(1.5f, () =>
+            {
+                if (NoRewards && !Voted)
+                    Chat(player, $"{Lang("NoRewards", player.UserIDString)}");
+            });
+        }
         [ChatCommand("reward")]
         void cmdReward(BasePlayer player, string command, string[] args)
         {
-            string _rewardCmd;
+            try
+            {
+                if (args[0] == "list")
+                    rewardList(player);
+            }
+            catch(Exception ex) { }
 
+        }
+        /*[ChatCommand("reward")]
+        void cmdReward(BasePlayer player, string command, string[] args)
+        {
+            string _rewardCmd;
             if (args?.Length < 1)
                 _rewardCmd = "";
             else
                 _rewardCmd = args[0];
-
             switch (_rewardCmd)
             {
                 case "list":
                     {
-                        SendReply(player, RList.ToString());
-                        //List(player, RList.ToString());
+                        //SendReply(player, RList.ToString());
+                        rewardList(player);
                     }
                     break;
                 default:
                     {
                         var timeout = 5500f; // Timeout (in milliseconds)
-
                         if (IsEmpty(_config.Settings["RustServersKEY"].ToString()))
                         {
                             string _RustServer = String.Format(RustServers[0], _config.Settings["RustServersKEY"], player.userID);
@@ -200,7 +237,6 @@ namespace Oxide.Plugins
                             webrequest.EnqueueGet(_Beancan, (code, response) => ClaimReward(code, response, player, "BeancanIO"), this, null, timeout);
                             _Debug(player, _Beancan);
                         }
-
                         timer.Once(1.5f, () =>
                         {
                             if (NoRewards && !Voted)
@@ -209,7 +245,7 @@ namespace Oxide.Plugins
                     }
                     break;
             }
-        }
+        }*/
         #endregion
 
         #region Reward Handler
@@ -257,7 +293,15 @@ namespace Oxide.Plugins
                             if (_config.Variables.ContainsKey(variable))
                             {
                                 rust.RunServerCommand(getCmdLine(player, variable, value));
-                                Chat(player, $"{Lang(variable, player.UserIDString, value)}");
+
+                                if (!value.Contains("-"))
+                                    Chat(player, $"{Lang(variable, player.UserIDString, value)}");
+                                else
+                                {
+                                    string[] _value = value.Split('-');
+                                    Chat(player, $"{Lang(variable, player.UserIDString, _value[0], _value[1])}");
+                                }
+
                                 _Debug(player, $"Ran command {String.Format(variable, value)}");
                                 continue;
                             }
@@ -515,6 +559,11 @@ namespace Oxide.Plugins
         }
         private void NextMonth()
         {
+            if (Cooldown > DateTime.Now)
+                return;
+            else
+                Cooldown = DateTime.Now.AddMinutes(1);
+
             // If it's a new month wipe the saved votes
             if (_storedData.month != DateTime.Now.Month)
             {
@@ -531,18 +580,44 @@ namespace Oxide.Plugins
                 Interface.GetMod().DataFileSystem.WriteObject("EasyVote", _storedData); // Write wiped data
             }
         }
-        private void List(BasePlayer player, string list)
+        private void rewardList(BasePlayer player)
         {
-            int ListLength = list.Length / 600;
-            Puts($"{ListLength}, {list.Length}");
-            try
-            {
-                for (int i = 0; i < ListLength; i++)
-                    SendReply(player, list.Substring(600 * i, 600 * (i + 1)));
+            StringBuilder rewardList = new StringBuilder();
+            rewardList.Clear(); // Making sure that rewardList is empty.
 
-                SendReply(player, list.Substring(ListLength * 600, list.Length - 1));
+            int lineCounter = 0; // Line counter
+            int lineSplit = 8; // Line "split" value
+
+            foreach (KeyValuePair<string, List<string>> kvp in _config.Reward)
+            {
+                // If lineCounter is less then lineSplit.
+                if (lineCounter < lineSplit)
+                {
+                    int voteNumber;
+                    if (!int.TryParse(kvp.Key.Replace("vote", ""), out voteNumber))
+                    {
+                        PrintWarning($"Invalid vote config format \"{kvp.Key}\"");
+                        continue;
+                    }
+                    rewardList.Append(Lang("RewardList", null, voteNumber)).AppendLine();
+
+                    var valueList = String.Join(Environment.NewLine, kvp.Value.ToArray());
+                    rewardList.Append(valueList).AppendLine();
+                    lineCounter++;
+                }
+                // If higher, then send rewardList to player and empty it.
+                else
+                {
+                    SendReply(player, rewardList.ToString());
+                    rewardList.Clear();
+                    lineCounter = 0;
+                }
             }
-            catch (Exception ex) { }
+
+            // This section is for making sure all rewards will be displayed.
+            SendReply(player, rewardList.ToString());
+            rewardList.Clear();
+            lineCounter = 0;
         }
         public bool IsEmpty(string s)
         {

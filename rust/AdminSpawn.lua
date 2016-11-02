@@ -1,8 +1,8 @@
 PLUGIN.Title        = "Admin Spawn"
 PLUGIN.Description  = "Manage administrator spawns and messages."
 PLUGIN.Author       = "InSaNe8472"
-PLUGIN.Version      = V(1,1,2)
-PLUGIN.ResourceID   = 1644
+PLUGIN.Version      = V(1,1,3)
+PLUGIN.ResourceId   = 1644
 
 local popupApi
 
@@ -25,6 +25,7 @@ function PLUGIN:Init()
 	command.AddChatCommand("giveme", self.Plugin, "cmdAdminSpawn")
 	command.AddChatCommand("give", self.Plugin, "cmdAdminSpawn")
 	command.AddChatCommand("giveall", self.Plugin, "cmdAdminSpawn")
+	command.AddChatCommand("drop", self.Plugin, "cmdAdminSpawn")
 	self:LoadDefaultConfig()
 	self:LoadDefaultLang()
 end
@@ -69,6 +70,7 @@ function PLUGIN:LoadDefaultLang()
 		["ChatGiveMe"] = "Usage: /giveme <item> [quantity]",
 		["ChatGive"] = "Usage: /give <player> <item> [quantity]",
 		["ChatGiveAll"] = "Usage: /giveall <item> [quantity]",
+		["ChatDrop"] = "Usage: /drop <item> [quantity]",
 		["NotAcc"] = ": not accessible from server console",
 		["F1GiveArm"] = "Usage: givearm <item>",
 		["F1GiveID"] = "Usage: giveid <item> [quantity]",
@@ -91,7 +93,7 @@ function PLUGIN:Lang(player, lng)
 	local playerSteamID
 	if player and player ~= nil then playerSteamID = rust.UserIDFromPlayer(player) end
 	local message = lang.GetMessage(lng, self.Plugin, playerSteamID)
-	if message == lng then message = lang.GetMessage("Prefix", self.Plugin, playerSteamID)..lang.GetMessage("LangError", self.Plugin, playerSteamID)..lng end
+	if message == lng then message = lang.GetMessage("LangError", self.Plugin, playerSteamID)..lng end
 	return message
 end
 
@@ -195,12 +197,36 @@ function PLUGIN:cmdAdminSpawn(player, cmd, args)
 		end
 		self:WarnPlayers(player, player.displayName, SpawnAmt, item, self:Lang(player, "AllPlayers"))
 	end
+	if cmd:lower() == "drop" then
+		local silent = self:CheckSilent(player)
+		if silent then
+			rust.SendChatMessage(player, self:Lang(player, "UnknownCmd")..cmd)
+			return
+		end
+		if args.Length < 1 then
+			self:RustMessage(player, self:Lang(player, "ChatDrop"))
+			return
+		end
+		local ItemName, SpawnAmt = args[0]:lower(), 1
+		local ItemID = self:GetItemID(ItemName)
+		local auth = self:CheckAuth(player, ItemID, ItemName, 1)
+		if not auth then return false end
+		if args.Length > 1 and tonumber(args[1]) then SpawnAmt = args[1] end
+		local item = global.ItemManager.CreateByItemID(ItemID, tonumber(SpawnAmt))
+		item:Drop(player:GetDropPosition(), player:GetDropVelocity(), player.transform.rotation)
+		if self.Config.Settings.WarnChat ~= "true" then
+			local message = FormatMessage(self:Lang(player, "GivePlayer"), { player = player.displayName, amount = SpawnAmt, item = item.info.displayName.translated })
+			self:RustMessage(player, message)
+		end
+		self:WarnPlayers(player, player.displayName, SpawnAmt, item, player.displayName)
+	end
 	return
 end
 
 function PLUGIN:OnServerCommand(arg)
 	if arg and arg.cmd then
 		local cmd = arg.cmd.name
+		if cmd == "givebp" then return false end
 		if cmd == "givearm" or cmd == "giveid" then
 			if not arg.connection then
 				UnityEngine.Debug.LogWarning.methodarray[0]:Invoke(nil, util.TableToArray({ StripMessage(self:Lang(player, "Prefix"))..cmd..self:Lang(nil, "NotAcc") }))

@@ -2,7 +2,7 @@
     "name": "BetterLoot",
     "description": "A complete re-implementation of the drop system",
     "author": "Fujikura",
-    "version": "2.8.1",
+    "version": "2.9.0",
     "configuration": true,
     "language": "cs",
     "games": [

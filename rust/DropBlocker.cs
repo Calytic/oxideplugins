@@ -3,8 +3,8 @@ using System.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("Drop Blocker", "Krava", 1.0)]
-    [Description("Anti Drop items at craft")]
+    [Info("Drop Blocker", "Krava", 1.1)]
+    [Description("Anti drop items at the craft.")]
 
     public class DropBlocker : RustPlugin
     {
@@ -75,7 +75,15 @@ namespace Oxide.Plugins
         {
             var data = new List<TempData>();
 
-            foreach (var item in player.inventory.AllItems())
+            foreach (var item in player.inventory.containerMain.itemList)
+                data.Add(new TempData
+                {
+                    Uid = item.info.itemid,
+                    Amount = item.amount,
+                    Stack = item.MaxStackable()
+                });
+
+            foreach (var item in player.inventory.containerBelt.itemList)
                 data.Add(new TempData
                 {
                     Uid = item.info.itemid,

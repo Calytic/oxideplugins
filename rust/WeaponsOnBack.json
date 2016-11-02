@@ -2,7 +2,7 @@
     "name": "Weapons On Back",
     "description": "Renders the player's best weapon on their back, and best sidearm on their hip",
     "author": "",
-    "version": "0.07",
+    "version": "0.0.10",
     "configuration": true,
     "language": "cs",
     "games": [

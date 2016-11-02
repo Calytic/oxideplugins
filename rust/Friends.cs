@@ -5,14 +5,14 @@ using System.Linq;
 using System.Reflection;
 
 using Oxide.Core;
-
+using Oxide.Game.Rust;
 using ProtoBuf;
 
 using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Friends", "Nogrod", "2.0.0", ResourceId = 686)]
+    [Info("Friends", "Nogrod", "2.1.2", ResourceId = 686)]
     class Friends : RustPlugin
     {
         private readonly FieldInfo whitelistPlayersField = typeof(CodeLock).GetField("whitelistPlayers", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -25,12 +25,23 @@ namespace Oxide.Plugins
             public int MaxFriends { get; set; }
             public bool ShareCodeLocks { get; set; }
             public bool ShareAutoTurrets { get; set; }
+            public int CacheTime { get; set; }
         }
 
         class PlayerData
         {
             public string Name { get; set; } = string.Empty;
             public HashSet<ulong> Friends { get; set; } = new HashSet<ulong>();
+            public Dictionary<ulong, int> Cached { get; set; } = new Dictionary<ulong, int>();
+
+            public bool IsCached(ulong userId)
+            {
+                int time;
+                if (!Cached.TryGetValue(userId, out time)) return false;
+                if (time >= Facepunch.Math.Epoch.Current) return true;
+                Cached.Remove(userId);
+                return false;
+            }
         }
 
         protected override void LoadDefaultConfig()
@@ -39,7 +50,8 @@ namespace Oxide.Plugins
             {
                 MaxFriends = 30,
                 ShareCodeLocks = false,
-                ShareAutoTurrets = false
+                ShareAutoTurrets = false,
+                CacheTime = 0//60 * 60 * 24
             };
             Config.WriteObject(config, true);
         }
@@ -63,22 +75,18 @@ namespace Oxide.Plugins
             configData = Config.ReadObject<ConfigData>();
             try
             {
-                FriendsData = Interface.Oxide.DataFileSystem.ReadObject<Dictionary<ulong, PlayerData>>("Friends");
+                FriendsData = Interface.Oxide.DataFileSystem.ReadObject<Dictionary<ulong, PlayerData>>(nameof(Friends));
             }
             catch
             {
                 FriendsData = new Dictionary<ulong, PlayerData>();
             }
             foreach (var data in FriendsData)
-            {
                 foreach (var friend in data.Value.Friends)
-                {
                     AddFriendReverse(data.Key, friend);
-                }
-            }
         }
 
-        private object OnTurretSetTarget(AutoTurret turret, BaseCombatEntity targ)
+        private object OnTurretTarget(AutoTurret turret, BaseCombatEntity targ)
         {
             if (!configData.ShareAutoTurrets || !(targ is BasePlayer) || turret.OwnerID <= 0) return null;
             var player = (BasePlayer) targ;
@@ -121,6 +129,7 @@ namespace Oxide.Plugins
             if (playerData.Friends.Count >= configData.MaxFriends || !playerData.Friends.Add(friendId)) return false;
             AddFriendReverse(playerId, friendId);
             SaveFriends();
+            Interface.Oxide.CallHook("OnFriendAdded", playerId, friendId);
             return true;
         }
 
@@ -134,25 +143,35 @@ namespace Oxide.Plugins
 
         private bool RemoveFriend(ulong playerId, ulong friendId)
         {
-            if (!GetPlayerData(playerId).Friends.Remove(friendId)) return false;
+            var playerData = GetPlayerData(playerId);
+            if (!playerData.Friends.Remove(friendId)) return false;
             HashSet<ulong> friends;
             if (ReverseData.TryGetValue(friendId, out friends))
                 friends.Remove(playerId);
-            var turrets = UnityEngine.Object.FindObjectsOfType<AutoTurret>();
-            foreach (var turret in turrets)
+            if (configData.CacheTime > 0)
+                playerData.Cached[friendId] = Facepunch.Math.Epoch.Current + configData.CacheTime;
+            if (configData.ShareAutoTurrets)
             {
-                if (turret.OwnerID != playerId) continue;
-                turret.authorizedPlayers.RemoveAll(a => a.userid == friendId);
+                var turrets = UnityEngine.Object.FindObjectsOfType<AutoTurret>();
+                foreach (var turret in turrets)
+                {
+                    if (turret.OwnerID != playerId) continue;
+                    turret.authorizedPlayers.RemoveAll(a => a.userid == friendId);
+                }
             }
-            var codeLocks = UnityEngine.Object.FindObjectsOfType<CodeLock>();
-            foreach (var codeLock in codeLocks)
+            if (configData.ShareCodeLocks)
             {
-                var entity = codeLock.GetParentEntity();
-                if (entity == null || entity.OwnerID != playerId) continue;
-                var whitelistPlayers = (List<ulong>)whitelistPlayersField.GetValue(codeLock);
-                whitelistPlayers.RemoveAll(a => a == friendId);
+                var codeLocks = UnityEngine.Object.FindObjectsOfType<CodeLock>();
+                foreach (var codeLock in codeLocks)
+                {
+                    var entity = codeLock.GetParentEntity();
+                    if (entity == null || entity.OwnerID != playerId) continue;
+                    var whitelistPlayers = (List<ulong>) whitelistPlayersField.GetValue(codeLock);
+                    whitelistPlayers.RemoveAll(a => a == friendId);
+                }
             }
             SaveFriends();
+            Interface.Oxide.CallHook("OnFriendRemoved", playerId, friendId);
             return true;
         }
 
@@ -169,6 +188,20 @@ namespace Oxide.Plugins
             return GetPlayerData(playerId).Friends.Contains(friendId);
         }
 
+        private bool HadFriendS(string playerS, string friendS)
+        {
+            if (string.IsNullOrEmpty(playerS) || string.IsNullOrEmpty(friendS)) return false;
+            var playerId = Convert.ToUInt64(playerS);
+            var friendId = Convert.ToUInt64(friendS);
+            return HadFriend(playerId, friendId);
+        }
+
+        private bool HadFriend(ulong playerId, ulong friendId)
+        {
+            var playerData = GetPlayerData(playerId);
+            return playerData.Friends.Contains(friendId) || playerData.IsCached(friendId);
+        }
+
         private bool AreFriendsS(string playerS, string friendS)
         {
             if (string.IsNullOrEmpty(playerS) || string.IsNullOrEmpty(friendS)) return false;
@@ -180,6 +213,21 @@ namespace Oxide.Plugins
         private bool AreFriends(ulong playerId, ulong friendId)
         {
             return GetPlayerData(playerId).Friends.Contains(friendId) && GetPlayerData(friendId).Friends.Contains(playerId);
+        }
+
+        private bool WereFriendsS(string playerS, string friendS)
+        {
+            if (string.IsNullOrEmpty(playerS) || string.IsNullOrEmpty(friendS)) return false;
+            var playerId = Convert.ToUInt64(playerS);
+            var friendId = Convert.ToUInt64(friendS);
+            return WereFriends(playerId, friendId);
+        }
+
+        private bool WereFriends(ulong playerId, ulong friendId)
+        {
+            var playerData = GetPlayerData(playerId);
+            var friendData = GetPlayerData(friendId);
+            return (playerData.Friends.Contains(friendId) || playerData.IsCached(friendId)) && (friendData.Friends.Contains(playerId) || friendData.IsCached(playerId));
         }
 
         private bool IsFriendS(string playerS, string friendS)
@@ -195,10 +243,34 @@ namespace Oxide.Plugins
             return GetPlayerData(friendId).Friends.Contains(playerId);
         }
 
-        private string[] GetFriendListS(string playerS)
+        private bool WasFriendS(string playerS, string friendS)
+        {
+            if (string.IsNullOrEmpty(playerS) || string.IsNullOrEmpty(friendS)) return false;
+            var playerId = Convert.ToUInt64(playerS);
+            var friendId = Convert.ToUInt64(friendS);
+            return WasFriend(playerId, friendId);
+        }
+
+        private bool WasFriend(ulong playerId, ulong friendId)
+        {
+            var playerData = GetPlayerData(friendId);
+            return playerData.Friends.Contains(playerId) || playerData.IsCached(playerId);
+        }
+
+        private string[] GetFriendsS(string playerS)
         {
             var playerId = Convert.ToUInt64(playerS);
-            return GetFriendList(playerId);
+            return GetPlayerData(playerId).Friends.ToList().ConvertAll(f => f.ToString()).ToArray();
+        }
+
+        private ulong[] GetFriends(ulong playerId)
+        {
+            return GetPlayerData(playerId).Friends.ToArray();
+        }
+
+        private string[] GetFriendListS(string playerS)
+        {
+            return GetFriendList(Convert.ToUInt64(playerS));
         }
 
         private string[] GetFriendList(ulong playerId)
@@ -225,7 +297,7 @@ namespace Oxide.Plugins
 
         private PlayerData GetPlayerData(ulong playerId)
         {
-            var player = FindPlayer(playerId);
+            var player = RustCore.FindPlayerById(playerId);
             PlayerData playerData;
             if (!FriendsData.TryGetValue(playerId, out playerData))
                 FriendsData[playerId] = playerData = new PlayerData();
@@ -252,7 +324,7 @@ namespace Oxide.Plugins
                     return;
                 case "add":
                 case "+":
-                    var friendPlayer = FindPlayer(args[1]);
+                    var friendPlayer = RustCore.FindPlayer(args[1]);
                     if (friendPlayer == null)
                     {
                         PrintMessage(player, "PlayerNotFound", args[1]);
@@ -318,42 +390,6 @@ namespace Oxide.Plugins
                     return playerData.Key;
             }
             return 0;
-        }
-
-        private static BasePlayer FindPlayer(string nameOrIdOrIp)
-        {
-            foreach (var activePlayer in BasePlayer.activePlayerList)
-            {
-                if (activePlayer.UserIDString == nameOrIdOrIp)
-                    return activePlayer;
-                if (activePlayer.displayName.Contains(nameOrIdOrIp, CompareOptions.OrdinalIgnoreCase))
-                    return activePlayer;
-                if (activePlayer.net?.connection != null && activePlayer.net.connection.ipaddress == nameOrIdOrIp)
-                    return activePlayer;
-            }
-            foreach (var sleepingPlayer in BasePlayer.sleepingPlayerList)
-            {
-                if (sleepingPlayer.UserIDString == nameOrIdOrIp)
-                    return sleepingPlayer;
-                if (sleepingPlayer.displayName.Contains(nameOrIdOrIp, CompareOptions.OrdinalIgnoreCase))
-                    return sleepingPlayer;
-            }
-            return null;
-        }
-
-        private static BasePlayer FindPlayer(ulong id)
-        {
-            foreach (var activePlayer in BasePlayer.activePlayerList)
-            {
-                if (activePlayer.userID == id)
-                    return activePlayer;
-            }
-            foreach (var sleepingPlayer in BasePlayer.sleepingPlayerList)
-            {
-                if (sleepingPlayer.userID == id)
-                    return sleepingPlayer;
-            }
-            return null;
         }
     }
 }

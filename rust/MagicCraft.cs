@@ -6,7 +6,7 @@ using Oxide.Core;
 using Oxide.Core.Plugins;
 namespace Oxide.Plugins
 {
-    [Info("MagicCraft", "Norn", "0.2.4", ResourceId = 1347)]
+    [Info("MagicCraft", "Norn", "0.2.5", ResourceId = 1347)]
     [Description("An alternative crafting system.")]
     public class MagicCraft : RustPlugin
     {
@@ -142,16 +142,19 @@ namespace Oxide.Plugins
                 {
                     if (entry.Value.shortName == itemname && entry.Value.Enabled)
                     {
-                        if (InventorySlots(crafter, false, true) >= MAX_INV_SLOTS) { task.cancelled = true; RefundIngredients(task.blueprint, task.owner, task.amount); PrintToChatEx(crafter, Lang("InventoryFull", crafter.UserIDString));  return null; }
+                        if (InventorySlots(crafter, false, true) >= MAX_INV_SLOTS) { task.cancelled = true; RefundIngredients(task.blueprint, task.owner, task.amount); if (Convert.ToBoolean(Config["MessagesEnabled"])) { PrintToChatEx(crafter, Lang("InventoryFull", crafter.UserIDString)); }  return null; }
                         int amount = task.amount;
                         if (amount < entry.Value.MinBulkCraft || amount > entry.Value.MaxBulkCraft) { return null; }
                         ItemDefinition item = GetItem(itemname);
                         int free_slots = FreeInventorySlots(crafter);
                         if (amount > free_slots && item.stackable == 1)
                         {
-                            string returnstring = null;
-                            returnstring = Lang("DifferentSlots", crafter.UserIDString, free_slots.ToString(), free_slots.ToString(), amount.ToString());
-                            PrintToChatEx(crafter, returnstring);
+                            if (Convert.ToBoolean(Config["MessagesEnabled"]))
+                            {
+                                string returnstring = null;
+                                returnstring = Lang("DifferentSlots", crafter.UserIDString, free_slots.ToString(), free_slots.ToString(), amount.ToString());
+                                PrintToChatEx(crafter, returnstring);
+                            }
                             int refund_amount = amount - free_slots;
                             RefundIngredients(task.blueprint, task.owner, refund_amount); // Refunding the amount that wasn't crafted.
                             amount = free_slots;

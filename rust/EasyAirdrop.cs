@@ -5,7 +5,7 @@ using System;
 
 namespace Oxide.Plugins
 {
-    [Info("Easy Airdrop", "LaserHydra", "3.2.0", ResourceId = 860)]
+    [Info("Easy Airdrop", "LaserHydra", "3.2.2", ResourceId = 860)]
     [Description("Easy Airdrop")]
     class EasyAirdrop : RustPlugin
     {
@@ -15,11 +15,12 @@ namespace Oxide.Plugins
 
         void Loaded()
         {
-            if (!permission.PermissionExists("airdrop.call")) permission.RegisterPermission("airdrop.call", this);
-            if (!permission.PermissionExists("airdrop.call.player")) permission.RegisterPermission("airdrop.call.player", this);
-            if (!permission.PermissionExists("airdrop.call.position")) permission.RegisterPermission("airdrop.call.position", this);
-            if (!permission.PermissionExists("airdrop.call.mass")) permission.RegisterPermission("airdrop.call.mass", this);
+            permission.RegisterPermission("easyairdrop.call", this);
+            permission.RegisterPermission("easyairdrop.call.player", this);
+            permission.RegisterPermission("easyairdrop.call.position", this);
+            permission.RegisterPermission("easyairdrop.call.mass", this);
 
+            LoadMessages();
             LoadConfig();
         }
 
@@ -75,13 +76,8 @@ namespace Oxide.Plugins
         {
             if(args.Length == 0)
             {
-                if(!HasPermission(player))
-                {
-                    SendChatMessage(player, "You don't have permission to use this command.");
-                    return;
-                }
-
-                SpawnRandomAirdrop(player);
+                SendChatMessage(player, "/airdrop <player|pos|random>");
+                return;
             }
 
             if(args.Length > 0)
@@ -143,7 +139,20 @@ namespace Oxide.Plugins
 
                         break;
 
+                    case "random":
+
+                        if (!HasPermission(player))
+                        {
+                            SendChatMessage(player, "You don't have permission to use this command.");
+                            return;
+                        }
+                        
+                        SpawnRandomAirdrop(player);
+
+                        break;
+
                     default:
+
                         break;
                 }
             }
@@ -222,7 +231,7 @@ namespace Oxide.Plugins
                 CargoPlane plane = planeEntity.GetComponent<CargoPlane>();
 
                 plane.InitDropPosition(position);
-                planeEntity.Spawn(true);
+                planeEntity.Spawn();
             }
         }
 
@@ -235,11 +244,11 @@ namespace Oxide.Plugins
             if (player == null)
                 return true;
 
-            if (string.IsNullOrEmpty(perm) && permission.UserHasPermission(player.UserIDString, "airdrop.call"))
+            if (string.IsNullOrEmpty(perm) && permission.UserHasPermission(player.UserIDString, "easyairdrop.call"))
                 return true;
             else
             {
-                if (permission.UserHasPermission(player.UserIDString, "airdrop.call." + perm))
+                if (permission.UserHasPermission(player.UserIDString, "easyairdrop.call." + perm))
                     return true;
             }
 

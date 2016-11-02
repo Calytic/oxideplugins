@@ -1,8 +1,8 @@
 {
     "name": "Smooth Restarter",
-    "description": "Shutdown\/restart with timer and announcements!",
-    "author": "Visagalis",
-    "version": "0.0.2",
+    "description": "Shutdown\/restart with realtime-timer and announcements!",
+    "author": "Fujikura",
+    "version": "0.5.0",
     "configuration": false,
     "language": "cs",
     "games": [
