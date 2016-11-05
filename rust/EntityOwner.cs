@@ -15,7 +15,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Entity Owner", "Calytic", "3.0.8", ResourceId = 1255)]
+    [Info("Entity Owner", "Calytic", "3.0.9", ResourceId = 1255)]
     [Description("Modify entity ownership and cupboard/turret authorization")]
     class EntityOwner : RustPlugin
     {
@@ -118,7 +118,7 @@ namespace Oxide.Plugins
             Config["VERSION"] = Version.ToString();
 
             // NEW CONFIGURATION OPTIONS HERE
-            Config["prodKeyCode"] = true;
+            Config["prodKeyCode"] = GetConfig("prodKeyCode", true);
             // END NEW CONFIGURATION OPTIONS
 
             PrintToConsole("Upgrading Configuration File");
@@ -1746,7 +1746,7 @@ namespace Oxide.Plugins
                 return userID;
             }
 
-            IPlayer player = covalence.Players.FindPlayerById(name);
+            IPlayer player = covalence.Players.FindPlayer(name);
 
             if(player != null) {
                 return Convert.ToUInt64(player.Id);
@@ -1758,42 +1758,15 @@ namespace Oxide.Plugins
         protected BasePlayer FindPlayerByPartialName(string name)
         {
             if (string.IsNullOrEmpty(name))
-                return null;
-            BasePlayer player = null;
+                return 0;
 
-            var allPlayers = BasePlayer.activePlayerList.ToArray();
-            // Try to find an exact match first
-            foreach (var p in allPlayers)
-            {
-                if (p == null)
-                {
-                    continue;
-                }
-                if (p.UserIDString == name)
-                {
-                    player = p;
-                    break;
-                }
-                if (p.displayName.Equals(name))
-                {
-                    if (player != null)
-                        return null; // Not unique
-                    player = p;
-                }
+            IPlayer player = covalence.Players.FindPlayer(name);
+
+            if(player != null) {
+                return (BasePlayer)player.Object;
             }
-            if (player != null)
-                return player;
-            // Otherwise try to find a partial match
-            foreach (var p in allPlayers)
-            {
-                if (p.displayName.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    if (player != null)
-                        return null; // Not unique
-                    player = p;
-                }
-            }
-            return player;
+            
+            return null;
         }
 
         #endregion

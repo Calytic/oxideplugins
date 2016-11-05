@@ -5,7 +5,7 @@ using Oxide.Core;
 using UnityEngine;
 
 namespace Oxide.Plugins {
-    [Info("Replenish", "Skrallex", "1.3.0", ResourceId = 1956)]
+    [Info("Replenish", "Skrallex", "1.3.1", ResourceId = 1956)]
     [Description("Easily replenish chests")]
     class Replenish : RustPlugin {
     	List<ReplenishableContainer> containers = new List<ReplenishableContainer>();
@@ -569,7 +569,8 @@ namespace Oxide.Plugins {
         }
 
         public class ContainerItem {
-	    	public int itemId, skin, amount, ammo;
+	    	public int itemId, amount, ammo;
+            public ulong skin;
 	    	public float condition;
 	    	public ContainerItem[] contents;
         }

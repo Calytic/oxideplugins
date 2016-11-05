@@ -2,7 +2,7 @@
     "name": "Jail",
     "description": "Send players to jail",
     "author": "k1lly0u",
-    "version": "3.0.18",
+    "version": "3.0.2",
     "configuration": true,
     "suggest": {
         "Kits": "*"

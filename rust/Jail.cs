@@ -11,7 +11,7 @@ using Newtonsoft.Json.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("Jail", "Reneb / k1lly0u", "3.0.18", ResourceId = 794)]
+    [Info("Jail", "Reneb / k1lly0u", "3.0.2", ResourceId = 794)]
     class Jail : RustPlugin
     {
         [PluginReference] Plugin ZoneManager;
@@ -840,7 +840,7 @@ namespace Oxide.Plugins
         class InvItem
         {
             public int itemid;
-            public int skinid;
+            public ulong skinid;
             public string container;
             public int amount;
             public bool weapon;
@@ -957,14 +957,14 @@ namespace Oxide.Plugins
                 else player.inventory.GiveItem(BuildItem(kitem.itemid, kitem.amount, kitem.skinid, kitem.condition), kitem.container == "belt" ? player.inventory.containerBelt : kitem.container == "wear" ? player.inventory.containerWear : player.inventory.containerMain);
             }
         }
-        private Item BuildItem(int itemid, int amount, int skin, float cond)
+        private Item BuildItem(int itemid, int amount, ulong skin, float cond)
         {
             if (amount < 1) amount = 1;
             Item item = ItemManager.CreateByItemID(itemid, amount, skin);
             item.conditionNormalized = cond;
             return item;
         }
-        private Item BuildWeapon(int id, int ammo, int skin, List<int> mods, float cond)
+        private Item BuildWeapon(int id, int ammo, ulong skin, List<int> mods, float cond)
         {
             Item item = ItemManager.CreateByItemID(id, 1, skin);
             item.conditionNormalized = cond;

@@ -5,10 +5,11 @@ using System.Collections.Generic;
 using UnityEngine;
 using System.Linq;
 using Oxide.Core.Plugins;
+using System.Text;
 
 namespace Oxide.Plugins
 {
-    [Info("HeliControl", "Shady", "1.0.41", ResourceId = 1348)]
+    [Info("HeliControl", "Shady", "1.0.42", ResourceId = 1348)]
     [Description("Tweak various settings of helicopters. Plugin originally developed by koenrad.")]
     class HeliControl : RustPlugin
     {
@@ -427,7 +428,9 @@ namespace Oxide.Plugins
                     {
                         var itemDef = inv.lootBoxContents[i];
                         if (itemDef == null) continue;
-                        var item = ItemManager.CreateByItemID(ItemManager.FindItemDefinition(itemDef.name).itemid, itemDef.amount, itemDef.skinID);
+                        var skinID = 0ul;
+                        ulong.TryParse(itemDef.skinID.ToString(), out skinID);
+                        var item = ItemManager.CreateByItemID(ItemManager.FindItemDefinition(itemDef.name).itemid, itemDef.amount, skinID);
                         if (item == null) continue;
                         if (!item.MoveToContainer(heli_crate.inventory)) RemoveFromWorld(item); //ensure the item is completely removed if we can't move it, so we're not causing issues
                     }
@@ -722,12 +725,19 @@ namespace Oxide.Plugins
             }
             if (args.Length <= 0)
             {
-                var msg = string.Empty;
-                foreach (var spawn in spawnsData.heliSpawns) msg += spawn.Key + ": " + spawn.Value + " ";
+                var msgSB = new StringBuilder();
+                var onelineCount = 0;
+                foreach(var spawn in spawnsData.heliSpawns)
+                {
+                        msgSB.Append(spawn.Key + ": " + spawn.Value + ", ");
+                }
+  //              foreach (var spawn in spawnsData.heliSpawns) msgSB.Append(spawn.Key + ": " + spawn.Value + "\n");
+                //foreach (var spawn in spawnsData.heliSpawns) msg += spawn.Key + ": " + spawn.Value + " ";
+                var msg = msgSB.ToString().TrimEnd(", ".ToCharArray());
                 if (!string.IsNullOrEmpty(msg))
                 {
                    // SendReply(player, "Spawns:");
-                    SendReply(player, GetMessage("spawnCommandLiner") + msg.TrimEnd(' ') + GetMessage("spawnCommandBottom"));
+                    SendReply(player, GetMessage("spawnCommandLiner") + msgSB + GetMessage("spawnCommandBottom"));
                 }
                 SendReply(player, GetMessage("removeAddSpawn")); //this isn't combined with a new line with the above because there is a strange character limitation per-message, so we send two messages
                 return;
@@ -881,7 +891,7 @@ namespace Oxide.Plugins
                 return;
             }
 
-            if (args.Length == 0)
+            if (args.Length == 0 && canExecute(player, "callheli"))
             {
                 callheliCmd(1);
                 SendReply(player, GetMessage("heliCalled"));
@@ -1608,7 +1618,9 @@ namespace Oxide.Plugins
                 {
                     var item = list[i];
                     if (item == null) continue;
-                    lootBoxContents.Add(new ItemDef(item.info.shortname, item.amount, item.skin));
+                    var skinID = 0;
+                    int.TryParse(item.skin.ToString(), out skinID);
+                    lootBoxContents.Add(new ItemDef(item.info.shortname, item.amount, skinID));
                 }
             }
 

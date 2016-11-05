@@ -3,7 +3,7 @@ using System.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("NightLantern", "k1lly0u", "2.0.1", ResourceId = 1182)]
+    [Info("NightLantern", "k1lly0u", "2.0.2", ResourceId = 1182)]
     class NightLantern : RustPlugin
     {
         #region Fields
@@ -12,6 +12,8 @@ namespace Oxide.Plugins
         private bool isActivated;
         private bool isEnabled;
         private bool lightsOn;
+
+        private bool nfrInstalled;
         #endregion
 
         #region Oxide Hooks
@@ -28,10 +30,27 @@ namespace Oxide.Plugins
         void OnServerInitialized()
         {
             LoadVariables();
+            if (plugins.Exists("NoFuelRequirements"))
+            {
+                nfrInstalled = true;
+                configData.ConsumeFuel = false;
+            }
             isActivated = true;
             isEnabled = true;
             lightsOn = false;
             FindLights();            
+        }
+        void OnConsumeFuel(BaseOven oven, Item fuel, ItemModBurnable burnable)
+        {
+            if (nfrInstalled) return;
+            if (!configData.ConsumeFuel)
+            {
+                ConsumeTypes type = StringToType(oven?.ShortPrefabName);
+                if (type == ConsumeTypes.None) return;
+
+                if (configData.LightTypes[type])
+                    fuel.amount++;                
+            }
         }
         void OnEntitySpawned(BaseEntity entity)
         {
@@ -65,12 +84,10 @@ namespace Oxide.Plugins
         }
         void CheckType(BaseOven oven)
         {
-            if ((oven.ShortPrefabName == "lantern.deployed" && configData.LightTypes.Lanterns)
-                   || (oven.ShortPrefabName == "jackolantern.happy" && configData.LightTypes.JackOLanterns)
-                   || (oven.ShortPrefabName == "jackolantern.angry" && configData.LightTypes.JackOLanterns)
-                   || (oven.ShortPrefabName == "campfire" && configData.LightTypes.Campfires)
-                   || (oven.ShortPrefabName == "ceilinglight.deployed" && configData.LightTypes.CeilingLights)
-                   || (oven.ShortPrefabName == "furnace" && configData.LightTypes.Furnaces))
+            if (oven == null) return;
+            ConsumeTypes type = StringToType(oven?.ShortPrefabName);
+            if (type == ConsumeTypes.None) return;
+            if(configData.LightTypes[type])            
                 lights.Add(oven);
         }
         void TimeLoop()
@@ -106,8 +123,40 @@ namespace Oxide.Plugins
             lightsOn = status;
             for (int i = 0; i < lights.Count; i++)
             {
-                if (lights[i].IsOn() == status) continue;
-                lights[i].SetFlag(BaseEntity.Flags.On, status);
+                var light = lights[i];
+                if (configData.ConsumeFuel)
+                {
+                    if (status)
+                        light.StartCooking();
+                    else light.StopCooking();
+                }
+                else
+                {
+                    if (light.IsOn() == status) continue;
+                    light.SetFlag(BaseEntity.Flags.On, status);
+                }                
+            }
+        }
+        ConsumeTypes StringToType(string name)
+        {
+            switch (name)
+            {
+                case "campfire":
+                    return ConsumeTypes.Campfires;
+                case "furnace":
+                    return ConsumeTypes.Furnace;
+                case "furnace.large":
+                    return ConsumeTypes.LargeFurnace;               
+                case "ceilinglight.deployed":
+                    return ConsumeTypes.CeilingLight;
+                case "lantern.deployed":
+                    return ConsumeTypes.Lanterns;
+                case "jackolantern.angry":
+                    return ConsumeTypes.JackOLantern;
+                case "jackolantern.happy":
+                    return ConsumeTypes.JackOLantern;                
+                default:
+                    return ConsumeTypes.None;
             }
         }
         #endregion
@@ -135,7 +184,11 @@ namespace Oxide.Plugins
         }
         #endregion
 
-        #region Config        
+        #region Config   
+        enum ConsumeTypes
+        {
+            Campfires, CeilingLight, Furnace, LargeFurnace, Lanterns, JackOLantern, None
+        }
         private ConfigData configData;
         class LightTypes
         {
@@ -148,7 +201,8 @@ namespace Oxide.Plugins
         }
         class ConfigData
         {
-            public LightTypes LightTypes { get; set; }
+            public bool ConsumeFuel { get; set; } 
+            public Dictionary<ConsumeTypes, bool> LightTypes { get; set; }           
             public float SunriseHour { get; set; }
             public float SunsetHour { get; set; }            
         }
@@ -161,13 +215,15 @@ namespace Oxide.Plugins
         {
             var config = new ConfigData
             {
-                LightTypes = new LightTypes
+                ConsumeFuel = true,
+                LightTypes = new Dictionary<ConsumeTypes, bool>
                 {
-                    Campfires = true,
-                    CeilingLights = true,
-                    Furnaces = false,
-                    JackOLanterns = true,
-                    Lanterns = true
+                    {ConsumeTypes.Campfires, true },
+                    {ConsumeTypes.CeilingLight, true },
+                    {ConsumeTypes.Furnace, true },
+                    {ConsumeTypes.LargeFurnace, true },
+                    {ConsumeTypes.JackOLantern, true },
+                    {ConsumeTypes.Lanterns, true }
                 },
                 SunriseHour = 7.5f,
                 SunsetHour = 18.5f

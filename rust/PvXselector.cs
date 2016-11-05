@@ -41,11 +41,9 @@ namespace Oxide.Plugins
         private Hash<ulong, PlayerInfo> InfoCache = new Hash<ulong, PlayerInfo>();
         private List<ulong> SleeperCache = new List<ulong>();
         private List<ulong> UnknownUserCache = new List<ulong>();
-        public List<ulong> UpdateXPCache = new List<ulong>();
         private List<BasePlayer> AdminPlayerMode = new List<BasePlayer>();
         private List<BasePlayer> activeAdmins = new List<BasePlayer>();
         private List<ulong> antiChatSpam = new List<ulong>();
-        public List<ulong> IgnoreXPFunction = new List<ulong>();
         private Dictionary<ulong, List<string>> OpenUI = new Dictionary<ulong, List<string>>();
 
         class PlayerDataStorage
@@ -59,7 +57,6 @@ namespace Oxide.Plugins
             public Dictionary<int, ulong> Link = new Dictionary<int, ulong>();
             public Dictionary<ulong, Ticket> Info = new Dictionary<ulong, Ticket>();
             public Dictionary<ulong, string> Notification = new Dictionary<ulong, string>();
-            public List<ulong> UpdateXP = new List<ulong>();
         }
         class TicketLogStorage
         {
@@ -73,10 +70,6 @@ namespace Oxide.Plugins
             public string LatestConnection;
             public string mode;
             public bool ticket;
-            public int pveLevel;
-            public int pvpLevel;
-            public float xpSpent;
-            public float xpUnSpent;
         }
         class Ticket
         {
@@ -112,7 +105,6 @@ namespace Oxide.Plugins
                 {
                     createPvXIndicator(_player);
                     if (isplayerNA(_player))createPvXSelector(_player);
-                    storePlayerLevel(_player);
                     if (hasPerm(_player, "admin"))
                     {
                         activeAdmins.Add(_player);
@@ -137,14 +129,11 @@ namespace Oxide.Plugins
             lang.RegisterMessages(messages, this);
             permissionHandle();
             LoadVariables();
-            foreach (var pm in XPMultiplier)
-                XPpermHandle(pm.Key);
         }
         void Unloaded()
         {
             foreach (var _player in BasePlayer.activePlayerList)
             {
-                storePlayerLevel(_player);
                 DestroyAllPvXUI(_player);
             }
             SaveAll();
@@ -155,12 +144,10 @@ namespace Oxide.Plugins
             playerData.Info = InfoCache;
             playerData.sleepers = SleeperCache;
             playerData.UnknownUser = UnknownUserCache;
-            ticketData.UpdateXP = UpdateXPCache;
             PlayerData.WriteObject(playerData);
         }
         void saveTicketData()
         {
-            ticketData.UpdateXP = UpdateXPCache;
             TicketData.WriteObject(ticketData);
         }
         void saveTicketLog()
@@ -172,7 +159,6 @@ namespace Oxide.Plugins
             playerData.Info = InfoCache;
             playerData.sleepers = SleeperCache;
             playerData.UnknownUser = UnknownUserCache;
-            ticketData.UpdateXP = UpdateXPCache;
             PlayerData.WriteObject(playerData);
             TicketData.WriteObject(ticketData);
             TicketLog.WriteObject(ticketLog);
@@ -231,17 +217,9 @@ namespace Oxide.Plugins
                 updatePvXPlayerData(_player);
                 playerData.UnknownUser.Remove(_player.userID);
             }
-            if (ticketData.UpdateXP.Contains(_player.userID))
-            {
-                storePlayerLevel(_player);
-                updatePlayerChatTag(_player);
-                PvXLevelHandle(_player);
-                ticketData.UpdateXP.Remove(_player.userID);
-            }
             if (isplayerNA(_player))
             {
                 updatePlayerChatTag(_player);
-                storePlayerLevel(_player);
                 saveCacheData();
                 createPvXIndicator(_player);
                 createPvXSelector(_player);
@@ -249,7 +227,6 @@ namespace Oxide.Plugins
             }
             InfoCache[_player.userID].LatestConnection = DateTimeStamp();
             updatePlayerChatTag(_player);
-            storePlayerLevel(_player);
             if (SleeperCache.Contains(_player.userID))
             {
                 updatePvXPlayerData(_player);
@@ -277,12 +254,6 @@ namespace Oxide.Plugins
         }
         void OnPlayerRespawned(BasePlayer _player)
         {
-            if (UpdateXPCache.Contains(_player.userID))
-            {
-                updatePvXPlayerData(_player);
-                UpdateXPCache.Remove(_player.userID);
-                saveCacheData();
-            }
         }
 
 
@@ -324,13 +295,8 @@ namespace Oxide.Plugins
                 ticket = false,
                 FirstConnection = DateTimeStamp(),
                 LatestConnection = DateTimeStamp(),
-                pvpLevel = 0,
-                pveLevel = 0,
-                xpSpent = _player.xp.SpentXp,
-                xpUnSpent = _player.xp.UnspentXp
             });
             createPvXSelector(_player);
-            storePlayerLevel(_player);
             saveCacheData();
         }
         void addSleeper(BasePlayer _player)
@@ -343,10 +309,6 @@ namespace Oxide.Plugins
                 ticket = false,
                 FirstConnection = DateTimeStamp(),
                 LatestConnection = "Sleeper",
-                pvpLevel = 0,
-                pveLevel = 0,
-                xpSpent = 0,
-                xpUnSpent = 0
             });
             SleeperCache.Add(_player.userID);
             saveCacheData();
@@ -361,10 +323,6 @@ namespace Oxide.Plugins
                 ticket = false,
                 FirstConnection = DateTimeStamp(),
                 LatestConnection = "UNKNOWN",
-                pvpLevel = 0,
-                pveLevel = 0,
-                xpSpent = 0,
-                xpUnSpent = 0
             });
             UnknownUserCache.Add(_userID);
             saveCacheData();
@@ -378,12 +336,6 @@ namespace Oxide.Plugins
         #endregion
 
         #region Config/Permision/Plugin Ref
-        //XP
-        private bool XPSystem;
-        private bool EnablePvECap;
-        private int PvECap;
-        private bool EnablePvPCap;
-        private int PvPCap;
         //Players
         private bool PvEAttackPvE;
         private bool PvEAttackPvP;
@@ -485,12 +437,6 @@ namespace Oxide.Plugins
         }
         void LoadVariables() //Stores Default Values, calling GetConfig passing: menu, dataValue, defaultValue
         {
-            //XP
-            XPSystem = Convert.ToBoolean(GetConfig("1: XP", "1: Enable XP System", false));
-            EnablePvECap = Convert.ToBoolean(GetConfig("1: XP", "2: PvE Has Cap", false));
-            PvECap = Convert.ToInt16(GetConfig("1: XP", "3: PvE Cap", 99));
-            EnablePvPCap = Convert.ToBoolean(GetConfig("1: XP", "4: PvP Has Cap", false));
-            PvPCap = Convert.ToInt16(GetConfig("1: XP", "5:PvP Cap", 99));
             //Players
             PvEAttackPvE = Convert.ToBoolean(GetConfig("2: Player", "01: PvE v PvE", false));
             PvEAttackPvP = Convert.ToBoolean(GetConfig("2: Player", "02:PvE v PvP", false));
@@ -582,7 +528,6 @@ namespace Oxide.Plugins
             ChatPrefix = Convert.ToString(GetConfig("9-1:Settings", "ChatPrefix", "PvX"));
             ChatPrefixColor = Convert.ToString(GetConfig("9-1:Settings", "ChatPrefixColor", "008800"));
             ChatMessageColor = Convert.ToString(GetConfig("9-1:Settings", "ChatMessageColor", "yellow"));
-            XPMultiplier = GetConfig<Dictionary<string, object>>("9-2:Permission Multipliers", new Dictionary<string, object> { { "adminxp", 2f }, { "vipxp", 1.5f } });
         }
 
         object GetConfig(string menu, string dataValue, object defaultValue)
@@ -1044,7 +989,6 @@ namespace Oxide.Plugins
         void ticketAccept(BasePlayer _admin, int _ticketID)//Update required to fix Baseplayer NRE
         {
             ulong _UserID = ticketData.Link[_ticketID];
-            IgnoreXPFunction.Add(_UserID);
             addTicketLog(_admin, _ticketID, true);
             LangMSG(_admin, "TickAcepAdm");
             playerData.Info[_UserID].ticket = false;
@@ -1054,20 +998,15 @@ namespace Oxide.Plugins
             if (_player != null && _player.isConnected)
             {
                 LangMSG(_player, "TickAcep");
-                storePlayerLevel(_player);
                 updatePvXIndicator(_player);
                 updatePlayerChatTag(_player);
-                PvXLevelHandle(_player);
             }
             else if (_player != null && !_player.isConnected)
             {
-                storePlayerLevel(_player);
                 ticketData.Notification.Add(_player.userID, "Accepted");
-                PvXLevelHandle(_player);
             }
             else
             {
-                ticketData.UpdateXP.Add(_UserID);
                 ticketData.Notification.Add(_player.userID, "Accepted");
             }
             ticketData.Info.Remove(_UserID);
@@ -1198,185 +1137,6 @@ namespace Oxide.Plugins
             }
         }
 
-        #endregion
-
-        #region XP Functions
-        Dictionary<string, object> XPMultiplier;
-
-        void XPpermHandle(string perm)
-        {
-            string regPerm = Title.ToLower() + "." + perm;
-            Puts("Checking if " + regPerm + " is registered.");
-            if (!permission.PermissionExists(regPerm))
-            {
-                permission.RegisterPermission(regPerm, this);
-                Puts(regPerm + " is registered.");
-            }
-            else
-            {
-                Puts(regPerm + " is already registered.");
-            }
-        }
-        float XPMultPerm(BasePlayer _player)
-        {
-            float multiplier = 1f;
-            foreach (var m in XPMultiplier)
-                if (hasPerm(_player, m.Key) && Convert.ToSingle(m.Value) > multiplier)
-                    multiplier = Convert.ToSingle(m.Value);
-            return multiplier;
-        }
-
-        private object GetPlayerLevel(ulong _ID)
-        {
-            var agent = BasePlayer.FindXpAgent(_ID);
-            if (agent != null)
-            {
-                return Math.Floor(agent.CurrentLevel);
-            }
-            Puts("GetPlayerLevel is returning a null");
-            return null;
-        }
-
-        object OnXpEarn(ulong _userID, float _xpValue, string source)
-        {
-            if (_userID == 0) return null;
-            if (isNPC(_userID)) return null;
-            if (isGod(_userID)) return null;
-            if (isplayerNA(_userID)) return 0f;
-            if (IgnoreXPFunction.Contains(_userID)) return _xpValue;
-            BasePlayer _player = basePlayerByID(_userID);
-            if (_player == null) return _xpValue;
-            var agent = GetPlayerLevel(_userID);
-            if (agent != null)
-            {
-                int _lvl = Convert.ToInt16(agent);
-                if (((isPvP(_userID)) && (_lvl < PvPCap)) || ((isPvE(_userID)) && (_lvl < PvECap)))
-                {
-                    return _xpValue * XPMultPerm(_player);
-                }
-                else
-                {
-                    return 0f;
-                }
-            }
-            else
-            {
-                return 0f;
-            }
-        }
-        void OnXpLevelUp(ulong _userID, int _level)
-        {
-            if (!XPSystem) return;
-            if (IgnoreXPFunction.Contains(_userID)) return;
-            BasePlayer _player = basePlayerByID(_userID);
-            if (isplayerNA(_player)) { LangMSG(_player, "NoSaveLvLNA"); return; }
-            int _currentLevel = Convert.ToInt32(_player.xp.CurrentLevel);
-            if ((_level <= PvECap) && (InfoCache[_userID].pveLevel < _level))
-            {
-                InfoCache[_userID].pveLevel = _currentLevel;
-            }
-            if ((_level <= PvPCap) && (InfoCache[_userID].pvpLevel < _level))
-            {
-                InfoCache[_userID].pvpLevel = _currentLevel;
-            }
-            saveCacheData();
-        }
-        void OnXpSpent(ulong _userID, int _amount, string item)
-        {
-            if (!XPSystem) return;
-            if (IgnoreXPFunction.Contains(_userID)) return;
-            InfoCache[_userID].xpUnSpent = InfoCache[_userID].xpUnSpent - _amount;
-            InfoCache[_userID].xpSpent = InfoCache[_userID].xpSpent + _amount;
-            saveCacheData();
-        }
-        void OnXpEarned(ulong _userID, float _amount, string source)
-        {
-            if (!XPSystem) return;
-            if (isNPC(_userID)) return;
-            if (IgnoreXPFunction.Contains(_userID)) return;
-            //if (_userID== 76561198006265515)
-            if (_amount == 0f) return;
-            InfoCache[_userID].xpUnSpent = InfoCache[_userID].xpUnSpent + _amount;
-            saveCacheData();
-        }
-
-        void setPlayerLevel(ulong _userID, int _level)
-        {
-            if (!XPSystem) return;
-            BasePlayer _player = basePlayerByID(_userID);
-            float Unspentxp = InfoCache[_userID].xpUnSpent;
-            disablePvXLogger(_userID);
-            _player.xp.Reset();
-            _player.xp.Add(Rust.Xp.Definitions.Cheat, Rust.Xp.Config.LevelToXp(_level));
-            if (_player.xp.UnspentXp > Unspentxp)
-            {
-                _player.xp.SpendXp((Convert.ToInt32(_player.xp.UnspentXp - Unspentxp)), string.Empty);
-            }
-            else if (_player.xp.UnspentXp < Unspentxp)
-            {
-                float addXp = Unspentxp - _player.xp.UnspentXp;
-                _player.xp.Add(Rust.Xp.Definitions.Cheat, addXp);
-            }
-            enablePvXLogger(_userID);
-            saveCacheData();
-        }
-        void storePlayerLevel(BasePlayer _player)
-        {
-            var agent = GetPlayerLevel(_player.userID);
-            if (agent == null) return;
-            int _currentLevel = Convert.ToInt16(agent);
-            if ((_currentLevel <= PvECap) && (InfoCache[_player.userID].pveLevel < _currentLevel))
-            {
-                InfoCache[_player.userID].pveLevel = _currentLevel;
-            }
-            else InfoCache[_player.userID].pveLevel = InfoCache[_player.userID].pveLevel;
-            if ((_currentLevel <= PvPCap) && (InfoCache[_player.userID].pvpLevel < _currentLevel))
-            {
-                InfoCache[_player.userID].pvpLevel = _currentLevel;
-            }
-            else InfoCache[_player.userID].pvpLevel = InfoCache[_player.userID].pvpLevel;
-        }
-        void storePlayerXP (BasePlayer _player)
-        {
-            InfoCache[_player.userID].xpUnSpent = _player.xp.UnspentXp;
-            InfoCache[_player.userID].xpSpent = _player.xp.SpentXp;
-        }
-        void PvELevelHandle(BasePlayer _player)
-        {
-            if (!XPSystem) return;
-            if (_player.xp.CurrentLevel > PvECap)
-            {
-                setPlayerLevel(_player.userID, PvECap);
-                LangMSG(_player, "lvlRedxpSav");
-            }
-            else if (InfoCache[_player.userID].pveLevel > _player.xp.CurrentLevel)
-            {
-                setPlayerLevel(_player.userID, Convert.ToInt16(InfoCache[_player.userID].pveLevel));
-                LangMSG(_player, "lvlIncrxpRes");
-            }
-        }//Completed
-        void PvPLevelHandle(BasePlayer _player)
-        {
-            if (!XPSystem) return;
-            if (_player.xp.CurrentLevel > PvPCap)
-            {
-                setPlayerLevel(_player.userID, PvPCap);
-                LangMSG(_player, "lvlRedxpSav");
-            }
-            else if (InfoCache[_player.userID].pvpLevel > _player.xp.CurrentLevel)
-            {
-                setPlayerLevel(_player.userID, InfoCache[_player.userID].pvpLevel);
-                LangMSG(_player, "lvlIncrxpRes");
-            }
-        }//completed
-        void PvXLevelHandle(BasePlayer _player)
-        {
-            if (!XPSystem) return;
-            if (ticketData.Info[_player.userID].requested == "pve")
-                PvELevelHandle(_player);
-            else if (ticketData.Info[_player.userID].requested == "pvp")
-                PvPLevelHandle(_player);
-        }
         #endregion
 
         #region Looting Functions
@@ -1864,24 +1624,6 @@ namespace Oxide.Plugins
         {
             playerData.Info[_player.userID].username = _player.displayName;
             playerData.Info[_player.userID].LatestConnection = DateTimeStamp();
-            storePlayerXP(_player);
-            storePlayerLevel(_player);
-        }
-        public void disablePvXLogger(ulong _userID)
-        {
-            IgnoreXPFunction.Add(_userID);
-        }
-        public void enablePvXLogger(ulong _userID)
-        {
-            IgnoreXPFunction.Remove(_userID);
-        }
-        public void enablePvXLoggerAndResetUserData(ulong _userID)
-        {
-            IgnoreXPFunction.Remove(_userID);
-            BasePlayer _player = basePlayerByID(_userID);
-            InfoCache[_userID].xpUnSpent = _player.xp.UnspentXp;
-            InfoCache[_userID].xpSpent = _player.xp.SpentXp;
-            storePlayerLevel(_player);
         }
         bool isPvEUlong(ulong _playerID)
         {
@@ -2044,7 +1786,6 @@ namespace Oxide.Plugins
         }
         void changeFunction(BasePlayer _player)
         {
-            storePlayerLevel(_player);
             if (playerHasTicket(_player) == true)
             {
                 ChatMessageHandle(_player, "AlreadySubmitted"); return;

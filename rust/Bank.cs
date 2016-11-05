@@ -14,7 +14,7 @@ using Newtonsoft.Json;
 
 namespace Oxide.Plugins
 {
-    [Info("Bank", "Calytic", "0.0.32", ResourceId = 2116)]
+    [Info("Bank", "Calytic", "0.0.4", ResourceId = 2116)]
     [Description("Safe player storage")]
     class Bank : RustPlugin
     {
@@ -31,7 +31,10 @@ namespace Oxide.Plugins
         private List<object> npcids;
 
         public static DataFileSystem datafile;
+        public static DataFileSystem configFile;
         FieldInfo keyCodeField = typeof(KeyLock).GetField("keyCode", (BindingFlags.Instance | BindingFlags.NonPublic));
+
+        private Dictionary<string, ItemLimit> itemLimits = new Dictionary<string,ItemLimit>();
 
         [PluginReference]
         Plugin MasterKey;
@@ -46,14 +49,14 @@ namespace Oxide.Plugins
             public int slot;
             public Item.Flag flags;
             public float condition;
-            public int skin;
+            public ulong skin;
             public List<ItemProfile> contents;
             public int primaryMagazine;
             public int ammoType;
             public int dataInt;
 
             [JsonConstructor]
-            public ItemProfile(string id, int amount, int slot, Item.Flag flags, float condition = 0.0f, int skin = 0, List<ItemProfile> contents = null, int primaryMagazine = 0, int ammoType = 0, int dataInt = 0) {
+            public ItemProfile(string id, int amount, int slot, Item.Flag flags, float condition = 0.0f, ulong skin = 0, List<ItemProfile> contents = null, int primaryMagazine = 0, int ammoType = 0, int dataInt = 0) {
                 this.id = id;
                 this.amount = amount;
                 this.slot = slot;
@@ -284,6 +287,23 @@ namespace Oxide.Plugins
         }
         #endregion
 
+        #region Configuration
+
+        class ItemLimit {
+            public bool enabled;
+            public int minimum;
+            public int maximum;
+
+            [JsonConstructor]
+            public ItemLimit(bool enabled, int minimum, int maximum) {
+                this.enabled = enabled;
+                this.minimum = minimum;
+                this.maximum = maximum;
+            }
+        }
+
+        #endregion
+
         #region State
 
         class OnlinePlayer
@@ -309,13 +329,22 @@ namespace Oxide.Plugins
 
         #region Initialization & Data
 
+        void Init() {
+            Unsubscribe(nameof(CanNetworkTo));
+            Unsubscribe(nameof(OnEntityTakeDamage));
+            Unsubscribe(nameof(OnItemAddedToContainer));
+        }
+
         void Loaded() { 
+            configFile = new DataFileSystem(Interface.Oxide.ConfigDirectory);
+            itemLimits = configFile.ReadObject<Dictionary<string, ItemLimit>>("Bank_ItemLimits");
             permission.RegisterPermission("bank.use", this);
 
             CheckConfig();
             LoadMessages();
             
-            datafile = new DataFileSystem(Interface.GetMod().DataDirectory + "\\" + this.GetConfig<string>("subDirectory", "banks"));
+            datafile = new DataFileSystem(Interface.Oxide.DataDirectory + "\\" + this.GetConfig<string>("subDirectory", "banks"));
+            
             
             boxPrefabs = GetConfig("Settings", "boxes", GetDefaultBoxes());
             boxSlots = GetConfig("Settings","slots", GetDefaultSlots());
@@ -329,7 +358,7 @@ namespace Oxide.Plugins
             npconly = GetConfig("Settings", "NPCBankersOnly", false);
             npcids = GetConfig("Settings", "NPCIDs", new List<object>());
 
-            //playersMask = LayerMask.GetMask("Player (Server)");
+            
 
             keyring = GetConfig("Settings", "Keyring", true);
 
@@ -377,6 +406,12 @@ namespace Oxide.Plugins
             };
         }
 
+        private Dictionary<string, ItemLimit> GetDefaultItemLimits() {
+            return new Dictionary<string,ItemLimit>() {
+                {"explosive.timed", new ItemLimit(false, 0, 1)}
+            };
+        }
+
         protected override void LoadDefaultConfig()
         {
             Config["Settings", "boxes"] = GetDefaultBoxes();
@@ -388,6 +423,8 @@ namespace Oxide.Plugins
             Config["Settings", "NPCBankersOnly"] = false;
             Config["Settings", "NPCIDs"] = new List<object>();
 
+            configFile.WriteObject<Dictionary<string, ItemLimit>>("Bank_ItemLimits", GetDefaultItemLimits());
+
             Config["VERSION"] = Version.ToString();
         }
 
@@ -395,8 +432,10 @@ namespace Oxide.Plugins
         {
             foreach (var player in BasePlayer.activePlayerList)
             {
-                if (onlinePlayers.ContainsKey(player) && onlinePlayers[player].View != null) {
+                OnlinePlayer onlinePlayer;
+                if (onlinePlayers.TryGetValue(player, out onlinePlayer) && onlinePlayer.View != null) {
                     SaveProfileByUser(player.userID);
+                    CloseBank(player, onlinePlayer.View);
                 }
             }
         }
@@ -425,8 +464,12 @@ namespace Oxide.Plugins
             Config["VERSION"] = Version.ToString();
 
             // NEW CONFIGURATION OPTIONS HERE
-            Config["Settings", "NPCBankersOnly"] = false;
-            Config["Settings", "NPCIDs"] = new List<object>();
+            Config["Settings", "NPCBankersOnly"] = GetConfig("Settings", "NPCBankersOnly", false);
+            Config["Settings", "NPCIDs"] = GetConfig("Settings", "NPCIDs", new List<object>());
+            if(itemLimits.Count == 0) {
+                itemLimits = GetDefaultItemLimits();
+            }
+            configFile.WriteObject<Dictionary<string, ItemLimit>>("Bank_ItemLimits", itemLimits);
             // END NEW CONFIGURATION OPTIONS
 
             PrintWarning("Upgrading configuration file");
@@ -501,6 +544,16 @@ namespace Oxide.Plugins
             profile.dirty = false;
         }
 
+        private bool IsBank(BaseNetworkable entity) {
+            foreach(KeyValuePair<BasePlayer, OnlinePlayer> kvp in onlinePlayers) {
+                if(kvp.Value.View != null && kvp.Value.View.net.ID == entity.net.ID) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         #endregion
 
         #region Oxide Hooks
@@ -511,6 +564,24 @@ namespace Oxide.Plugins
             ShowBank(player, player);
         }
 
+        object CanNetworkTo(BaseNetworkable entity, BasePlayer target)
+        {
+            if (entity == null || target == null || entity == target) return null;
+            if (target.IsAdmin()) return null;
+
+            OnlinePlayer onlinePlayer;
+            bool IsMyBank = false;
+            if(onlinePlayers.TryGetValue(target, out onlinePlayer)) {
+                if(onlinePlayer.View != null && onlinePlayer.View.net.ID == entity.net.ID) {
+                    IsMyBank = true;
+                }
+            }
+
+            if (IsBank(entity) && !IsMyBank) return false;
+
+            return null;
+        }
+
         private void OnEntityTakeDamage(BaseCombatEntity entity, HitInfo hitInfo)
         {
             if (hitInfo == null)
@@ -518,15 +589,10 @@ namespace Oxide.Plugins
                 return;
             }
 
-            foreach(KeyValuePair<BasePlayer, OnlinePlayer> kvp in onlinePlayers) {
-                if(kvp.Value.View != null) {
-                    if(kvp.Value.View.net.ID == entity.net.ID) {
-                        hitInfo.damageTypes = new DamageTypeList();
-                        hitInfo.DoHitEffects = false;
-                        hitInfo.HitMaterial = 0;
-                        return;
-                    }
-                }
+            if(IsBank(entity)) {
+                hitInfo.damageTypes = new DamageTypeList();
+                hitInfo.DoHitEffects = false;
+                hitInfo.HitMaterial = 0;
             }
         }
 
@@ -612,6 +678,29 @@ namespace Oxide.Plugins
             }
         }
 
+        void OnItemAddedToContainer(ItemContainer container, Item item)
+        {
+            BasePlayer player = container.playerOwner;
+            OnlinePlayer onlinePlayer;
+            if(player != null && onlinePlayers.TryGetValue(player, out onlinePlayer)) {
+                if(onlinePlayer.View != null && onlinePlayer.View.inventory == container) {
+                    int validAmount = GetValidAmount(item, container);
+                    PrintWarning(validAmount.ToString());
+
+                    if(validAmount <= 0) {
+                        item.MoveToContainer(container.playerOwner.inventory.containerMain);
+                        return;
+                    }
+
+                    if(validAmount < item.amount) {
+                        Item splitItem = item.SplitItem(item.amount - validAmount);
+
+                        splitItem.MoveToContainer(container.playerOwner.inventory.containerMain);
+                    }
+                }
+            }
+        }
+
         #endregion
 
         #region Commands
@@ -685,6 +774,37 @@ namespace Oxide.Plugins
         #endregion
 
         #region Core methods
+
+        int GetValidAmount(Item item, ItemContainer container) {
+            
+            ItemLimit limit;
+
+            int totalAmount = container.GetAmount(item.info.itemid, false) - item.amount;
+
+            if(itemLimits.TryGetValue(item.info.shortname, out limit)) {
+                if(!limit.enabled) {
+                    return 0;
+                }
+
+                if(totalAmount < limit.minimum) {
+                    return 0;
+                }
+
+                if(totalAmount == 0 && item.amount > limit.maximum) {
+                    return limit.maximum;
+                }
+
+                if(totalAmount > limit.maximum) {
+                    return totalAmount - limit.maximum;
+                }
+
+                if(totalAmount == limit.maximum) {
+                    return 0;
+                }
+            }
+
+            return item.amount;
+        }
 
         bool CanPlayerBank(BasePlayer player) {
             if (!permission.UserHasPermission(player.UserIDString, "bank.use"))
@@ -816,6 +936,9 @@ namespace Oxide.Plugins
 
         void OpenBank(BasePlayer player, BaseEntity targArg)
         {
+            Subscribe(nameof(CanNetworkTo));
+            Subscribe(nameof(OnEntityTakeDamage));
+            Subscribe(nameof(OnItemAddedToContainer));
             var pos = new Vector3(player.transform.position.x, player.transform.position.y-1, player.transform.position.z);
             string box = GetBox(player);
 
@@ -894,6 +1017,10 @@ namespace Oxide.Plugins
             onlinePlayers[player].Target = null;
 
             view.KillMessage();
+            if (onlinePlayers.Values.Count(p => p.View != null) <= 0) {
+                Unsubscribe(nameof(CanNetworkTo));
+                Unsubscribe(nameof(OnEntityTakeDamage));
+            }
         }
 
         #endregion

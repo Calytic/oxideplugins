@@ -2,7 +2,7 @@
     "name": "TeamBattlefield",
     "description": "Two teams, adjustable friendly-fire, kits, individual team items, spectator mode",
     "author": "k1lly0u",
-    "version": "2.1.1",
+    "version": "2.1.2",
     "configuration": true,
     "require": {
         "Spawns": "*"

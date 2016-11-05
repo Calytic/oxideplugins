@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("SharedDoors", "dbteku", 0.5)]
+    [Info("SharedDoors", "dbteku", 0.6)]
     [Description("Making sharing doors easier.")]
     class SharedDoors : CovalencePlugin
     {
@@ -71,7 +71,7 @@ namespace Oxide.Plugins
             }
         }
 
-        bool CanUseDoor(BasePlayer player, BaseLock door)
+        bool CanUseLock(BasePlayer player, BaseLock door)
         {
             IPlayer iPlayer = covalence.Players.FindPlayerById(player.userID.ToString());
             bool canUse = false;
@@ -82,6 +82,7 @@ namespace Oxide.Plugins
             {
                 canUse = new DoorAuthorizer(door, player).canOpen();
             }
+
             return canUse;
         }
 

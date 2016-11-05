@@ -5,7 +5,7 @@ using System;
 
 namespace Oxide.Plugins
 {
-    [Info("RestoreUponDeath", "k1lly0u", "0.1.32", ResourceId = 1859)]
+    [Info("RestoreUponDeath", "k1lly0u", "0.1.4", ResourceId = 1859)]
     class RestoreUponDeath : RustPlugin
     {
         #region Fields
@@ -313,7 +313,7 @@ namespace Oxide.Plugins
             public int amount;
             public int ammoamount;
             public string ammotype;
-            public int skinid;
+            public ulong skinid;
             public bool weapon;
             public List<SavedItem> mods;
         }

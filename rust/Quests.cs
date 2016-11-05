@@ -8,11 +8,10 @@ using Oxide.Core.Plugins;
 using UnityEngine;
 using System.Linq;
 using System.Reflection;
-using Rust.Xp;
 
 namespace Oxide.Plugins
 {
-    [Info("Quests", "k1lly0u", "2.1.6", ResourceId = 1084)]
+    [Info("Quests", "k1lly0u", "2.1.72", ResourceId = 1084)]
     public class Quests : RustPlugin
     {
         #region Fields
@@ -121,13 +120,12 @@ namespace Oxide.Plugins
             public bool isRP = false;
             public bool isCoins = false;
             public bool isHuntXP = false;
-            public bool isRustXP = false;
             public string DisplayName;
             public string ShortName;
             public int ID;
             public float Amount;
             public bool BP;
-            public int Skin;
+            public ulong Skin;
         }
         class QuestCreator
         {
@@ -849,13 +847,10 @@ namespace Oxide.Plugins
                 else if (reward.isHuntXP)
                 {
                     HuntPlugin?.Call("GiveEXP", player, (int)reward.Amount);
-                }
-                else if (reward.isRustXP)
-                {
-                    player.xp.Add(Definitions.Cheat, (int)reward.Amount);
-                }
+                }                
                 else
                 {
+                    if (string.IsNullOrEmpty(reward.ShortName)) return true;
                     var definition = FindItemDefinition(reward.ShortName);
                     if (definition != null)
                     {
@@ -1541,12 +1536,11 @@ namespace Oxide.Plugins
                         if (Economics) CreateRewardTypeButton(ref HelpMain, UIPanel, $"{LA("Coins", player.UserIDString)} (Economics)", "QUI_RewardType coins", i); i++;
                         if (ServerRewards) CreateRewardTypeButton(ref HelpMain, UIPanel, $"{LA("RP", player.UserIDString)} (ServerRewards)", "QUI_RewardType rp", i); i++;
                         CreateRewardTypeButton(ref HelpMain, UIPanel, LA("Item", player.UserIDString), "QUI_RewardType item", i); i++;
-                        CreateRewardTypeButton(ref HelpMain, UIPanel, LA("RustXP", player.UserIDString), "QUI_RewardType rustxp", i); i++;
                         if (HuntPlugin) { CreateRewardTypeButton(ref HelpMain, UIPanel, $"{LA("HuntXP", player.UserIDString)} (HuntRPG)", "QUI_RewardType huntxp", i); i++; }
                     }
                     break;
                 case 5:
-                    if (quest.item.isCoins || quest.item.isRP || quest.item.isHuntXP || quest.item.isRustXP)
+                    if (quest.item.isCoins || quest.item.isRP || quest.item.isHuntXP)
                         QUI.CreateLabel(ref HelpMain, UIPanel, "", $"{configData.MSG_MainColor}{LA("creHelRewA", player.UserIDString)}</color>", 20, "0.25 0.4", "0.75 0.6");
                     else
                     {
@@ -1676,7 +1670,6 @@ namespace Oxide.Plugins
                     if (Economics) CreateRewardTypeButton(ref HelpMain, UIPanel, "Coins (Economics)", "QUI_RewardType coins", i); i++;
                     if (ServerRewards) CreateRewardTypeButton(ref HelpMain, UIPanel, "RP (ServerRewards)", "QUI_RewardType rp", i); i++;                    
                     CreateRewardTypeButton(ref HelpMain, UIPanel, LA("Item", player.UserIDString), "QUI_RewardType item", i); i++;                    
-                    CreateRewardTypeButton(ref HelpMain, UIPanel, "XP (Rust)", "QUI_RewardType rustxp", i); i++;
                     if (HuntPlugin) { CreateRewardTypeButton(ref HelpMain, UIPanel, "XP (HuntRPG)", "QUI_RewardType huntxp", i); i++; }
                     CuiHelper.AddUi(player, HelpMain);
                     return;
@@ -1685,7 +1678,7 @@ namespace Oxide.Plugins
                         HelpMain = QUI.CreateElementContainer(UIPanel, UIColors["dark"], "0.4 0.3", "0.95 0.9");
                         QUI.CreatePanel(ref HelpMain, UIPanel, UIColors["light"], "0.01 0.02", "0.99 0.98");
                         var quest = ActiveCreations[player.userID];
-                        if (quest.deliveryInfo.Reward.isCoins || quest.deliveryInfo.Reward.isRP || quest.deliveryInfo.Reward.isHuntXP || quest.deliveryInfo.Reward.isRustXP)
+                        if (quest.deliveryInfo.Reward.isCoins || quest.deliveryInfo.Reward.isRP || quest.deliveryInfo.Reward.isHuntXP)
                             DeliveryHelp(player, 4);
                         else
                         {
@@ -2285,7 +2278,6 @@ namespace Oxide.Plugins
                 bool isRP = false;
                 bool isCoins = false;
                 bool isHuntXP = false;
-                bool isRustXP = false;
                 string name = "";
 
                 switch (rewardType)
@@ -2301,11 +2293,7 @@ namespace Oxide.Plugins
                     case "huntxp":
                         isHuntXP = true;
                         name = LA("HuntXP", player.UserIDString);
-                        break;
-                    case "rustxp":
-                        isRustXP = true;
-                        name = LA("RustXP", player.UserIDString);
-                        break;
+                        break;                    
                     default:                        
                         break;
                 }
@@ -2315,7 +2303,6 @@ namespace Oxide.Plugins
                     Creator.item.isRP = isRP;
                     Creator.item.isCoins = isCoins;
                     Creator.item.isHuntXP = isHuntXP;
-                    Creator.item.isRustXP = isRustXP;
                     Creator.item.DisplayName = name;
                     CreationHelp(player, 5);                    
                 }
@@ -2324,7 +2311,6 @@ namespace Oxide.Plugins
                     Creator.deliveryInfo.Reward.isRP = isRP;
                     Creator.deliveryInfo.Reward.isCoins = isCoins;
                     Creator.deliveryInfo.Reward.isHuntXP = isHuntXP;
-                    Creator.deliveryInfo.Reward.isRustXP = isRustXP;
                     Creator.deliveryInfo.Reward.DisplayName = name;
                     DeliveryHelp(player, 3);
                 }                
@@ -3006,8 +2992,7 @@ namespace Oxide.Plugins
             { "creHelNewRew", "Select a reward to remove, or add a new one" },
             { "Coins", "Coins" },
             { "RP", "RP" },
-            { "HuntXP", "XP" },
-            { "RustXP", "XP" },
+            { "HuntXP", "XP" },            
             { "Item", "Item" },
             { "creHelRewA", "Enter a reward amount" },
             { "creHelIH", "Place the item you want to issue as a reward in your hands and type" },

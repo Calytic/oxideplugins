@@ -4,7 +4,7 @@ using System.Linq;
 using Oxide.Core.Plugins;
 using Newtonsoft.Json;
 using UnityEngine;
-using Rust.Xp;
+
 using Oxide.Core;
 
 namespace Oxide.Plugins
@@ -69,7 +69,7 @@ namespace Oxide.Plugins
                 config["NPC - GUI Kits"] = GetExampleGUIKits();
                 Config.WriteObject(config);
             }
-            if (!config.ContainsKey("CopyPaste - Parameters"))
+            if(!config.ContainsKey("CopyPaste - Parameters"))
             {
                 config["CopyPaste - Parameters"] = new List<string> { "autoheight", "true", "blockcollision", "true", "deployables", "true", "inventories", "true" };
                 Config.WriteObject(config);
@@ -224,44 +224,42 @@ namespace Oxide.Plugins
 
             if (kit.cooldown > 0)
                 kitData.cooldown = CurrentTime() + kit.cooldown;
-        }
+        }        
         object GiveKit(BasePlayer player, string kitname)
         {
             if (string.IsNullOrEmpty(kitname)) return "Empty kit name";
             kitname = kitname.ToLower();
             Kit kit;
             if (!storedData.Kits.TryGetValue(kitname, out kit)) return "This kit doesn't exist";
-            if (kit.xpamount != 0)
-                player.xp.Add(Definitions.Cheat, kit.xpamount);
 
             foreach (KitItem kitem in kit.items)
             {
                 if (kitem.weapon)
                     player.inventory.GiveItem(BuildWeapon(kitem.itemid, kitem.skinid, kitem.mods), kitem.container == "belt" ? player.inventory.containerBelt : kitem.container == "wear" ? player.inventory.containerWear : player.inventory.containerMain);
-                else player.inventory.GiveItem(BuildItem(kitem.itemid, kitem.amount, kitem.skinid), kitem.container == "belt" ? player.inventory.containerBelt : kitem.container == "wear" ? player.inventory.containerWear : player.inventory.containerMain);
+                else player.inventory.GiveItem(BuildItem(kitem.itemid, kitem.amount,  kitem.skinid), kitem.container == "belt" ? player.inventory.containerBelt : kitem.container == "wear" ? player.inventory.containerWear : player.inventory.containerMain);
 
             }
             if (kit.building != null && kit.building != string.Empty)
             {
                 var success = CopyPaste?.CallHook("TryPasteFromPlayer", player, kit.building, CopyPasteParameters.ToArray());
-                if (success is string)
+                if(success is string)
                 {
                     return success;
                 }
-                if (!(success is List<BaseEntity>))
+                if(!(success is List<BaseEntity>))
                 {
                     return "Something went wrong while pasting, is CopyPaste installed?";
                 }
             }
             return true;
         }
-        private Item BuildItem(int itemid, int amount, int skin)
+        private Item BuildItem(int itemid, int amount, ulong skin)
         {
             if (amount < 1) amount = 1;
             Item item = ItemManager.CreateByItemID(itemid, amount, skin);
             return item;
         }
-        private Item BuildWeapon(int id, int skin, List<int> mods)
+        private Item BuildWeapon(int id, ulong skin, List<int> mods)
         {
             Item item = ItemManager.CreateByItemID(id, 1, skin);
             var weapon = item.GetHeldEntity() as BaseProjectile;
@@ -400,7 +398,7 @@ namespace Oxide.Plugins
             public int itemid;
             public string container;
             public int amount;
-            public int skinid;
+            public ulong skinid;
             public bool weapon;
             public List<int> mods;
         }
@@ -412,7 +410,6 @@ namespace Oxide.Plugins
             public int max;
             public double cooldown;
             public int authlevel;
-            public int xpamount;
             public bool hide;
             public bool npconly;
             public string permission;
@@ -1075,7 +1072,7 @@ namespace Oxide.Plugins
         }
         void SendListKitEdition(BasePlayer player)
         {
-            SendReply(player, "authlevel XXX\r\nbuilding \"filename\" => buy a building to paste from\r\ncooldown XXX\r\ndescription \"description text here\" => set a description for this kit\r\nhide TRUE/FALSE => dont show this kit in lists (EVER)\r\nimage \"image http url\" => set an image for this kit (gui only)\r\nitems => set new items for your kit (will copy your inventory)\r\nmax XXX\r\nnpconly TRUE/FALSE => only get this kit out of a NPC\r\npermission \"permission name\" => set the permission needed to get this kit\r\nxp <number> => Set a amount of XP to give with this kit");
+            SendReply(player, "authlevel XXX\r\nbuilding \"filename\" => buy a building to paste from\r\ncooldown XXX\r\ndescription \"description text here\" => set a description for this kit\r\nhide TRUE/FALSE => dont show this kit in lists (EVER)\r\nimage \"image http url\" => set an image for this kit (gui only)\r\nitems => set new items for your kit (will copy your inventory)\r\nmax XXX\r\nnpconly TRUE/FALSE => only get this kit out of a NPC\r\npermission \"permission name\" => set the permission needed to get this kit");
         }
         [ChatCommand("kit")]
         void cmdChatKit(BasePlayer player, string command, string[] args)
@@ -1113,7 +1110,6 @@ namespace Oxide.Plugins
                         SendReply(player, "/kit give PLAYER/STEAMID KITNAME => give a kit to a player");
                         SendReply(player, "/kit resetkits => deletes all kits");
                         SendReply(player, "/kit resetdata => reset player data");
-                        SendReply(player, "/kit xp <amount> => add xp to a kit");
                         break;
                     case "add":
                     case "remove":
@@ -1146,10 +1142,6 @@ namespace Oxide.Plugins
                         if (!hasAccess(player)) { SendReply(player, "You don't have access to this command"); return; }
                         ResetData();
                         SendReply(player, "Resetted all player data");
-                        break;
-                    case "xp":
-                        if (!hasAccess(player)) { SendReply(player, "You don't have access to this command"); return; }
-                        SendReply(player, "You must enter a amount of xp");
                         break;
                     default:
                         TryGiveKit(player, args[0].ToLower());
@@ -1282,9 +1274,6 @@ namespace Oxide.Plugins
                             case "image":
                                 editvalue = kit.image = args[++i];
                                 break;
-                            case "xp":
-                                editvalue = kit.xpamount = int.Parse(args[++i]);
-                                break;
                             default:
                                 SendReply(player, $"{args[i]} is not a valid argument");
                                 continue;
@@ -1294,6 +1283,6 @@ namespace Oxide.Plugins
                     break;
             }
             SaveKits();
-        }
+        } 
     }
 }

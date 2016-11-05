@@ -2,7 +2,7 @@
     "name": "Magazin Booster",
     "description": "Can change magazines, ammo and conditon for most projectile weapons",
     "author": "Fujikura",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "configuration": true,
     "language": "cs",
     "games": [

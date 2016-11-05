@@ -14,7 +14,7 @@ using Oxide.Game.Rust.Cui;
 
 namespace Oxide.Plugins
 {
-    [Info("RemoverTool", "Reneb", "4.0.7", ResourceId = 651)]
+    [Info("RemoverTool", "Reneb", "4.0.8", ResourceId = 651)]
     class RemoverTool : RustPlugin
     {
         [PluginReference]
@@ -26,7 +26,6 @@ namespace Oxide.Plugins
 
         static FieldInfo serverInput = typeof(BasePlayer).GetField("serverInput", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
         static FieldInfo buildingPrivilege = typeof(BasePlayer).GetField("buildingPrivilege", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
-        static FieldInfo XpData = typeof(Rust.Xp.Agent).GetField("data", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
         static int colliderRemovable = LayerMask.GetMask("Construction", "Deployed", "Default");
         static int colliderBuilding = LayerMask.GetMask("Construction");
         static int colliderPlayer = LayerMask.GetMask("Player (Server)");
@@ -834,11 +833,6 @@ namespace Oxide.Plugins
                         player.inventory.Take(collect, itemid, amount);
                         player.Command("note.inv", itemid, -amount);
                     }
-                    else if (priceName == "xp")
-                    {
-                        var data = XpData.GetValue(player.xp) as Rust.Xp.Agent.Data;
-                        data.EarnedXp = player.xp.EarnedXp - amount;
-                    }
                     else if (priceName == "withdraw")
                     {
                         var w = Interface.Oxide.CallHook("Withdraw", player.userID, (double)amount);
@@ -892,11 +886,6 @@ namespace Oxide.Plugins
                 if (ItemNameToItemID.ContainsKey(priceName))
                 {
                     int c = player.inventory.GetAmount(ItemNameToItemID[priceName]);
-                    if (c < amount) return false;
-                }
-                else if (priceName == "xp")
-                {
-                    float c = player.xp.UnspentXp;
                     if (c < amount) return false;
                 }
                 else if (priceName == "withdraw")

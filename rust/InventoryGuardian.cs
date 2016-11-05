@@ -1,11 +1,10 @@
 using System.Collections.Generic;
 using Oxide.Core;
 using Oxide.Core.Configuration;
-using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("InventoryGuardian", "k1lly0u", "0.2.22", ResourceId = 773)]
+    [Info("InventoryGuardian", "k1lly0u", "0.2.3", ResourceId = 773)]
     class InventoryGuardian : RustPlugin
     {
         #region Fields
@@ -13,7 +12,7 @@ namespace Oxide.Plugins
         private DynamicConfigFile Inventory_Data;
 
         private Dictionary<ulong, PlayerInfo> cachedInventories = new Dictionary<ulong, PlayerInfo>();
-
+        private bool isNewSave;
         #endregion
 
         #region Oxide Hooks
@@ -28,6 +27,7 @@ namespace Oxide.Plugins
             foreach (var player in BasePlayer.activePlayerList)
                 OnPlayerInit(player);
         }
+        void OnNewSave(string filename) => isNewSave = true;
         void OnPlayerInit(BasePlayer player)
         {
             if (igData.IsActivated)
@@ -51,15 +51,12 @@ namespace Oxide.Plugins
         #region Functions
         private void CheckProtocol()
         {
-            int protocol = Protocol.save;
-            if (igData.AutoRestore)
-                if (igData.ProtocolVersion != protocol)
-                {
-                    foreach (var entry in cachedInventories)
-                        entry.Value.RestoreOnce = true;
-                    igData.ProtocolVersion = protocol;                    
-                    Puts("Protocol change has been detected. Activating Auto Restore for all saved inventories");
-                }
+            if (igData.AutoRestore && isNewSave)
+            {
+                foreach (var entry in cachedInventories)
+                    entry.Value.RestoreOnce = true;
+                Puts("Map wipe detected! Activating Auto Restore for all saved inventories");
+            }
         }
         private void RestoreAll()
         {
@@ -715,7 +712,6 @@ namespace Oxide.Plugins
             public bool AutoRestore = true;
             public bool KeepCondition = true;
             public int AuthLevel = 2;
-            public int ProtocolVersion = 0;
             public Dictionary<ulong, PlayerInfo> Inventories = new Dictionary<ulong, PlayerInfo>();
         }        
         class PlayerInfo
@@ -732,7 +728,7 @@ namespace Oxide.Plugins
             public int amount;
             public int ammoamount;
             public string ammotype;
-            public int skinid;
+            public ulong skinid;
             public bool weapon;
             public List<SavedItem> mods;
         }

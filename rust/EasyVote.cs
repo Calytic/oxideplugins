@@ -19,21 +19,18 @@ using Oxide.Game.Rust.Cui;
 
 namespace Oxide.Plugins
 {
-    [Info("EasyVote", "Exel80", "1.2.3", ResourceId = 2102)]
+    [Info("EasyVote", "Exel80", "1.2.4", ResourceId = 2102)]
     [Description("Making voting super easy and smooth!")]
     class EasyVote : RustPlugin
     {
         // Special thanks to MJSU, for all hes efforts what he have done so far!
         // http://oxidemod.org/members/mjsu.99205/
 
-        //TODO: Add next to the HighestVoter ID what group player earn => HighestVoter: ID:GROUP
-
         #region Initializing
         private bool DEBUG = false; // Dev mod
         private bool Voted = false; // If voted, overide NoRewards.
         private bool NoRewards = false; // If no voted, then print "NoRewards"
         private DateTime Cooldown = DateTime.Now; // Datetime cooldown
-        private StringBuilder RList = new StringBuilder();
         private List<int> numberMax = new List<int>();
         string Lang(string key, string id = null, params object[] args) => string.Format(lang.GetMessage(key, this, id), args);
 
@@ -42,6 +39,8 @@ namespace Oxide.Plugins
             "https://rust-servers.net/api/?object=votes&element=claim&key={0}&steamid={1}", "http://rust-servers.net/server/{0}" };
         string[] TopRustServers = { "http://api.toprustservers.com/api/put?plugin=voter&key={0}&uid={1}",
             "http://api.toprustservers.com/api/get?plugin=voter&key={0}&uid={1}", "http://toprustservers.com/server/{0}" };
+        string[] TopServeurs = { "https://api.top-serveurs.net/votes?server_token={0}&steam_id={1}",
+            "https://api.top-serveurs.net/votes/check?server_token={0}&steam_id={1}", "https://top-serveurs.net/srv/{0}" };
         string[] BeancanIO = { "http://beancan.io/vote/put/{0}/{1}", "http://beancan.io/vote/get/{0}/{1}", "http://beancan.io/server/{0}" };
 
         private void Loaded()
@@ -59,7 +58,7 @@ namespace Oxide.Plugins
                 ["ThankYou"] = "Thank you for voting {0} time(s)",
                 ["NoRewards"] = "You do not have any new rewards avaliable \n Please type <color=yellow>/vote</color> and go to the website to vote and receive your reward",
                 ["RemeberClaim"] = "You haven't yet claimed your reward from voting server! Use <color=cyan>/claim</color> to claim your reward! \n You have to claim your reward in <color=yellow>24h</color>! Otherwise it will be gone!",
-                ["GlobalAnnouncment"] = "<color=yellow>{0}</color><color=cyan> has voted </color><color=yellow>{1}</color><color=cyan> time(s) and just received their rewards. Find out where to vote by typing</color><color=yellow> /vote</color>\n<color=cyan>To see a list of avaliable rewards type</color><color=yellow> /reward list</color>",
+                ["GlobalClaimAnnouncment"] = "<color=yellow>{0}</color><color=cyan> has voted </color><color=yellow>{1}</color><color=cyan> time(s) and just received their rewards. Find out where to vote by typing</color><color=yellow> /vote</color>\n<color=cyan>To see a list of avaliable rewards type</color><color=yellow> /reward list</color>",
                 ["money"] = "{0} has been desposited into your account",
                 ["rp"] = "You have gained {0} reward points",
                 ["addlvl"] = "You have gained {0} level(s)",
@@ -74,14 +73,19 @@ namespace Oxide.Plugins
 
             _storedData = Interface.GetMod().DataFileSystem.ReadObject<StoredData>("EasyVote");
             LoadConfigValues();
-            BuildRewardList();
             BuildNumberMax();
 
             // Global announcement about HighestVote every 5min
             if (_config.Settings["HighestVoter"]?.ToLower() == "true"
-                && _config.Settings["HighestVoterRewardGroup"]?.ToString() != String.Empty)
+                && (_config.Settings["HighestVoterRewardGroup"]?.ToString() != String.Empty || _config.Settings["HighestVoterInterval"] != String.Empty))
             {
-                timer.Every(300, () => { PrintToChat(Lang("Highest", null, _config.Settings["HighestVoterRewardGroup"])); });
+                // Try parse string to float from (Config > Settings > HighestVoterInterval)
+                float configTime;
+                float.TryParse(_config.Settings["HighestVoterInterval"], out configTime);
+
+                // Convert minutes to secods
+                float time = configTime * 60;
+                timer.Every(time, () => { PrintToChat(Lang("Highest", null, _config.Settings["HighestVoterRewardGroup"])); });
             }
 
             // Checking if month is changed
@@ -89,13 +93,13 @@ namespace Oxide.Plugins
         }
         #endregion
 
-        #region Annoucment
+        #region Announcment
         void OnPlayerSleepEnded(BasePlayer player)
         {
             // Checking if month is changed
             NextMonth();
 
-            // Global annoucment highest voter
+            // Global Announcment highest voter
             if (player.userID == _storedData.highestVoter)
             {
                 if (_config.Settings["HighestVoter"]?.ToLower() == "true"
@@ -109,32 +113,40 @@ namespace Oxide.Plugins
                 }
             }
 
-            // if Annoucment is true, check player status when his SleepEnded.
-            if (_config.Settings["Annoucment"]?.ToLower() == "true")
+            // if Announcment is true, check player status when his SleepEnded.
+            if (_config.Settings["Announcment"]?.ToLower() == "true")
             {
-                if (IsEmpty(_config.Settings["RustServersID"].ToString())
-                    && IsEmpty(_config.Settings["RustServersKEY"].ToString()))
+                if (IsEmpty(_config.VoteSettings["RustServersID"].ToString())
+                    && IsEmpty(_config.VoteSettings["RustServersKEY"].ToString()))
                 {
                     _Debug(player, $"Check {player.displayName} vote status from RustServers");
 
-                    string _RustBroadcastServer = String.Format(RustServers[1], _config.Settings["RustServersKEY"], player.userID);
-                    webrequest.EnqueueGet(_RustBroadcastServer, (code, response) => CheckStatus(code, response, player), this);
+                    string _BroadcastServer = String.Format(RustServers[1], _config.VoteSettings["RustServersKEY"], player.userID);
+                    webrequest.EnqueueGet(_BroadcastServer, (code, response) => CheckStatus(code, response, player), this);
                 }
-                if (IsEmpty(_config.Settings["TopRustServersID"].ToString())
-                    && IsEmpty(_config.Settings["TopRustServersKEY"].ToString()))
+                if (IsEmpty(_config.VoteSettings["TopRustServersID"].ToString())
+                    && IsEmpty(_config.VoteSettings["TopRustServersKEY"].ToString()))
                 {
                     _Debug(player, $"Check {player.displayName} vote status from TopRustServers");
 
-                    string _TopRustBroadcastServers = String.Format(TopRustServers[1], _config.Settings["TopRustServersKEY"], player.userID);
-                    webrequest.EnqueueGet(_TopRustBroadcastServers, (code, response) => CheckStatus(code, response, player), this);
+                    string _BroadcastServer = String.Format(TopRustServers[1], _config.VoteSettings["TopRustServersKEY"], player.userID);
+                    webrequest.EnqueueGet(_BroadcastServer, (code, response) => CheckStatus(code, response, player), this);
                 }
-                if (IsEmpty(_config.Settings["BeancanID"].ToString())
-                    && IsEmpty(_config.Settings["BeancanKEY"].ToString()))
+                if (IsEmpty(_config.VoteSettings["BeancanID"].ToString())
+                    && IsEmpty(_config.VoteSettings["BeancanKEY"].ToString()))
                 {
                     _Debug(player, $"Check {player.displayName} vote status from BeancanIO");
 
-                    string _BeancanBroadcastServers = String.Format(BeancanIO[1], _config.Settings["BeancanKEY"], player.userID);
-                    webrequest.EnqueueGet(_BeancanBroadcastServers, (code, response) => CheckStatus(code, response, player), this);
+                    string _BroadcastServer = String.Format(BeancanIO[1], _config.VoteSettings["BeancanKEY"], player.userID);
+                    webrequest.EnqueueGet(_BroadcastServer, (code, response) => CheckStatus(code, response, player), this);
+                }
+                if (IsEmpty(_config.VoteSettings["TopServeursID"].ToString())
+                    && IsEmpty(_config.VoteSettings["TopServeursKEY"].ToString()))
+                {
+                    _Debug(player, $"Check {player.displayName} vote status from TopServeurs");
+
+                    string _BroadcastServer = String.Format(BeancanIO[1], _config.VoteSettings["TopServeursKEY"], player.userID);
+                    webrequest.EnqueueGet(_BroadcastServer, (code, response) => CheckStatus(code, response, player), this);
                 }
             }
         }
@@ -145,17 +157,21 @@ namespace Oxide.Plugins
         void cmdVote(BasePlayer player, string command, string[] args)
         {
             // Making sure that ID or KEY isn't Empty
-            if (IsEmpty(_config.Settings["RustServersID"].ToString())
-                && IsEmpty(_config.Settings["RustServersKEY"].ToString()))
-                Chat(player, $"<color=silver>{String.Format(RustServers[2], _config.Settings["RustServersID"])}</color>");
+            if (IsEmpty(_config.VoteSettings["RustServersID"].ToString())
+                && IsEmpty(_config.VoteSettings["RustServersKEY"].ToString()))
+                Chat(player, $"<color=silver>{String.Format(RustServers[2], _config.VoteSettings["RustServersID"])}</color>");
 
-            if (IsEmpty(_config.Settings["TopRustServersID"].ToString())
-                && IsEmpty(_config.Settings["TopRustServersKEY"].ToString()))
-                Chat(player, $"<color=silver>{String.Format(TopRustServers[2], _config.Settings["TopRustServersID"])}</color>");
+            if (IsEmpty(_config.VoteSettings["TopRustServersID"].ToString())
+                && IsEmpty(_config.VoteSettings["TopRustServersKEY"].ToString()))
+                Chat(player, $"<color=silver>{String.Format(TopRustServers[2], _config.VoteSettings["TopRustServersID"])}</color>");
 
-            if (IsEmpty(_config.Settings["BeancanID"].ToString())
-                && IsEmpty(_config.Settings["BeancanKEY"].ToString()))
-                Chat(player, $"<color=silver>{String.Format(BeancanIO[2], _config.Settings["BeancanID"])}</color>");
+            if (IsEmpty(_config.VoteSettings["BeancanID"].ToString())
+                && IsEmpty(_config.VoteSettings["BeancanKEY"].ToString()))
+                Chat(player, $"<color=silver>{String.Format(BeancanIO[2], _config.VoteSettings["BeancanID"])}</color>");
+
+            if (IsEmpty(_config.VoteSettings["TopServeursID"].ToString())
+                && IsEmpty(_config.VoteSettings["TopServeursKEY"].ToString()))
+                Chat(player, $"<color=silver>{String.Format(TopServeurs[2], _config.VoteSettings["TopServeursID"])}</color>");
 
             Chat(player, Lang("EarnReward", player.UserIDString));
         }
@@ -164,26 +180,32 @@ namespace Oxide.Plugins
         {
             var timeout = 5500f; // Timeout (in milliseconds)
 
-            if (IsEmpty(_config.Settings["RustServersKEY"].ToString()))
+            if (IsEmpty(_config.VoteSettings["RustServersKEY"].ToString()))
             {
-                string _RustServer = String.Format(RustServers[0], _config.Settings["RustServersKEY"], player.userID);
-                webrequest.EnqueueGet(_RustServer, (code, response) => ClaimReward(code, response, player, "RustServers"), this, null, timeout);
-                _Debug(player, _RustServer);
+                string _format = String.Format(RustServers[0], _config.VoteSettings["RustServersKEY"], player.userID);
+                webrequest.EnqueueGet(_format, (code, response) => ClaimReward(code, response, player, "RustServers"), this, null, timeout);
+                _Debug(player, _format);
             }
-            if (IsEmpty(_config.Settings["TopRustServersKEY"].ToString()))
+            if (IsEmpty(_config.VoteSettings["TopRustServersKEY"].ToString()))
             {
-                string _TopRustServers = String.Format(TopRustServers[0], _config.Settings["TopRustServersKEY"], player.userID);
-                webrequest.EnqueueGet(_TopRustServers, (code, response) => ClaimReward(code, response, player, "TopRustServers"), this, null, timeout);
-                _Debug(player, _TopRustServers);
+                string _format = String.Format(TopRustServers[0], _config.VoteSettings["TopRustServersKEY"], player.userID);
+                webrequest.EnqueueGet(_format, (code, response) => ClaimReward(code, response, player, "TopRustServers"), this, null, timeout);
+                _Debug(player, _format);
             }
-            if (IsEmpty(_config.Settings["BeancanKEY"].ToString()))
+            if (IsEmpty(_config.VoteSettings["BeancanKEY"].ToString()))
             {
-                string _Beancan = String.Format(BeancanIO[0], _config.Settings["BeancanKEY"], player.userID);
-                webrequest.EnqueueGet(_Beancan, (code, response) => ClaimReward(code, response, player, "BeancanIO"), this, null, timeout);
-                _Debug(player, _Beancan);
+                string _format = String.Format(BeancanIO[0], _config.VoteSettings["BeancanKEY"], player.userID);
+                webrequest.EnqueueGet(_format, (code, response) => ClaimReward(code, response, player, "BeancanIO"), this, null, timeout);
+                _Debug(player, _format);
+            }
+            if (IsEmpty(_config.VoteSettings["TopServeursKEY"].ToString()))
+            {
+                string _format = String.Format(BeancanIO[0], _config.VoteSettings["TopServeursKEY"], player.userID);
+                webrequest.EnqueueGet(_format, (code, response) => ClaimReward(code, response, player, "TopServeurs"), this, null, timeout);
+                _Debug(player, _format);
             }
 
-            timer.Once(1.5f, () =>
+            timer.Once(1.85f, () =>
             {
                 if (NoRewards && !Voted)
                     Chat(player, $"{Lang("NoRewards", player.UserIDString)}");
@@ -197,7 +219,7 @@ namespace Oxide.Plugins
                 if (args[0] == "list")
                     rewardList(player);
             }
-            catch(Exception ex) { }
+            catch (Exception ex) { }
 
         }
         /*[ChatCommand("reward")]
@@ -268,8 +290,6 @@ namespace Oxide.Plugins
                     ? (x > voted ? y : x)
                     : (y > voted ? x : y));
 
-            if (closest > voted) closest = null;
-
             _Debug(player, $"Reward Number: {closest} Voted: {voted}");
 
             // and here the magic happens.
@@ -324,8 +344,8 @@ namespace Oxide.Plugins
                     }
                 }
             }
-            if (_config.Settings["GlobalAnnouncment"]?.ToLower() == "true")
-                PrintToChat($"{Lang("GlobalAnnouncment", player.UserIDString, player.displayName, voted)}");
+            if (_config.Settings["GlobalClaimAnnouncment"]?.ToLower() == "true")
+                PrintToChat($"{Lang("GlobalClaimAnnouncment", player.UserIDString, player.displayName, voted)}");
         }
         #endregion
 
@@ -337,16 +357,22 @@ namespace Oxide.Plugins
                 Settings = new Dictionary<string, string>
                 {
                     { PluginSettings.Prefix, "<color=cyan>[EasyVote]</color>" },
-                    { PluginSettings.Annoucment, "true" },
-                    { PluginSettings.GlobalAnnouncment, "true" },
+                    { PluginSettings.Announcment, "true" },
+                    { PluginSettings.GlobalClaimAnnouncment, "true" },
                     { PluginSettings.HighestVoter, "false" },
+                    { PluginSettings.HighestVoterInterval, "10" },
                     { PluginSettings.HighestVoterRewardGroup, "hero" },
-                    { PluginSettings.RustServersID, "" },
-                    { PluginSettings.RustServersKEY, "" },
-                    { PluginSettings.TopRustServersID, "" },
-                    { PluginSettings.TopRustServersKEY, "" },
-                    { PluginSettings.BeancanID, "" },
-                    { PluginSettings.BeancanKEY, "" }
+                },
+                VoteSettings = new Dictionary<string, string>
+                {
+                    { PluginVoteSettings.RustServersID, "" },
+                    { PluginVoteSettings.RustServersKEY, "" },
+                    { PluginVoteSettings.TopRustServersID, "" },
+                    { PluginVoteSettings.TopRustServersKEY, "" },
+                    { PluginVoteSettings.BeancanID, "" },
+                    { PluginVoteSettings.BeancanKEY, "" },
+                    { PluginVoteSettings.TopServeursID, "" },
+                    { PluginVoteSettings.TopServeursKEY, "" }
                 },
                 Reward = new Dictionary<string, List<string>>
                 {
@@ -379,20 +405,27 @@ namespace Oxide.Plugins
         class PluginSettings
         {
             public const string Prefix = "Prefix";
-            public const string Annoucment = "Annoucment";
-            public const string GlobalAnnouncment = "GlobalAnnouncment";
+            public const string Announcment = "Announcment";
+            public const string GlobalClaimAnnouncment = "GlobalClaimAnnouncment";
+            public const string HighestVoterInterval = "HighestVoterInterval";
             public const string HighestVoter = "HighestVoter";
             public const string HighestVoterRewardGroup = "HighestVoterRewardGroup";
+        }
+        class PluginVoteSettings
+        {
             public const string RustServersID = "RustServersID";
             public const string RustServersKEY = "RustServersKEY";
             public const string TopRustServersID = "TopRustServersID";
             public const string TopRustServersKEY = "TopRustServersKEY";
             public const string BeancanID = "BeancanID";
             public const string BeancanKEY = "BeancanKEY";
+            public const string TopServeursID = "TopServeursID";
+            public const string TopServeursKEY = "TopServeursKEY";
         }
         class PluginConfig
         {
             public Dictionary<string, string> Settings { get; set; }
+            public Dictionary<string, string> VoteSettings { get; set; }
             public Dictionary<string, List<string>> Reward { get; set; }
             public Dictionary<string, string> Variables { get; set; }
         }
@@ -401,11 +434,12 @@ namespace Oxide.Plugins
             _config = Config.ReadObject<PluginConfig>();
             var defaultConfig = DefaultConfig();
             Merge(_config.Settings, defaultConfig.Settings);
+            Merge(_config.VoteSettings, defaultConfig.VoteSettings);
             Merge(_config.Reward, defaultConfig.Reward, true);
             Merge(_config.Variables, defaultConfig.Variables);
 
             if (!configChanged) return;
-            PrintWarning("Configuration file updated.");
+            PrintWarning("Configuration file updated!");
             Config.WriteObject(_config);
         }
         void Merge<T1, T2>(IDictionary<T1, T2> current, IDictionary<T1, T2> defaultDict, bool rewardFilter = false)
@@ -515,38 +549,6 @@ namespace Oxide.Plugins
                     continue;
                 }
                 numberMax.Add(rewardNumber);
-            }
-        }
-        private void BuildRewardList()
-        {
-            var txt = new Dictionary<string, List<string>>();
-
-            // Load & Save config Reward "Vote" to one txt list.
-            foreach (KeyValuePair<string, List<string>> kvp in _config.Reward)
-            {
-                for (int i = 0; i < kvp.Value.Count; i++)
-                {
-                    if (!txt.ContainsKey(kvp.Key))
-                        txt.Add(kvp.Key, new List<string>());
-
-                    txt[kvp.Key].Add(kvp.Value[i]);
-                }
-            }
-
-            // Create "StringBuilder"
-            foreach (var NKey in txt.Keys)
-            {
-                int voteNumber;
-                if (!int.TryParse(NKey.Replace("vote", ""), out voteNumber))
-                {
-                    PrintWarning($"Invalid vote config format \"{NKey}\"");
-                    continue;
-                }
-                RList.Append(Lang("RewardList", null, voteNumber)).AppendLine();
-                for (int i = 0; i < txt[NKey].Count(); i++)
-                {
-                    RList.Append(" - " + txt[NKey][i]).AppendLine();
-                }
             }
         }
         #endregion

@@ -11,7 +11,7 @@ using Newtonsoft.Json.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("RadPockets", "k1lly0u", "2.0.0", ResourceId = 1492)]
+    [Info("RadPockets", "k1lly0u", "2.0.1", ResourceId = 1492)]
     class RadPockets : RustPlugin
     {
         #region Fields  
@@ -31,6 +31,7 @@ namespace Oxide.Plugins
             data.Settings.Converters = new JsonConverter[] { new StringEnumConverter(), new UnityVector3Converter(), };
             RadiationZones = new List<RZ>();
             lang.RegisterMessages(Messages, this);
+            permission.RegisterPermission("radpockets.use", this);
         }
         void OnServerInitialized()
         {
@@ -110,119 +111,121 @@ namespace Oxide.Plugins
         [ChatCommand("rp")]
         void cmdRP(BasePlayer player, string command, string[] args)
         {
-            if (!player.IsAdmin()) return;
-            if (args == null || args.Length == 0)
+            if (player.IsAdmin() || permission.UserHasPermission(player.UserIDString, "radpockets.use"))
             {
-                SendReply(player, $"<color=#00CC00>{Title}  </color><color=#939393>v </color><color=#00CC00>{Version}</color>");       
-                SendReply(player, $"<color=#00CC00>/rp showall</color> - {Msg("showallsyn", player.UserIDString, true)}");
-                SendReply(player, $"<color=#00CC00>/rp shownear <opt:radius></color> - {Msg("shownearsyn", player.UserIDString, true)}");
-                SendReply(player, $"<color=#00CC00>/rp removeall</color> - {Msg("removeallsyn", player.UserIDString, true)}");
-                SendReply(player, $"<color=#00CC00>/rp removenear <opt:radius></color> - {Msg("removenearsyn", player.UserIDString, true)}");
-                SendReply(player, $"<color=#00CC00>/rp tpnear</color> - {Msg("tpnearsyn", player.UserIDString, true)}");
-                SendReply(player, $"<color=#00CC00>/rp create <radius> <radiation></color> - {Msg("createsyn", player.UserIDString, true)}");
-                return;
-            }
-            switch (args[0].ToLower())
-            {
-                case "showall":
-                    foreach(var zone in RadiationZones)                    
-                        player.SendConsoleCommand("ddraw.box", 10f, Color.green, zone.data.position, 1f);                    
+                if (args == null || args.Length == 0)
+                {
+                    SendReply(player, $"<color=#00CC00>{Title}  </color><color=#939393>v </color><color=#00CC00>{Version}</color>");
+                    SendReply(player, $"<color=#00CC00>/rp showall</color> - {Msg("showallsyn", player.UserIDString, true)}");
+                    SendReply(player, $"<color=#00CC00>/rp shownear <opt:radius></color> - {Msg("shownearsyn", player.UserIDString, true)}");
+                    SendReply(player, $"<color=#00CC00>/rp removeall</color> - {Msg("removeallsyn", player.UserIDString, true)}");
+                    SendReply(player, $"<color=#00CC00>/rp removenear <opt:radius></color> - {Msg("removenearsyn", player.UserIDString, true)}");
+                    SendReply(player, $"<color=#00CC00>/rp tpnear</color> - {Msg("tpnearsyn", player.UserIDString, true)}");
+                    SendReply(player, $"<color=#00CC00>/rp create <radius> <radiation></color> - {Msg("createsyn", player.UserIDString, true)}");
                     return;
-                case "shownear":
-                    {
-                        float distance = 0;
-                        if (args.Length >= 2)
-                            if (!float.TryParse(args[1], out distance))
-                                distance = 10f;
+                }
+                switch (args[0].ToLower())
+                {
+                    case "showall":
                         foreach (var zone in RadiationZones)
+                            player.SendConsoleCommand("ddraw.box", 10f, Color.green, zone.data.position, 1f);
+                        return;
+                    case "shownear":
                         {
-                            if (Vector3.Distance(zone.data.position, player.transform.position) <= distance)
-                                player.SendConsoleCommand("ddraw.box", 10f, Color.green, zone.data.position, 1f);
-                        }                            
-                    }                    
-                    return;
-                case "removeall":
-                    DestroyAllZones();
-                    DestroyAllComponents();
-                    storedData.radData.Clear();
-                    SaveData();
-                    SendReply(player, Msg("removedall", player.UserIDString));
-                    return;
-                case "removenear":
-                    {
-                        float distance = 0;
-                        if (args.Length >= 2)
-                            if (!float.TryParse(args[1], out distance))
-                                distance = 10f;
-                        int destCount = 0;
-                        for (int i = 0; i < RadiationZones.Count; i++)
-                        {
-                            if (Vector3.Distance(RadiationZones[i].data.position, player.transform.position) <= distance)
+                            float distance = 0;
+                            if (args.Length >= 2)
+                                if (!float.TryParse(args[1], out distance))
+                                    distance = 10f;
+                            foreach (var zone in RadiationZones)
                             {
-                                foreach (var entry in storedData.radData)
-                                {
-                                    if (entry.position == RadiationZones[i].data.position)
-                                    {
-                                        storedData.radData.Remove(entry);
-                                        SaveData();
-                                        break;
-                                    }
-                                }
-                                UnityEngine.Object.Destroy(RadiationZones[i]);
-                                RadiationZones.Remove(RadiationZones[i]);
-                                destCount++;
-                                
+                                if (Vector3.Distance(zone.data.position, player.transform.position) <= distance)
+                                    player.SendConsoleCommand("ddraw.box", 10f, Color.green, zone.data.position, 1f);
                             }
                         }
-                        SendReply(player, Msg("zonesdestroyed", player.UserIDString, true).Replace("{count}", $"</color><color=#00CC00>{destCount}</color><color=#939393>"));
-                    }
-                    return;
-                case "tpnear":
-                    object closestPosition = null;
-                    float closestDistance = 4000;
-                    foreach(var zone in RadiationZones)
-                    {
-                        var distance = Vector3.Distance(zone.data.position, player.transform.position);
-                        if (distance < closestDistance)
-                        {
-                            closestDistance = distance;
-                            closestPosition = zone.data.position;
-                        }
-                    }
-                    if (closestPosition is Vector3)
-                        player.MovePosition((Vector3)closestPosition);
-                    return;
-                case "create":
-                    if (args.Length >= 3)
-                    {
-                        float distance = 0;
-                        float radAmount = 0;
-                        if (!float.TryParse(args[1], out distance))
-                        {
-                            SendReply(player, string.Format(Msg("notanumber", player.UserIDString, true), "distance"));
-                            return;
-                        }
-                        if (!float.TryParse(args[2], out radAmount))
-                        {
-                            SendReply(player, string.Format(Msg("notanumber", player.UserIDString, true), "radiation amount"));
-                            return;
-                        }
-                        CreateZone(new PocketData
-                        {
-                            amount = radAmount,
-                            position = player.transform.position,
-                            radius = distance
-                        }, true, true);
-                        SendReply(player, Msg("createsuccess", player.UserIDString, true)
-                            .Replace("{radius}", $"</color><color=#00CC00>{distance}</color><color=#939393>")
-                            .Replace("{radamount}", $"</color><color=#00CC00>{radAmount}</color><color=#939393>")
-                            .Replace("{pos}", $"</color><color=#00CC00>{player.transform.position}</color>"));
                         return;
-                    }
-                    else SendReply(player, $"<color=#00CC00>/rp create <radius> <radiation></color> - {Msg("createsyn", player.UserIDString, true)}");
-                    return;
-                default:
-                    break;
+                    case "removeall":
+                        DestroyAllZones();
+                        DestroyAllComponents();
+                        storedData.radData.Clear();
+                        SaveData();
+                        SendReply(player, Msg("removedall", player.UserIDString));
+                        return;
+                    case "removenear":
+                        {
+                            float distance = 0;
+                            if (args.Length >= 2)
+                                if (!float.TryParse(args[1], out distance))
+                                    distance = 10f;
+                            int destCount = 0;
+                            for (int i = 0; i < RadiationZones.Count; i++)
+                            {
+                                if (Vector3.Distance(RadiationZones[i].data.position, player.transform.position) <= distance)
+                                {
+                                    foreach (var entry in storedData.radData)
+                                    {
+                                        if (entry.position == RadiationZones[i].data.position)
+                                        {
+                                            storedData.radData.Remove(entry);
+                                            SaveData();
+                                            break;
+                                        }
+                                    }
+                                    UnityEngine.Object.Destroy(RadiationZones[i]);
+                                    RadiationZones.Remove(RadiationZones[i]);
+                                    destCount++;
+
+                                }
+                            }
+                            SendReply(player, Msg("zonesdestroyed", player.UserIDString, true).Replace("{count}", $"</color><color=#00CC00>{destCount}</color><color=#939393>"));
+                        }
+                        return;
+                    case "tpnear":
+                        object closestPosition = null;
+                        float closestDistance = 4000;
+                        foreach (var zone in RadiationZones)
+                        {
+                            var distance = Vector3.Distance(zone.data.position, player.transform.position);
+                            if (distance < closestDistance)
+                            {
+                                closestDistance = distance;
+                                closestPosition = zone.data.position;
+                            }
+                        }
+                        if (closestPosition is Vector3)
+                            player.MovePosition((Vector3)closestPosition);
+                        return;
+                    case "create":
+                        if (args.Length >= 3)
+                        {
+                            float distance = 0;
+                            float radAmount = 0;
+                            if (!float.TryParse(args[1], out distance))
+                            {
+                                SendReply(player, string.Format(Msg("notanumber", player.UserIDString, true), "distance"));
+                                return;
+                            }
+                            if (!float.TryParse(args[2], out radAmount))
+                            {
+                                SendReply(player, string.Format(Msg("notanumber", player.UserIDString, true), "radiation amount"));
+                                return;
+                            }
+                            CreateZone(new PocketData
+                            {
+                                amount = radAmount,
+                                position = player.transform.position,
+                                radius = distance
+                            }, true, true);
+                            SendReply(player, Msg("createsuccess", player.UserIDString, true)
+                                .Replace("{radius}", $"</color><color=#00CC00>{distance}</color><color=#939393>")
+                                .Replace("{radamount}", $"</color><color=#00CC00>{radAmount}</color><color=#939393>")
+                                .Replace("{pos}", $"</color><color=#00CC00>{player.transform.position}</color>"));
+                            return;
+                        }
+                        else SendReply(player, $"<color=#00CC00>/rp create <radius> <radiation></color> - {Msg("createsyn", player.UserIDString, true)}");
+                        return;
+                    default:
+                        break;
+                }
             }
         }
         #endregion
@@ -260,7 +263,7 @@ namespace Oxide.Plugins
 
                 var Rads = gameObject.GetComponent<TriggerRadiation>();
                 Rads = Rads ?? gameObject.AddComponent<TriggerRadiation>();
-                Rads.RadiationAmount = data.amount;
+                Rads.RadiationAmountOverride = data.amount;
                 Rads.radiationSize = data.radius;
                 Rads.interestLayers = playerLayer;
                 Rads.enabled = true;
@@ -321,8 +324,8 @@ namespace Oxide.Plugins
             {
                 Count_Max = 30,
                 Count_Min = 15,
-                Radiation_Max = 1000,
-                Radiation_Min = 100,
+                Radiation_Max = 25,
+                Radiation_Min = 2,
                 Radius_Max = 60,
                 Radius_Min = 15
             };

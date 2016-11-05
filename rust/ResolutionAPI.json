@@ -1,8 +1,8 @@
 {
-    "name": "Authentication",
-    "description": "Players must enter a password after they wake up or else they'll be kicked.",
+    "name": "ResolutionAPI",
+    "description": "Simple plugin that provides API to plugin developers.",
     "author": "",
-    "version": "1.1.0",
+    "version": "0.1",
     "configuration": true,
     "language": "cs",
     "games": [

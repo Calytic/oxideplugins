@@ -2,7 +2,7 @@
     "name": "FauxAdmin",
     "description": "Allows Authorized players use of admin noclip and have Green chat name.",
     "author": "Colon Blow",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "configuration": true,
     "language": "cs",
     "games": [

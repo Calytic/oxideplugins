@@ -9,7 +9,7 @@ using Facepunch.Extend;
 
 namespace Oxide.Plugins
 {
-     [Info("Fishing", "Colon Blow", "1.2.1", ResourceId = 1537)]
+     [Info("Fishing", "Colon Blow", "1.2.2", ResourceId = 1537)]
      class Fishing : RustPlugin
      {
 	public int fishchance;
@@ -118,7 +118,7 @@ namespace Oxide.Plugins
         {
 
             if (Config[Key] != null)
-                var = Convert.ToSingle(Config[Key]);
+                var = System.Convert.ToSingle(Config[Key]);
             else
                 Config[Key] = var;
         }
@@ -254,7 +254,6 @@ namespace Oxide.Plugins
 		FishIcon = iconuncommonfish1;
 		SendReply(player, lang.GetMessage("uncommonfish1", this));
 		player.inventory.GiveItem(ItemManager.CreateByItemID(865679437, 2));
-
 		player.Command("note.inv", 865679437, 2);
 		}
 	if (fishtyperoll > 45 && fishtyperoll < 90)
@@ -374,6 +373,5 @@ namespace Oxide.Plugins
             BaseEntity entity = createdPrefab?.GetComponent<BaseEntity>();
             entity?.Spawn();
         }
-
      }
 }

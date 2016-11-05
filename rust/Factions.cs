@@ -11,7 +11,7 @@ using Oxide.Core;
 
 namespace Oxide.Plugins
 {
-    [Info("Factions", "Absolut", "3.4.0", ResourceId = 1919)]
+    [Info("Factions", "Absolut", "3.5.0", ResourceId = 1919)]
 
     class Factions : RustPlugin
     {
@@ -1897,7 +1897,7 @@ namespace Oxide.Plugins
                     GiveItem(player, BuildItem(entry.shortname, entry.amount, entry.skin), "");
         }
 
-        private Item BuildItem(string shortname, int amount = 1, int skin = 0)
+        private Item BuildItem(string shortname, int amount = 1, ulong skin = 0)
         {
             var definition = ItemManager.FindItemDefinition(shortname);
             if (definition != null)
@@ -7119,7 +7119,7 @@ namespace Oxide.Plugins
         class PlayerInv
         {
             public int itemid;
-            public int skin;
+            public ulong skin;
             public string container;
             public int amount;
             public float condition;
@@ -7180,7 +7180,7 @@ namespace Oxide.Plugins
         class Gear
         {
             public string shortname;
-            public int skin;
+            public ulong skin;
             public int amount;
         }
 

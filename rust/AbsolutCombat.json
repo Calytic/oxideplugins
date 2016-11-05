@@ -2,8 +2,11 @@
     "name": "AbsolutCombat",
     "description": "A Fully Customizable Combat Mod. Create Gear and Weapon Sets that can be unlocked.",
     "author": "{Midgard}Altimus Maximus",
-    "version": "1.0.1",
+    "version": "2.2.0",
     "configuration": true,
+    "require": {
+        "ImageLibrary": "*"
+    },
     "language": "cs",
     "games": [
         "rust"

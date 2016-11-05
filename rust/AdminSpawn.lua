@@ -1,7 +1,7 @@
 PLUGIN.Title        = "Admin Spawn"
 PLUGIN.Description  = "Manage administrator spawns and messages."
 PLUGIN.Author       = "InSaNe8472"
-PLUGIN.Version      = V(1,1,3)
+PLUGIN.Version      = V(1,1,4)
 PLUGIN.ResourceId   = 1644
 
 local popupApi
@@ -119,7 +119,7 @@ function PLUGIN:cmdAdminSpawn(player, cmd, args)
 		local auth = self:CheckAuth(player, ItemID, ItemName, 1)
 		if not auth then return false end
 		if args.Length > 1 and tonumber(args[1]) then SpawnAmt = args[1] end
-		local item = global.ItemManager.CreateByItemID(ItemID, tonumber(SpawnAmt))
+		local item = self:SpawnItem(ItemID, SpawnAmt)
 		item:MoveToContainer(player.inventory.containerMain, -1)
 		if self.Config.Settings.WarnChat ~= "true" then
 			local message = FormatMessage(self:Lang(player, "GivePlayer"), { player = player.displayName, amount = SpawnAmt, item = item.info.displayName.translated })
@@ -144,7 +144,7 @@ function PLUGIN:cmdAdminSpawn(player, cmd, args)
 		local auth = self:CheckAuth(player, ItemID, ItemName, 1)
 		if not auth then return false end
 		if args.Length > 2 and tonumber(args[2]) then SpawnAmt = args[2] end
-		local item = global.ItemManager.CreateByItemID(ItemID, tonumber(SpawnAmt))
+		local item = self:SpawnItem(ItemID, SpawnAmt)
 		item:MoveToContainer(targetplayer.inventory.containerMain, -1)
 		if self.Config.Settings.WarnChat ~= "true" then
 			local message = FormatMessage(self:Lang(player, "GivePlayer"), { player = targetname, amount = SpawnAmt, item = item.info.displayName.translated })
@@ -172,12 +172,11 @@ function PLUGIN:cmdAdminSpawn(player, cmd, args)
 		local auth = self:CheckAuth(player, ItemID, ItemName, 1)
 		if not auth then return false end
 		if args.Length > 1 and tonumber(args[1]) then SpawnAmt = args[1] end
-		local item_ = global.ItemManager.CreateByItemID(ItemID, tonumber(SpawnAmt))
-		local message = FormatMessage(self:Lang(player, "GiveTo"), { amount = SpawnAmt, item = item_.info.displayName.translated })
+		local item = self:SpawnItem(ItemID, SpawnAmt)
+		local message = FormatMessage(self:Lang(player, "GiveTo"), { amount = SpawnAmt, item = item.info.displayName.translated })
 		local players = global.BasePlayer.activePlayerList:GetEnumerator()
-		local item
 		while players:MoveNext() do
-			item = global.ItemManager.CreateByItemID(ItemID, tonumber(SpawnAmt))
+			item = self:SpawnItem(ItemID, SpawnAmt)
 			item:MoveToContainer(players.Current.inventory.containerMain, -1)
 			if player ~= players.Current and self.Config.Settings.WarnChat ~= "true" and self.Config.Settings.WarnGiveTo == "true" then
 				self:RustMessage(players.Current, message)
@@ -187,7 +186,7 @@ function PLUGIN:cmdAdminSpawn(player, cmd, args)
 		if self.Config.Settings.GiveAllSleeping == "true" then
 			local players = global.BasePlayer.sleepingPlayerList:GetEnumerator()
 			while players:MoveNext() do
-				item = global.ItemManager.CreateByItemID(ItemID, tonumber(SpawnAmt))
+				item = self:SpawnItem(ItemID, SpawnAmt)
 				item:MoveToContainer(players.Current.inventory.containerMain, -1)
 			end
 		end
@@ -212,7 +211,7 @@ function PLUGIN:cmdAdminSpawn(player, cmd, args)
 		local auth = self:CheckAuth(player, ItemID, ItemName, 1)
 		if not auth then return false end
 		if args.Length > 1 and tonumber(args[1]) then SpawnAmt = args[1] end
-		local item = global.ItemManager.CreateByItemID(ItemID, tonumber(SpawnAmt))
+		local item = self:SpawnItem(ItemID, SpawnAmt)
 		item:Drop(player:GetDropPosition(), player:GetDropVelocity(), player.transform.rotation)
 		if self.Config.Settings.WarnChat ~= "true" then
 			local message = FormatMessage(self:Lang(player, "GivePlayer"), { player = player.displayName, amount = SpawnAmt, item = item.info.displayName.translated })
@@ -240,10 +239,10 @@ function PLUGIN:OnServerCommand(arg)
 				if not tonumber(ItemID) then ItemID = self:GetItemID(ItemID) end
 				local auth, ItemName = self:CheckAuth(player, ItemID, arg.Args[0], 3)
 				if not auth then return false end
-				local SpawnAmt = 1
-				local item
+				local SpawnAmt, item = 1
 				if cmd == "givearm" then
-					item = global.ItemManager.CreateByItemID(tonumber(ItemID), SpawnAmt)
+				--print(ItemID.." ||| "..SpawnAmt)
+					item = self:SpawnItem(ItemID, SpawnAmt)
 					local Belt = player.inventory.containerBelt.itemList:GetEnumerator()
 					local BeltItems = 0
 					while Belt:MoveNext() do
@@ -261,7 +260,7 @@ function PLUGIN:OnServerCommand(arg)
 					if arg.Args.Length > 1 then SpawnAmt = tonumber(arg.Args[1]) end
 					if SpawnAmt == 100 then SpawnAmt = tonumber(self.Config.Settings.OneHundred) end
 					if SpawnAmt == 1000 then SpawnAmt = tonumber(self.Config.Settings.OneThousand) end
-					item = global.ItemManager.CreateByItemID(tonumber(ItemID), SpawnAmt)
+					item = self:SpawnItem(ItemID, SpawnAmt)
 					item:MoveToContainer(player.inventory.containerMain, -1)
 				end
 				self:WarnPlayers(player, player.displayName, SpawnAmt, item, player.displayName)
@@ -286,7 +285,7 @@ function PLUGIN:OnServerCommand(arg)
 				local auth = self:CheckAuth(player, ItemID, arg.Args[0], 2)
 				if not auth then return false end
 				if arg.Args.Length > 1 and tonumber(arg.Args[1]) then SpawnAmt = arg.Args[1] end
-				local item = global.ItemManager.CreateByItemID(ItemID, tonumber(SpawnAmt))
+				local item = self:SpawnItem(ItemID, SpawnAmt)
 				item:MoveToContainer(player.inventory.containerMain, -1)
 				local message = FormatMessage(self:Lang(player, "GivePlayer"), { player = player.displayName, amount = SpawnAmt, item = item.info.displayName.translated })
 				player:SendConsoleCommand("echo "..self:Lang(player, "Prefix")..message)
@@ -313,7 +312,7 @@ function PLUGIN:OnServerCommand(arg)
 				local auth = self:CheckAuth(player, ItemID, arg.Args[1], 2)
 				if not auth then return false end
 				if arg.Args.Length > 2 and tonumber(arg.Args[2]) then SpawnAmt = arg.Args[2] end
-				local item = global.ItemManager.CreateByItemID(ItemID, tonumber(SpawnAmt))
+				local item = self:SpawnItem(ItemID, SpawnAmt)
 				item:MoveToContainer(targetplayer.inventory.containerMain, -1)
 				local message = FormatMessage(self:Lang(player, "GivePlayer"), { player = targetname, amount = SpawnAmt, item = item.info.displayName.translated })
 				player:SendConsoleCommand("echo "..self:Lang(player, "Prefix")..message)
@@ -338,7 +337,7 @@ function PLUGIN:OnServerCommand(arg)
 					return false
 				end
 				if arg.Args.Length > 2 and tonumber(arg.Args[2]) then SpawnAmt = arg.Args[2] end
-				local item = global.ItemManager.CreateByItemID(ItemID, tonumber(SpawnAmt))
+				local item = self:SpawnItem(ItemID, SpawnAmt)
 				item:MoveToContainer(targetplayer.inventory.containerMain, -1)
 				local message = FormatMessage(self:Lang(nil, "GivePlayer"), { player = targetname, amount = SpawnAmt, item = item.info.displayName.translated })
 				UnityEngine.Debug.LogWarning.methodarray[0]:Invoke(nil, util.TableToArray({ StripMessage(self:Lang(player, "Prefix")..message) }))
@@ -365,12 +364,11 @@ function PLUGIN:OnServerCommand(arg)
 				local auth = self:CheckAuth(player, ItemID, arg.Args[0], 2)
 				if not auth then return false end
 				if arg.Args.Length > 1 and tonumber(arg.Args[1]) then SpawnAmt = arg.Args[1] end
-				local item_ = global.ItemManager.CreateByItemID(ItemID, tonumber(SpawnAmt))
-				local message = FormatMessage(self:Lang(player, "GiveTo"), { amount = SpawnAmt, item = item_.info.displayName.translated })
+				local item = self:SpawnItem(ItemID, SpawnAmt)
+				local message = FormatMessage(self:Lang(player, "GiveTo"), { amount = SpawnAmt, item = item.info.displayName.translated })
 				local players = global.BasePlayer.activePlayerList:GetEnumerator()
-				local item
 				while players:MoveNext() do
-					item = global.ItemManager.CreateByItemID(ItemID, tonumber(SpawnAmt))
+					item = self:SpawnItem(ItemID, SpawnAmt)
 					item:MoveToContainer(players.Current.inventory.containerMain, -1)
 					if player ~= players.Current and self.Config.Settings.WarnChat ~= "true" and self.Config.Settings.WarnGiveTo == "true" then
 						self:RustMessage(players.Current, message)
@@ -380,7 +378,7 @@ function PLUGIN:OnServerCommand(arg)
 				if self.Config.Settings.GiveAllSleeping == "true" then
 					local players = global.BasePlayer.sleepingPlayerList:GetEnumerator()
 					while players:MoveNext() do
-						item = global.ItemManager.CreateByItemID(ItemID, tonumber(SpawnAmt))
+						item = self:SpawnItem(ItemID, SpawnAmt)
 						item:MoveToContainer(players.Current.inventory.containerMain, -1)
 					end
 				end
@@ -400,12 +398,11 @@ function PLUGIN:OnServerCommand(arg)
 					return false
 				end
 				if arg.Args.Length > 1 and tonumber(arg.Args[1]) then SpawnAmt = arg.Args[1] end
-				local item_ = global.ItemManager.CreateByItemID(ItemID, tonumber(SpawnAmt))
-				local message = FormatMessage(self:Lang(nil, "GiveTo"), { amount = SpawnAmt, item = item_.info.displayName.translated })
+				local item = self:SpawnItem(ItemID, SpawnAmt)
+				local message = FormatMessage(self:Lang(nil, "GiveTo"), { amount = SpawnAmt, item = item.info.displayName.translated })
 				local players = global.BasePlayer.activePlayerList:GetEnumerator()
-				local item
 				while players:MoveNext() do
-					item = global.ItemManager.CreateByItemID(ItemID, tonumber(SpawnAmt))
+					item = self:SpawnItem(ItemID, SpawnAmt)
 					item:MoveToContainer(players.Current.inventory.containerMain, -1)
 					if self.Config.Settings.WarnChat ~= "true" and self.Config.Settings.WarnGiveTo == "true" then
 						self:RustMessage(players.Current, message)
@@ -531,6 +528,10 @@ function PLUGIN:CheckPlayer(player, target, call)
 	end
 	local targetName = target.displayName
 	return true, target, targetName
+end
+
+function PLUGIN:SpawnItem(ItemID, SpawnAmt)
+	return global.ItemManager.CreateByItemID(tonumber(ItemID), tonumber(SpawnAmt), 0)
 end
 
 function PLUGIN:WarnPlayers(player, playerName, SpawnAmt, item, target)

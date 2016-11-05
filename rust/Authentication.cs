@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Oxide.Plugins
 {
-    [Info("Authentication", "Jos\u00E9 Paulo (FaD)", 1.0)]
+    [Info("Authentication", "JosÃ© Paulo (FaD)", 1.1)]
     [Description("Players must enter a password after they wake up or else they'll be kicked.")]
     public class Authentication : RustPlugin
     {
@@ -12,7 +12,7 @@ namespace Oxide.Plugins
 			public string m_steamID;
 			public BasePlayer m_basePlayer;
 			public bool m_authenticated;
-			//public short m_retries;
+			public int m_retries;
 			public Timer m_countdown;
 			
 			public Request(string steamID, BasePlayer basePlayer)
@@ -20,6 +20,7 @@ namespace Oxide.Plugins
 				m_steamID = steamID;
 				m_basePlayer = basePlayer;
 				m_authenticated = false;
+				m_retries = 0;
 			}
 				
 		}
@@ -85,7 +86,25 @@ namespace Oxide.Plugins
 						}
 						else
 						{
-							write(player, "Incorrect password. Please try again.");
+							int max_retries = Convert.ToInt32(Config["RETRIES"]);
+							
+							request.m_retries++;
+							
+							if(max_retries > 0)
+							{
+								if(request.m_retries == max_retries)
+								{
+									request.m_basePlayer.Kick(Convert.ToString(Config["AUTHENTICATION_TIMED_OUT"]));
+								}
+								else
+								{
+									write(player, "Incorrect password. You have " + (max_retries - request.m_retries) + " retries left.");
+								}
+							}
+							else
+							{
+								write(player, "Incorrect password. Please try again.");
+							}
 						}
 						break;
 				}
@@ -127,6 +146,10 @@ namespace Oxide.Plugins
 							+ "<color=silver>/auth timeout</color> - Shows timeout;\n"
 							+ "<color=silver>/auth timeout [new timeout]</color> - Sets a new timeout;\n"
 							+ "<color=silver>/auth toggle (on/off)</color> - Toggles Authentication on/off;");
+						}
+						else if(args[0] == "retries")// /auth retries
+						{
+							write(player, "Retries: " + Convert.ToString(Config["RETRIES"]));
 						}
 						break;
 					case 2:
@@ -174,12 +197,203 @@ namespace Oxide.Plugins
 						}
 						else if(args[0] == "timeout")// /auth timeout [new timeout]
 						{
-							Config["TIMEOUT"] = Convert.ToInt32(args[1]);
-							SaveConfig();
-							write(player, "New timeout: " + Convert.ToString(Config["TIMEOUT"]) + " seconds.");
+							int converted;
+							
+							try
+							{
+								converted = Convert.ToInt32(args[1]);
+							}
+							catch(FormatException e)
+							{
+								write(player, "Could not convert " + args[1] + " to an integer.");
+								break;
+							}
+							
+							if(converted > 0)
+							{	
+								Config["TIMEOUT"] = converted;
+								SaveConfig();
+								write(player, "New timeout: " + Convert.ToString(Config["TIMEOUT"]) + " seconds.");
+							}
+							else
+							{
+								write(player, "Timeout must be greater than 0 seconds.");
+							}
+							
+						}
+						else if(args[0] == "retries")// /auth retries [new retries]
+						{
+							int converted;
+							
+							try
+							{
+								converted = Convert.ToInt32(args[1]);
+							}
+							catch(FormatException e)
+							{
+								write(player, "Could not convert " + args[1] + " to an integer.");
+								break;
+							}
+							
+							if(converted >= 0)
+							{	
+								Config["RETRIES"] = converted;
+								SaveConfig();
+								write(player, "New retries: " + Convert.ToString(Config["RETRIES"]));
+							}
+							else
+							{
+								write(player, "Retries must be a positive integer.");
+							}
 						}
 						break;
 				}
+			}
+		}
+		
+		/*Console Commands*/
+		[ConsoleCommand("global.auth")]
+        void ccmdAuth(ConsoleSystem.Arg arg)
+        {
+			var args = arg.Args;
+			
+			if(args == null)
+			{
+				Puts("Correct syntax: auth [command] (arguments)");
+				return;
+			}
+            
+			switch(args.Length)
+			{
+				case 1:
+					if(args[0] == "password")// /auth password
+					{
+						Puts("Password: " + Convert.ToString(Config["PASSWORD"]));
+					}
+					else if(args[0] == "toggle")// /auth toggle
+					{
+						Config["ENABLED"] = !isEnabled();
+						SaveConfig();
+						Puts("Authentication is now " + ((isEnabled()) ? "enabled" : "disabled") + ".");
+					}
+					else if(args[0] == "status")// /auth status
+					{
+						Puts("Authentication is " + ((isEnabled()) ? "enabled" : "disabled") + ".");
+					}
+					else if(args[0] == "timeout")
+					{
+						Puts("Timeout: " + Convert.ToString(Config["TIMEOUT"]) + " seconds.");
+					}
+					else if(args[0] == "help")// /auth help
+					{
+						Puts("Available commands:\n"
+						+ "Syntax: auth command [required] (optional)'\n"
+						+ "auth password- Shows password;\n"
+						+ "auth password [new password] - Sets a new password;\n"
+						+ "auth timeout - Shows timeout;\n"
+						+ "auth timeout [new timeout] - Sets a new timeout;\n"
+						+ "auth toggle (on/off) - Toggles Authentication on/off;");
+					}
+					else if(args[0] == "retries")// /auth retries
+					{
+						Puts("Retries: " + Convert.ToString(Config["RETRIES"]));
+					}
+					break;
+				case 2:
+					if(args[0] == "password")// /auth password [new password]
+					{
+						if(args[1] != "password" && args[1] != "help" && args[1] != "toggle" && args[1] != "status" && args[1] != "timeout")
+						{
+							Config["PASSWORD"] = args[1];
+							SaveConfig();
+							Puts("New password: " + Convert.ToString(Config["PASSWORD"]));
+						}
+					}
+					else if(args[0] == "toggle")// /auth toggle (on/off)
+					{
+						if(args[1] == "on")
+						{
+							if(!isEnabled())
+							{
+								Config["ENABLED"] = true;
+								SaveConfig();
+								Puts("Authentication is now enabled.");
+							}
+							else
+							{
+								Puts("Authentication is already enabled.");
+							}
+						}
+						else if(args[1] == "off")
+						{
+							if(isEnabled())
+							{
+								Config["ENABLED"] = false;
+								SaveConfig();
+								Puts("Authentication is now disabled.");
+							}
+							else
+							{
+								Puts("Authentication is already disabled.");
+							}
+						}
+						else
+						{
+							Puts("Correct syntax: /auth toggle (on/off)");
+						}
+					}
+					else if(args[0] == "timeout")// /auth timeout [new timeout]
+					{
+						int converted;
+						
+						try
+						{
+							converted = Convert.ToInt32(args[1]);
+						}
+						catch(FormatException e)
+						{
+							Puts("Could not convert " + args[1] + " to an integer.");
+							break;
+						}
+						
+						if(converted > 0)
+						{	
+							Config["TIMEOUT"] = converted;
+							SaveConfig();
+							Puts("New timeout: " + Convert.ToString(Config["TIMEOUT"]) + " seconds.");
+						}
+						else
+						{
+							Puts("Timeout must be greater than 0 seconds.");
+						}
+						
+					}
+					else if(args[0] == "retries")// /auth retries [new retries]
+					{
+						int converted;
+						
+						try
+						{
+							converted = Convert.ToInt32(args[1]);
+						}
+						catch(FormatException e)
+						{
+							Puts("Could not convert " + args[1] + " to an integer.");
+							break;
+						}
+						
+						if(converted >= 0)
+						{	
+							Config["RETRIES"] = converted;
+							SaveConfig();
+							Puts("New retries: " + Convert.ToString(Config["RETRIES"]));
+						}
+						else
+						{
+							Puts("Retries must be a positive integer.");
+						}
+					}
+					break;
 			}
 		}
 		
@@ -193,6 +407,7 @@ namespace Oxide.Plugins
 			LoadDefaultConfig();
 		}
 		
+		//Refreshes the request list when the plugin is reloaded
 		void Loaded()
 		{
 			LoadDefaultConfig();
@@ -201,7 +416,6 @@ namespace Oxide.Plugins
 			foreach(BasePlayer player in online)
 			{
 				Request request = new Request(player.UserIDString, player);
-				//Doesn't request the passsword if player is already connected
 				request.m_authenticated = true;
 				requests.Add(request);
 			}
@@ -216,6 +430,7 @@ namespace Oxide.Plugins
 				//Authenticate everyone if the plugin is disabled
 				request.m_authenticated = !isEnabled();
 				requests.Add(request);
+				//And don't send the request
 				if(isEnabled()) timer.Once(1, () => requestAuth(request));
 			}
 			
@@ -260,10 +475,11 @@ namespace Oxide.Plugins
 			Config["TIMEOUT"] = Config["TIMEOUT"] ?? 30;
 			Config["PASSWORD"] = Config["PASSWORD"] ?? "changeme";
 			Config["PASSWORD_REQUEST"] = Config["PASSWORD_REQUEST"] ?? "Type /auth [password] in the following {TIMEOUT} seconds to authenticate or you'll be kicked.";
+			Config["RETRIES"] = Config["RETRIES"] ?? 0;
 			Config["PREVENT_CHAT"] = Config["PREVENT_CHAT"] ?? true;
 			Config["PREVENT_CHAT_PASSWORD"] = Config["PREVENT_CHAT_PASSWORD"] ?? false;
 			Config["SYNTAX_ERROR"] = Config["SYNTAX_ERROR"] ?? "Correct syntax: /auth [password/command] (arguments)";
-			Config["AUTHENTICATION_TIMED_OUT"] = Config["AUTHENTICATION_TIMED_OUT"] ?? "You took too long to authenticate";
+			Config["AUTHENTICATION_TIMED_OUT"] = Config["AUTHENTICATION_TIMED_OUT"] ?? "You took too long to authenticate or exceeded the maximum amout of retries.";
 			Config["AUTHENTICATION_SUCCESSFUL"] = Config["AUTHENTICATION_SUCCESSFUL"] ?? "Authentication successful.";
 				
 			SaveConfig();	

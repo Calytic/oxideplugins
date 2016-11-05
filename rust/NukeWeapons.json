@@ -2,7 +2,7 @@
     "name": "NukeWeapons",
     "description": "Create nuclear ammo for a bunch of different ammo types, full GUI crafting menu and ammo gauge",
     "author": "k1lly0u",
-    "version": "0.1.41",
+    "version": "0.1.5",
     "configuration": true,
     "language": "cs",
     "games": [

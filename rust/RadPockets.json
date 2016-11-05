@@ -2,7 +2,7 @@
     "name": "RadPockets",
     "description": "Turn your server into a irradiated wasteland",
     "author": "k1lly0u",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "configuration": true,
     "language": "cs",
     "games": [

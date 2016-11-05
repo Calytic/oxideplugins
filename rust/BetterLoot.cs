@@ -13,7 +13,7 @@ using Oxide.Core;
 
 namespace Oxide.Plugins
 {
-	[Info("BetterLoot", "Fujikura/dcode", "2.9.0", ResourceId = 828)]
+	[Info("BetterLoot", "Fujikura/dcode", "2.10.0", ResourceId = 828)]
 	[Description("A complete re-implementation of the drop system")]
 	public class BetterLoot : RustPlugin
 	{
@@ -27,8 +27,6 @@ namespace Oxide.Plugins
 		StoredBlacklist storedBlacklist = new StoredBlacklist();
 
 		Dictionary<string, string> messages = new Dictionary<string, string>();
-
-		FieldInfo _xpAvailable = typeof(LootContainer).GetField("xpAvailable", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
 
 		Regex barrelEx;
 		Regex crateEx;
@@ -107,25 +105,13 @@ namespace Oxide.Plugins
 		bool enableBarrels;
 		int minItemsPerBarrel;
 		int maxItemsPerBarrel;
-		bool giveXpBarrel;
-		float minXpScaleBarrel;
-		float maxXpScaleBarrel;
 		bool enableCrates;
 		int minItemsPerCrate;
 		int maxItemsPerCrate;
-		bool giveXpCrate;
-		float minXpScaleCrate;
-		float maxXpScaleCrate;
 		int minItemsPerSupplyDrop;
 		int maxItemsPerSupplyDrop;
-		bool giveXpSupplyDrop;
-		float minXpScaleSupplyDrop;
-		float maxXpScaleSupplyDrop;
 		int minItemsPerHeliCrate;
 		int maxItemsPerHeliCrate;
-		bool giveXpHeliCrate;
-		float minXpScaleHeliCrate;
-		float maxXpScaleHeliCrate;
 		double baseItemRarity;
 		int refreshMinutes;
 		bool removeStackedContainers;
@@ -181,35 +167,23 @@ namespace Oxide.Plugins
 		maxItemsPerBarrel = Convert.ToInt32(GetConfig("Barrel", "maxItemsPerBarrel", 3));
 		refreshBarrels = Convert.ToBoolean(GetConfig("Barrel", "refreshBarrels", true));
 		barrelTypes = Convert.ToString(GetConfig("Barrel","barrelTypes","loot-barrel|loot_barrel"));
-		giveXpBarrel = Convert.ToBoolean(GetConfig("Barrel", "giveXpBarrel", true));
-		minXpScaleBarrel= Convert.ToSingle(GetConfig("Barrel", "minXpScaleBarrel", 1.0));
-		maxXpScaleBarrel = Convert.ToSingle(GetConfig("Barrel", "maxXpScaleBarrel", 1.0));
 		enableBarrels = Convert.ToBoolean(GetConfig("Barrel", "enableBarrels", true));
 
 		minItemsPerCrate = Convert.ToInt32(GetConfig("Crate", "minItemsPerCrate", 3));
 		maxItemsPerCrate = Convert.ToInt32(GetConfig("Crate", "maxItemsPerCrate", 6));
 		refreshCrates = Convert.ToBoolean(GetConfig("Crate", "refreshCrates", true));
 		crateTypes = Convert.ToString(GetConfig("Crate","crateTypes","crate_normal"));
-		giveXpCrate = Convert.ToBoolean(GetConfig("Crate", "giveXpCrate", true));
-		minXpScaleCrate = Convert.ToSingle(GetConfig("Crate", "minXpScaleCrate", 1.0));
-		maxXpScaleCrate = Convert.ToSingle(GetConfig("Crate", "maxXpScaleCrate", 1.0));
 		enableCrates = Convert.ToBoolean(GetConfig("Crate", "enableCrates", true));
 
 		minItemsPerSupplyDrop = Convert.ToInt32(GetConfig("SupplyDrop", "minItemsPerSupplyDrop", 3));
 		maxItemsPerSupplyDrop = Convert.ToInt32(GetConfig("SupplyDrop", "maxItemsPerSupplyDrop", 6));
 		includeSupplyDrop = Convert.ToBoolean(GetConfig("SupplyDrop", "includeSupplyDrop", false));
 		useCustomTableSupply = Convert.ToBoolean(GetConfig("SupplyDrop", "useCustomTableSupply", true));
-		giveXpSupplyDrop = Convert.ToBoolean(GetConfig("SupplyDrop", "giveXpSupplyDrop", true));
-		minXpScaleSupplyDrop = Convert.ToSingle(GetConfig("SupplyDrop", "minXpScaleSupplyDrop", 1.0));
-		maxXpScaleSupplyDrop = Convert.ToSingle(GetConfig("SupplyDrop", "maxXpScaleSupplyDrop", 1.0));
 
 		minItemsPerHeliCrate = Convert.ToInt32(GetConfig("HeliCrate", "minItemsPerHeliCrate", 2));
 		maxItemsPerHeliCrate = Convert.ToInt32(GetConfig("HeliCrate", "maxItemsPerHeliCrate", 4));
 		excludeHeliCrate = Convert.ToBoolean(GetConfig("HeliCrate", "excludeHeliCrate", true));
 		useCustomTableHeli = Convert.ToBoolean(GetConfig("HeliCrate", "useCustomTableHeli", true));
-		giveXpHeliCrate = Convert.ToBoolean(GetConfig("HeliCrate", "giveXpHeliCrate", true));
-		minXpScaleHeliCrate = Convert.ToSingle(GetConfig("HeliCrate", "minXpScaleHeliCrate", 1.0));
-		maxXpScaleHeliCrate = Convert.ToSingle(GetConfig("HeliCrate", "maxXpScaleHeliCrate", 1.0));
 
 		refreshMinutes = Convert.ToInt32(GetConfig("Generic", "refreshMinutes", 30));
 		enforceBlacklist = Convert.ToBoolean(GetConfig("Generic", "enforceBlacklist", false));
@@ -421,8 +395,17 @@ namespace Oxide.Plugins
 					if (item == null) continue;
 					int index = RarityIndex(item.rarity);
 					object indexoverride;
-					if (rarityItemOverride.TryGetValue(item.shortname, out indexoverride))
-						index = Convert.ToInt32(indexoverride);
+					if (index == -1)
+					{
+						if (item.category.ToString().ToLower() == "component")
+						{
+							index++;
+						}
+						if (rarityItemOverride.TryGetValue(item.shortname, out indexoverride))
+						{
+							index = Convert.ToInt32(indexoverride);
+						}
+					}
 					if (index >= 0 )
 					{
 						if (ItemExists(item.shortname)) {
@@ -443,8 +426,17 @@ namespace Oxide.Plugins
 					if (item == null) continue;
 					int index = RarityIndex(item.rarity);
 					object indexoverride;
-					if (rarityItemOverride.TryGetValue(item.shortname, out indexoverride))
-						index = Convert.ToInt32(indexoverride);
+					if (index == -1)
+					{
+						if (item.category.ToString().ToLower() == "component")
+						{
+							index++;
+						}
+						if (rarityItemOverride.TryGetValue(item.shortname, out indexoverride))
+						{
+							index = Convert.ToInt32(indexoverride);
+						}
+					}
 					if (index >= 0 )
 					{
 						if (ItemExists(item.shortname)) {
@@ -466,8 +458,17 @@ namespace Oxide.Plugins
 					if (item == null) continue;
 					int index = RarityIndex(item.rarity);
 					object indexoverride;
-					if (rarityItemOverride.TryGetValue(item.shortname, out indexoverride))
-						index = Convert.ToInt32(indexoverride);
+					if (index == -1)
+					{
+						if (item.category.ToString().ToLower() == "component")
+						{
+							index++;
+						}
+						if (rarityItemOverride.TryGetValue(item.shortname, out indexoverride))
+						{
+							index = Convert.ToInt32(indexoverride);
+						}
+					}
 					if (index >= 0 )
 					{
 						if (ItemExists(item.shortname)) {
@@ -487,8 +488,17 @@ namespace Oxide.Plugins
 				foreach (var item in originalItemsHeli) {
 					int index = RarityIndex(item.rarity);
 					object indexoverride;
-					if (rarityItemOverride.TryGetValue(item.shortname, out indexoverride))
-						index = Convert.ToInt32(indexoverride);
+					if (index == -1)
+					{
+						if (item.category.ToString().ToLower() == "component")
+						{
+							index++;
+						}
+						if (rarityItemOverride.TryGetValue(item.shortname, out indexoverride))
+						{
+							index = Convert.ToInt32(indexoverride);
+						}
+					}
 					if (index >= 0)
 					{
 						if (ItemExists(item.shortname)) {
@@ -510,8 +520,17 @@ namespace Oxide.Plugins
 				foreach (var item in originalItemsSupply) {
 					int index = RarityIndex(item.rarity);
 					object indexoverride;
-					if (rarityItemOverride.TryGetValue(item.shortname, out indexoverride))
-						index = Convert.ToInt32(indexoverride);
+					if (index == -1)
+					{
+						if (item.category.ToString().ToLower() == "component")
+						{
+							index++;
+						}
+						if (rarityItemOverride.TryGetValue(item.shortname, out indexoverride))
+						{
+							index = Convert.ToInt32(indexoverride);
+						}
+					}
 					if (index >= 0)
 					{
 						if (ItemExists(item.shortname)) {
@@ -841,9 +860,6 @@ namespace Oxide.Plugins
 			int max = 0;
 			bool refresh = false;
 			string type = "empty";
-			bool giveXp = true;
-			float minXp = 1;
-			float maxXp = 1;
 
 			if (barrelEx.IsMatch(container.gameObject.name.ToLower()) && enableBarrels) {
 				SuppressRefresh(container);
@@ -855,9 +871,6 @@ namespace Oxide.Plugins
 				else
 					type = "default";
 				refresh = refreshBarrels;
-				giveXp = giveXpBarrel;
-				minXp = minXpScaleBarrel;
-				maxXp = maxXpScaleBarrel;
 			}
 			else if (crateEx.IsMatch(container.gameObject.name.ToLower()) && enableCrates) {
 				SuppressRefresh(container);
@@ -869,9 +882,6 @@ namespace Oxide.Plugins
 				else
 					type = "default";
 				refresh = refreshCrates;
-				giveXp = giveXpCrate;
-				minXp = minXpScaleCrate;
-				maxXp = maxXpScaleCrate;
 			}
 			else if (heliEx.IsMatch(container.gameObject.name) && !excludeHeliCrate) {
 				SuppressRefresh(container);
@@ -889,10 +899,6 @@ namespace Oxide.Plugins
 					else
 						type = "default";
 				}
-				giveXp = giveXpHeliCrate;
-				minXp = minXpScaleHeliCrate;
-				maxXp = maxXpScaleHeliCrate;
-
 			}
 			else if (container is SupplyDrop && includeSupplyDrop) {
 				SuppressRefresh(container);
@@ -910,9 +916,6 @@ namespace Oxide.Plugins
 					else
 						type = "default";
 				}
-				giveXp = giveXpSupplyDrop;
-				minXp = minXpScaleSupplyDrop;
-				maxXp = maxXpScaleSupplyDrop;
 			}
 			else return; // not in List
 
@@ -921,18 +924,6 @@ namespace Oxide.Plugins
 			var n = UnityEngine.Random.Range(min,max);
 			container.inventory.capacity = n;
 			container.inventorySlots = n;
-			try { _xpAvailable.SetValue(container, giveXp); } catch {}
-			if(giveXp)
-			{
-				try {
-					if (minXp != maxXp)
-						container.xpLootedScale = UnityEngine.Random.Range(minXp,maxXp);
-					else
-						container.xpLootedScale = maxXp;
-					container.xpDestroyedScale = container.xpLootedScale;
-				} catch {}
-			}
-
 			if (n > 18) container.panelName= "largewoodbox";
 			else container.panelName= "generic";
 
@@ -1232,6 +1223,7 @@ namespace Oxide.Plugins
 						if (it.category == ItemCategory.Resources) stack = 100;		
 						if (it.category == ItemCategory.Food) stack = 10;	
 						if (it.category == ItemCategory.Medical) stack = 5;							
+						if (it.category == ItemCategory.Component) stack = 5;
 						if (stack == 0) stack = 1;
 						storedLootTable.ItemList.Add(it.shortname,stack);
 					}
@@ -1295,7 +1287,8 @@ namespace Oxide.Plugins
 						if (it.category == ItemCategory.Attire) stack = 1;						
 						if (it.category == ItemCategory.Resources) stack = 100;		
 						if (it.category == ItemCategory.Food) stack = 10;	
-						if (it.category == ItemCategory.Medical) stack = 5;							
+						if (it.category == ItemCategory.Medical) stack = 5;
+						if (it.category == ItemCategory.Component) stack = 5;						
 						if (stack == 0) stack = 1;
 						separateLootTable.ItemListBarrels.Add(it.shortname,stack);
 						separateLootTable.ItemListCrates.Add(it.shortname,stack);
@@ -1345,7 +1338,8 @@ namespace Oxide.Plugins
 						if (it.category == ItemCategory.Attire) stack = 1;						
 						if (it.category == ItemCategory.Resources) stack = 100;		
 						if (it.category == ItemCategory.Food) stack = 10;	
-						if (it.category == ItemCategory.Medical) stack = 5;							
+						if (it.category == ItemCategory.Medical) stack = 5;
+						if (it.category == ItemCategory.Component) stack = 5;							
 						if (stack == 0) stack = 1;
 						storedExportNames.ItemListStackable.Add(it.shortname,stack);
 					}
@@ -1404,7 +1398,8 @@ namespace Oxide.Plugins
 						if (it.category == ItemCategory.Attire) stack = 1;						
 						if (it.category == ItemCategory.Resources) stack = 100;		
 						if (it.category == ItemCategory.Food) stack = 10;	
-						if (it.category == ItemCategory.Medical) stack = 5;							
+						if (it.category == ItemCategory.Medical) stack = 5;
+						if (it.category == ItemCategory.Component) stack = 5;							
 						if (stack == 0) stack = 1;
 						storedSupplyDrop.ItemList.Add(it.shortname,stack);
 					}
@@ -1465,6 +1460,7 @@ namespace Oxide.Plugins
 						if (it.category == ItemCategory.Resources) stack = 100;		
 						if (it.category == ItemCategory.Food) stack = 10;	
 						if (it.category == ItemCategory.Medical) stack = 5;							
+						if (it.category == ItemCategory.Component) stack = 5;	
 						if (stack == 0) stack = 1;
 						storedHeliCrate.ItemList.Add(it.shortname,stack);
 					}

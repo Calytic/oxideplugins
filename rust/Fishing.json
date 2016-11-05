@@ -2,7 +2,7 @@
     "name": "Fishing",
     "description": "Allows players to use weapons to fish ingame",
     "author": "Colon Blow",
-    "version": "1.2.1",
+    "version": "1.2.2",
     "configuration": true,
     "language": "cs",
     "games": [

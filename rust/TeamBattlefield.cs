@@ -7,7 +7,7 @@ using System;
 
 namespace Oxide.Plugins
 {
-    [Info("TeamBattlefield", "BodyweightEnergy / k1lly0u", "2.1.1", ResourceId = 1330)]
+    [Info("TeamBattlefield", "BodyweightEnergy / k1lly0u", "2.1.2", ResourceId = 1330)]
     class TeamBattlefield : RustPlugin
     {
         #region Fields
@@ -139,11 +139,13 @@ namespace Oxide.Plugins
                         var attacker = hitInfo.Initiator.ToPlayer();
                         if (victim != attacker)
                             if (victim.GetComponent<TBPlayer>() && attacker.GetComponent<TBPlayer>())
+                            {
                                 if (victim.GetComponent<TBPlayer>().team == attacker.GetComponent<TBPlayer>().team)
                                 {
                                     hitInfo.damageTypes.ScaleAll(configData.Options.FF_DamageScale);
                                     SendReply(hitInfo.Initiator as BasePlayer, "Friendly Fire!");
                                 }
+                            }
                     }
             }
             catch (Exception ex)
@@ -155,19 +157,25 @@ namespace Oxide.Plugins
             try
             {
                 if (UseTB)
+                {
                     if (entity is BasePlayer && hitInfo.Initiator is BasePlayer)
                     {
                         if (entity as BasePlayer == null || hitInfo == null) return;
                         var victim = entity.ToPlayer();
                         var attacker = hitInfo.Initiator.ToPlayer();
                         if (victim != attacker)
+                        {
                             if (victim.GetComponent<TBPlayer>() && attacker.GetComponent<TBPlayer>())
+                            {
                                 if (victim.GetComponent<TBPlayer>().team != attacker.GetComponent<TBPlayer>().team)
                                 {
                                     attacker.GetComponent<TBPlayer>().kills++;
-                                    AddPoints(attacker, victim, attacker.GetComponent<TBPlayer>().team);
-                                }
+                                    AddPoints(attacker, victim);
+                                }                                
+                            }
+                        }
                     }
+                }
             }
             catch (Exception ex)
             {
@@ -216,11 +224,14 @@ namespace Oxide.Plugins
         }   
         private void OnPlayerDisconnected(BasePlayer player)
         {
-            if (player.GetComponent<TBPlayer>())
+            if (UseTB)
             {
-                DCPlayers.Add(player.userID, new PlayerData { kills = player.GetComponent<TBPlayer>().kills, team = player.GetComponent<TBPlayer>().team});
-                DCTimers.Add(player.userID, timer.Once(configData.Options.RemoveSleeper_Timer * 60, () => { DCPlayers.Remove(player.userID); DCTimers[player.userID].Destroy(); DCTimers.Remove(player.userID); }));
-                DestroyPlayer(player);
+                if (player.GetComponent<TBPlayer>())
+                {
+                    DCPlayers.Add(player.userID, new PlayerData { kills = player.GetComponent<TBPlayer>().kills, team = player.GetComponent<TBPlayer>().team });
+                    DCTimers.Add(player.userID, timer.Once(configData.Options.RemoveSleeper_Timer * 60, () => { DCPlayers.Remove(player.userID); DCTimers[player.userID].Destroy(); DCTimers.Remove(player.userID); }));
+                    DestroyPlayer(player);
+                }
             }
         }
         private void DestroyPlayer(BasePlayer player)
@@ -236,12 +247,13 @@ namespace Oxide.Plugins
         private void OnPlayerRespawned(BasePlayer player) 
         {
             if (UseTB)
+            {
                 if (player.GetComponent<TBPlayer>())
                 {
                     Team team = player.GetComponent<TBPlayer>().team;
                     player.inventory.Strip();
                     if (team != Team.SPECTATOR)
-                    {                        
+                    {
                         GivePlayerWeapons(player);
                         GivePlayerGear(player, team);
 
@@ -255,11 +267,13 @@ namespace Oxide.Plugins
                             MovePlayerPosition(player, (Vector3)newpos);
                     }
                 }
-                else OnPlayerInit(player);            
+                else OnPlayerInit(player);
+            }           
         }
         private object OnPlayerChat(ConsoleSystem.Arg arg)
         {
             if (UseTB)
+            {
                 if (configData.Options.UsePluginChatControl)
                 {
                     BasePlayer player = (BasePlayer)arg.connection.player;
@@ -280,10 +294,11 @@ namespace Oxide.Plugins
                                 break;
                         }
                     }
-                    string formatMsg = color + player.displayName + "</color> : " + message;
-                    SendReply(player, formatMsg);
+                    string formatMsg = $"{color} {player.displayName}</color> : {message}";
+                    PrintToChat(formatMsg);
                     return false;
                 }
+            }
             return null;
         }
         void Unload()
@@ -381,32 +396,51 @@ namespace Oxide.Plugins
                 player.InvokeRepeating("InventoryUpdate", 1f, 0.1f * UnityEngine.Random.Range(0.99f, 1.01f));
             }
         }       
-        private void AddPoints(BasePlayer player, BasePlayer victim, Team team)
+        private void AddPoints(BasePlayer player, BasePlayer victim)
         {
             string colorAttacker = "";
             string colorVictim = "";
             string prefixAttacker = "";
             string prefixVictim = "";
-            switch (team)
+            switch (player.GetComponent<TBPlayer>().team)
             {
+                case Team.NONE:
+                    return;
                 case Team.A:
                     TeamA_Score++;
-                    colorAttacker = configData.TeamA.Chat_Color;                    
-                    colorVictim = configData.TeamB.Chat_Color;
-                    prefixAttacker = configData.TeamA.Chat_Prefix;
-                    prefixVictim = configData.TeamB.Chat_Prefix;
+                    colorAttacker = configData.TeamA.Chat_Color; 
+                    prefixAttacker = configData.TeamA.Chat_Prefix;                    
                     break;
                 case Team.B:
                     TeamB_Score++;
-                    colorAttacker = configData.TeamB.Chat_Color;
-                    colorVictim = configData.TeamA.Chat_Color;
-                    prefixAttacker = configData.TeamB.Chat_Prefix;
-                    prefixVictim = configData.TeamA.Chat_Prefix;
+                    colorAttacker = configData.TeamB.Chat_Color;                    
+                    prefixAttacker = configData.TeamB.Chat_Prefix;                    
                     break;
                 case Team.ADMIN:
+                    colorAttacker = configData.Admin.Chat_Color;
+                    prefixAttacker = configData.Admin.Chat_Prefix;
                     return;
                 case Team.SPECTATOR:
                     return;
+            }
+            switch (victim.GetComponent<TBPlayer>().team)
+            {
+                case Team.NONE:
+                    return;
+                case Team.A:
+                    colorVictim = configData.TeamA.Chat_Color;
+                    prefixVictim = configData.TeamA.Chat_Prefix;
+                    break;
+                case Team.B:
+                    colorVictim = configData.TeamB.Chat_Color;
+                    prefixVictim = configData.TeamB.Chat_Prefix;
+                    break;
+                case Team.SPECTATOR:
+                    return;
+                case Team.ADMIN:
+                    colorVictim = configData.Admin.Chat_Color;
+                    prefixVictim = configData.Admin.Chat_Prefix;
+                    break;               
             }
             RefreshScoreboard();
             if (configData.Options.BroadcastDeath)
@@ -442,7 +476,7 @@ namespace Oxide.Plugins
                 foreach(var entry in teamGear)
                     GiveItem(player, BuildItem(entry.shortname, entry.amount, entry.skin), entry.container);
         }
-        private Item BuildItem(string shortname, int amount = 1, int skin = 0)
+        private Item BuildItem(string shortname, int amount = 1, ulong skin = 0)
         {
             var definition = ItemManager.FindItemDefinition(shortname);
             if (definition != null)
@@ -757,9 +791,7 @@ namespace Oxide.Plugins
             }
 
             player.GetComponent<TBPlayer>().team = team;
-
-            if (team == Team.ADMIN) return;
-                        
+           
             if (isSpec)
                 EndSpectating(player);
             player.DieInstantly();            
@@ -1104,7 +1136,7 @@ namespace Oxide.Plugins
         {
             public string name;
             public string shortname;
-            public int skin;
+            public ulong skin;
             public int amount;
             public string container;
         }
@@ -1112,7 +1144,7 @@ namespace Oxide.Plugins
         {
             public string name;
             public string shortname;
-            public int skin;
+            public ulong skin;
             public string container;
             public int amount;
             public int ammo;

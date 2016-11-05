@@ -9,7 +9,7 @@ using System.IO;
 
 namespace Oxide.Plugins
 {
-    [Info("Copy Paste", "Reneb", "3.0.17", ResourceId = 5981)]
+    [Info("Copy Paste", "Reneb", "3.0.18", ResourceId = 5981)]
     class CopyPaste : RustPlugin
     {
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -733,7 +733,7 @@ namespace Oxide.Plugins
                 try
                 {
                     var prefabname = (string)data["prefabname"];
-                    var skinid = (int)data["skinid"];
+                    var skinid = ulong.Parse(data["skinid"].ToString());
                     var pos = (Vector3)data["position"];
                     var rot = (Quaternion)data["rotation"];
 
@@ -804,7 +804,7 @@ namespace Oxide.Plugins
                                 var item = itemDef as Dictionary<string, object>;
                                 var itemid = Convert.ToInt32(item["id"]);
                                 var itemamount = Convert.ToInt32(item["amount"]);
-                                var itemskin = Convert.ToInt32(item["skinid"]);
+                                var itemskin = ulong.Parse(item["skinid"].ToString());
                                 var itemcondition = Convert.ToSingle(item["condition"]);
 
                                 var i = ItemManager.CreateByItemID(itemid, itemamount, itemskin);

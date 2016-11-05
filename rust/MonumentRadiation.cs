@@ -9,7 +9,7 @@ using Oxide.Core;
 
 namespace Oxide.Plugins
 {
-    [Info("MonumentRadiation", "k1lly0u", "0.2.04", ResourceId = 1562)]
+    [Info("MonumentRadiation", "k1lly0u", "0.2.1", ResourceId = 1562)]
     class MonumentRadiation : RustPlugin
     {
         private bool RadsOn;
@@ -36,6 +36,7 @@ namespace Oxide.Plugins
                 ConVar.Server.radiation = true;
             }
             else RadsOn = true;
+            DestroyAllComponents();
             FindMonuments();           
         }
         void Unload()
@@ -43,11 +44,19 @@ namespace Oxide.Plugins
             for (int i = 0; i < RadiationZones.Count; i++)            
                 UnityEngine.Object.Destroy(RadiationZones[i]);            
             RadiationZones.Clear();
+            DestroyAllComponents(); 
             if (!RadsOn) ConVar.Server.radiation = false;
         }
         #endregion
       
         #region Functions
+        private void DestroyAllComponents()
+        {
+            var components = UnityEngine.Object.FindObjectsOfType<RZ>();
+            if (components != null)
+                foreach (var comp in components)
+                    UnityEngine.Object.Destroy(comp);
+        }
         private void FindMonuments()
         {
             if (configData.Options.Using_HapisIsland) { CreateHapis(); return; }
@@ -324,7 +333,7 @@ namespace Oxide.Plugins
 
                 var Rads = gameObject.GetComponent<TriggerRadiation>();
                 Rads = Rads ?? gameObject.AddComponent<TriggerRadiation>();
-                Rads.RadiationAmount = RadiationAmount;
+                Rads.RadiationAmountOverride = RadiationAmount;
                 Rads.radiationSize = ZoneRadius;
                 Rads.interestLayers = playerLayer;
                 Rads.enabled = true;
@@ -519,70 +528,70 @@ namespace Oxide.Plugins
                    {
                        Activate = false,
                        Name = "Airfield",
-                       Radiation = 100,
+                       Radiation = 10,
                        Radius = 85
                    },
                    Dome = new MonumentSettings
                    {
                        Activate = false,
                        Name = "Dome",
-                       Radiation = 100,
+                       Radiation = 10,
                        Radius = 50
                    },
                    Lighthouse = new MonumentSettings
                    {
                        Activate = false,
                        Name = "Lighthouse",
-                       Radiation = 100,
+                       Radiation = 10,
                        Radius = 15
                    },
                    Powerplant = new MonumentSettings
                    {
                        Activate = false,
                        Name = "Powerplant",
-                       Radiation = 100,
+                       Radiation = 10,
                        Radius = 120
                    },
                    Radtown = new MonumentSettings
                    {
                        Activate = true,
                        Name = "Radtown",
-                       Radiation = 100,
+                       Radiation = 10,
                        Radius = 85
                    },
                    Satellite = new MonumentSettings
                    {
                        Activate = false,
                        Name = "Satellite",
-                       Radiation = 100,
+                       Radiation = 10,
                        Radius = 60
                    },
                    Trainyard = new MonumentSettings
                    {
                        Activate = false,
                        Name = "Trainyard",
-                       Radiation = 100,
+                       Radiation = 10,
                        Radius = 100
                    },
                    Tunnels = new MonumentSettings
                    {
                        Activate = false,
                        Name = "Tunnels",
-                       Radiation = 100,
+                       Radiation = 10,
                        Radius = 90
                    },
                    Warehouse = new MonumentSettings
                    {
                        Activate = false,
                        Name = "Warehouse",
-                       Radiation = 100,
+                       Radiation = 10,
                        Radius = 15
                    },
                    WaterTreatment = new MonumentSettings
                    {
                        Activate = false,
                        Name = "WaterTreatment",
-                       Radiation = 100,
+                       Radiation = 10,
                        Radius = 120
                    }
                }

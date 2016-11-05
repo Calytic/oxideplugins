@@ -13,7 +13,7 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("NukeWeapons", "k1lly0u", "0.1.41", ResourceId = 2044)]
+    [Info("NukeWeapons", "k1lly0u", "0.1.5", ResourceId = 2044)]
     class NukeWeapons : RustPlugin
     {
         #region Fields
@@ -445,7 +445,7 @@ namespace Oxide.Plugins
                     Parent = panel,
                     Components =
                     {
-                        new CuiRawImageComponent {Png = png },
+                        new CuiRawImageComponent {Png = png, Sprite = "assets/content/textures/generic/fulltransparent.tga" },
                         new CuiRectTransformComponent {AnchorMin = aMin, AnchorMax = aMax }
                     }
                 });
@@ -1073,7 +1073,7 @@ namespace Oxide.Plugins
 
                 var Rads = gameObject.GetComponent<TriggerRadiation>();
                 Rads = Rads ?? gameObject.AddComponent<TriggerRadiation>();
-                Rads.RadiationAmount = RadiationAmount;
+                Rads.RadiationAmountOverride = RadiationAmount;
                 Rads.radiationSize = ZoneRadius;
                 Rads.interestLayers = playerLayer;
                 Rads.enabled = true;

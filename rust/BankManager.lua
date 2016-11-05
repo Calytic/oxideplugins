@@ -1,7 +1,7 @@
 PLUGIN.Title        = "Bank Manager"
 PLUGIN.Description  = "Allows players to deposit and withdraw items from a bank."
 PLUGIN.Author       = "InSaNe8472"
-PLUGIN.Version      = V(1,1,4)
+PLUGIN.Version      = V(1,1,5)
 PLUGIN.ResourceId   = 1331
 
 local ClanPlugin = "Clans"
@@ -1524,7 +1524,7 @@ function PLUGIN:OpenPlayerBank(player, target)
 		if #playerData.Bank > 0 then
 			local loot = box:GetComponent("StorageContainer").inventory
 			for current, data in pairs(playerData.Bank) do
-				local item = global.ItemManager.CreateByItemID(data.item, data.quantity)
+				local item = self:SpawnItem(data.item, data.quantity)
 				if self.Config.Player.KeepDurability == "true" and data.durability then item.condition = data.durability end
 				if data.skin then
 					item.skin = data.skin
@@ -1639,7 +1639,7 @@ function PLUGIN:OpenClanBank(player, clan, group, call)
 		if #playerData.Bank > 0 then
 			local loot = box:GetComponent("StorageContainer").inventory
 			for current, data in pairs(playerData.Bank) do
-				local item = global.ItemManager.CreateByItemID(data.item, data.quantity)
+				local item = self:SpawnItem(data.item, data.quantity)
 				if self.Config.Clan.KeepDurability == "true" and data.durability then item.condition = data.durability end
 				if data.skin then
 					item.skin = data.skin
@@ -1765,7 +1765,7 @@ function PLUGIN:SaveBank(player, call)
 					if tonumber(loot.Current.amount) > tonumber(MaxStk) then
 						if not string.match(Returned, "5") then Returned = Returned.."4" end
 						Stack = tonumber(MaxStk)
-						local item = global.ItemManager.CreateByItemID(loot.Current.info.itemid, (loot.Current.amount - tonumber(MaxStk)))
+						local item = self:SpawnItem(loot.Current.info.itemid, (loot.Current.amount - tonumber(MaxStk)))
 						if not item:MoveToContainer(player.inventory.containerMain, -1) then
 							item:Drop(player:GetDropPosition(), player:GetDropVelocity(), player.transform.rotation)
 						end
@@ -1831,7 +1831,7 @@ function PLUGIN:ReturnItem(player, loot, call)
 	local KeepDurability = false
 	if call == 1 and self.Config.Player.KeepDurability == "true" then KeepDurability = true end
 	if call == 2 and self.Config.Clan.KeepDurability == "true" then KeepDurability = true end
-	local item = global.ItemManager.CreateByItemID(loot.info.itemid, loot.amount)
+	local item = self:SpawnItem(loot.info.itemid, loot.amount)
 	if KeepDurability then item.condition = loot.condition end
 	if loot.skin ~= 0 then item.skin = loot.skin end
 	if loot.contents then
@@ -1943,6 +1943,10 @@ function PLUGIN:CheckPlayer(player, target, admin)
 		end
 	end
 	return true, target, targetName, targetSteamID
+end
+
+function PLUGIN:SpawnItem(ItemID, SpawnAmt)
+	return global.ItemManager.CreateByItemID(tonumber(ItemID), tonumber(SpawnAmt), 0)
 end
 
 function PLUGIN:GetClanMember(player)

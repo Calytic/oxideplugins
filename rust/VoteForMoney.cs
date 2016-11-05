@@ -7,7 +7,7 @@ using System.Collections.Generic;
 
 namespace Oxide.Plugins
 {
-    [Info("Vote For Money", "Frenk92", "0.3.1", ResourceId = 2086)]
+    [Info("Vote For Money", "Frenk92", "0.4.1", ResourceId = 2086)]
     class VoteForMoney : RustPlugin
     {
         [PluginReference]
@@ -33,12 +33,12 @@ namespace Oxide.Plugins
         int voteInterval = 1;
         string money = "250";
         string rp = "30";
-        int xp = 10;
-        int lvl = 0;
         string kit = "";
         bool useRP = false;
         bool useEconomics = true;
         string prefix = "<color=#808000ff><b>VoteForMoney:</b></color>";
+
+        string configVersion = "0.1.0";
 
         protected override void LoadDefaultConfig()
         {
@@ -48,22 +48,6 @@ namespace Oxide.Plugins
 
         void LoadConfigData()
         {
-            //Default config
-            SetConfig("Rust-Servers - Api Key", rustServersKey);
-            SetConfig("Rust-Servers - Server ID", rustServersID);
-            SetConfig("TopRustServers - Api Key", topRustKey);
-            SetConfig("TopRustServers - Server ID", topRustID);
-            SetConfig("Vote Type", voteType);
-            SetConfig("Vote Interval", voteInterval);
-            SetConfig("Money", money);
-            SetConfig("RP", rp);
-            SetConfig("XP", xp);
-            SetConfig("Level", lvl);
-            SetConfig("Kit", kit);
-            SetConfig("Use Economics", useEconomics);
-            SetConfig("Use RP", useRP);
-            SetConfig("Prefix", prefix);
-
             //Load config
             rustServersKey = (string)ReadConfig("Rust-Servers - Api Key");
             rustServersID = (string)ReadConfig("Rust-Servers - Server ID");
@@ -73,12 +57,45 @@ namespace Oxide.Plugins
             voteInterval = Convert.ToInt16(ReadConfig("Vote Interval"));
             money = (string)ReadConfig("Money");
             rp = (string)ReadConfig("RP");
-            xp = Convert.ToInt16(ReadConfig("XP"));
-            lvl = Convert.ToInt16(ReadConfig("Level"));
             kit = (string)ReadConfig("Kit");
             useRP = Convert.ToBoolean(ReadConfig("Use RP"));
             useEconomics = Convert.ToBoolean(ReadConfig("Use Economics"));
             prefix = (string)ReadConfig("Prefix");
+
+            var version = (string)ReadConfig("Version");
+            if(version == null || version != configVersion)
+            {
+                PrintWarning("Configuration is outdate. Update in progress...");
+                Config.Clear();    
+                //Default config
+                SetConfig("Rust-Servers - Api Key", rustServersKey);
+                SetConfig("Rust-Servers - Server ID", rustServersID);
+                SetConfig("TopRustServers - Api Key", topRustKey);
+                SetConfig("TopRustServers - Server ID", topRustID);
+                SetConfig("Vote Type", voteType);
+                SetConfig("Vote Interval", voteInterval);
+                SetConfig("Money", money);
+                SetConfig("RP", rp);
+                SetConfig("Kit", kit);
+                SetConfig("Use Economics", useEconomics);
+                SetConfig("Use RP", useRP);
+                SetConfig("Prefix", prefix);
+                SetConfig("Version", configVersion);
+
+                //Load config
+                rustServersKey = (string)ReadConfig("Rust-Servers - Api Key");
+                rustServersID = (string)ReadConfig("Rust-Servers - Server ID");
+                topRustKey = (string)ReadConfig("TopRustServers - Api Key");
+                topRustID = (string)ReadConfig("TopRustServers - Server ID");
+                voteType = (string)ReadConfig("Vote Type");
+                voteInterval = Convert.ToInt16(ReadConfig("Vote Interval"));
+                money = (string)ReadConfig("Money");
+                rp = (string)ReadConfig("RP");
+                kit = (string)ReadConfig("Kit");
+                useRP = Convert.ToBoolean(ReadConfig("Use RP"));
+                useEconomics = Convert.ToBoolean(ReadConfig("Use Economics"));
+                prefix = (string)ReadConfig("Prefix");
+            }
         }
 
         void LoadDefaultMessages()
@@ -122,8 +139,6 @@ namespace Oxide.Plugins
                 ["HelpTRSDisable"] = "/vote toprust false - disable TopRustServers.",
                 ["HelpMoney"] = "/vote money AMOUNT - edit Money reward.",
                 ["HelpRP"] = "/vote rp AMOUNT - edit RP reward.",
-                ["HelpXP"] = "/vote xp AMOUNT - edit XP reward. Insert 0 to disable.",
-                ["HelpLVL"] = "/vote lvl AMOUNT - edit Level reward. Insert 0 to disable.",
                 ["HelpKit"] = "/vote kit KITNAME - edit Kit reward.",
                 ["HelpKitDisable"] = "/vote kit false - disable Kit reward.",
                 ["HelpType"] = "/vote type day/hour - edit vote type.",
@@ -230,8 +245,6 @@ namespace Oxide.Plugins
                                     MessageChat(player, Lang("Help", player.UserIDString));
                                     MessageChat(player, Lang("HelpMoney", player.UserIDString));
                                     MessageChat(player, Lang("HelpRP", player.UserIDString));
-                                    MessageChat(player, Lang("HelpXP", player.UserIDString));
-                                    MessageChat(player, Lang("HelpLVL", player.UserIDString));
                                     MessageChat(player, Lang("HelpKit", player.UserIDString));
                                     MessageChat(player, Lang("HelpKitDisable", player.UserIDString));
                                     MessageChat(player, Lang("HelpType", player.UserIDString));
@@ -267,34 +280,6 @@ namespace Oxide.Plugins
                                 rp = args[1];
                                 SetConfig("RP", rp);
                                 MessageChat(player, Lang("EditRP", player.UserIDString, rp));
-                                break;
-                            }
-                        case "xp":
-                            {
-                                int n;
-                                bool isNumber = int.TryParse(args[1], out n);
-                                if (!isNumber)
-                                {
-                                    MessageChat(player, Lang("ErrorNumbers", player.UserIDString));
-                                    break;
-                                }
-                                xp = n;
-                                SetConfig("XP", xp);
-                                MessageChat(player, Lang("EditXP", player.UserIDString, xp));
-                                break;
-                            }
-                        case "lvl":
-                            {
-                                int n;
-                                bool isNumber = int.TryParse(args[1], out n);
-                                if (!isNumber)
-                                {
-                                    MessageChat(player, Lang("ErrorNumbers", player.UserIDString));
-                                    break;
-                                }
-                                lvl = n;
-                                SetConfig("Level", lvl);
-                                MessageChat(player, Lang("EditLVL", player.UserIDString, lvl));
                                 break;
                             }
                         case "kit":
@@ -567,23 +552,6 @@ namespace Oxide.Plugins
             {
                 ServerRewards?.Call("AddPoints", new object[] { player.userID, rp });
                 MessageChat(player, Lang("RewardRP", player.UserIDString, rp));
-            }
-
-            Rust.Xp.Agent agent = BasePlayer.FindXpAgent(player.userID);
-            if(xp > 0) //if xp == 0, xp reward is disable
-            {
-                agent.Add(Rust.Xp.Definitions.Cheat, xp);
-                MessageChat(player, Lang("RewardXP", player.UserIDString, xp));
-            }
-
-            if(lvl > 0) //if lvl == 0, level reward is disable
-            {
-                int newlvl = (int)agent.CurrentLevel + lvl;
-                if(newlvl < 100)
-                {
-                    agent.Add(Rust.Xp.Definitions.Cheat, Rust.Xp.Config.LevelToXp(newlvl) - agent.EarnedXp);
-                    MessageChat(player, Lang("RewardLVL", player.UserIDString, lvl));
-                }
             }
 
             if(kit != "") //if kit == "", kit reward is disable

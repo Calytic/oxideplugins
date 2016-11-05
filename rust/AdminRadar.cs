@@ -4,11 +4,10 @@ using System.Linq;
 using UnityEngine;
 using Oxide.Core;
 using Oxide.Core.Plugins;
-using Rust.Xp;
 
 namespace Oxide.Plugins
 {
-    [Info("Player Radar", "Austinv900 & Speedy2M", "2.0.17", ResourceId = 978)]
+    [Info("Player Radar", "Austinv900 & Speedy2M", "2.0.3", ResourceId = 978)]
     [Description("Allows admins to have a Radar to help detect cheaters")]
 
     class AdminRadar : RustPlugin
@@ -16,7 +15,12 @@ namespace Oxide.Plugins
         #region External Refs
         [PluginReference]
         Plugin Godmode;
+        [PluginReference]
+        Plugin Vanish;
         #endregion
+        public AdminRadar Return() => this;
+
+        private static AdminRadar Instance;
 
         #region Libraries
         Dictionary<string, PlSettings> LoadedData = new Dictionary<string, PlSettings>();
@@ -37,7 +41,7 @@ namespace Oxide.Plugins
 
             Dictionary<string, string> ExtMessages = new Dictionary<string, string>()
             {
-                ["player"] = "{0} - |H: {1}|CW: {2}|XP: {3}|D: {4}m",
+                ["player"] = "{0} - |H: {1}|CW: {2}|AT: {3}|D: {4}m",
                 ["sleeper"] = "{0}(<color=red>Sleeping</color>) - |H: {1}|D: {2}m",
                 ["thing"] = "{0}{1} - |D: {2}m",
                 ["npc"] = "{0} - |H: {1}|D: {2}m"
@@ -52,6 +56,7 @@ namespace Oxide.Plugins
             };
 
             // Changable Variables
+            
             public string filter;
             public float RefreshTime;
             public bool ExtDetails;
@@ -67,9 +72,12 @@ namespace Oxide.Plugins
             public bool playerbox;
             public bool arrows;
 
+            AdminRadar ar = Instance;
+
             void Awake()
             {
                 player = GetComponent<BasePlayer>();
+                ar.Puts($"{ar.ConfigVersion} {ar.ChatIcon} {ar.ChatPrefix} {ar.defaultAllDistance}");
             }
 
             void radar()
@@ -82,13 +90,26 @@ namespace Oxide.Plugins
                         foreach (var target in BasePlayer.activePlayerList)
                         {
                             bool posval = target.transform.position != new Vector3(0, 0, 0);
-                            var distance = Vector3.Distance(target.transform.position, player.transform.position);
+                            var distance = Math.Round(Vector3.Distance(target.transform.position, player.transform.position), 1);
                             if (distance < setdistance && target != player && posval)
                             {
                                 var health = Math.Round(target.Health(), 0).ToString();
                                 var cw = target?.GetActiveItem()?.info?.displayName?.english ?? "None";
-                                var xp = target?.xp?.CurrentLevel.ToString() ?? "0";
-                                var msg = message.Replace("{0}", target.displayName).Replace("{1}", health).Replace("{2}", cw).Replace("{3}", xp).Replace("{4}", distance.ToString());
+								var weapon = target?.GetHeldEntity()?.GetComponent<BaseProjectile>() ?? null;
+								var attachments = string.Empty;
+								var contents = weapon?.GetItem()?.contents ?? null;
+								if (weapon != null && contents != null && contents.itemList.Count >= 1)
+								{
+								attachments += "";
+								for (int ii = 0; ii < contents.itemList.Count; ii++)
+  								{
+								var item = contents.itemList[ii];
+								if (item == null) continue;
+								attachments += item?.info?.displayName?.english ?? "None";
+								}
+								attachments += "";
+								}
+                                var msg = message.Replace("{0}", target.displayName).Replace("{1}", health).Replace("{2}", cw).Replace("{3}", attachments).Replace("{4}", distance.ToString());
 
                                 if (playerbox) player.SendConsoleCommand("ddraw.box", RefreshTime, Color.green, target.transform.position + bodyheight, target.GetHeight());
                                 player.SendConsoleCommand("ddraw.text", RefreshTime, Color.yellow, target.transform.position + textheight, msg);
@@ -104,7 +125,7 @@ namespace Oxide.Plugins
                         foreach (var sleeper in BasePlayer.sleepingPlayerList)
                         {
                             bool posval = sleeper.transform.position != new Vector3(0, 0, 0);
-                            var distance = Vector3.Distance(sleeper.transform.position, player.transform.position);
+                            var distance = Math.Round(Vector3.Distance(sleeper.transform.position, player.transform.position), 1);
                             var msg = message.Replace("{0}", sleeper.displayName).Replace("{1}", Math.Round(sleeper.Health(), 0).ToString()).Replace("{2}", distance.ToString());
                             if (distance < setdistance && posval)
                             {
@@ -121,7 +142,7 @@ namespace Oxide.Plugins
                         foreach (var Cupboard in Resources.FindObjectsOfTypeAll<BuildingPrivlidge>())
                         {
                             bool posval = Cupboard.transform.position != new Vector3(0, 0, 0);
-                            var distance = Vector3.Distance(Cupboard.transform.position, player.transform.position);
+                            var distance = Math.Round(Vector3.Distance(Cupboard.transform.position, player.transform.position), 1);
                             if (distance < setdistance && posval)
                             {
                                 var arrowSky = Cupboard.transform.position;
@@ -144,7 +165,7 @@ namespace Oxide.Plugins
                         foreach (var storage in Resources.FindObjectsOfTypeAll<StorageContainer>().Where(storage => storage.name.Contains("box.wooden.large.prefab") || storage.name.Contains("woodbox_deployed.prefab") || storage.name.Contains("heli_crate.prefab") || storage.name.Contains("small_stash_deployed.prefab")))
                         {
                             bool posval = storage.transform.position != new Vector3(0, 0, 0);
-                            var distance = Vector3.Distance(storage.transform.position, player.transform.position);
+                            var distance = Math.Round(Vector3.Distance(storage.transform.position, player.transform.position), 1);
                             if (distance < setdistance && posval)
                             {
                                 var owner = FindOwner(storage.OwnerID);
@@ -167,11 +188,11 @@ namespace Oxide.Plugins
                         foreach (var npc in Resources.FindObjectsOfTypeAll<BaseNPC>())
                         {
                             bool posval = npc.transform.position != new Vector3(0, 0, 0);
-                            var distance = Vector3.Distance(npc.transform.position, player.transform.position);
+                            var distance = Math.Round(Vector3.Distance(npc.transform.position, player.transform.position), 1);
                             if (distance < setdistance && posval)
                             {
                                 var health = Math.Round(npc.Health(), 0).ToString();
-                                var msg = message.Replace("{0}", npc.ShortPrefabName.Replace(".prefab", string.Empty)).Replace("{1}", health).Replace("{3}", distance.ToString());
+                                var msg = message.Replace("{0}", npc.ShortPrefabName.Replace(".prefab", string.Empty)).Replace("{1}", health).Replace("{2}", distance.ToString());
 
                                 player.SendConsoleCommand("ddraw.text", RefreshTime, Color.yellow, npc.transform.position + textheight, msg);
                             }
@@ -201,6 +222,7 @@ namespace Oxide.Plugins
             LoadMessages();
             LoadSavedData();
             permission.RegisterPermission("adminradar." + permAllowed, this);
+            Instance = this;
         }
         void Unload()
         {
@@ -221,18 +243,6 @@ namespace Oxide.Plugins
             if (player.GetComponent<Radar>()) { GameObject.Destroy(player.GetComponent<Radar>()); if (ActiveRadars.Contains(player.UserIDString)) ActiveRadars.Remove(player.UserIDString); }
         }
 
-        object OnXpEarn(ulong steamid)
-        {
-            string id = steamid.ToString();
-            var isGod = Godmode?.Call<bool>("IsGod", id) ?? false;
-
-            if (DenyXP && ActiveRadars.Contains(id))
-            {
-                if (isGod)  return null;
-                return (float)0;
-            }
-            return null;
-        }
         #endregion
 
         #region Configuration
@@ -240,10 +250,9 @@ namespace Oxide.Plugins
         string permAllowed;
         bool playerRadar;
         bool ShowExtData;
-        bool DenyXP;
         string ChatIcon;
         string ChatPrefix;
-        string ConfigVersion;
+        string ConfigVersion { get { return GetConfig("2.0.0", "DoNotTouch", "ConfigVersion"); } }
 
         // Filters
         bool Tplayer;
@@ -307,7 +316,6 @@ namespace Oxide.Plugins
             SetConfig("General", "Radar", "ShowExtendedDetails", true);
             SetConfig("General", "Radar", "ShowPlayerBox", true);
             SetConfig("General", "Radar", "ShowArrow", true);
-            SetConfig("General", "Radar", "DenyXP", true);
             SetConfig("General", "Chat", "IconProfile", string.Empty);
             SetConfig("General", "Chat", "ChatPrefix", "AdminRadar");
             SetConfig("General", "Commands", "GiveRadar", false);
@@ -378,7 +386,6 @@ namespace Oxide.Plugins
             ShowExtData = GetConfig(true, "General", "Radar", "ShowExtendedDetails");
             radarboxs = GetConfig(true, "General", "Radar", "ShowPlayerBox");
             radararrows = GetConfig(true, "General", "Radar", "ShowArrow");
-            DenyXP = GetConfig(true, "General", "Radar", "DenyXP");
             ChatIcon = GetConfig(string.Empty, "General", "Chat", "IconProfile");
             ChatPrefix = GetConfig("AdminRadar", "General", "Chat", "ChatPrefix");
             playerRadar = GetConfig(false, "General", "Commands", "GiveRadar");
@@ -434,7 +441,7 @@ namespace Oxide.Plugins
             limitAllDistanceLow = GetConfig(30f, "Settings", "Filters", "All", "Distance-Lowest");
             limitAllInvokeHigh = GetConfig(3f, "Settings", "Filters", "All", "Invoke-Highest");
             limitAllInvokeLow = GetConfig(1f, "Settings", "Filters", "All", "Invoke-Lowest");
-            ConfigVersion = GetConfig("2.0.0", "DoNotTouch", "ConfigVersion");
+            //ConfigVersion = GetConfig("2.0.0", "DoNotTouch", "ConfigVersion");
 
             if (ConfigVersion != "2.0.0") Puts("Config File is Outdated - Please delete current config and reload the plugin");
         }

@@ -16,7 +16,7 @@ using System.Drawing;
 
 namespace Oxide.Plugins
 {
-    [Info("LustyMap", "Kayzor / k1lly0u", "2.0.2", ResourceId = 1333)]
+    [Info("LustyMap", "Kayzor / k1lly0u", "2.0.4", ResourceId = 1333)]
     class LustyMap : RustPlugin
     {
         #region Fields
@@ -36,6 +36,7 @@ namespace Oxide.Plugins
 
         private bool activated;
         private bool isNewSave;
+        private bool isRustFriends;
         
         ImageStore storedImages;
         private DynamicConfigFile imageData;
@@ -49,19 +50,22 @@ namespace Oxide.Plugins
         private Dictionary<string, MapMarker> customMarkers;
         private Dictionary<uint, ActiveEntity> temporaryMarkers;
 
+        private Dictionary<string, List<string>> clanData;
+
         static string dataDirectory = $"file://{Interface.Oxide.DataDirectory}{Path.DirectorySeparatorChar}LustyMap{Path.DirectorySeparatorChar}";
         #endregion
         
-        #region User Class        
+        #region User Class  
         class MapUser : MonoBehaviour
         {
             private Dictionary<string, List<string>> friends;
             public HashSet<string> friendList;
 
-            private BasePlayer player;
+            public BasePlayer player;
+            public MapMode mode;
+            public MapMode lastMode;
+
             private MapMarker marker;
-            private MapMode mode;
-            private MapMode lastMode;
 
             private int mapX;
             private int mapZ;
@@ -74,8 +78,12 @@ namespace Oxide.Plugins
             private bool inEvent;
             private bool adminMode;
 
-            private string clanTag;
-              
+            private int changeCount;
+            private double lastChange;
+            private bool isBlocked;
+
+            private SpamOptions spam;
+                    
             void Awake()
             {                
                 player = GetComponent<BasePlayer>();
@@ -85,6 +93,7 @@ namespace Oxide.Plugins
                     {"FriendsAPI", new List<string>() }
                 };
                 friendList = new HashSet<string>();
+                spam = instance.configData.SpamOptions;             
                 inEvent = false;
                 mapOpen = false;
                 mode = MapMode.None;
@@ -98,16 +107,27 @@ namespace Oxide.Plugins
                     CancelInvoke("UpdateMap");
                 if (IsInvoking("UpdateMarker"))
                     CancelInvoke("UpdateMarker");
+                if (IsInvoking("Unblock"))
+                    CancelInvoke("Unblock");
                 DestroyUI();
             }
             public void InitializeComponent()
-            {                
+            {
                 if (MapSettings.friends)
                 {
                     FillFriendList();
-                    UpdateMembers();
                 }
-                if (MapSettings.minimap)
+                if (MapSettings.forcedzoom && MapSettings.complexmap)
+                {
+                    if (!instance.configData.MapOptions.StartOpen)
+                        ToggleMapType(MapMode.None);
+                    else
+                    {
+                        mapZoom = MapSettings.zoomlevel;
+                        ToggleMapType(MapMode.Complex);
+                    }
+                }
+                else if (MapSettings.minimap)
                 {
                     if (!instance.configData.MapOptions.StartOpen)
                         ToggleMapType(MapMode.None);
@@ -116,7 +136,7 @@ namespace Oxide.Plugins
                         mode = MapMode.Minimap;
                         ToggleMapType(mode);
                     }
-                }
+                }                
             }
 
             #region Friends
@@ -124,9 +144,9 @@ namespace Oxide.Plugins
             {                
                 if (instance.configData.FriendOptions.UseClans)
                 {
-                    clanTag = instance.GetClan(player.userID);
-                    if (!string.IsNullOrEmpty(clanTag))
-                        friends["Clans"] = instance.GetClanMembers(clanTag);
+                    var clanTag = instance.GetClan(player.userID);
+                    if (!string.IsNullOrEmpty(clanTag) && instance.clanData.ContainsKey(clanTag))                    
+                        friends["Clans"] = instance.clanData[clanTag];
                 }
                     
                 if (instance.configData.FriendOptions.UseFriends)
@@ -137,7 +157,10 @@ namespace Oxide.Plugins
             {
                 friendList.Clear();
                 foreach (var list in friends)
-                    friendList.Union(list.Value);
+                {
+                    foreach (var member in list.Value)
+                        friendList.Add(member);
+                }
             }
             #endregion
 
@@ -149,9 +172,11 @@ namespace Oxide.Plugins
                 if (x) mapX = pos;
                 else mapZ = pos;
             } 
-
+                        
             public void ToggleMapType(MapMode mapMode, bool zoomDestroy = false)
             {
+                if (isBlocked || IsSpam()) return;
+                
                 if (mode != MapMode.None && !zoomDestroy)                
                     DestroyUI();
 
@@ -185,8 +210,8 @@ namespace Oxide.Plugins
                             instance.OpenMiniMap(player);
                             break;
                     }
-                    if (!IsInvoking("UpdateMap"))
-                        InvokeRepeating("UpdateMap", 0.1f, instance.configData.MapOptions.UpdateSpeed);
+                    if (!IsInvoking("UpdateMap"))                    
+                        InvokeRepeating("UpdateMap", 0.1f, instance.configData.MapOptions.UpdateSpeed);                    
                 }     
             }                      
             public void UpdateMap()
@@ -233,7 +258,7 @@ namespace Oxide.Plugins
             }
             private void SwitchZoom(int zoom)
             {
-                if (zoom == 0)
+                if (zoom == 0 && MapSettings.minimap)
                 {
                     DestroyUI();
                     mapZoom = zoom;
@@ -241,6 +266,9 @@ namespace Oxide.Plugins
                 }
                 else
                 {
+                    if (zoom == 0 && !MapSettings.minimap)
+                        zoom = 1;
+
                     DestroyUI();
                     mapZoom = zoom;
                     currentX = 0;
@@ -275,6 +303,49 @@ namespace Oxide.Plugins
             }
             #endregion
 
+            #region Spam Checking
+            private bool IsSpam()
+            {
+                if (!spam.Enabled) return false;
+
+                changeCount++;
+                var current = GrabCurrentTime();
+                if (current - lastChange < spam.TimeBetweenAttempts)
+                {
+                    lastChange = current;
+                    if (changeCount > spam.WarningAttempts && changeCount < spam.DisableAttempts)
+                    {
+                        instance.SendReply(player, instance.msg("spamWarning", player.UserIDString));
+                        return false;
+                    }
+                    if (changeCount >= spam.DisableAttempts)
+                    {
+                        instance.SendReply(player, string.Format(instance.msg("spamDisable", player.UserIDString), spam.DisableSeconds));
+                        Block();
+                        Invoke("Unblock", spam.DisableSeconds);
+                        return true;
+                    }
+                }
+                else
+                {
+                    lastChange = current;
+                    changeCount = 0;
+                }
+                return false;
+            }
+            private void Block()
+            {                
+                isBlocked = true;
+                OnDestroy();
+            }
+            private void Unblock()
+            {
+                isBlocked = false;
+                ToggleMapType(lastMode);
+                instance.SendReply(player, instance.msg("spamEnable", player.UserIDString));
+            }
+            #endregion
+
             #region Other
             public bool InEvent() => inEvent;
             public bool IsAdmin() => adminMode;
@@ -283,9 +354,7 @@ namespace Oxide.Plugins
             public void DestroyUI() => LustyUI.DestroyUI(player, mode);
             private void UpdateMarker() => marker = new MapMarker { name = RemoveSpecialCharacters(player.displayName), r = GetDirection(player.eyes.rotation.eulerAngles.y), x = GetPosition(transform.position.x), z = GetPosition(transform.position.z) };
             public MapMarker GetMarker() => marker;
-            #endregion
-
-            #region API
+            
             public void ToggleMain()
             {
                 if (HasMapOpen())
@@ -401,7 +470,8 @@ namespace Oxide.Plugins
         }
         static class MapSettings
         {
-            static public bool minimap, complexmap, monuments, names, compass, caves, plane, heli, supply, debris, player, allplayers, friends;            
+            static public bool minimap, complexmap, monuments, names, compass, caves, plane, heli, supply, debris, player, allplayers, friends, forcedzoom;
+            static public int zoomlevel;       
         }
         public enum MapMode
         {
@@ -500,6 +570,7 @@ namespace Oxide.Plugins
             staticMarkers = new List<MapMarker>();
             customMarkers = new Dictionary<string, MapMarker>();
             temporaryMarkers = new Dictionary<uint, ActiveEntity>();
+            clanData = new Dictionary<string, List<string>>();
 
             lang.RegisterMessages(Messages, this);
             permission.RegisterPermission("lustymap.admin", this);
@@ -519,32 +590,37 @@ namespace Oxide.Plugins
 
             LoadVariables();
             LoadData();
+            CheckFriends();
+            GetClans();
             LoadSettings();
             FindStaticMarkers();
             ValidateImages();            
         }
         void OnPlayerInit(BasePlayer player)
         {
-            if (player == null) return; 
+            if (player == null) return;
             if (player.HasPlayerFlag(BasePlayer.PlayerFlags.ReceivingSnapshot) || player.IsSleeping())
             {
                 timer.In(2, () => OnPlayerInit(player));
                 return;
-            }           
+            }
             if (activated)
             {
                 if (!string.IsNullOrEmpty(configData.MapOptions.MapKeybind))                
                     player.Command("bind " + configData.MapOptions.MapKeybind + " LMUI_Control map");                              
 
                 var user = GetUser(player);
-                if (user == null)
+                if (user != null)
                 {
-                    var mapUser = player.gameObject.AddComponent<MapUser>();
-                    if (!mapUsers.ContainsKey(player.UserIDString))
-                        mapUsers.Add(player.UserIDString, mapUser);
-                    mapUser.InitializeComponent();
+                    UnityEngine.Object.DestroyImmediate(user);
+                    if (mapUsers.ContainsKey(player.UserIDString))
+                        mapUsers.Remove(player.UserIDString);
                 }
-                else user.InitializeComponent();
+
+                var mapUser = player.gameObject.AddComponent<MapUser>();
+                if (!mapUsers.ContainsKey(player.UserIDString))
+                    mapUsers.Add(player.UserIDString, mapUser);
+                mapUser.InitializeComponent();
             }
         }
         void OnPlayerDisconnected(BasePlayer player)
@@ -680,16 +756,21 @@ namespace Oxide.Plugins
             }              
             public static void DestroyAllUI(BasePlayer player) // Avoid if possible
             {
-                foreach (var piece in StaticMain)
-                    CuiHelper.DestroyUi(player, piece.Name);
+                if (player == null) return;
 
-                foreach (var piece in StaticMini)
-                    CuiHelper.DestroyUi(player, piece.Name);
+                if (StaticMain != null)
+                    foreach (var piece in StaticMain)
+                        CuiHelper.DestroyUi(player, piece.Name);
 
-                foreach (var piece in StaticComplex)
-                    foreach(var e in piece.Value)
-                        foreach (var c in e)
-                            CuiHelper.DestroyUi(player, c.Name);
+                if (StaticMini != null)
+                    foreach (var piece in StaticMini)
+                        CuiHelper.DestroyUi(player, piece.Name);
+
+                if (StaticComplex != null)
+                    foreach (var piece in StaticComplex)
+                        foreach(var e in piece.Value)
+                            foreach (var c in e)
+                                CuiHelper.DestroyUi(player, c.Name);
 
                 CuiHelper.DestroyUi(player, Buttons);
                 CuiHelper.DestroyUi(player, Main);
@@ -720,7 +801,7 @@ namespace Oxide.Plugins
             var mapimage = GetImage("mapimage");
             if (string.IsNullOrEmpty(mapimage))
             {
-                PrintError("Unable to load the map image! Unable to continue");
+                PrintError("Unable to load the map image from file storage. This may be caused by slow processing of the images being uploaded to your server. If this problem persists unload the plugin and delete your ImageData.json data file");
                 activated = false;
                 return;
             }
@@ -739,7 +820,7 @@ namespace Oxide.Plugins
                 if (string.IsNullOrEmpty(image)) continue;
                 LMUI.LoadImage(ref mapContainer, LustyUI.Main, image, $"{marker.x - iconsize} {marker.z - iconsize}", $"{marker.x + iconsize} {marker.z + iconsize}");
                 if (MapSettings.names)
-                    LMUI.CreateLabel(ref mapContainer, LustyUI.Main, "", marker.name, 10, $"{marker.x - 0.1} {marker.z - iconsize - 0.05}", $"{marker.x + 0.1} {marker.z - iconsize}");
+                    LMUI.CreateLabel(ref mapContainer, LustyUI.Main, "", marker.name, 10, $"{marker.x - 0.1} {marker.z - iconsize - 0.03}", $"{marker.x + 0.1} {marker.z - iconsize}");
             }
             LustyUI.StaticMain = mapContainer;
             PrintWarning("Main map generated successfully!");
@@ -752,7 +833,7 @@ namespace Oxide.Plugins
             var mapimage = GetImage("mapimage");
             if (string.IsNullOrEmpty(mapimage))
             {
-                PrintError("Unable to load the map image! Unable to continue");
+                PrintError("Unable to load the map image from file storage. This may be caused by slow processing of the images being uploaded to your server. If this problem persists unload the plugin and delete your ImageData.json data file");
                 activated = false;
                 return;
             }
@@ -811,8 +892,8 @@ namespace Oxide.Plugins
                         LMUI.LoadImage(ref mapContainer, LustyUI.Complex, imageId, $"0 0", $"1 1");
                     else
                     {
-                        PrintError($"No stored image for complex map. Slice count: {mapslices}, Column: {colNum}, Row: {rowNum}");
-                        PrintError($"Clearing data and reloading plugin to re-initialize the map splitter. Please wait!");
+                        PrintError($"Missing map piece (Slices: {mapslices}, Column: {colNum}, Row: {rowNum}). When the plugin is splitting the map you must wait for it to finish otherwise the split will not complete and this error will occur");
+                        PrintError($"The plugin will now clear all image data and reload itself to re-initialize the map splitter.");
                         storedImages.data.Clear();
                         SaveData();
                         rust.RunServerCommand("oxide.reload", new object[] { "LustyMap" });
@@ -937,7 +1018,7 @@ namespace Oxide.Plugins
             }
            
             LMUI.CreateButton(ref container, LustyUI.Buttons, LustyUI.Color("696969", 0.6f), b_text, 12, $"0 0.9", $"1 1", "LMUI_Control shrink");
-            if (MapSettings.complexmap)
+            if (MapSettings.complexmap && !MapSettings.forcedzoom)
             {
                 LMUI.CreateButton(ref container, LustyUI.Buttons, LustyUI.Color("696969", 0.6f), "+", 14, $"0 0.79", $"1 0.89", "LMUI_Control zoomin");
                 LMUI.CreateButton(ref container, LustyUI.Buttons, LustyUI.Color("696969", 0.6f), "-", 14, $"0 0.68", $"1 0.78", "LMUI_Control zoomout");
@@ -988,13 +1069,21 @@ namespace Oxide.Plugins
             var mapContainer = LMUI.CreateElementContainer(panel, "0 0 0 0", posMin, posMax);
 
             var user = GetUser(player);
-            if (user == null) return;
-            if (MapSettings.player)
+            if (user == null) return;            
+            foreach (var marker in customMarkers)
             {
-                var selfMarker = user.GetMarker();
-                var selfImage = GetImage($"self{selfMarker.r}");
-                AddIconToMap(ref mapContainer, panel, selfImage, "", iconsize * 1.25f, selfMarker.x, selfMarker.z);
+                var image = GetImage(marker.Value.icon);
+                if (string.IsNullOrEmpty(image)) continue;
+                AddIconToMap(ref mapContainer, panel, image, marker.Value.name, iconsize * 1.25f, marker.Value.x, marker.Value.z);
             }
+            foreach (var entity in temporaryMarkers)
+            {
+                var marker = entity.Value.GetMarker();
+                if (marker == null) continue;
+                var image = GetImage(marker.icon);
+                if (string.IsNullOrEmpty(image)) continue;
+                AddIconToMap(ref mapContainer, panel, image, "", iconsize * 1.4f, marker.x, marker.z);
+            }            
             if (user.IsAdmin() || MapSettings.allplayers)
             {
                 foreach (var mapuser in mapUsers)
@@ -1002,6 +1091,7 @@ namespace Oxide.Plugins
                     if (mapuser.Key == player.UserIDString) continue;
 
                     var marker = mapuser.Value.GetMarker();
+                    if (marker == null) continue;
                     var image = GetImage($"other{marker.r}");
                     if (string.IsNullOrEmpty(image)) continue;
                     AddIconToMap(ref mapContainer, panel, image, marker.name, iconsize * 1.25f, marker.x, marker.z);                    
@@ -1011,29 +1101,28 @@ namespace Oxide.Plugins
             {
                 foreach (var friendId in user.friendList)
                 {
+                    if (friendId == player.UserIDString) continue;
+
                     if (mapUsers.ContainsKey(friendId))
                     {
                         var friend = mapUsers[friendId];
                         if (friend.InEvent() && configData.MapOptions.HideEventPlayers) continue;
                         var marker = friend.GetMarker();
+                        if (marker == null) continue;
                         var image = GetImage($"friend{marker.r}");
                         if (string.IsNullOrEmpty(image)) continue;
                         AddIconToMap(ref mapContainer, panel, image, marker.name, iconsize * 1.25f, marker.x, marker.z);
                     }
                 }
             }
-            foreach (var entity in temporaryMarkers)
+            if (MapSettings.player)
             {
-                var marker = entity.Value.GetMarker();
-                var image = GetImage(marker.icon);
-                if (string.IsNullOrEmpty(image)) continue;
-                AddIconToMap(ref mapContainer, panel, image, "", iconsize * 1.5f, marker.x, marker.z);
-            }
-            foreach (var marker in customMarkers)
-            {
-                var image = GetImage(marker.Value.icon);
-                if (string.IsNullOrEmpty(image)) continue;
-                AddIconToMap(ref mapContainer, panel, image, marker.Value.name, iconsize * 1.5f, marker.Value.x, marker.Value.z);
+                var selfMarker = user.GetMarker();
+                if (selfMarker != null)
+                {
+                    var selfImage = GetImage($"self{selfMarker.r}");
+                    AddIconToMap(ref mapContainer, panel, selfImage, "", iconsize * 1.25f, selfMarker.x, selfMarker.z);
+                }
             }
 
             if (panel == LustyUI.MainOverlay)
@@ -1054,10 +1143,10 @@ namespace Oxide.Plugins
         }
         void AddIconToMap(ref CuiElementContainer mapContainer, string panel, string image, string name, float iconsize, float posX, float posZ)
         {
-            if (posX < 0.1 || posX > 0.9 || posZ < 0.1 || posZ > 0.9) return;
+            if (posX < iconsize || posX > 1 - iconsize || posZ < iconsize || posZ > 1 - iconsize) return;
             LMUI.LoadImage(ref mapContainer, panel, image, $"{posX - iconsize} {posZ - iconsize}", $"{posX + iconsize} {posZ + iconsize}");
             if (MapSettings.names)
-                LMUI.CreateLabel(ref mapContainer, panel, "", name, 10, $"{posX - 0.1} {posZ - iconsize - 0.04}", $"{posX + 0.1} {posZ - iconsize}");
+                LMUI.CreateLabel(ref mapContainer, panel, "", name, 10, $"{posX - 0.1} {posZ - iconsize - 0.025}", $"{posX + 0.1} {posZ - iconsize}");
         }        
         #endregion
 
@@ -1097,12 +1186,19 @@ namespace Oxide.Plugins
             double rowStart = 1 - ((width * row) - width);
             double rowEnd = (rowStart - (width * 3));
 
-            if (MapSettings.player)
+            foreach (var marker in customMarkers)
             {
-                var selfMarker = user.GetMarker();
-                var selfImage = GetImage($"self{selfMarker.r}");
-                if (!string.IsNullOrEmpty(selfImage))
-                    AddComplexIcon(ref mapContainer, LustyUI.ComplexOverlay, selfImage, "", iconsize * 1.25f, selfMarker.x, selfMarker.z, colStart, colEnd, rowStart, rowEnd);
+                var image = GetImage(marker.Value.icon);
+                if (string.IsNullOrEmpty(image)) continue;
+                AddComplexIcon(ref mapContainer, LustyUI.ComplexOverlay, image, "", iconsize * 1.5f, marker.Value.x, marker.Value.z, colStart, colEnd, rowStart, rowEnd);
+            }
+            foreach (var entity in temporaryMarkers)
+            {
+                var marker = entity.Value.GetMarker();
+                if (marker == null) continue;
+                var image = GetImage(marker.icon);
+                if (string.IsNullOrEmpty(image)) continue;
+                AddComplexIcon(ref mapContainer, LustyUI.ComplexOverlay, image, "", iconsize * 1.6f, marker.x, marker.z, colStart, colEnd, rowStart, rowEnd);
             }
             if (user.IsAdmin() || MapSettings.allplayers)
             {
@@ -1111,6 +1207,7 @@ namespace Oxide.Plugins
                     if (mapuser.Key == player.UserIDString) continue;
 
                     var marker = mapuser.Value.GetMarker();
+                    if (marker == null) continue;
                     var image = GetImage($"other{marker.r}");
                     if (string.IsNullOrEmpty(image)) continue;
                     AddComplexIcon(ref mapContainer, LustyUI.ComplexOverlay, image, "", iconsize * 1.25f, marker.x, marker.z, colStart, colEnd, rowStart, rowEnd);
@@ -1120,31 +1217,30 @@ namespace Oxide.Plugins
             {
                 foreach (var friendId in user.friendList)
                 {
+                    if (friendId == player.UserIDString) continue;
+
                     if (mapUsers.ContainsKey(friendId))
                     {
                         var friend = mapUsers[friendId];
                         if (friend.InEvent() && configData.MapOptions.HideEventPlayers) continue;
                         var marker = friend.GetMarker();
+                        if (marker == null) continue;
                         var image = GetImage($"friend{marker.r}");
                         if (string.IsNullOrEmpty(image)) continue;
                         AddComplexIcon(ref mapContainer, LustyUI.ComplexOverlay, image, "", iconsize * 1.25f, marker.x, marker.z, colStart, colEnd, rowStart, rowEnd);
                     }
                 }
-            }
-            foreach (var entity in temporaryMarkers)
+            }            
+            if (MapSettings.player)
             {
-                var marker = entity.Value.GetMarker();
-                var image = GetImage(marker.icon);
-                if (string.IsNullOrEmpty(image)) continue;
-                AddComplexIcon(ref mapContainer, LustyUI.ComplexOverlay, image, "", iconsize * 2, marker.x, marker.z, colStart, colEnd, rowStart, rowEnd);
+                var selfMarker = user.GetMarker();
+                if (selfMarker != null)
+                {
+                    var selfImage = GetImage($"self{selfMarker.r}");
+                    if (!string.IsNullOrEmpty(selfImage))
+                        AddComplexIcon(ref mapContainer, LustyUI.ComplexOverlay, selfImage, "", iconsize * 1.25f, selfMarker.x, selfMarker.z, colStart, colEnd, rowStart, rowEnd);
+                }
             }
-            foreach (var marker in customMarkers)
-            {
-                var image = GetImage(marker.Value.icon);
-                if (string.IsNullOrEmpty(image)) continue;
-                AddComplexIcon(ref mapContainer, LustyUI.ComplexOverlay, image, "", iconsize * 2, marker.Value.x, marker.Value.z, colStart, colEnd, rowStart, rowEnd);
-            }
-           
             if (MapSettings.compass)
                 CreateCompass(player, ref mapContainer, LustyUI.ComplexOverlay, 10, "0 -0.25", "1 -0.02");
             
@@ -1162,7 +1258,7 @@ namespace Oxide.Plugins
                 if (posX < 0 + iconsize || posX > 1 - iconsize || posZ < 0 + iconsize || posZ > 1 - iconsize) return;
                 LMUI.LoadImage(ref mapContainer, panel, image, $"{posX - iconsize} {posZ - iconsize}", $"{posX + iconsize} {posZ + iconsize}");
                 if (MapSettings.names)
-                    LMUI.CreateLabel(ref mapContainer, panel, "", name, 10, $"{posX - 0.1} {posZ - iconsize - 0.05}", $"{posX + 0.1} {posZ - iconsize}");
+                    LMUI.CreateLabel(ref mapContainer, panel, "", name, 10, $"{posX - 0.1} {posZ - iconsize - 0.025}", $"{posX + 0.1} {posZ - iconsize}");
             }
         }
         #endregion
@@ -1210,7 +1306,15 @@ namespace Oxide.Plugins
                     return;
             }
         }
-
+        [ConsoleCommand("resetmap")]
+        void ccmdResetmap(ConsoleSystem.Arg arg)
+        {
+            if (arg.connection != null) return;
+            SendReply(arg, "ResetMap Confirmed! Removing stored images and reloading the plugin to re-download your map image");
+            storedImages.data.Clear();
+            SaveData();
+            rust.RunServerCommand("oxide.reload", new object[] { "LustyMap " });
+        }
         [ChatCommand("map")]
         void cmdOpenMap(BasePlayer player, string command, string[] args)
         {
@@ -1234,7 +1338,7 @@ namespace Oxide.Plugins
                     user.ToggleMapType(MapMode.Minimap);
                 if (args[0].ToLower() == "admin")
                 {
-                    if (!permission.UserHasPermission(player.UserIDString, "lustymap.admin")) return;
+                    if (!player.IsAdmin() && !permission.UserHasPermission(player.UserIDString, "lustymap.admin")) return;
                     if (user.IsAdmin())
                     {
                         user.ToggleAdmin(false);
@@ -1248,9 +1352,55 @@ namespace Oxide.Plugins
                 }
             }
         }
+
+        [ChatCommand("marker")]
+        void cmdMarker(BasePlayer player, string command, string[] args)
+        {
+            if (!player.IsAdmin() && !permission.UserHasPermission(player.UserIDString, "lustymap.admin")) return;
+            if (args.Length == 0)
+            {
+                SendReply(player, "Add and remove markers / custom icons to the map. See the overview for information regarding using custom icons");
+                SendReply(player, "/marker add <name> <opt:iconname> - Adds a new markers with the name specified at your location.");
+                SendReply(player, "/marker remove <name> - Removes the marker with the name specified");
+                return;
+            }
+            if (args.Length < 2)
+            {
+                SendReply(player, "You must enter a marker name!");
+                return;
+            }
+            var name = args[1];
+            switch (args[0].ToLower())
+            {
+                case "add":
+                    string icon = "special";
+                    if (args.Length > 2)
+                        icon = args[2];
+                    if (AddMarker(player.transform.position.x, player.transform.position.z, name, icon))
+                        SendReply(player, $"You have successfully added a new map marker with the name: {name}");  
+                    else SendReply(player, $"A map marker with the name \"{name}\" already exists");
+                    return;
+                case "remove":
+                    if (RemoveMarker(name))
+                        SendReply(player, $"You have successfully removed the map marker with the name: {name}");
+                    else SendReply(player, $"No map marker with the name \"{name}\" exists");
+                    return;
+                default:
+                    SendReply(player, "Incorrect syntax used. type \"/marker\" for more information");
+                    break;
+            }
+        }
         #endregion
 
         #region Functions    
+        private void CheckFriends()
+        {
+            if (Friends)
+            {
+                if (Friends.ResourceId == 686)               
+                    isRustFriends = true;
+            }
+        }
         private void AddTemporaryMarker(BaseEntity entity)
         {
             if (entity == null) return;
@@ -1295,7 +1445,14 @@ namespace Oxide.Plugins
             MapSettings.friends = configData.MapMarkers.ShowFriends;
             MapSettings.names = configData.MapMarkers.ShowMarkerNames;
             MapSettings.minimap = configData.MapOptions.MinimapOptions.UseMinimap;
-            MapSettings.complexmap = configData.MapOptions.MinimapOptions.UseComplexMap;                    
+            MapSettings.complexmap = configData.MapOptions.MinimapOptions.ComplexOptions.UseComplexMap;
+            MapSettings.forcedzoom = configData.MapOptions.MinimapOptions.ComplexOptions.ForceMapZoom;
+            MapSettings.zoomlevel = configData.MapOptions.MinimapOptions.ComplexOptions.ForcedZoomLevel;
+
+            if (MapSettings.zoomlevel < 1)
+                MapSettings.zoomlevel = 1;
+            if (MapSettings.zoomlevel > 3)
+                MapSettings.zoomlevel = 3;
         }        
         private void FindStaticMarkers()
         {
@@ -1398,7 +1555,8 @@ namespace Oxide.Plugins
                     }
                 }
             }                      
-        }        
+        }
+        static double GrabCurrentTime() => DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1, 0, 0, 0)).TotalSeconds;
         #endregion
 
         #region Helpers
@@ -1447,6 +1605,9 @@ namespace Oxide.Plugins
             if (r > 0) marker.r = GetDirection(r);
 
             customMarkers.Add(name, marker);
+
+            if (!string.IsNullOrEmpty(icon) && icon != "special")
+                assets.Add(name, $"{dataDirectory}custom{Path.DirectorySeparatorChar}{icon}.png");
             SaveMarkers();
             return true;
         }
@@ -1549,68 +1710,122 @@ namespace Oxide.Plugins
             if (user != null)
                 user.ExitEvent();
         }
+
+        #region Friends
         List<string> GetFriends(ulong playerId)
         {
             if (Friends != null)
             {
-                var success = Friends?.Call("GetFriendsReverse", playerId.ToString());
-                if (success is string[])
-                {
-                    return (success as string[]).ToList();
-                }
+                if (isRustFriends)
+                    return GetRustFriends(playerId);
+                return GetUniversalFriends(playerId);
             }
             return new List<string>();
+        }
+        List<string> GetRustFriends(ulong playerId)
+        {
+            var list = new List<string>();
+            var success = Friends?.Call("IsFriendOfS", playerId.ToString());
+            if (success is string[])
+            {
+                return (success as string[]).ToList();
+            }
+            return list;
+        }
+        List<string> GetUniversalFriends(ulong playerId)
+        {
+            var success = Friends?.Call("GetFriendsReverse", playerId.ToString());
+            if (success is string[])
+            {
+                return (success as string[]).ToList();
+            }
+            return new List<string>();
+        }
+        void OnFriendAdded(object playerId, object friendId)
+        {
+            AddFriend(friendId.ToString(), "FriendsAPI", playerId.ToString(), true);
+        }
+        void OnFriendRemoved(object playerId, object friendId)
+        {
+            RemoveFriend(friendId.ToString(), "FriendsAPI", playerId.ToString(), true);
+        }
+        #endregion
+
+        #region Clans
+        void GetClans()
+        {
+            if (Clans)
+            {
+                var allClans = Clans?.Call("GetAllClans");
+                if (allClans != null && allClans is JArray)
+                {
+                    foreach(var clan in (JArray)allClans)
+                    {
+                        var name = clan.ToString();
+                        List<string> members = GetClanMembers(name);
+                        if (!clanData.ContainsKey(name))
+                            clanData.Add(name, new List<string>());
+                        clanData[name] = members;
+                    }
+                }
+            }
         }
         string GetClan(ulong playerId)
         {
-            var clanName = Clans?.Call("GetClanOf", playerId);
-            return clanName as string ?? null;
+            string clanName = Clans?.Call<string>("GetClanOf", playerId);
+            if (!string.IsNullOrEmpty(clanName))
+            {
+                if (!clanData.ContainsKey(clanName))
+                    clanData.Add(clanName, GetClanMembers(clanName));
+            }
+            return clanName;
         }
         List<string> GetClanMembers(string clanTag)
         {
+            var newList = new List<string>();
             var clan = instance.Clans?.Call("GetClan", clanTag);
             if (clan != null && clan is JObject)
-            {
+            {                
                 var members = (clan as JObject).GetValue("members");
                 if (members != null && members is JArray)
                 {
-                    List<string> memberIds = new List<string>();
                     foreach (var member in (JArray)members)
-                        memberIds.Add((string)member);
-                    return memberIds;
+                    {
+                        newList.Add(member.ToString());
+                    }
                 }
             }
-            return new List<string>();
+            return newList;
         }
-        void OnFriendAdded(string playerId, string friendId)
+        void OnClanCreate(string tag)
         {
-            AddFriend(friendId, "FriendsAPI", playerId, true);
-        }
-        void OnFriendRemoved(string playerId, string friendId)
-        {
-            RemoveFriend(friendId, "FriendsAPI", playerId, true);
+            if (!clanData.ContainsKey(tag))
+                clanData.Add(tag, GetClanMembers(tag));
         }
         void OnClanUpdate(string tag)
         {
             var members = GetClanMembers(tag);
-            foreach(var member in members)
+            if (!clanData.ContainsKey(tag))                            
+                clanData.Add(tag, members);            
+            else
             {
-                var user = GetUserByID(member);
-                if (user == null) continue;
-                RemoveFriendList(member, "Clans", true);
-                AddFriendList(member, "Clans", members, true);
-            }
+                foreach (var member in clanData[tag])                                    
+                    RemoveFriendList(member, "Clans", true); 
+                foreach(var member in members)
+                    AddFriendList(member, "Clans", members, true);
+                clanData[tag] = members;
+            }            
         }
         void OnClanDestroy(string tag)
-        {
-            var members = GetClanMembers(tag);
-            foreach (var member in members)
+        {            
+            if (clanData.ContainsKey(tag))
             {
-                var user = GetUserByID(member);
-                if (user == null) continue;
-                RemoveFriendList(member, "Clans", true);
+                foreach(var member in clanData[tag])                                    
+                    RemoveFriendList(member, "Clans", true);                
+                clanData.Remove(tag);
             }
         }
+        #endregion
         #endregion
 
         #region Config        
@@ -1651,18 +1866,33 @@ namespace Oxide.Plugins
             public string CustomMap_Filename { get; set; }
         }
         class Minimap
-        {
-            public bool UseComplexMap { get; set; }
+        {            
             public bool UseMinimap { get; set; }
             public bool OnLeftSide { get; set; }
             public float OffsetSide { get; set; }
             public float OffsetTop { get; set; }
+            public ComplexMap ComplexOptions { get; set; }
+        }
+        class ComplexMap
+        {
+            public bool UseComplexMap { get; set; }
+            public bool ForceMapZoom { get; set; }
+            public int ForcedZoomLevel { get; set; }
+        }
+        class SpamOptions
+        {
+            public int TimeBetweenAttempts { get; set; }
+            public int WarningAttempts { get; set; }
+            public int DisableAttempts { get; set; }
+            public int DisableSeconds { get; set; }
+            public bool Enabled { get; set; }
         }
         class ConfigData
         {
             public FriendLists FriendOptions { get; set; }
             public MapMarkers MapMarkers { get; set; }
             public MapOptions MapOptions { get; set; }
+            public SpamOptions SpamOptions { get; set; }
         }
         private void LoadVariables()
         {
@@ -1706,14 +1936,28 @@ namespace Oxide.Plugins
                     },
                     MinimapOptions = new Minimap
                     {
+                        ComplexOptions = new ComplexMap
+                        {
+                            ForcedZoomLevel = 1,
+                            ForceMapZoom = false,
+                            UseComplexMap = true
+                        },
                         OnLeftSide = true,
                         OffsetSide = 0,
                         OffsetTop = 0,
-                        UseComplexMap = true,
                         UseMinimap = true
                     },
                     UpdateSpeed = 1f
-                }                
+                },
+                SpamOptions = new SpamOptions
+                {
+                    DisableAttempts = 10,
+                    DisableSeconds = 120,
+                    Enabled = true,
+                    TimeBetweenAttempts = 3,
+                    WarningAttempts = 5
+                }
+                             
             };
             SaveConfig(config);
         }
@@ -1841,7 +2085,7 @@ namespace Oxide.Plugins
         void ValidateImages()
         {
             PrintWarning("Validating imagery");
-            if (isNewSave || storedImages.data.Count == 0)
+            if (isNewSave || storedImages.data.Count < 194)
                 LoadImages();
             else
             {
@@ -1855,7 +2099,7 @@ namespace Oxide.Plugins
         }
         private void LoadImages()
         {
-            PrintWarning("Images not found. Uploading images to file storage");
+            PrintWarning("Icon images have not been found. Uploading images to file storage");
 
             string[] files = new string[] { "self", "friend", "other", "heli", "plane" };
             string path = $"{dataDirectory}icons{Path.DirectorySeparatorChar}";
@@ -1878,17 +2122,23 @@ namespace Oxide.Plugins
             assets.Add("debris", $"{path}debris.png");
 
             foreach (var image in customMarkers)
-                assets.Add(image.Value.name, dataDirectory + "custom" + Path.DirectorySeparatorChar + image.Value.icon + ".png");            
+            {
+                string dir = "custom";
+                if (image.Value.icon == "special")
+                    dir = "icons";
+                assets.Add(image.Value.name, dataDirectory + dir + Path.DirectorySeparatorChar + image.Value.icon + ".png");
+            }          
         } 
         private void LoadMapImage()
         {
             if (configData.MapOptions.MapImage.CustomMap_Use)
             {
+                PrintWarning("Downloading map image to file storage. Please wait!"); 
                 assets.Add("mapimage", dataDirectory + configData.MapOptions.MapImage.CustomMap_Filename);
-                if (MapSettings.minimap && MapSettings.complexmap)
+                if (MapSettings.complexmap)
                 {
-                    PrintWarning("Attempting to split and store the complex mini-map. This may take a few moments!");
-                    AttemptSplit(dataDirectory + configData.MapOptions.MapImage.CustomMap_Filename);
+                    PrintWarning("Attempting to split and store the complex mini-map. This may take a few moments! Failure to wait for this process to finish WILL result in error!");
+                    AttemptSplit();
                 }
                 else GenerateMaps(true, MapSettings.minimap, false);
             }
@@ -1917,7 +2167,7 @@ namespace Oxide.Plugins
                 {
                     if (code == 403)
                         PrintError($"Error: {code} - Invalid API key. Unable to download map image");
-                    else PrintWarning($"Error: {code} - Couldn't get an answer from beancan.io. Unable to download map image");                    
+                    else PrintWarning($"Error: {code} - Couldn't get an answer from beancan.io. Unable to download map image. Please try again in a few minutes");                    
                 }
                 else CheckAvailability(response);
             }, this);
@@ -1966,23 +2216,23 @@ namespace Oxide.Plugins
         }
         void DownloadMap(string url)
         {
-            PrintWarning("Map generation successful! Downloading map image to file storage");
+            PrintWarning("Map generation successful! Downloading map image to file storage. Please wait!");
             assets.Add("mapimage", url);
-            if (MapSettings.minimap && MapSettings.complexmap)
+            if (MapSettings.complexmap)
             {
                 PrintWarning("Attempting to split and store the complex mini-map. This may take a while, please wait!");
-                AttemptSplit(url);
+                AttemptSplit();
             }
             else GenerateMaps(true, MapSettings.minimap, false);            
         }
         #endregion
 
         #region Map Splitter
-        void AttemptSplit(string url, int attempts = 0)
+        void AttemptSplit(int attempts = 0)
         {
             if (attempts == 5)
             {
-                PrintError("Unable to find the map image to split! Complex map has been disabled");
+                PrintError("The plugin has timed out trying to find the map image to split! Complex map has been disabled");
                 MapSettings.complexmap = false;                
                 return;
             }
@@ -1992,16 +2242,19 @@ namespace Oxide.Plugins
                 if (mapSplitter.SplitMap(imageId))
                 {
                     PrintWarning("Map split was successful!");
-                    GenerateMaps(true, true, true);
+                    GenerateMaps(true, MapSettings.minimap, true);
                 }
                 else
                 {
-                    PrintError("There was a error whilst splitting the map! Complex map has been disabled");
                     MapSettings.complexmap = false;
                     GenerateMaps(true, MapSettings.minimap, MapSettings.complexmap);
                 }
-            }            
-            else timer.Once(5, ()=> AttemptSplit(url, attempts + 1));
+            }
+            else
+            {
+                PrintWarning($"Map image not found in file store. Waiting for 10 seconds and trying again (Attempt: {attempts + 1} / 5)");
+                timer.Once(10, () => AttemptSplit(attempts + 1));
+            }
         }        
         class MapSplitter : MonoBehaviour
         {
@@ -2033,7 +2286,7 @@ namespace Oxide.Plugins
                 System.Drawing.Image img = ImageFromStorage(imageId);
                 if (img == null)
                 {
-                    instance.PrintError("There was a error retrieving the map image from file storage");
+                    instance.PrintError("There was a error retrieving the map image from file storage. This may be caused by slow processing of the images being uploaded to your server. Please wait a few minutes and try again");
                     return false;
                 }
                 foreach (var amount in new List<int> { 6, 12, 26 })//, 32 })
@@ -2076,9 +2329,9 @@ namespace Oxide.Plugins
                 {
                     img = (System.Drawing.Bitmap)((new System.Drawing.ImageConverter()).ConvertFrom(imageData));
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    instance.PrintError("Error whilst retrieving the map image from file storage");
+                    instance.PrintError("Error whilst retrieving the map image from file storage: " + ex.Message);
                 }
                 return img;
             }         
@@ -2148,7 +2401,21 @@ namespace Oxide.Plugins
             {"Plane", "Plane" },
             {"Supply Drop", "Supply Drop" },
             {"Helicopter", "Helicopter" },
-            {"Debris", "Debris" }
+            {"Debris", "Debris" },
+            {"lighthouse", "lighthouse" },
+            {"radtown", "radtown" },
+            {"spheretank", "spheretank" },
+            {"dish","dish" },
+            {"warehouse","warehouse" },
+            {"waterplant", "waterplant" },
+            {"trainyard", "trainyard" },
+            {"airfield", "airfield" },
+            {"militarytunnel", "militarytunnel" },
+            {"powerplant", "powerplant" },
+            {"cave", "cave" },
+            {"spamWarning", "Please do not spam the map. If you continue to do so your map will be temporarily disabled" },
+            {"spamDisable", "Your map has been disabled for {0} seconds" },
+            {"spamEnable", "Your map has been enabled" }
         };
         #endregion
     }

@@ -3,14 +3,13 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-
 using UnityEngine;
 using Oxide.Game.Rust;
 using Oxide.Core;
 
 namespace Oxide.Plugins
 {
-    [Info("MagazinBoost", "Fujikura", "1.2.0", ResourceId = 1962)]
+    [Info("MagazinBoost", "Fujikura", "1.2.1", ResourceId = 1962)]
     [Description("Can change magazines, ammo and conditon for most projectile weapons")]
     public class MagazinBoost : RustPlugin
     {	
@@ -73,6 +72,7 @@ namespace Oxide.Plugins
 		
 		#endregion Config
 		
+		
 		#region WeaponData
 
 		private void SetupDefaultWeapons()
@@ -131,7 +131,7 @@ namespace Oxide.Plugins
                 weaponStatsContent = list;
             }
 
-            public WeaponInventory(string name, string displayname, int maxammo, int preload, int maxcondition, string ammotype, int skinid)
+            public WeaponInventory(string name, string displayname, int maxammo, int preload, int maxcondition, string ammotype, ulong skinid)
             {
                 weaponStatsContent.Add(new WeaponStats(name, displayname, maxammo, preload, maxcondition, ammotype, skinid));
             }
@@ -155,7 +155,7 @@ namespace Oxide.Plugins
 			public int preload;
 			public int maxcondition;
 			public string ammotype;
-			public int skinid;
+			public ulong skinid;
 			public bool settingactive;
 			
 			public int servermaxammo;
@@ -166,7 +166,7 @@ namespace Oxide.Plugins
 
             public WeaponStats() { }
 
-            public WeaponStats(string name, string displayname, int maxammo, int preload, int maxcondition, string ammotype, int skinid)
+            public WeaponStats(string name, string displayname, int maxammo, int preload, int maxcondition, string ammotype, ulong skinid)
             {
                 this.name = name;
                 this.displayname = displayname;
@@ -304,7 +304,7 @@ namespace Oxide.Plugins
 					}
 					if(weaponstats.skinid != 0)
 						foreach( var skin in item.info.skins.ToList())
-							if (skin.id == weaponstats.skinid)
+							if (skin.id == (int)weaponstats.skinid)
 							{
 								item.skin = weaponstats.skinid;
 								item.GetHeldEntity().skinID = weaponstats.skinid;

@@ -10,7 +10,7 @@ using Newtonsoft.Json.Converters;
 
 namespace Oxide.Plugins
 {
-    [Info("CustomLootSpawns", "k1lly0u", "0.2.13", ResourceId = 1655)]
+    [Info("CustomLootSpawns", "k1lly0u", "0.2.2", ResourceId = 1655)]
     class CustomLootSpawns : RustPlugin
     {
         #region Fields
@@ -141,7 +141,7 @@ namespace Oxide.Plugins
             }
             boxCache.Add(newBox, ID);           
         }
-        private BaseEntity SpawnBoxEntity(string type, Vector3 pos, float rot, int skin = 0)
+        private BaseEntity SpawnBoxEntity(string type, Vector3 pos, float rot, ulong skin = 0)
         {
             BaseEntity entity = GameManager.server.CreateEntity(type, pos, Quaternion.Euler(0, rot, 0), true);
             entity.skinID = skin;
@@ -183,7 +183,7 @@ namespace Oxide.Plugins
             SaveData();
             InitializeNewBox(ID);
         }
-        private void CreateNewCLB(BasePlayer player, string name, int type, int skin = 0)
+        private void CreateNewCLB(BasePlayer player, string name, int type, ulong skin = 0)
         {
             if (boxCreators.ContainsKey(player.userID))
             {
@@ -242,7 +242,7 @@ namespace Oxide.Plugins
         #endregion
 
         #region Helper Methods
-        private Item CreateItem(int itemID, int itemAmount, int itemSkin) => ItemManager.CreateByItemID(itemID, itemAmount, itemSkin);
+        private Item CreateItem(int itemID, int itemAmount, ulong itemSkin) => ItemManager.CreateByItemID(itemID, itemAmount, itemSkin);
         private int GenerateRandomID() => UnityEngine.Random.Range(0, 999999999);
         static Vector3 GetGroundPosition(Vector3 sourcePos) // credit Wulf & Nogrod
         {
@@ -638,14 +638,14 @@ namespace Oxide.Plugins
         class BoxType
         {
             public string SkinName = null;
-            public int SkinID;
+            public ulong SkinID;
             public string Type;
         }
         class ItemStorage
         {
             public string Shortname;
             public int ID;
-            public int SkinID;
+            public ulong SkinID;
             public int Amount;
         }
         private class UnityVector3Converter : JsonConverter
