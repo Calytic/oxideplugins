@@ -2,7 +2,7 @@
     "name": "Item Skin Randomizer",
     "description": "Randomizes item skins on item creation",
     "author": "Mughisi",
-    "version": "1.0.1",
+    "version": "1.1",
     "configuration": false,
     "language": "cs",
     "games": [

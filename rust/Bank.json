@@ -2,7 +2,7 @@
     "name": "Bank",
     "description": "Safe player storage",
     "author": "Calytic",
-    "version": "0.0.4",
+    "version": "0.0.41",
     "configuration": true,
     "language": "cs",
     "games": [

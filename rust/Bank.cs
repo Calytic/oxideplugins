@@ -14,7 +14,7 @@ using Newtonsoft.Json;
 
 namespace Oxide.Plugins
 {
-    [Info("Bank", "Calytic", "0.0.4", ResourceId = 2116)]
+    [Info("Bank", "Calytic", "0.0.41", ResourceId = 2116)]
     [Description("Safe player storage")]
     class Bank : RustPlugin
     {
@@ -332,7 +332,7 @@ namespace Oxide.Plugins
         void Init() {
             Unsubscribe(nameof(CanNetworkTo));
             Unsubscribe(nameof(OnEntityTakeDamage));
-            Unsubscribe(nameof(OnItemAddedToContainer));
+            //Unsubscribe(nameof(OnItemAddedToContainer));
         }
 
         void Loaded() { 
@@ -389,6 +389,7 @@ namespace Oxide.Plugins
                 {"Denied: Generic", "You cannot do that right now"},
                 {"Cooldown: Seconds", "You are doing that too often, try again in a {0} seconds(s)."},
                 {"Cooldown: Minutes", "You are doing that too often, try again in a {0} minute(s)."},
+                {"Limit: Return", "Some items were returned to your inventory"}
             }, this);
         }
 
@@ -678,28 +679,27 @@ namespace Oxide.Plugins
             }
         }
 
-        void OnItemAddedToContainer(ItemContainer container, Item item)
-        {
-            BasePlayer player = container.playerOwner;
-            OnlinePlayer onlinePlayer;
-            if(player != null && onlinePlayers.TryGetValue(player, out onlinePlayer)) {
-                if(onlinePlayer.View != null && onlinePlayer.View.inventory == container) {
-                    int validAmount = GetValidAmount(item, container);
-                    PrintWarning(validAmount.ToString());
+        //void OnItemAddedToContainer(ItemContainer container, Item item)
+        //{
+        //    BasePlayer player = container.playerOwner;
+        //    OnlinePlayer onlinePlayer;
+        //    if(player != null && onlinePlayers.TryGetValue(player, out onlinePlayer)) {
+        //        if(onlinePlayer.View != null && onlinePlayer.View.inventory == container) {
+        //            int validAmount = GetValidAmount(item, container);
 
-                    if(validAmount <= 0) {
-                        item.MoveToContainer(container.playerOwner.inventory.containerMain);
-                        return;
-                    }
+        //            if(validAmount <= 0) {
+        //                item.MoveToContainer(container.playerOwner.inventory.containerMain);
+        //                return;
+        //            }
 
-                    if(validAmount < item.amount) {
-                        Item splitItem = item.SplitItem(item.amount - validAmount);
+        //            if(validAmount < item.amount) {
+        //                Item splitItem = item.SplitItem(item.amount - validAmount);
 
-                        splitItem.MoveToContainer(container.playerOwner.inventory.containerMain);
-                    }
-                }
-            }
-        }
+        //                splitItem.MoveToContainer(container.playerOwner.inventory.containerMain);
+        //            }
+        //        }
+        //    }
+        //}
 
         #endregion
 
@@ -775,36 +775,45 @@ namespace Oxide.Plugins
 
         #region Core methods
 
-        int GetValidAmount(Item item, ItemContainer container) {
-            
+        ItemLimit GetItemLimit(Item item) {
             ItemLimit limit;
-
-            int totalAmount = container.GetAmount(item.info.itemid, false) - item.amount;
-
             if(itemLimits.TryGetValue(item.info.shortname, out limit)) {
-                if(!limit.enabled) {
-                    return 0;
-                }
-
-                if(totalAmount < limit.minimum) {
-                    return 0;
-                }
-
-                if(totalAmount == 0 && item.amount > limit.maximum) {
-                    return limit.maximum;
-                }
-
-                if(totalAmount > limit.maximum) {
-                    return totalAmount - limit.maximum;
-                }
-
-                if(totalAmount == limit.maximum) {
-                    return 0;
-                }
+                return limit;
             }
 
-            return item.amount;
+            return null;
         }
+
+        //int GetValidAmount(Item item, ItemContainer container) {
+            
+        //    ItemLimit limit;
+
+        //    int totalAmount = container.GetAmount(item.info.itemid, false) - item.amount;
+
+        //    if(itemLimits.TryGetValue(item.info.shortname, out limit)) {
+        //        if(!limit.enabled) {
+        //            return 0;
+        //        }
+
+        //        if(totalAmount < limit.minimum) {
+        //            return 0;
+        //        }
+
+        //        if(totalAmount == 0 && item.amount > limit.maximum) {
+        //            return limit.maximum;
+        //        }
+
+        //        if(totalAmount > limit.maximum) {
+        //            return totalAmount - limit.maximum;
+        //        }
+
+        //        if(totalAmount == limit.maximum) {
+        //            return 0;
+        //        }
+        //    }
+
+        //    return item.amount;
+        //}
 
         bool CanPlayerBank(BasePlayer player) {
             if (!permission.UserHasPermission(player.UserIDString, "bank.use"))
@@ -938,7 +947,7 @@ namespace Oxide.Plugins
         {
             Subscribe(nameof(CanNetworkTo));
             Subscribe(nameof(OnEntityTakeDamage));
-            Subscribe(nameof(OnItemAddedToContainer));
+            //Subscribe(nameof(OnItemAddedToContainer));
             var pos = new Vector3(player.transform.position.x, player.transform.position.y-1, player.transform.position.z);
             string box = GetBox(player);
 
@@ -985,6 +994,8 @@ namespace Oxide.Plugins
 
             BankProfile profile = banks[player.userID];
 
+            InvalidateBank(player, profile, view);
+
             profile.items.Clear();
             foreach(Item item in view.inventory.itemList) {
                 profile.Add(item);
@@ -1020,6 +1031,37 @@ namespace Oxide.Plugins
             if (onlinePlayers.Values.Count(p => p.View != null) <= 0) {
                 Unsubscribe(nameof(CanNetworkTo));
                 Unsubscribe(nameof(OnEntityTakeDamage));
+            }
+        }
+
+        void InvalidateBank(BasePlayer player, BankProfile profile, StorageContainer view) {
+            bool returned = false;
+            foreach(var item in view.inventory.itemList.ToArray()) {
+                ItemLimit limit = GetItemLimit(item);
+
+                if(limit != null) {
+                    if(item.amount < limit.minimum) {
+                        returned = true;
+                        if(!item.MoveToContainer(player.inventory.containerMain)) {
+                            item.Drop(player.eyes.HeadForward() * 2, default(Vector3));
+                        }
+                        continue;
+                    }
+
+                    if(item.amount > limit.maximum) {
+                        returned = true;
+                        Item invalidItem = item.SplitItem(item.amount - limit.maximum);
+
+                        if(!invalidItem.MoveToContainer(player.inventory.containerMain)) {
+                            invalidItem.Drop(player.eyes.HeadForward() * 2, default(Vector3));
+                        }
+                        continue;
+                    }
+                }
+            }
+
+            if(returned) {
+                SendReply(player, GetMsg("Limit: Return", player));
             }
         }
 

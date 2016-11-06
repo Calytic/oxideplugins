@@ -15,7 +15,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Entity Owner", "Calytic", "3.0.9", ResourceId = 1255)]
+    [Info("Entity Owner", "Calytic", "3.1.0", ResourceId = 1255)]
     [Description("Modify entity ownership and cupboard/turret authorization")]
     class EntityOwner : RustPlugin
     {
@@ -1758,7 +1758,7 @@ namespace Oxide.Plugins
         protected BasePlayer FindPlayerByPartialName(string name)
         {
             if (string.IsNullOrEmpty(name))
-                return 0;
+                return null;
 
             IPlayer player = covalence.Players.FindPlayer(name);
 

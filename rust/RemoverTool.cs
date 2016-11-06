@@ -11,10 +11,11 @@ using Oxide.Core.Plugins;
 using System.Linq;
 using Oxide.Core.Libraries.Covalence;
 using Oxide.Game.Rust.Cui;
+using System.Collections;
 
 namespace Oxide.Plugins
 {
-    [Info("RemoverTool", "Reneb", "4.0.8", ResourceId = 651)]
+    [Info("RemoverTool", "Reneb", "4.0.9", ResourceId = 651)]
     class RemoverTool : RustPlugin
     {
         [PluginReference]
@@ -569,8 +570,12 @@ namespace Oxide.Plugins
 
         static void DoRemove(BaseEntity Entity, bool gibs = true)
         {
-            Interface.Oxide.CallHook("OnRemovedEntity", Entity);
-            Entity.Kill(gibs ? BaseNetworkable.DestroyMode.Gib : BaseNetworkable.DestroyMode.None);
+            if (Entity != null)
+            {
+                Interface.Oxide.CallHook("OnRemovedEntity", Entity);
+                if (!Entity.isDestroyed)
+                    Entity.Kill(gibs ? BaseNetworkable.DestroyMode.Gib : BaseNetworkable.DestroyMode.None);
+            }
         }
 
         #endregion
@@ -1224,7 +1229,7 @@ namespace Oxide.Plugins
                 current++;
             }
 
-            DelayRemove(removeList, 0);
+            ServerMgr.Instance.StartCoroutine(DelayRemove(removeList));
         }
 
         static bool RemoveStructure(BaseEntity sourceEntity)
@@ -1235,22 +1240,24 @@ namespace Oxide.Plugins
 
             var removeList = UnityEngine.GameObject.FindObjectsOfType<BuildingBlock>().Where(x => x.buildingID == buildingId).ToList();
 
-            DelayRemove(removeList, 0);
+            ServerMgr.Instance.StartCoroutine(DelayRemove(removeList));
             return true;
         }
 
-        static void DelayRemove(List<BuildingBlock> entities, int current)
+        public static IEnumerator DelayRemove(List<BuildingBlock> entities)
         {
             for (int i = 0; i < entities.Count; i++)
             {
                 DoRemove(entities[i], false);
+                yield return new WaitWhile(new Func<bool>(() => (!entities[i].isDestroyed)));
             }
         }
-        static void DelayRemove(List<BaseEntity> entities, int current)
+        public static IEnumerator DelayRemove(List<BaseEntity> entities)
         {
             for (int i = 0; i < entities.Count; i++)
             {
                 DoRemove(entities[i], false);
+                yield return new WaitWhile(new Func<bool>(() => (!entities[i].isDestroyed)));
             }
         }
         #endregion

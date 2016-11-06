@@ -2,7 +2,7 @@
     "name": "EntityOwner",
     "description": "Modify entity ownership and cupboard\/turret authorization",
     "author": "Calytic",
-    "version": "3.0.9",
+    "version": "3.1.0",
     "configuration": true,
     "suggest": {},
     "language": "cs",

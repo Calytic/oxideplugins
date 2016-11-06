@@ -6,8 +6,7 @@
     "configuration": true,
     "suggest": {
         "AdminPanel": "*",
-        "Godmode": "*",
-        "XpBooster": "*"
+        "Godmode": "*"
     },
     "language": "cs",
     "games": [
