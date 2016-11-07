@@ -2,7 +2,7 @@
     "name": "WaterDisconnect",
     "description": "Hurts or kills players that log out underwater",
     "author": "Wulf",
-    "version": "2.1.0",
+    "version": "2.2.0",
     "configuration": true,
     "language": "cs",
     "games": [

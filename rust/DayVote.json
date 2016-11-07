@@ -2,10 +2,10 @@
     "name": "Day Vote",
     "description": "Allows automatic or player voting to skip night cycles.",
     "author": "insane8472",
-    "version": "1.1.1",
+    "version": "1.1.2",
     "configuration": true,
     "suggest": {
-        "AirdropControl": "*"
+        "EasyAirdrop": "*"
     },
     "language": "lua",
     "games": [

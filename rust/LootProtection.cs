@@ -2,38 +2,38 @@ using System.Collections.Generic;
 
 namespace Oxide.Plugins
 {
-    [Info("LootProtection", "Wulf/lukespragg", "0.4.0", ResourceId = 1150)]
-    [Description("Protects players/corpses with permission from being looted by other players")]
+    [Info("LootProtection", "Wulf/lukespragg", "0.5.0", ResourceId = 1150)]
+    [Description("Protects corpses and/or sleepers with permission from being looted by other players")]
 
     class LootProtection : CovalencePlugin
     {
         #region Initialization
 
         const string permBypass = "lootprotection.bypass";
-        const string permEnable = "lootprotection.enable";
+        const string permCorpse = "lootprotection.corpse";
+        const string permSleeper = "lootprotection.sleeper";
 
         void Init()
         {
             LoadDefaultMessages();
 
             permission.RegisterPermission(permBypass, this);
-            permission.RegisterPermission(permEnable, this);
+            permission.RegisterPermission(permCorpse, this);
+            permission.RegisterPermission(permSleeper, this);
         }
 
         void OnServerInitialized()
         {
             foreach (var player in players.All)
             {
-                if (!player.HasPermission("lootprotection.enabled")) continue;
-                permission.GrantUserPermission(player.Id, permEnable, null);
-                permission.RevokeUserPermission(player.Id, "lootprotection.enabled");
+                if (!player.HasPermission("lootprotection.enable")) continue;
+                permission.RevokeUserPermission(player.Id, "lootprotection.enable");
             }
 
             foreach (var group in permission.GetGroups())
             {
-                if (!permission.GroupHasPermission(group, "lootprotection.enabled")) continue;
-                permission.GrantGroupPermission(group, permEnable, null);
-                permission.RevokeGroupPermission(group, "lootprotection.enabled");
+                if (!permission.GroupHasPermission(group, "lootprotection.enable")) continue;
+                permission.RevokeGroupPermission(group, "lootprotection.enable");
             }
         }
 
@@ -65,22 +65,22 @@ namespace Oxide.Plugins
 
         object OnLootEntity(BasePlayer looter, BaseEntity entity)
         {
-            var player = entity as BasePlayer;
             var corpse = entity as LootableCorpse;
+            var sleeper = entity as BasePlayer;
 
             if (permission.UserHasPermission(looter.UserIDString, permBypass)) return null;
 
-            if (player != null && permission.UserHasPermission(player.UserIDString, permEnable))
-            {
-                NextFrame(looter.EndLooting);
-                looter.ChatMessage(Lang("LootProtection", looter.UserIDString, player.displayName));
-                return true;
-            }
-
-            if (corpse != null && permission.UserHasPermission(corpse.playerSteamID.ToString(), permEnable))
+            if (corpse != null && permission.UserHasPermission(corpse.playerSteamID.ToString(), permCorpse))
             {
                 NextFrame(looter.EndLooting);
                 looter.ChatMessage(Lang("LootProtection", looter.UserIDString, corpse.playerName));
+                return true;
+            }
+
+            if (sleeper != null && permission.UserHasPermission(sleeper.UserIDString, permSleeper))
+            {
+                NextFrame(looter.EndLooting);
+                looter.ChatMessage(Lang("LootProtection", looter.UserIDString, sleeper.displayName));
                 return true;
             }
 

@@ -7,7 +7,7 @@ using System;
 
 namespace Oxide.Plugins
 {
-    [Info("WeaponsShownOnBack", "Jake_Rich", 0.9)]
+    [Info("WeaponsShownOnBack", "Jake_Rich", 0.11)]
     [Description("Shows player's best two weapons holstered on their back")]
 
     public class WeaponsOnBack : RustPlugin
@@ -340,7 +340,7 @@ namespace Oxide.Plugins
             public Item activeItem { get { return player.GetActiveItem(); } }
             public Item oldActiveItem { get; set; }
 
-            public BaseEntity SpawnEntity(string prefab, Vector3 pos, Quaternion rotation, BaseEntity parent, int skin = 0)
+            public BaseEntity SpawnEntity(string prefab, Vector3 pos, Quaternion rotation, BaseEntity parent, ulong skin = 0)
             {
                 BaseEntity entity = GameManager.server.CreateEntity(prefab, pos, rotation);
                 WeaponsOnBack.weaponNetworking.Add(entity, player);

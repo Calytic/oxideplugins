@@ -1,7 +1,7 @@
 PLUGIN.Title        = "Bank Manager"
 PLUGIN.Description  = "Allows players to deposit and withdraw items from a bank."
 PLUGIN.Author       = "InSaNe8472"
-PLUGIN.Version      = V(1,1,5)
+PLUGIN.Version      = V(1,1,6)
 PLUGIN.ResourceId   = 1331
 
 local ClanPlugin = "Clans"
@@ -214,7 +214,7 @@ function PLUGIN:LoadDefaultLang()
 		["Initialize9"] = "{prefix} No duplicate items removed",
 		["InsufficientMoneyOpen"] = "Insufficent money to open bank.  Your open cost is <color=#ffd479>${cost}</color>.  You currently have <color=#ffd479>${current}</color>.",
 		["InsufficientMoneySlot"] = "Insufficent money to purchase slot(s).  Purchase cost is <color=#ffd479>${cost}</color>.  You currently have <color=#ffd479>${current}</color>.",
-		["LangError"] = "Language error: ",
+		["LangError"] = "Language Error: {lang}",
 		["LimitsBank"] = "\n	Player Bank Enabled: <color=#ffd479>{l1}</color>\n"..
 		"	Bank Sharing Enabled: <color=#ffd479>{l2}</color>\n"..
 		"	Default Bank Slots: <color=#ffd479>{l3}</color>\n"..
@@ -336,7 +336,7 @@ function PLUGIN:Lang(player, lng)
 	local playerSteamID
 	if player and player ~= nil then playerSteamID = rust.UserIDFromPlayer(player) end
 	local message = lang.GetMessage(lng, self.Plugin, playerSteamID)
-	if message == lng then message = lang.GetMessage("LangError", self.Plugin, playerSteamID)..lng end
+	if message == lng then message = FormatMessage(self:Lang(player, "LangError"), { lang = lng }) end
 	return message
 end
 
@@ -1536,10 +1536,10 @@ function PLUGIN:OpenPlayerBank(player, target)
 						if item.contents:GetSlot(0) then item.contents:GetSlot(0):Remove(0) end
 						local newItem = global.ItemManager.CreateByName(_data.id, _data.quantity)
 						if self.Config.Player.KeepDurability == "true" and _data.durability then newItem.condition = _data.durability end
-					timer.Once(1, function() newItem:MoveToContainer(item.contents) end)
+						timer.Once(1, function() newItem:MoveToContainer(item.contents) end)
 					end
-					end
-					if data.ammo and data.ammo.id then
+				end
+				if data.ammo and data.ammo.id then
 					local mag = item:GetHeldEntity().primaryMagazine
 					local itemDef = global.ItemManager.FindItemDefinition.methodarray[1]:Invoke(nil, util.TableToArray({data.ammo.id}))
 					mag.ammoType = itemDef
@@ -1696,7 +1696,7 @@ function PLUGIN:SaveBank(player, call)
 	end
 	if #playerData.Bank > 0 then playerData.Bank = {} end
 	local loot = box.inventory.itemList:GetEnumerator()
-	local ItemCount, Returned = 0, "0"
+	local Returned = "0"
 	while loot:MoveNext() do
 		if loot.Current.info.shortname then
 			local SaveItem = true
@@ -1880,8 +1880,13 @@ end
 
 function PLUGIN:OnEntityTakeDamage(entity, info)
 	if string.match(entity.name, "bank:") then
-		TargetName, SteamID = tostring(entity.name):match("([^:]+):([^:]+)")
-		if Bank[SteamID] or ClanBank[SteamID] then return true end
+		local TargetName, SteamID = tostring(entity.name):match("([^:]+):([^:]+)")
+		if Bank[SteamID] or ClanBank[SteamID] then
+			return true
+			else
+			entity.inventory.itemList:Clear()
+			entity:Kill()
+		end
 	end
 end
 
@@ -1890,9 +1895,18 @@ function PLUGIN:OnLootEntity(source, target)
 		local player = source:GetComponent("BasePlayer")
 		local playerSteamID = rust.UserIDFromPlayer(player)
 		local box, id = target.name:match("([^:]+):([^:]+)")
-		if playerSteamID ~= id then
+		if Bank[playerSteamID] or ClanBank[playerSteamID] then
+			if playerSteamID ~= id then
+				timer.NextFrame(function() player:EndLooting() end)
+				self:RustMessage(player, self:Lang(player, "BankBox"))
+			end
+			else
 			timer.NextFrame(function() player:EndLooting() end)
 			self:RustMessage(player, self:Lang(player, "BankBox"))
+			timer.Once(1, function()
+				target.inventory.itemList:Clear()
+				target:Kill()
+			end)
 		end
 	end
 end
@@ -2117,7 +2131,7 @@ function PLUGIN:CheckProximity(player, call)
 		if ProximityPlayer[playerSteamID] == nil or ProximityPlayer[playerSteamID] == "false" then
 			self:RustMessage(player, self:Lang(player, "Proximity"))
 			return false
-			end
+		end
 		return true
 	end
 	if call == 2 then

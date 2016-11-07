@@ -1,8 +1,8 @@
 {
     "name": "Vote For Money",
-    "description": "Players who vote are rewarded with Economics, Server Rewards, Kits and other...",
+    "description": "Players who vote are rewarded with Economics, Server Rewards, Kits...",
     "author": "",
-    "version": "0.4.1",
+    "version": "0.5.0",
     "configuration": true,
     "suggest": {
         "Kits": "*"

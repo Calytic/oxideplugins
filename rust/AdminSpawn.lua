@@ -1,10 +1,10 @@
 PLUGIN.Title        = "Admin Spawn"
 PLUGIN.Description  = "Manage administrator spawns and messages."
 PLUGIN.Author       = "InSaNe8472"
-PLUGIN.Version      = V(1,1,4)
+PLUGIN.Version      = V(1,1,5)
 PLUGIN.ResourceId   = 1644
 
-local popupApi
+local kits, popupApi
 
 function PLUGIN:Init()
 	permission.RegisterPermission("adminspawn.hide", self.Plugin)
@@ -22,10 +22,13 @@ function PLUGIN:Init()
 	permission.RegisterPermission("adminspawn.tool", self.Plugin)
 	permission.RegisterPermission("adminspawn.traps", self.Plugin)
 	permission.RegisterPermission("adminspawn.weapon", self.Plugin)
+	permission.RegisterPermission("adminspawn.kit", self.Plugin)
 	command.AddChatCommand("giveme", self.Plugin, "cmdAdminSpawn")
 	command.AddChatCommand("give", self.Plugin, "cmdAdminSpawn")
 	command.AddChatCommand("giveall", self.Plugin, "cmdAdminSpawn")
 	command.AddChatCommand("drop", self.Plugin, "cmdAdminSpawn")
+	command.AddChatCommand("givekit", self.Plugin, "cmdAdminSpawn")
+	command.AddConsoleCommand("global.givekit", self.Plugin, "cmdGiveKit")
 	self:LoadDefaultConfig()
 	self:LoadDefaultLang()
 end
@@ -62,25 +65,35 @@ function PLUGIN:LoadDefaultLang()
 		["NoPlayer"] = "Player not found or multiple players found.  Provide a more specific username.",
 		["Invalid"] = "Invalid item <color=#ffd479>{item}</color>.",
 		["AdminSpawn"] = "<color=#cd422b>{player}</color> gave <color=#ffd479>{amount} {item}</color> to <color=#cd422b>{target}</color>.",
+		["AdminSpawnKit"] = "<color=#cd422b>{player}</color> gave kit <color=#ffd479>{kit}</color> to <color=#cd422b>{target}</color>.",
 		["GiveTo"] = "Administrator gave you <color=#ffd479>{amount} {item}</color>.",
+		["GiveToKit"] = "Administrator gave you kit <color=#ffd479>{kit}</color>.",
 		["GivePlayer"] = "<color=#cd422b>{player}</color> received <color=#ffd479>{amount} {item}</color>.",
-		["LangError"] = "Language Error: ",
-		["UnknownCmd"] = "Unknown command: ",
+		["GivePlayerKit"] = "<color=#cd422b>{player}</color> received kit <color=#ffd479>{kit}</color>.",
+		["LangError"] = "Language Error: {lang}",
+		["UnknownCmd"] = "Unknown command: {cmd}",
+		["InvalidCmd"] = "Invalid command: {cmd}",
 		["AllPlayers"] = "All players",
-		["ChatGiveMe"] = "Usage: /giveme <item> [quantity]",
-		["ChatGive"] = "Usage: /give <player> <item> [quantity]",
-		["ChatGiveAll"] = "Usage: /giveall <item> [quantity]",
-		["ChatDrop"] = "Usage: /drop <item> [quantity]",
-		["NotAcc"] = ": not accessible from server console",
-		["F1GiveArm"] = "Usage: givearm <item>",
-		["F1GiveID"] = "Usage: giveid <item> [quantity]",
-		["CSGive"] = "Usage: give <item> [quantity]",
-		["CSGiveTo"] = "Usage: giveto <player> <item> [quantity]",
-		["CSGiveAll"] = "Usage: giveall <item> [quantity]"
+		["ConsoleName"] = "Console",
+		["ChatGiveMe"] = "Usage: /giveme <item> [quantity] [skin]",
+		["ChatGive"] = "Usage: /give <player> <item> [quantity] [skin]",
+		["ChatGiveAll"] = "Usage: /giveall <item> [quantity] [skin]",
+		["ChatDrop"] = "Usage: /drop <item> [quantity] [skin]",
+		["ChatGiveKit"] = "Usage: /givekit <player | *> <kit>",
+		["NotAcc"] = "{cmd}: not accessible from server console",
+		["F1GiveArm"] = "Usage: givearm <item> [quantity] [skin]",
+		["F1GiveID"] = "Usage: giveid <item> [quantity] [skin]",
+		["CSGive"] = "Usage: give <item> [quantity] [skin]",
+		["CSGiveTo"] = "Usage: giveto <player> <item> [quantity] [skin]",
+		["CSGiveAll"] = "Usage: giveall <item> [quantity] [skin]",
+		["CSGiveKit"] = "Usage: givekit <player | *> <kit>",
+		["NoKitPlugin"] = "Kit plugin was not found.",
+		["NoKit"] = "Kit <color=#ffd479>{kit}</color> was not found."
 	}), self.Plugin)
 end
 
 function PLUGIN:OnServerInitialized()
+	kits = plugins.Find("Kits") or false
 	popupApi = plugins.Find("PopupNotifications") or false
 end
 
@@ -93,7 +106,7 @@ function PLUGIN:Lang(player, lng)
 	local playerSteamID
 	if player and player ~= nil then playerSteamID = rust.UserIDFromPlayer(player) end
 	local message = lang.GetMessage(lng, self.Plugin, playerSteamID)
-	if message == lng then message = lang.GetMessage("LangError", self.Plugin, playerSteamID)..lng end
+	if message == lng then message = FormatMessage(self:Lang(player, "LangError"), { lang = lng }) end
 	return message
 end
 
@@ -107,7 +120,8 @@ function PLUGIN:cmdAdminSpawn(player, cmd, args)
 	if cmd:lower() == "giveme" then
 		local silent = self:CheckSilent(player)
 		if silent then
-			rust.SendChatMessage(player, self:Lang(player, "UnknownCmd")..cmd)
+			local message = FormatMessage(self:Lang(player, "UnknownCmd"), { cmd = cmd })
+			rust.SendChatMessage(player, message)
 			return
 		end
 		if args.Length < 1 then
@@ -118,19 +132,28 @@ function PLUGIN:cmdAdminSpawn(player, cmd, args)
 		local ItemID = self:GetItemID(ItemName)
 		local auth = self:CheckAuth(player, ItemID, ItemName, 1)
 		if not auth then return false end
-		if args.Length > 1 and tonumber(args[1]) then SpawnAmt = args[1] end
-		local item = self:SpawnItem(ItemID, SpawnAmt)
+		if args.Length > 1 then
+			SpawnAmt = args[1]
+			if not tonumber(SpawnAmt) or tonumber(SpawnAmt) <= 0 then SpawnAmt = 1 end
+		end
+		local Skin = 0
+		if args.Length > 2 then
+			Skin = args[2]
+			if not tonumber(Skin) then Skin = 0 end
+		end
+		local item = self:SpawnItem(ItemID, SpawnAmt, Skin)
 		item:MoveToContainer(player.inventory.containerMain, -1)
 		if self.Config.Settings.WarnChat ~= "true" then
 			local message = FormatMessage(self:Lang(player, "GivePlayer"), { player = player.displayName, amount = SpawnAmt, item = item.info.displayName.translated })
 			self:RustMessage(player, message)
 		end
-		self:WarnPlayers(player, player.displayName, SpawnAmt, item, player.displayName)
+		self:WarnPlayers(player, player.displayName, SpawnAmt, item, player.displayName, 0)
 	end
 	if cmd:lower() == "give" then
 		local silent = self:CheckSilent(player)
 		if silent then
-			rust.SendChatMessage(player, self:Lang(player, "UnknownCmd")..cmd)
+			local message = FormatMessage(self:Lang(player, "UnknownCmd"), { cmd = cmd })
+			rust.SendChatMessage(player, message)
 			return
 		end
 		if args.Length < 2 then
@@ -143,14 +166,22 @@ function PLUGIN:cmdAdminSpawn(player, cmd, args)
 		local ItemID = self:GetItemID(ItemName)
 		local auth = self:CheckAuth(player, ItemID, ItemName, 1)
 		if not auth then return false end
-		if args.Length > 2 and tonumber(args[2]) then SpawnAmt = args[2] end
-		local item = self:SpawnItem(ItemID, SpawnAmt)
+		if args.Length > 2 then
+			SpawnAmt = args[2]
+			if not tonumber(SpawnAmt) or tonumber(SpawnAmt) <= 0 then SpawnAmt = 1 end
+		end
+		local Skin = 0
+		if args.Length > 3 then
+			Skin = args[3]
+			if not tonumber(Skin) then Skin = 0 end
+		end
+		local item = self:SpawnItem(ItemID, SpawnAmt, Skin)
 		item:MoveToContainer(targetplayer.inventory.containerMain, -1)
 		if self.Config.Settings.WarnChat ~= "true" then
 			local message = FormatMessage(self:Lang(player, "GivePlayer"), { player = targetname, amount = SpawnAmt, item = item.info.displayName.translated })
 			self:RustMessage(player, message)
 		end
-		self:WarnPlayers(player, player.displayName, SpawnAmt, item, targetname)
+		self:WarnPlayers(player, player.displayName, SpawnAmt, item, targetname, 0)
 		if player ~= targetplayer and self.Config.Settings.WarnChat ~= "true" and self.Config.Settings.WarnGiveTo == "true" then
 			local message = FormatMessage(self:Lang(player, "GiveTo"), { amount = SpawnAmt, item = item.info.displayName.translated })
 			self:RustMessage(targetplayer, message)
@@ -160,7 +191,8 @@ function PLUGIN:cmdAdminSpawn(player, cmd, args)
 	if cmd:lower() == "giveall" then
 		local silent = self:CheckSilent(player)
 		if silent then
-			rust.SendChatMessage(player, self:Lang(player, "UnknownCmd")..cmd)
+			local message = FormatMessage(self:Lang(player, "UnknownCmd"), { cmd = cmd })
+			rust.SendChatMessage(player, message)
 			return
 		end
 		if args.Length < 1 then
@@ -171,12 +203,20 @@ function PLUGIN:cmdAdminSpawn(player, cmd, args)
 		local ItemID = self:GetItemID(ItemName)
 		local auth = self:CheckAuth(player, ItemID, ItemName, 1)
 		if not auth then return false end
-		if args.Length > 1 and tonumber(args[1]) then SpawnAmt = args[1] end
-		local item = self:SpawnItem(ItemID, SpawnAmt)
+		if args.Length > 1 then
+			SpawnAmt = args[1]
+			if not tonumber(SpawnAmt) or tonumber(SpawnAmt) <= 0 then SpawnAmt = 1 end
+		end
+		local Skin = 0
+		if args.Length > 2 then
+			Skin = args[2]
+			if not tonumber(Skin) then Skin = 0 end
+		end
+		local item = self:SpawnItem(ItemID, SpawnAmt, Skin)
 		local message = FormatMessage(self:Lang(player, "GiveTo"), { amount = SpawnAmt, item = item.info.displayName.translated })
 		local players = global.BasePlayer.activePlayerList:GetEnumerator()
 		while players:MoveNext() do
-			item = self:SpawnItem(ItemID, SpawnAmt)
+			item = self:SpawnItem(ItemID, SpawnAmt, Skin)
 			item:MoveToContainer(players.Current.inventory.containerMain, -1)
 			if player ~= players.Current and self.Config.Settings.WarnChat ~= "true" and self.Config.Settings.WarnGiveTo == "true" then
 				self:RustMessage(players.Current, message)
@@ -186,7 +226,7 @@ function PLUGIN:cmdAdminSpawn(player, cmd, args)
 		if self.Config.Settings.GiveAllSleeping == "true" then
 			local players = global.BasePlayer.sleepingPlayerList:GetEnumerator()
 			while players:MoveNext() do
-				item = self:SpawnItem(ItemID, SpawnAmt)
+				item = self:SpawnItem(ItemID, SpawnAmt, Skin)
 				item:MoveToContainer(players.Current.inventory.containerMain, -1)
 			end
 		end
@@ -194,12 +234,13 @@ function PLUGIN:cmdAdminSpawn(player, cmd, args)
 			local message = FormatMessage(self:Lang(player, "GivePlayer"), { player = self:Lang(player, "AllPlayers"), amount = SpawnAmt, item = item.info.displayName.translated })
 			self:RustMessage(player, message)
 		end
-		self:WarnPlayers(player, player.displayName, SpawnAmt, item, self:Lang(player, "AllPlayers"))
+		self:WarnPlayers(player, player.displayName, SpawnAmt, item, self:Lang(player, "AllPlayers"), 0)
 	end
 	if cmd:lower() == "drop" then
 		local silent = self:CheckSilent(player)
 		if silent then
-			rust.SendChatMessage(player, self:Lang(player, "UnknownCmd")..cmd)
+			local message = FormatMessage(self:Lang(player, "UnknownCmd"), { cmd = cmd })
+			rust.SendChatMessage(player, message)
 			return
 		end
 		if args.Length < 1 then
@@ -210,16 +251,77 @@ function PLUGIN:cmdAdminSpawn(player, cmd, args)
 		local ItemID = self:GetItemID(ItemName)
 		local auth = self:CheckAuth(player, ItemID, ItemName, 1)
 		if not auth then return false end
-		if args.Length > 1 and tonumber(args[1]) then SpawnAmt = args[1] end
-		local item = self:SpawnItem(ItemID, SpawnAmt)
+		if args.Length > 1 then
+			SpawnAmt = args[1]
+			if not tonumber(SpawnAmt) or tonumber(SpawnAmt) <= 0 then SpawnAmt = 1 end
+		end
+		local Skin = 0
+		if args.Length > 2 then
+			Skin = args[2]
+			if not tonumber(Skin) then Skin = 0 end
+		end
+		local item = self:SpawnItem(ItemID, SpawnAmt, Skin)
 		item:Drop(player:GetDropPosition(), player:GetDropVelocity(), player.transform.rotation)
 		if self.Config.Settings.WarnChat ~= "true" then
 			local message = FormatMessage(self:Lang(player, "GivePlayer"), { player = player.displayName, amount = SpawnAmt, item = item.info.displayName.translated })
 			self:RustMessage(player, message)
 		end
-		self:WarnPlayers(player, player.displayName, SpawnAmt, item, player.displayName)
+		self:WarnPlayers(player, player.displayName, SpawnAmt, item, player.displayName, 0)
+	end
+	if cmd:lower() == "givekit" then
+		local silent = self:CheckSilent(player)
+		if silent then
+			local message = FormatMessage(self:Lang(player, "UnknownCmd"), { cmd = cmd })
+			rust.SendChatMessage(player, message)
+			return
+		end
+		if args.Length < 2 then
+			self:RustMessage(player, self:Lang(player, "ChatGiveKit"))
+			return
+		end
+		local target, ItemName = args[0], args[1]
+		local playerSteamID = rust.UserIDFromPlayer(player)
+		if not permission.UserHasPermission(playerSteamID, "adminspawn.all") and not permission.UserHasPermission(playerSteamID, "adminspawn.kit") then
+			local message = FormatMessage(self:Lang(player, "NoPermission"), { item = ItemName })
+			self:RustMessage(player, message)
+			return
+		end
+		self:SpawnKit(player, target, ItemName, 1)
 	end
 	return
+end
+
+function PLUGIN:cmdGiveKit(arg)
+	if arg and arg.cmd then
+		if arg.connection then
+			local player = arg.connection.player
+			local silent = self:CheckSilent(player)
+			if silent then
+				local message = FormatMessage(self:Lang(player, "InvalidCmd"), { cmd = arg.cmd.namefull })
+				player:SendConsoleCommand("echo "..message)
+				return
+			end
+			if not arg.Args or arg.ArgsStr == nil or arg.Args.Length < 2 then
+				player:SendConsoleCommand("echo "..self:Lang(player, "Prefix")..self:Lang(player, "CSGiveKit"))
+				return
+			end
+			local target, ItemName, SpawnAmt = arg.Args[0], arg.Args[1]
+			local playerSteamID = rust.UserIDFromPlayer(player)
+			if not permission.UserHasPermission(playerSteamID, "adminspawn.all") and not permission.UserHasPermission(playerSteamID, "adminspawn.kit") then
+				local message = FormatMessage(self:Lang(player, "NoPermission"), { item = ItemName })
+				player:SendConsoleCommand("echo "..self:Lang(player, "Prefix")..message)
+				return
+			end
+			self:SpawnKit(player, target, ItemName, 2)
+			else
+			if not arg.Args or arg.ArgsStr == nil or arg.Args.Length < 2 then
+				self:Console(self:Lang(player, "CSGiveKit"))
+				return
+			end
+			local target, ItemName = arg.Args[0], arg.Args[1]
+			self:SpawnKit(nil, target, ItemName, 3)
+		end
+	end
 end
 
 function PLUGIN:OnServerCommand(arg)
@@ -228,7 +330,8 @@ function PLUGIN:OnServerCommand(arg)
 		if cmd == "givebp" then return false end
 		if cmd == "givearm" or cmd == "giveid" then
 			if not arg.connection then
-				UnityEngine.Debug.LogWarning.methodarray[0]:Invoke(nil, util.TableToArray({ StripMessage(self:Lang(player, "Prefix"))..cmd..self:Lang(nil, "NotAcc") }))
+				local message = FormatMessage(self:Lang(player, "NotAcc"), { cmd = cmd })
+				self:Console(StripMessage(message))
 				return false
 			end
 			local player = arg.connection.player
@@ -240,9 +343,17 @@ function PLUGIN:OnServerCommand(arg)
 				local auth, ItemName = self:CheckAuth(player, ItemID, arg.Args[0], 3)
 				if not auth then return false end
 				local SpawnAmt, item = 1
+				if arg.Args.Length > 1 then
+					SpawnAmt = arg.Args[1]
+					if not tonumber(SpawnAmt) or tonumber(SpawnAmt) <= 0 then SpawnAmt = 1 end
+				end
+				local Skin = 0
+				if arg.Args.Length > 2 then
+					Skin = arg.Args[2]
+					if not tonumber(Skin) then Skin = 0 end
+				end
 				if cmd == "givearm" then
-				--print(ItemID.." ||| "..SpawnAmt)
-					item = self:SpawnItem(ItemID, SpawnAmt)
+					item = self:SpawnItem(ItemID, SpawnAmt, Skin)
 					local Belt = player.inventory.containerBelt.itemList:GetEnumerator()
 					local BeltItems = 0
 					while Belt:MoveNext() do
@@ -260,10 +371,12 @@ function PLUGIN:OnServerCommand(arg)
 					if arg.Args.Length > 1 then SpawnAmt = tonumber(arg.Args[1]) end
 					if SpawnAmt == 100 then SpawnAmt = tonumber(self.Config.Settings.OneHundred) end
 					if SpawnAmt == 1000 then SpawnAmt = tonumber(self.Config.Settings.OneThousand) end
-					item = self:SpawnItem(ItemID, SpawnAmt)
+					item = self:SpawnItem(ItemID, SpawnAmt, Skin)
 					item:MoveToContainer(player.inventory.containerMain, -1)
 				end
-				self:WarnPlayers(player, player.displayName, SpawnAmt, item, player.displayName)
+				local message = FormatMessage(self:Lang(player, "GivePlayer"), { player = player.displayName, amount = SpawnAmt, item = item.info.displayName.translated })
+				player:SendConsoleCommand("echo "..self:Lang(player, "Prefix")..message)
+				self:WarnPlayers(player, player.displayName, SpawnAmt, item, player.displayName, 0)
 				return false
 				else
 				if cmd == "givearm" then player:SendConsoleCommand("echo "..self:Lang(player, "Prefix")..self:Lang(player, "F1GiveArm")) end
@@ -284,15 +397,24 @@ function PLUGIN:OnServerCommand(arg)
 				local ItemID = self:GetItemID(ItemName)
 				local auth = self:CheckAuth(player, ItemID, arg.Args[0], 2)
 				if not auth then return false end
-				if arg.Args.Length > 1 and tonumber(arg.Args[1]) then SpawnAmt = arg.Args[1] end
-				local item = self:SpawnItem(ItemID, SpawnAmt)
+				if arg.Args.Length > 1 then
+					SpawnAmt = arg.Args[1]
+					if not tonumber(SpawnAmt) or tonumber(SpawnAmt) <= 0 then SpawnAmt = 1 end
+				end
+				local Skin = 0
+				if arg.Args.Length > 2 then
+					Skin = arg.Args[2]
+					if not tonumber(Skin) then Skin = 0 end
+				end
+				local item = self:SpawnItem(ItemID, SpawnAmt, Skin)
 				item:MoveToContainer(player.inventory.containerMain, -1)
 				local message = FormatMessage(self:Lang(player, "GivePlayer"), { player = player.displayName, amount = SpawnAmt, item = item.info.displayName.translated })
 				player:SendConsoleCommand("echo "..self:Lang(player, "Prefix")..message)
-				self:WarnPlayers(player, player.displayName, SpawnAmt, item, player.displayName)
+				self:WarnPlayers(player, player.displayName, SpawnAmt, item, player.displayName, 0)
 				return false
 				else
-				UnityEngine.Debug.LogWarning.methodarray[0]:Invoke(nil, util.TableToArray({ StripMessage(self:Lang(player, "Prefix"))..cmd..self:Lang(player, "NotAcc") }))
+				local message = FormatMessage(self:Lang(player, "NotAcc"), { cmd = cmd })
+				self:Console(StripMessage(message))
 				return false
 			end
 		end
@@ -311,12 +433,20 @@ function PLUGIN:OnServerCommand(arg)
 				local ItemID = self:GetItemID(ItemName)
 				local auth = self:CheckAuth(player, ItemID, arg.Args[1], 2)
 				if not auth then return false end
-				if arg.Args.Length > 2 and tonumber(arg.Args[2]) then SpawnAmt = arg.Args[2] end
-				local item = self:SpawnItem(ItemID, SpawnAmt)
+				if arg.Args.Length > 2 then
+					SpawnAmt = arg.Args[2]
+					if not tonumber(SpawnAmt) or tonumber(SpawnAmt) <= 0 then SpawnAmt = 1 end
+				end
+				local Skin = 0
+				if arg.Args.Length > 3 then
+					Skin = arg.Args[3]
+					if not tonumber(Skin) then Skin = 0 end
+				end
+				local item = self:SpawnItem(ItemID, SpawnAmt, Skin)
 				item:MoveToContainer(targetplayer.inventory.containerMain, -1)
 				local message = FormatMessage(self:Lang(player, "GivePlayer"), { player = targetname, amount = SpawnAmt, item = item.info.displayName.translated })
 				player:SendConsoleCommand("echo "..self:Lang(player, "Prefix")..message)
-				self:WarnPlayers(player, player.displayName, SpawnAmt, item, targetname)
+				self:WarnPlayers(player, player.displayName, SpawnAmt, item, targetname, 0)
 				if player ~= targetplayer and self.Config.Settings.WarnChat ~= "true" and self.Config.Settings.WarnGiveTo == "true" then
 					local message = FormatMessage(self:Lang(player, "GiveTo"), { amount = SpawnAmt, item = item.info.displayName.translated })
 					self:RustMessage(targetplayer, message)
@@ -324,7 +454,7 @@ function PLUGIN:OnServerCommand(arg)
 				end
 				else
 				if not arg.Args or arg.ArgsStr == nil or arg.Args.Length < 2 then
-					UnityEngine.Debug.LogWarning.methodarray[0]:Invoke(nil, util.TableToArray({ StripMessage(self:Lang(player, "Prefix"))..self:Lang(nil, "CSGiveTo") }))
+					self:Console(StripMessage(self:Lang(nil, "CSGiveTo")))
 					return false
 				end
 				local target, ItemName, SpawnAmt = arg.Args[0], arg.Args[1]:lower(), 1
@@ -333,15 +463,23 @@ function PLUGIN:OnServerCommand(arg)
 				local ItemID = self:GetItemID(ItemName)
 				if not ItemID then
 					local message = FormatMessage(self:Lang(nil, "Invalid"), { item = ItemName })
-					UnityEngine.Debug.LogWarning.methodarray[0]:Invoke(nil, util.TableToArray({ StripMessage(self:Lang(player, "Prefix")..message) }))
+					self:Console(StripMessage(message))
 					return false
 				end
-				if arg.Args.Length > 2 and tonumber(arg.Args[2]) then SpawnAmt = arg.Args[2] end
-				local item = self:SpawnItem(ItemID, SpawnAmt)
+				if arg.Args.Length > 2 then
+					SpawnAmt = arg.Args[2]
+					if not tonumber(SpawnAmt) or tonumber(SpawnAmt) <= 0 then SpawnAmt = 1 end
+				end
+				local Skin = 0
+				if arg.Args.Length > 3 then
+					Skin = arg.Args[3]
+					if not tonumber(Skin) then Skin = 0 end
+				end
+				local item = self:SpawnItem(ItemID, SpawnAmt, Skin)
 				item:MoveToContainer(targetplayer.inventory.containerMain, -1)
 				local message = FormatMessage(self:Lang(nil, "GivePlayer"), { player = targetname, amount = SpawnAmt, item = item.info.displayName.translated })
-				UnityEngine.Debug.LogWarning.methodarray[0]:Invoke(nil, util.TableToArray({ StripMessage(self:Lang(player, "Prefix")..message) }))
-				self:WarnPlayers(nil, "Console", SpawnAmt, item, targetname)
+				self:Console(StripMessage(message))
+				self:WarnPlayers(nil, self:Lang(nil, "ConsoleName"), SpawnAmt, item, targetname, 0)
 				if self.Config.Settings.WarnChat ~= "true" and self.Config.Settings.WarnGiveTo == "true" then
 					local message = FormatMessage(self:Lang(nil, "GiveTo"), { amount = SpawnAmt, item = item.info.displayName.translated })
 					self:RustMessage(targetplayer, message)
@@ -363,12 +501,20 @@ function PLUGIN:OnServerCommand(arg)
 				local ItemID = self:GetItemID(ItemName)
 				local auth = self:CheckAuth(player, ItemID, arg.Args[0], 2)
 				if not auth then return false end
-				if arg.Args.Length > 1 and tonumber(arg.Args[1]) then SpawnAmt = arg.Args[1] end
-				local item = self:SpawnItem(ItemID, SpawnAmt)
+				if arg.Args.Length > 1 then
+					SpawnAmt = arg.Args[1]
+					if not tonumber(SpawnAmt) or tonumber(SpawnAmt) <= 0 then SpawnAmt = 1 end
+				end
+				local Skin = 0
+				if arg.Args.Length > 2 then
+					Skin = arg.Args[2]
+					if not tonumber(Skin) then Skin = 0 end
+				end
+				local item = self:SpawnItem(ItemID, SpawnAmt, Skin)
 				local message = FormatMessage(self:Lang(player, "GiveTo"), { amount = SpawnAmt, item = item.info.displayName.translated })
 				local players = global.BasePlayer.activePlayerList:GetEnumerator()
 				while players:MoveNext() do
-					item = self:SpawnItem(ItemID, SpawnAmt)
+					item = self:SpawnItem(ItemID, SpawnAmt, Skin)
 					item:MoveToContainer(players.Current.inventory.containerMain, -1)
 					if player ~= players.Current and self.Config.Settings.WarnChat ~= "true" and self.Config.Settings.WarnGiveTo == "true" then
 						self:RustMessage(players.Current, message)
@@ -378,31 +524,39 @@ function PLUGIN:OnServerCommand(arg)
 				if self.Config.Settings.GiveAllSleeping == "true" then
 					local players = global.BasePlayer.sleepingPlayerList:GetEnumerator()
 					while players:MoveNext() do
-						item = self:SpawnItem(ItemID, SpawnAmt)
+						item = self:SpawnItem(ItemID, SpawnAmt, Skin)
 						item:MoveToContainer(players.Current.inventory.containerMain, -1)
 					end
 				end
 				local message = FormatMessage(self:Lang(player, "GivePlayer"), { player = self:Lang(player, "AllPlayers"), amount = SpawnAmt, item = item.info.displayName.translated })
 				player:SendConsoleCommand("echo "..self:Lang(player, "Prefix")..message)
-				self:WarnPlayers(player, player.displayName, SpawnAmt, item, self:Lang(player, "AllPlayers"))
+				self:WarnPlayers(player, player.displayName, SpawnAmt, item, self:Lang(player, "AllPlayers"), 0)
 				else
 				if not arg.Args or arg.ArgsStr == nil or arg.Args.Length < 1 then
-					UnityEngine.Debug.LogWarning.methodarray[0]:Invoke(nil, util.TableToArray({ StripMessage(self:Lang(player, "Prefix"))..self:Lang(nil, "CSGiveAll") }))
+					self:Console(StripMessage(self:Lang(nil, "CSGiveAll")))
 					return false
 				end
 				local ItemName, SpawnAmt = arg.Args[0]:lower(), 1
 				local ItemID = self:GetItemID(ItemName)
 				if not ItemID then
 					local message = FormatMessage(self:Lang(nil, "Invalid"), { item = ItemName })
-					UnityEngine.Debug.LogWarning.methodarray[0]:Invoke(nil, util.TableToArray({ StripMessage(self:Lang(player, "Prefix")..message) }))
+					self:Console(StripMessage(message))
 					return false
 				end
-				if arg.Args.Length > 1 and tonumber(arg.Args[1]) then SpawnAmt = arg.Args[1] end
-				local item = self:SpawnItem(ItemID, SpawnAmt)
+				if arg.Args.Length > 1 then
+					SpawnAmt = arg.Args[1]
+					if not tonumber(SpawnAmt) or tonumber(SpawnAmt) <= 0 then SpawnAmt = 1 end
+				end
+				local Skin = 0
+				if arg.Args.Length > 2 then
+					Skin = arg.Args[2]
+					if not tonumber(Skin) then Skin = 0 end
+				end
+				local item = self:SpawnItem(ItemID, SpawnAmt, Skin)
 				local message = FormatMessage(self:Lang(nil, "GiveTo"), { amount = SpawnAmt, item = item.info.displayName.translated })
 				local players = global.BasePlayer.activePlayerList:GetEnumerator()
 				while players:MoveNext() do
-					item = self:SpawnItem(ItemID, SpawnAmt)
+					item = self:SpawnItem(ItemID, SpawnAmt, Skin)
 					item:MoveToContainer(players.Current.inventory.containerMain, -1)
 					if self.Config.Settings.WarnChat ~= "true" and self.Config.Settings.WarnGiveTo == "true" then
 						self:RustMessage(players.Current, message)
@@ -412,13 +566,13 @@ function PLUGIN:OnServerCommand(arg)
 				if self.Config.Settings.GiveAllSleeping == "true" then
 					local players = global.BasePlayer.sleepingPlayerList:GetEnumerator()
 					while players:MoveNext() do
-						item = global.ItemManager.CreateByItemID(ItemID, tonumber(SpawnAmt))
+						item = self:SpawnItem(ItemID, SpawnAmt, Skin)
 						item:MoveToContainer(players.Current.inventory.containerMain, -1)
 					end
 				end
 				local message = FormatMessage(self:Lang(nil, "GivePlayer"), { player = self:Lang(nil, "AllPlayers"), amount = SpawnAmt, item = item.info.displayName.translated })
-				UnityEngine.Debug.LogWarning.methodarray[0]:Invoke(nil, util.TableToArray({ StripMessage(self:Lang(player, "Prefix")..message) }))
-				self:WarnPlayers(nil, "Console", SpawnAmt, item, self:Lang(nil, "AllPlayers"))
+				self:Console(StripMessage(message))
+				self:WarnPlayers(nil, self:Lang(nil, "ConsoleName"), SpawnAmt, item, self:Lang(nil, "AllPlayers"), 0)
 			end
 			return false
 		end
@@ -450,6 +604,7 @@ function PLUGIN:CheckSilent(player)
 	if permission.UserHasPermission(playerSteamID, "adminspawn.tool") then return false end
 	if permission.UserHasPermission(playerSteamID, "adminspawn.traps") then return false end
 	if permission.UserHasPermission(playerSteamID, "adminspawn.weapon") then return false end
+	if permission.UserHasPermission(playerSteamID, "adminspawn.kit") then return false end
 	return true
 end
 
@@ -517,36 +672,95 @@ end
 function PLUGIN:CheckPlayer(player, target, call)
 	local target = rust.FindPlayer(target)
 	if not target then
-		self:RustMessage(player, self:Lang(player, "NoPlayer"))
-		return false
-	end
-	if not target then
 		if call == 1 then self:RustMessage(player, self:Lang(player, "NoPlayer")) end
-		if call == 2 then player:SendConsoleCommand("echo "..self:Lang(player, "NoPlayer")) end
-		if call == 3 then UnityEngine.Debug.LogWarning.methodarray[0]:Invoke(nil, util.TableToArray({ StripMessage(self:Lang(player, "NoPlayer")) })) end
+		if call == 2 then player:SendConsoleCommand("echo "..self:Lang(player, "Prefix")..self:Lang(player, "NoPlayer")) end
+		if call == 3 then self:Console(StripMessage(self:Lang(player, "NoPlayer"))) end
 		return false
 	end
-	local targetName = target.displayName
-	return true, target, targetName
+	return true, target, target.displayName
 end
 
-function PLUGIN:SpawnItem(ItemID, SpawnAmt)
-	return global.ItemManager.CreateByItemID(tonumber(ItemID), tonumber(SpawnAmt), 0)
+function PLUGIN:SpawnItem(ItemID, SpawnAmt, Skin)
+	return global.ItemManager.CreateByItemID(tonumber(ItemID), tonumber(SpawnAmt), tonumber(Skin))
 end
 
-function PLUGIN:WarnPlayers(player, playerName, SpawnAmt, item, target)
-	if self.Config.Settings.Log == "true" then self:LogEvent(StripMessage(FormatMessage(self:Lang(player, "AdminSpawn"), { player = playerName, amount = SpawnAmt, item = item.info.displayName.translated, target = target }))) end
+function PLUGIN:SpawnKit(player, target, ItemName, call)
+	if kits then
+		local found, targetplayer, targetname
+		if target ~= "*" then
+			found, targetplayer, targetname = self:CheckPlayer(player, target, call)
+			if not found then return end
+			else
+			targetname = self:Lang(nil, "AllPlayers")
+		end
+		if kits:CallHook("isKit", ItemName) then
+			if target ~= "*" then
+				kits:CallHook("GiveKit", targetplayer, ItemName)
+				else
+				local players = global.BasePlayer.activePlayerList:GetEnumerator()
+				while players:MoveNext() do
+					kits:CallHook("GiveKit", players.Current, ItemName)
+					if players.Current ~= player and self.Config.Settings.WarnChat ~= "true" and self.Config.Settings.WarnGiveTo == "true" then
+						local message = FormatMessage(self:Lang(players.Current, "GiveToKit"), { kit = ItemName })
+						self:RustMessage(players.Current, message)
+						self:ShowPopup(players.Current, message)
+					end
+				end
+				if self.Config.Settings.GiveAllSleeping == "true" then
+					local players = global.BasePlayer.sleepingPlayerList:GetEnumerator()
+					while players:MoveNext() do
+						kits:CallHook("GiveKit", players.Current, ItemName)
+					end
+				end
+			end
+			if self.Config.Settings.WarnChat ~= "true" then
+				local message = FormatMessage(self:Lang(player, "GivePlayerKit"), { player = targetname, kit = ItemName })
+				if call == 1 then self:RustMessage(player, message) end
+				if call == 2 then player:SendConsoleCommand("echo "..self:Lang(player, "Prefix")..message) end
+				if call == 3 then self:Console(message) end
+			end
+			if call == 1 or call == 2 then self:WarnPlayers(player, player.displayName, 0, ItemName, targetname, 1) end
+			if call == 3 then self:WarnPlayers(nil, self:Lang(nil, "ConsoleName"), 0, ItemName, targetname, 1) end
+			if target ~= "*" then
+				if player ~= targetplayer and self.Config.Settings.WarnChat ~= "true" and self.Config.Settings.WarnGiveTo == "true" then
+					local message = FormatMessage(self:Lang(player, "GiveToKit"), { kit = ItemName })
+					self:RustMessage(targetplayer, message)
+					self:ShowPopup(targetplayer, message)
+				end
+			end
+			return
+		end
+		local message = FormatMessage(self:Lang(player, "NoKit"), { kit = ItemName })
+		if call == 1 then self:RustMessage(player, message) end
+		if call == 2 then player:SendConsoleCommand("echo "..self:Lang(player, "Prefix")..message) end
+		if call == 3 then self:Console(message) end
+		return
+	end
+	if call == 1 then self:RustMessage(player, self:Lang(player, "NoKitPlugin")) end
+	if call == 2 then player:SendConsoleCommand("echo "..self:Lang(player, "Prefix")..self:Lang(player, "NoKitPlugin")) end
+	if call == 3 then self:Console(self:Lang(player, "NoKitPlugin")) end
+	return
+end
+
+function PLUGIN:WarnPlayers(player, playerName, SpawnAmt, item, target, kit)
+	local message
+	if kit == 0 then
+		message = FormatMessage(self:Lang(player, "AdminSpawn"), { player = playerName, amount = SpawnAmt, item = item.info.displayName.translated, target = target })
+		else
+		message = FormatMessage(self:Lang(player, "AdminSpawnKit"), { player = playerName, kit = item, target = target })
+	end
+	if self.Config.Settings.Log == "true" then
+		self:LogEvent(StripMessage(message))
+	end
 	if player ~= nil and player then
 		local playerSteamID = rust.UserIDFromPlayer(player)
 		if permission.UserHasPermission(playerSteamID, "adminspawn.hide") then return end
 	end
-	self:Console(FormatMessage(self:Lang(player, "AdminSpawn"), { player = playerName, amount = SpawnAmt, item = item.info.displayName.translated, target = target }))
+	self:Console(message)
 	if self.Config.Settings.WarnChat == "true" then
-		local message = FormatMessage(self:Lang(player, "AdminSpawn"), { player = playerName, amount = SpawnAmt, item = item.info.displayName.translated, target = target })
 		self:RustBroadcast(message)
 		else
 		if self.Config.Settings.WarnUser == "true" then
-			local message = FormatMessage(self:Lang(player, "AdminSpawn"), { player = playerName, amount = SpawnAmt, item = item.info.displayName.translated, target = target })
 			local players = global.BasePlayer.activePlayerList:GetEnumerator()
 			while players:MoveNext() do
 				if players.Current ~= player then

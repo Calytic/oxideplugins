@@ -1,8 +1,8 @@
 {
     "name": "Weapons On Back",
     "description": "Renders the player's best weapon on their back, and best sidearm on their hip",
-    "author": "",
-    "version": "0.0.10",
+    "author": "Jake Rich",
+    "version": "0.0.12",
     "configuration": true,
     "language": "cs",
     "games": [

@@ -6,17 +6,19 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("MasterKey", "Wulf/lukespragg", "0.4.10", ResourceId = 1151)]
-    [Description("Gain access to any locked object with permissions")]
+    [Info("MasterKey", "Wulf/lukespragg", "0.5.0", ResourceId = 1151)]
+    [Description("Gain access to any locked object and/or build anywhere with permission")]
 
     class MasterKey : CovalencePlugin
     {
         #region Initialization
 
         readonly DynamicConfigFile dataFile = Interface.Oxide.DataFileSystem.GetFile("MasterKey");
-        readonly string[] lockableTypes = { "boxes", "cells", "doors", "gates", "shops", "floors" };
+        readonly string[] lockableTypes = { "box", "cell", "door", "gate", "shop", "hatch" };
         Dictionary<string, bool> playerPrefs = new Dictionary<string, bool>();
-        const string permCupboards = "masterkey.cupboards";
+
+        const string permBuild = "masterkey.build";
+        const string permCupboard = "masterkey.cupboard";
 
         bool logUsage;
         bool showMessages;
@@ -24,18 +26,20 @@ namespace Oxide.Plugins
         protected override void LoadDefaultConfig()
         {
             // Options
-            Config["LogUsage"] = logUsage = GetConfig("LogUsage", true);
-            Config["ShowMessages"] = showMessages = GetConfig("ShowMessages", true);
+            Config["Log Usage (true/false)"] = logUsage = GetConfig("Log Usage (true/false)", true);
+            Config["Show Messages (true/false)"] = showMessages = GetConfig("Show Messages (true/false)", true);
 
             SaveConfig();
         }
-
+        
         void Init()
         {
             LoadDefaultConfig();
             LoadDefaultMessages();
             playerPrefs = dataFile.ReadObject<Dictionary<string, bool>>();
 
+            permission.RegisterPermission(permBuild, this);
+            permission.RegisterPermission(permCupboard, this);
             foreach (var type in lockableTypes) permission.RegisterPermission($"{Title.ToLower()}.{type}", this);
         }
 
@@ -85,12 +89,12 @@ namespace Oxide.Plugins
         {
             var prefab = @lock.parentEntity.Get(true).ShortPrefabName;
 
-            if (!@lock.IsLocked()) return true;
+            if (!@lock.IsLocked()) return null;
             if (playerPrefs.ContainsKey(player.UserIDString) && !playerPrefs[player.UserIDString]) return null;
 
             foreach (var type in lockableTypes)
             {
-                if (!type.Contains(prefab)) continue;
+                if (!prefab.Contains(type)) continue;
 
                 if (!permission.UserHasPermission(player.UserIDString, $"masterkey.{type}")) return null;
                 if (showMessages) player.ChatMessage(Lang("UnlockedWith", player.UserIDString, type));
@@ -105,16 +109,29 @@ namespace Oxide.Plugins
 
         #region Cupboard Access
 
+        object OnCupboardAuthorize(BuildingPrivlidge priviledge, BasePlayer player)
+        {
+            if (playerPrefs.ContainsKey(player.UserIDString) && !playerPrefs[player.UserIDString]) return null;
+
+            if (!permission.UserHasPermission(player.UserIDString, permCupboard)) return null;
+            if (showMessages) player.ChatMessage(Lang("UnlockedWith", player.UserIDString, "cupboard"));
+            if (logUsage) LogToFile(Lang("MasterKeyUsed", null, player.displayName, player.UserIDString, player.transform.position));
+            return true;
+        }
+
+        #endregion
+
+        #region Build Anywhere
+
         void OnEntityEnter(TriggerBase trigger, BaseEntity entity)
         {
             var player = entity as BasePlayer;
             if (player == null || !(trigger is BuildPrivilegeTrigger)) return;
 
             if (playerPrefs.ContainsKey(player.UserIDString) && !playerPrefs[player.UserIDString]) return;
-            if (!permission.UserHasPermission(player.UserIDString, permCupboards)) return;
+            if (!permission.UserHasPermission(player.UserIDString, permBuild)) return;
 
             timer.Once(0.1f, () => player.SetPlayerFlag(BasePlayer.PlayerFlags.HasBuildingPrivilege, true));
-            if (showMessages) player.ChatMessage(Lang("UnlockedWith", player.UserIDString, "cupboard"));
             if (logUsage) LogToFile(Lang("MasterKeyUsed", null, player.displayName, player.UserIDString, player.transform.position));
         }
 

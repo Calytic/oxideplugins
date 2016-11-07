@@ -1,8 +1,8 @@
 PLUGIN.Title        = "Door Share"
 PLUGIN.Description  = "Allows players to share selected claimed doors with other players"
 PLUGIN.Author       = "InSaNe8472"
-PLUGIN.Version      = V(1,1,5)
-PLUGIN.ResourceID   = 1251
+PLUGIN.Version      = V(1,1,6)
+PLUGIN.ResourceId   = 1251
 
 local DataFile_PL = "DoorShare_Players"
 local DataFile_DR = "DoorShare_Doors"
@@ -75,7 +75,7 @@ function PLUGIN:LoadDefaultLang()
 		["CoolDown"] = "You must wait <color=#cd422b>{cooldown} seconds</color> before using this command again.",
 		["MaxShare"] = "You may only share your doors with <color=#cd422b>{limit} player(s)</color> at one time.",
 		["WrongArgs"] = "Syntax error.  Use <color=#cd422b>/share</color> for help.",
-		["LangError"] = "Language Error: ",
+		["LangError"] = "Language Error: {lang}",
 		["NoPlayer"] = "Player not found or multiple players found.  Provide a more specific username.",
 		["Self"] = "You cannot share or transfer your doors with yourself.",
 		["PlayerExists"] = "You already share your doors with <color=#cd422b>{player}</color>.",
@@ -177,7 +177,7 @@ function PLUGIN:Lang(player, lng)
 	local playerSteamID
 	if player and player ~= nil then playerSteamID = rust.UserIDFromPlayer(player) end
 	local message = lang.GetMessage(lng, self.Plugin, playerSteamID)
-	if message == lng then message = lang.GetMessage("LangError", self.Plugin, playerSteamID)..lng end
+	if message == lng then message = FormatMessage(self:Lang(player, "LangError"), { lang = lng }) end
 	return message
 end
 
@@ -602,7 +602,7 @@ function PLUGIN:cmdShareDoor(player, cmd, args)
 	end
 end
 
-function PLUGIN:CanUseDoor(player, lock)
+function PLUGIN:CanUseLock(player, lock)
 	if self.Config.Settings.Enabled == "true" then
 		if MasterKey then
 			local playerSteamID = rust.UserIDFromPlayer(player)
@@ -623,7 +623,7 @@ function PLUGIN:ProcessDoor(player, lock)
 		if parent:IsOpen() then
 			self:PlayDoorSound(player, lock)
 			return true
-		end
+			end
 	end
 	self:CheckOwner(lock, player)
 	local playerSteamID = rust.UserIDFromPlayer(player)

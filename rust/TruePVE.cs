@@ -1,194 +1,139 @@
-using System.Collections.Generic;
-using System;
-using System.Reflection;
-using System.Data;
-using System.Text.RegularExpressions;
-using System.Linq;
-using UnityEngine;
+
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
+using Newtonsoft.Json.Linq;
 using Oxide.Core;
+using Oxide.Core.Configuration;
 using Oxide.Core.Plugins;
 using Rust;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using UnityEngine;
 
 namespace Oxide.Plugins
 {
-	[Info("TruePVE", "ignignokt84", "0.3.3", ResourceId = 1789)]
+	[Info("TruePVE", "ignignokt84", "0.4.0")]
 	class TruePVE : RustPlugin
 	{
-		/*
+		private TruePVEData data = new TruePVEData();
+		private Hurtable global;
 		
-		This plugin is meant to better represent PVE damage and looting in place of using the
-		server.pve = true setting.  This plugin is designed to be used with server.pve = false
-		because there's no reflection to worry about.
+		static FieldInfo serverinput;
 		
-		- Prevents player damage which originates from other players
-		- Prevents players from looting sleepers or another player's corpse
-		- Makes most other objects unbreakable by players
-		- Beds and sleeping bags take no damage
-		- Barricades will still take damage
-		- Locked doors and boxes take no damage, however unlocked doors and boxes still take damage and can break
-		- Heli can damage aforementioned "unbreakable" entities
-		
-		*/
-		
+		// usage information string with formatting
+		public string usageString;
+		// valid commands
+		private enum Command { usage, set, get, list, version, def };
+		// valid options
+		public enum Option { allowSuicide, authDamage, corpseLooting, handleDamage, handleLooting, heliDamage, heliDamageLocked, immortalLocks, sleeperAdminDamage, sleeperLooting };
+		// default values array
+		private bool[] def = { true, false, false, true, true, true, false, true, false, false };
+		// layer mask for finding authorization
+        private readonly int triggerMask = LayerMask.GetMask("Trigger");
+        
 		// load default messages to Lang
 		void LoadDefaultMessages()
 		{
 			var messages = new Dictionary<string, string>
 			{
 				{"ConsoleCommand", "tpve"},
-				{"VersionString", "TruePVE v. {0}"},
 				
-				{"UsageHeader", "---- TruePVE usage ----"},
-				{"CmdUsageSet", "Set value of specified option"},
-				{"CmdUsageGet", "Get value of specified option"},
-				{"CmdUsageDesc", "Describe specified option"},
-				{"CmdUsageList", "Lists available options"},
-				{"CmdUsageDef", "Loads default configuration"},
-				{"CmdUsageVersion", "Prints version information"},
-				{"CmdUsageOptionString", "[option]"},
-				{"CmdUsageValueString", "[value]"},
+				{"Header_Usage", "---- TruePVE usage ----"},
+				{"Cmd_Usage_set", "Set value of specified option"},
+				{"Cmd_Usage_get", "Get value of specified option"},
+				{"Cmd_Usage_list", "Lists available options"},
+				{"Cmd_Usage_def", "Loads default configuration and/or mapping data"},
+				{"Cmd_Usage_version", "Prints version information"},
+				{"Cmd_Usage_prod", "Show the prefab name and type of the entity being looked at"},
+				{"Cmd_Usage_OptionString", "[option]"},
+				{"Cmd_Usage_ValueString", "[value]"},
+				{"Cmd_Usage_DefaultsOptions", "[all|config|data]"},
 				
-				{"InvalidParameter", "Invalid parameter: {0}"},
-				{"InvalidParamForCmd", "Invalid parameters for command \"{0}\""},
-				{"PveWarning", "Server is set to PVE mode!  TruePVE is designed for PVP mode, and may cause unexpected behavior in PVE mode."},
+				{"Warning_PveMode", "Server is set to PVE mode!  TruePVE is designed for PVP mode, and may cause unexpected behavior in PVE mode."},
 				
-				{"NoPermission", "Cannot execute command: No permission"},
-				{"NoSuicide", "You are not allowed to commit suicide"},
-				{"NoLootCorpse", "You are not allowed to loot another player's corpse"},
-				{"NoLootSleeper", "You are not allowed to loot sleeping players"},
+				{"Error_InvalidParameter", "Invalid parameter: {0}"},
+				{"Error_InvalidParamForCmd", "Invalid parameters for command \"{0}\""},
+				{"Error_NoPermission", "Cannot execute command: No permission"},
+				{"Error_NoSuicide", "You are not allowed to commit suicide"},
+				{"Error_NoLootCorpse", "You are not allowed to loot another player's corpse"},
+				{"Error_NoLootSleeper", "You are not allowed to loot sleeping players"},
 				
-				{"AvailOptions", "Available Options: {0}"},
-				{"SetSuccess", "Successfully set \"{0}\" to \"{1}\""},
-				{"DefConfigLoad", "Loaded default configuration"},
+				{"Notify_Version", "TruePVE v. {0}"},
+				{"Notify_AvailOptions", "Available Options: {0}"},
+				{"Notify_SetSuccess", "Successfully set \"{0}\" to \"{1}\""},
+				{"Notify_DefConfigLoad", "Loaded default configuration"},
+				{"Notify_DefDataLoad", "Loaded default mapping data"},
+				{"Notify_ProdResult", "Prod results: type={0}, prefab={1}"},
 				
-				{"OptionDescHeader", "---- Option: \"{0}\" ----\n"},
-				
-				{"Desc_barricade", "Whether or not barricades should be damageable\n" +
-								  " true: Barricades will take damage and can be destroyed\n" +
-								  " false: Barricades will NOT take damage and cannot be destroyed"},
-				
-				{"Desc_unlocked", "Whether or not unlocked boxes and doors should be damageable\n" +
-								 " true: Unlocked doors and boxes will take damage and can be destroyed\n" + 
-								 " false: Unlocked doors and boxes will NOT take damage and cannot be destroyed"},
-				
-				{"Desc_sleepingbag", "Whether or not sleeping bags and beds should be damageable\n" +
-									" true: Sleeping bags and beds will take damage and can be destroyed\n" +
-									" false: Sleeping bags and beds will NOT take damage and cannot be destroyed"},
-				
-				{"Desc_heli", "Whether heli can damage entities which have been deemed indestructible\n" +
-							 " true: Heli can damage entities (normal behavior)\n" +
-							 " false: Heli cannot damage entities"},
-				
-				{"Desc_sleeper", "Whether sleepers can be looted\n" +
-								" true: Anyone can loot sleepers\n" +
-								" false: No one can loot sleepers"},
-				
-				{"Desc_corpse", "Whether other players' corpses can be looted\n" +
-							   " true: Players can loot any corpse\n" +
-							   " false: Players can only loot their own corpse(s)"},
-				
-				{"Desc_suicide", "Whether players can commit suicide via F1 > \"kill\" command\n" +
-								" true: Players can commit suicide\n" +
-								" false: Players cannot commit suicide"},
-				
-				{"Desc_hookdamage", "Whether to enable processing of OnEntityTakeDamage hook\n" +
-								   " true: Enable normal TruePVE handling of entity damage\n" +
-								   " false: Disable TruePVE handling of entity damage - external plugin can call HandleDamage hook"},
-				
-				{"Desc_hookloot", "Whether to enable processing of OnLoot* hooks\n" +
-								 " true: Enable normal TruePVE handling of looting\n" +
-								 " false: Disable TruePVE handling of looting - external plugin can call HandleLooting hook"},
-				
-				{"Desc_turret", "Whether to allow turrets to damage players\n" +
-							   " true: Turrets can hurt players\n" +
-							   " false: Turrets cannot hurt players"},
-				
-				{"Desc_fire", "Whether to enable fire damage\n" +
-							   " true: Fire can damage anything\n" +
-							   " false: Fire cannot damage anything"},
-				
-				{"Desc_helilocked", "Whether locked boxes/doors take damage from heli\n" +
-								   " true: Heli can damage/destroy locked doors/boxes\n" +
-								   " false: Heli cannot damage locked doors/boxes"},
-				
-				{"Desc_killsleepers", "Whether admins can kill sleepers\n" +
-									 " true: Admins can kill sleepers\n" +
-									 " false: Admins cannot kill sleepers"},
-				
-				{"Desc_authdamage", "Whether players can damage entities where building authorized\n" +
-									" true: Players can damage entities where build authorized\n" +
-									" false: Players cannot damage entities"},
-				
-				{"Desc_napalm", "Whether heli napalm can damage entities\n" +
-								" true: Napalm can damage entities\n" +
-								" false: Napalm cannot damage entities"}
+				{"Format_Wrapper", "<size={0}><color=\"{1}\">{2}</color></size>"},
+				{"Format_NotifyColor", "#00FFFF"}, // cyan
+				{"Format_NotifySize", "12"},
+				{"Format_HeaderColor", "#FFA500"}, // orange
+				{"Format_HeaderSize", "14"},
+				{"Format_ErrorColor", "#FF0000"}, // red
+				{"Format_ErrorSize", "12"},
+				{"Format_ColorWrapper", "<color=\"{0}\">{1}</color>"},
+				{"Format_SizeWrapper", "<size={0}>{1}</size>"}
 			};
 			lang.RegisterMessages(messages, this);
         }
-		
-		// option values
-		private Dictionary<Option,object> data = new Dictionary<Option,object>();
-		// has config changed?
-		private bool hasConfigChanged;
-		// usage information string with formatting
-		public string usageString;
-		// command enum
-		private enum Command { usage, set, get, desc, list, version, def };
-		// option enum
-		private enum Option { barricade, unlocked, sleepingbag, heli, sleeper, corpse, suicide, hookdamage, hookloot, turret, fire, helilocked, killsleepers, authdamage, napalm};
-		// default values array
-		private object[] def = { true, true, false, true, false, false, true, true, true, false, false, false, false, false, true };
-		// layer mask for finding authorization
-        private readonly int triggerMask = LayerMask.GetMask("Trigger");
-		
-		// load
-		void Loaded()
-		{
-			LoadDefaultMessages();
-			// build commands based on enum values
-			string baseCommand = GetMessage("ConsoleCommand");
-			foreach(Command command in Enum.GetValues(typeof(Command)))
-				cmd.AddConsoleCommand((baseCommand + "." + command.ToString()), this, "ccmdDelegator");
-			if(ConVar.Server.pve)
-				warnPve();
-			LoadConfig();
-			// build usage string
-			usageString = wrapSize(14, wrapColor("orange", GetMessage("UsageHeader"))) + "\n" +
-						  wrapSize(12, wrapColor("cyan", baseCommand + "." + Command.set.ToString() + " " + GetMessage("CmdUsageOptionString") + " " + GetMessage("CmdUsageValueString")) + " - " + GetMessage("CmdUsageSet") + "\n" +
-									   wrapColor("cyan", baseCommand + "." + Command.get.ToString() + " " + GetMessage("CmdUsageOptionString")) + " - " + GetMessage("CmdUsageGet") + "\n" +
-									   wrapColor("cyan", baseCommand + "." + Command.desc.ToString() + " " + GetMessage("CmdUsageOptionString")) + " - " + GetMessage("CmdUsageDesc") + "\n" +
-									   wrapColor("cyan", baseCommand + "." + Command.list.ToString()) + " - " + GetMessage("CmdUsageList") + "\n" +
-									   wrapColor("cyan", baseCommand + "." + Command.def.ToString()) + " - " + GetMessage("CmdUsageDef") + "\n" +
-									   wrapColor("cyan", baseCommand + "." + Command.version.ToString()) + " - " + GetMessage("CmdUsageVersion"));
-		}
         
         // get message from Lang
         string GetMessage(string key, string userId = null) => lang.GetMessage(key, this, userId);
+        
+        void warnPve() => PrintWarning(GetMessage("Warning_PveMode"));
 		
+		void Loaded()
+		{
+			LoadDefaultMessages();
+			
+			string baseCommand = GetMessage("ConsoleCommand");
+			// register console commands
+			foreach(Command command in Enum.GetValues(typeof(Command)))
+				cmd.AddConsoleCommand((baseCommand + "." + command.ToString()), this, "ccmdDelegator");
+			// register chat commands
+			cmd.AddChatCommand(baseCommand + "_prod", this, "handleProd");
+			// check for server pve setting
+			if(ConVar.Server.pve)
+				warnPve();
+			// load configuration
+			LoadConfig();
+			// build usage string
+			usageString = wrapSize(14, wrapColor("orange", GetMessage("Header_Usage"))) + "\n" +
+						  wrapSize(12, wrapColor("cyan", baseCommand + "." + Command.set.ToString() + " " + GetMessage("Cmd_Usage_OptionString") + " " + GetMessage("Cmd_Usage_ValueString")) + " - " + GetMessage("Cmd_Usage_set") + "\n" +
+									   wrapColor("cyan", baseCommand + "." + Command.get.ToString() + " " + GetMessage("Cmd_Usage_OptionString")) + " - " + GetMessage("Cmd_Usage_get") + "\n" +
+									   wrapColor("cyan", baseCommand + "." + Command.def.ToString() + " " + GetMessage("Cmd_Usage_DefaultsOptions")) + " - " + GetMessage("Cmd_Usage_def") + "\n" +
+									   wrapColor("cyan", "/" + baseCommand + "_prod") + " - " + GetMessage("Cmd_Usage_prod") + "\n" +
+									   wrapColor("cyan", baseCommand + "." + Command.list.ToString()) + " - " + GetMessage("Cmd_Usage_list") + "\n" +
+									   wrapColor("cyan", baseCommand + "." + Command.version.ToString()) + " - " + GetMessage("Cmd_Usage_version"));
+			
+			serverinput = typeof(BasePlayer).GetField("serverInput", (BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic));
+		}
 		// delegation method for console commands
 		//[ConsoleCommand("tpve")]
 		void ccmdDelegator(ConsoleSystem.Arg arg)
 		{
-			// user doesn't have access to run console command
+			// return if user doesn't have access to run console command
 			if(!hasAccess(arg)) return;
 			
 			string cmd = arg.cmd.namefull.Split('.')[1];
 			if(!Enum.IsDefined(typeof(Command), cmd))
 			{
-				// shouldn't hit
-				SendReply(arg, wrapSize(12, wrapColor("red", String.Format(GetMessage("InvalidParameter"), cmd))));
+				// shouldn't hit this
+				SendMessage(arg, "Error_InvalidParameter");
 			}
 			else
 			{
 				switch((Command) Enum.Parse(typeof(Command), cmd))
 				{
 					case Command.version:
-						SendReply(arg, wrapSize(14, wrapColor("orange", String.Format(GetMessage("VersionString"), this.Version.ToString()))));
+						SendMessage(arg, "Notify_Version", new string[] { this.Version.ToString()});
 						return;
 					case Command.def:
-						LoadDefaultConfig();
-						SendReply(arg, wrapSize(12, wrapColor("green", GetMessage("DefConfigLoad"))));
-						return;
+						if(handleDef(arg)) return; // set defaults
+						break;
 					case Command.list:
 						handleList(arg); // display list options
 						return;
@@ -198,14 +143,11 @@ namespace Oxide.Plugins
 					case Command.get:
 						if(handleGet(arg)) return;
 						break;
-					case Command.desc:
-						if(handleDesc(arg)) return;
-						break;
 					case Command.usage:
 						showUsage(arg);
 						return;
 				}
-				SendReply(arg, wrapSize(12, wrapColor("red", String.Format(GetMessage("InvalidParamForCmd"), arg.cmd.namefull))));
+				SendMessage(arg, "Error_InvalidParamForCmd");
 			}
 			showUsage(arg);
 		}
@@ -223,10 +165,79 @@ namespace Oxide.Plugins
 			{
 				if (arg.connection.authLevel < 1)
 				{
-					SendReply(arg, GetMessage("NoPermission"));
+					SendMessage(arg, "Error_NoPermission");
 					return false;
 				}
 			}
+			return true;
+		}
+		
+		// handle setting defaults
+		private bool handleDef(ConsoleSystem.Arg arg)
+		{
+			bool success = false;
+			if(arg.Args == null || arg.Args[0] == null)
+			{
+				SendMessage(arg, "Error_InvalidParameter", new object[] {"null"});
+				return false;
+			}
+			string flag = arg.Args[0];
+			if(flag == "all" || flag == "config")
+			{
+				LoadDefaultConfig();
+				SendMessage(arg, "Notify_DefConfigLoad");
+				success = true;
+			}
+			if(flag == "all" || flag == "data")
+			{
+				LoadDefaultData();
+				SaveData();
+				SendMessage(arg, "Notify_DefDataLoad");
+				success = true;
+			}
+			return success;
+		}
+		
+		// handle prod command (raycast to determine what player is looking at)
+		private void handleProd(BasePlayer player, string command, string[] args)
+		{
+			if(!isAdmin(player))
+				SendMessage(player, "Error_NoPermission");
+			
+			object entity;
+			if(!GetRaycastTarget(player, out entity) || entity == null)
+			{
+				SendReply(player, wrapSize(12, wrapColor("red", GetMessage("Error_NoEntityFound"))));
+				return;
+			}
+			SendMessage(player, "Notify_ProdResult", new object[] { entity.GetType(), (entity as BaseEntity).ShortPrefabName });
+		}
+		
+		// handle raycast from player
+		bool GetRaycastTarget(BasePlayer player, out object closestEntity)
+		{
+			closestEntity = false;
+			var input = serverinput.GetValue(player) as InputState;
+			if (input == null || input.current == null || input.current.aimAngles == Vector3.zero)
+				return false;
+			
+			Vector3 sourceEye = player.transform.position + new Vector3(0f, 1.6f, 0f);
+			Ray ray = new Ray(sourceEye, Quaternion.Euler(input.current.aimAngles) * Vector3.forward);
+			
+			var hits = Physics.RaycastAll(ray);
+			float closestdist = 100f;
+			foreach (var hit in hits)
+			{
+				if (hit.collider.isTrigger)
+					continue;
+				if (hit.distance < closestdist)
+				{
+					closestdist = hit.distance;
+					closestEntity = hit.GetEntity();
+				}
+			}
+			if (closestEntity is bool)
+				return false;
 			return true;
 		}
 		
@@ -239,7 +250,7 @@ namespace Oxide.Plugins
 				str += opt.ToString() + ", ";
 			}
 			str = str.Trim(new char[] {',',' '});
-			SendReply(arg, wrapSize(12, wrapColor("orange", String.Format(GetMessage("AvailOptions"),str))));
+			SendMessage(arg, "Notify_AvailOptions" , new object[] {str});
 		}
 		
 		// handle set command
@@ -247,22 +258,30 @@ namespace Oxide.Plugins
 		{
 			if(!Enum.IsDefined(typeof(Option), arg.Args[0]))
 			{
-				SendReply(arg, wrapSize(12, wrapColor("red", String.Format(GetMessage("InvalidParameter"), arg.Args[0]))));
+				SendMessage(arg, "Error_InvalidParameter", new object[] {arg.Args[0]});
 				return false;
 			}
 			
 			Option opt = (Option) Enum.Parse(typeof(Option), arg.Args[0]);
-			object value;
+			bool value;
 			try {
 				value = Convert.ToBoolean(arg.Args[1]);
 			} catch(FormatException e) {
-				SendReply(arg, wrapSize(12, wrapColor("red", String.Format(GetMessage("InvalidParameter"), arg.Args[1]))));
+				SendMessage(arg, "Error_InvalidParameter", new object[] {arg.Args[1]});
 				return false;
 			}
 			
 			SaveEntry(opt,value);
-			SendReply(arg, wrapSize(12, wrapColor("cyan", String.Format(GetMessage("SetSuccess"), new object[] {opt, value}))));
+			SendMessage(arg, "Notify_SetSuccess", new object[] {opt, value});
 			return true;
+		}
+		
+		// save updated entry to config
+		private void SaveEntry(Option opt, bool value)
+		{
+			string optstr = opt.ToString();
+			data.config[opt] = value;
+			SaveConfig();
 		}
 		
 		// handle get command
@@ -278,7 +297,7 @@ namespace Oxide.Plugins
 			}
 			if(!Enum.IsDefined(typeof(Option), arg.Args[0]))
 			{
-				SendReply(arg, wrapSize(12, wrapColor("red", String.Format(GetMessage("InvalidParameter"), arg.Args[0]))));
+				SendMessage(arg, "Error_InvalidParameter", new object[] {arg.Args[0]});
 				return false;
 			}
 			Option opt = (Option) Enum.Parse(typeof(Option), arg.Args[0]);
@@ -289,87 +308,127 @@ namespace Oxide.Plugins
 		// prints the value of an Option
 		private void printValue(ConsoleSystem.Arg arg, Option opt)
 		{
-			SendReply(arg, wrapSize(12, wrapColor("cyan", opt + ": ") + data[opt]));
+			SendReply(arg, wrapSize(GetMessage("Format_NotifySize"), wrapColor(GetMessage("Format_NotifyColor"), opt + ": ") + data.config[opt]));
 		}
 		
-		// handle desc command
-		private bool handleDesc(ConsoleSystem.Arg arg)
+		// load config
+		void LoadConfig()
 		{
-			if(!Enum.IsDefined(typeof(Option), arg.Args[0]))
-			{
-				SendReply(arg, wrapSize(12, wrapColor("red", String.Format(GetMessage("InvalidParameter"), arg.Args[0]))));
-				return false;
+			Config.Settings.NullValueHandling = NullValueHandling.Include;
+			try {
+				data = Config.ReadObject<TruePVEData>();
+			} catch (Exception e) {
+				data = new TruePVEData();
 			}
-			Option opt = (Option) Enum.Parse(typeof(Option), arg.Args[0]);
-			showDesc(arg, opt);
+			Config.Settings.NullValueHandling = NullValueHandling.Include;
+			bool dirty = CheckConfig();
+			if(data.data == null || data.data.Count == 0)
+				dirty = LoadDefaultData();
+			
+			global = data.LookupByName("global");
+			if(global == null)
+				dirty = CreateDefaultGlobal();
+			if(dirty)
+				SaveData();
+		}
+		
+		// save data
+		void SaveData()
+		{
+			Config.WriteObject(data);
+		}
+		
+		// verify/update configuration
+		bool CheckConfig()
+		{
+			bool dirty = false;
+			foreach(Option option in Enum.GetValues(typeof(Option)))
+				if(!data.config.ContainsKey(option))
+				{
+					data.config[option] = def[(int)option];
+					dirty = true;
+				}
+			return dirty;
+		}
+		
+		// loads default configuration entries
+		bool LoadDefaultConfig()
+		{
+			foreach(Option option in Enum.GetValues(typeof(Option)))
+				data.config[option] = def[(int)option];
+			return true;
+		}
+		
+		// loads default data entries
+		bool LoadDefaultData()
+		{
+			data.data.Clear();
+			CreateDefaultGlobal();
+			
+			Hurtable napalm = data.CreateHurtable("napalm");
+			napalm.description = "Heli Napalm";
+			napalm.prefabs.Add("napalm");
+			napalm.links[global.name] = true; // napalm hurts anything
+			
+			Hurtable player = data.CreateHurtable("player");
+			player.description = "Players";
+			player.types.Add(typeof(BasePlayer).Name);
+			player.links[player.name] = false; // no player-vs-player damage
+			global.links[player.name] = true; // anything hurts player
+			
+			//Hurtable fire = data.CreateHurtable("fire");
+			//fire.type = typeof(FireBall).Name;
+			//fire.prefabs.Add("campfire");
+			//fire.links[global.name] = false; // no fire damage
+			
+			Hurtable traps = data.CreateHurtable("traps");
+			traps.description = "Traps, landmines, and spikes";
+			traps.types.Add(typeof(BearTrap).Name);
+			traps.types.Add(typeof(Landmine).Name);
+			traps.prefabs.Add("spikes.floor");
+			//traps.prefabs.Add("beartrap");
+			//traps.prefabs.Add("landmine");
+			player.links[traps.name] = true; // players can damage traps
+			traps.links[player.name] = false; // traps don't damage players
+			
+			Hurtable barricades = data.CreateHurtable("barricades");
+			barricades.description = "Barricades";
+			barricades.types.Add(typeof(Barricade).Name);
+			player.links[barricades.name] = true; // players can damage barricade
+			barricades.links[player.name] = false; // barricades cannot hurt players
+			
+			Hurtable highwalls = data.CreateHurtable("highwalls");
+			highwalls.description = "High external walls";
+			highwalls.prefabs.Add("wall.external.high.stone");
+			highwalls.prefabs.Add("wall.external.high.wood");
+			highwalls.links[player.name] = false; // high external walls cannot hurt players
+			
+			Hurtable heli = data.CreateHurtable("heli");
+			heli.description = "Heli";
+			heli.types.Add(typeof(BaseHelicopter).Name);
+			global.links[heli.name] = true; // heli can take damage
 			
 			return true;
 		}
 		
-		// prints the description of an Option
-		private void showDesc(ConsoleSystem.Arg arg, Option opt)
-		{
-			SendReply(arg, wrapSize(14, wrapColor("orange", String.Format(GetMessage("OptionDescHeader"), opt.ToString()))) + wrapSize(12, wrapColor("cyan", GetMessage("Desc_" + opt.ToString()))));
-		}
-		
-		// warn that server is in pve mode
-		private void warnPve()
-		{
-			PrintWarning(GetMessage("PveWarning"));
-		}
-		
-		// loads default configuration
-		protected override void LoadDefaultConfig()
-		{
-			Config.Clear();
-			LoadConfig();
-		}
-		
-		// loads config from file
-		private void LoadConfig()
-		{
-			foreach(Option opt in Enum.GetValues(typeof(Option)))
-				data[opt] = Convert.ToBoolean(GetConfig(opt, def[(int)opt]));
-			
-			if (!hasConfigChanged) return;
-			SaveConfig();
-			hasConfigChanged = false;
-		}
-		
-		// get config options, or set to default value if not found
-		private object GetConfig(object opt, object defaultValue)
-		{
-			string optstr = opt.ToString();
-			object value = Config[optstr];
-			if (value == null)
-			{
-				value = defaultValue;
-				Config[optstr] = value;
-				hasConfigChanged = true;
-			}
-			return value;
-		}
-		
-		// save updated entry to config
-		private void SaveEntry(Option opt, object value)
-		{
-			string optstr = opt.ToString();
-			data[opt] = value;
-			Config[optstr] = value;
-			SaveConfig();
+		// creates default "global" container
+		bool CreateDefaultGlobal() {
+			global = data.CreateHurtable("global");
+			global.description = "Global damage handling";
+			global.links[global.name] = false; // map global to itself - default no damage
+			return true;
 		}
 		
 		// handle damage - if another mod must override TruePVE damages or take priority,
 		// comment out this method and reference HandleDamage from the other mod(s)
 		private void OnEntityTakeDamage(BaseCombatEntity entity, HitInfo hitinfo)
 		{
-			if(!getBool(Option.hookdamage)) // let other mods handle damage and hook to HandleDamage if necessary
+			if(!data.config[Option.handleDamage])
 				return;
 			HandleDamage(entity, hitinfo);
 		}
 		
 		// handle damage
-		// exposed as hook method for other mods to use
 		[HookMethod("HandleDamage")]
 		private void HandleDamage(BaseCombatEntity entity, HitInfo hitinfo)
 		{
@@ -378,271 +437,163 @@ namespace Oxide.Plugins
 		}
 		
 		// determines if an entity is "allowed" to take damage
-		// exposed as hook method for other mods to use
 		[HookMethod("AllowDamage")]
 		private bool AllowDamage(BaseCombatEntity entity, HitInfo hitinfo)
 		{
-			if (entity == null) return true;
-			var resource = entity.GetComponent<ResourceDispenser>();
-			if (resource != null)
-			{
-				// allow resource gathering
-			}
-			else if (entity is BasePlayer)
-			{
-				// allow environment damage
-				if(hitinfo.Initiator == null)
-					return true;
-				// check for fireball
-				if (hitinfo.Initiator is FireBall || hitinfo.Initiator.ShortPrefabName == "campfire")
-					return getBool(Option.fire);
-				// allow heli napalm damage
-				if(hitinfo.Initiator.ShortPrefabName == "napalm")
-					return getBool(Option.napalm);
-				// ignore external wall damage
-				if(hitinfo.Initiator.ShortPrefabName == "wall.external.high.stone" ||
-				   hitinfo.Initiator.ShortPrefabName == "wall.external.high.wood")
-					return false;
-				// allow suicide
-				if(hitinfo.damageTypes.Get(DamageType.Suicide) > 0)
-					if(getBool(Option.suicide))
-						return true;
-					else
-					{
-						sendMessage(entity as BasePlayer, wrapSize(12, wrapColor("red", GetMessage("NoSuicide"))));
-						return false;
-					}
-				// prevent pvp damage
-				if(hitinfo.Initiator is BasePlayer)
-				{
-					// allow admins to kill sleepers if option is toggled on
-					if(((BasePlayer)entity).IsSleeping() && isAdmin((BasePlayer)hitinfo.Initiator))
-						return getBool(Option.killsleepers);
-					return false;
-				}
-				// ignore trap damage
-				if(hitinfo.Initiator is BaseTrap)
-					return false;
-				// ignore barricade damage
-				if(hitinfo.Initiator is Barricade)
-					return false;
-				// ignore spike trap, campfire, and external wall damage
-				if(hitinfo.Initiator.ShortPrefabName == "spikes.floor")
-					return false;
-				// handle turret damage
-				if(hitinfo.Initiator is AutoTurret)
-					return getBool(Option.turret);
-			}
-			else if (entity is BaseNPC)
-			{
-				// allow NPC damage
+			if(!global.enabled)
 				return true;
-			}
-			else if (entity is Barricade)
+			
+			if (entity == null || hitinfo == null || hitinfo.Initiator == null) return true;
+			
+			// allow resource gathering
+			if(entity.GetComponent<ResourceDispenser>() != null)
+				return true;
+			
+			// allow decay
+			if(hitinfo.damageTypes.Get(DamageType.Decay) > 0)
+				return true;
+			
+			// check heli
+			object heli = CheckHeliInitiator(hitinfo);
+			if(heli != null)
+				return (bool)heli;
+			
+			// allow NPC damage
+			if (entity is BaseNPC || hitinfo.Initiator is BaseNPC)
+				return true;
+			
+			// allow damage to door barricades and covers
+			if(entity is Barricade && (entity.ShortPrefabName.Contains("door_barricade") || entity.ShortPrefabName.Contains("cover")))
+				return true;
+			
+			// if entity is a barrel, trash can, or giftbox, allow damage
+			if(entity.ShortPrefabName.Contains("barrel") ||
+			   entity.ShortPrefabName == "loot_trash" ||
+			   entity.ShortPrefabName == "giftbox_loot")
+				return true;
+			
+			// handle suicide
+			if(hitinfo.damageTypes.Get(DamageType.Suicide) > 0)
 			{
-				// exclude door barricades and covers
-				if(entity.ShortPrefabName.Contains("door_barricade") || entity.ShortPrefabName.Contains("cover"))
+				if(data.config[Option.allowSuicide])
 					return true;
-				// allow heli napalm damage
-				if(hitinfo.Initiator != null && hitinfo.Initiator.ShortPrefabName == "napalm")
-					return getBool(Option.napalm);
-				// check for fireball
-				if (hitinfo.Initiator != null && hitinfo.Initiator is FireBall)
-					return getBool(Option.fire);
-				// Check for build authorization permission
-				if(getBool(Option.authdamage) && hitinfo.Initiator != null && hitinfo.Initiator is BasePlayer)
-					return checkAuthDamage(entity, hitinfo.Initiator as BasePlayer);
-				// Check for heli initiator
-				if(hitinfo.Initiator is BaseHelicopter ||
-				   hitinfo.Initiator is HelicopterTurret)
-					return getBool(Option.heli);
-				else if(hitinfo.WeaponPrefab != null) // prevent null spam
+				else
 				{
-					if(hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli" ||
-					   hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli_napalm")
-						return getBool(Option.heli);
-				}
-				// if damage not allowed, cancel damage
-				return getBool(Option.barricade);
-			}
-			else if (entity is SleepingBag)
-			{
-				// allow heli napalm damage
-				if(hitinfo.Initiator != null && hitinfo.Initiator.ShortPrefabName == "napalm")
-					return getBool(Option.napalm);
-				// check for fireball
-				if (hitinfo.Initiator != null && hitinfo.Initiator is FireBall)
-					return getBool(Option.fire);
-				// Check for build authorization permission
-				if(getBool(Option.authdamage) && hitinfo.Initiator != null && hitinfo.Initiator is BasePlayer)
-					return checkAuthDamage(entity, hitinfo.Initiator as BasePlayer);
-				// Check for heli initiator
-				if(hitinfo.Initiator is BaseHelicopter ||
-				   hitinfo.Initiator is HelicopterTurret)
-					return getBool(Option.heli);
-				else if(hitinfo.WeaponPrefab != null) // prevent null spam
-				{
-					if(hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli" ||
-					   hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli_napalm")
-						return getBool(Option.heli);
-				}
-				// if damage not allowed, cancel damage
-				return getBool(Option.sleepingbag);
-			}
-			else if(entity is StorageContainer || entity is Door)
-			{
-				// if entity is a barrel or giftbox, allow damage
-				if(entity.ShortPrefabName.Contains("barrel") || entity.ShortPrefabName == "giftbox_loot")
-					return true;
-				// if entity is a trash can, allow damage
-				if(entity.ShortPrefabName == "loot_trash")
-					return true;
-				// allow heli napalm damage
-				if(hitinfo.Initiator != null && hitinfo.Initiator.ShortPrefabName == "napalm")
-					return getBool(Option.napalm);
-				// Check for build authorization permission
-				if(getBool(Option.authdamage) && hitinfo.Initiator != null && hitinfo.Initiator is BasePlayer)
-					return checkAuthDamage(entity, hitinfo.Initiator as BasePlayer);
-				// check misc deployables and prevent damage
-				if(entity.ShortPrefabName == "lantern.deployed" ||
-				   entity.ShortPrefabName == "ceilinglight.deployed" ||
-				   entity.ShortPrefabName == "furnace.large" ||
-				   entity.ShortPrefabName == "furnace" ||
-				   entity.ShortPrefabName == "refinery_small_deployed" ||
-				   entity.ShortPrefabName == "waterbarrel" ||
-				   entity.ShortPrefabName == "jackolantern.angry" ||
-				   entity.ShortPrefabName == "jackolantern.happy" ||
-				   entity.ShortPrefabName == "repairbench_deployed" ||
-				   entity.ShortPrefabName == "researchtable_deployed")
-				{
-					// Check for heli initiator
-					if(hitinfo.Initiator is BaseHelicopter ||
-					   hitinfo.Initiator is HelicopterTurret)
-						return getBool(Option.heli);
-					else if(hitinfo.WeaponPrefab != null) // prevent null spam
-					{
-						if(hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli" ||
-						   hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli_napalm")
-							return getBool(Option.heli);
-					}
-					// don't allow damage
+					SendMessage(entity as BasePlayer, "Error_NoSuicide");
 					return false;
 				}
-				
-				// check campfire/gates
-				if(entity.ShortPrefabName == "campfire" ||
-				   entity.ShortPrefabName == "gates.external.high.stone" ||
-				   entity.ShortPrefabName == "gates.external.high.wood")
-				{
-					// allow campfire/gate decay
-					if(hitinfo.damageTypes.Get(DamageType.Decay) > 0)
-						return true;
-					// Check for heli initiator
-					if(hitinfo.Initiator is BaseHelicopter ||
-					   hitinfo.Initiator is HelicopterTurret)
-						return getBool(Option.heli);
-					else if(hitinfo.WeaponPrefab != null) // prevent null spam
+			}
+			
+			// Check storage containers and doors for locks
+			if((entity is StorageContainer || entity is Door) && data.config[Option.immortalLocks])
+			{
+				// check for lock
+				object hurt = CheckLock(entity,hitinfo);
+				if(hurt != null)
+					return (bool) hurt;
+			}
+			
+			// ignore checks if authorized damage enabled (except for players)
+			if(data.config[Option.authDamage] && !(entity is BasePlayer) && CheckAuthDamage(entity, hitinfo.Initiator as BasePlayer))
+				return true;
+			
+			// allow sleeper damage by admins if configured
+			if(data.config[Option.sleeperAdminDamage] && entity is BasePlayer && hitinfo.Initiator is BasePlayer)
+				if((entity as BasePlayer).IsSleeping() && isAdmin(hitinfo.Initiator as BasePlayer))
+					return true;
+			
+			// handle rules
+			List<Hurtable> hurtableList = new List<Hurtable>();
+			hurtableList = data.Lookup(hitinfo.Initiator);
+			List<Hurtable> otherList = new List<Hurtable>();
+			otherList = data.Lookup(entity);
+			if(hurtableList != null && hurtableList.Count > 0 && otherList != null && otherList.Count > 0)
+			{
+				// check direct assignment (hurtable mapped to hurtable)
+				foreach(Hurtable h1 in hurtableList)
+					foreach(Hurtable h2 in otherList)
 					{
-						if(hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli" ||
-						   hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli_napalm")
-							return getBool(Option.heli);
+						object r = h1.CanHurt(h2);
+						if(r != null)
+							return (bool)r;
 					}
-					return false;
-				}
-				// check for fireball
-				if (hitinfo.Initiator != null && hitinfo.Initiator is FireBall)
-					return getBool(Option.fire);
-				
-				// if damage not allowed, cancel damage
-				if(!getBool(Option.unlocked))
+			}
+			if(hurtableList != null && hurtableList.Count > 0)
+			{
+				// check if initiator can hurt anything (hurtable mapped to global)
+				foreach(Hurtable h1 in hurtableList)
 				{
-					// Check for heli initiator
-					if(hitinfo.Initiator is BaseHelicopter ||
-					   hitinfo.Initiator is HelicopterTurret)
-						return getBool(Option.heli);
-					else if(hitinfo.WeaponPrefab != null) // prevent null spam
-					{
-						if(hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli" ||
-						   hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli_napalm")
-							return getBool(Option.heli);
-					}
-					return false;
+					object r = h1.CanHurt(global);
+					if(r != null)
+						return (bool)r;
 				}
-				
-				// if unlocked damage allowed - check for lock
-				BaseLock alock = entity.GetSlot(BaseEntity.Slot.Lock) as BaseLock; // get lock
-				if (alock == null) return true; // no lock, allow damage
+			}
+			if(otherList != null && otherList.Count > 0)
+			{
+				// check if anything can hurt entity (global mapped to hurtable)
+				foreach(Hurtable h2 in otherList)
+				{
+					object r = global.CanHurt(h2);
+					if(r != null)
+						return (bool)r;
+				}
+			}
+			
+			// handle global damage (global mapped to global)
+			return global.links[global.name];
+		}
+		
+		// checks for a lock
+		object CheckLock(BaseCombatEntity entity, HitInfo hitinfo)
+		{
+			// exclude deployed items in storage container lock check (since they can't have locks)
+			if(entity.ShortPrefabName == "lantern.deployed" ||
+			   entity.ShortPrefabName == "ceilinglight.deployed" ||
+			   entity.ShortPrefabName == "furnace.large" ||
+			   entity.ShortPrefabName == "campfire" ||
+			   entity.ShortPrefabName == "furnace" ||
+			   entity.ShortPrefabName == "refinery_small_deployed" ||
+			   entity.ShortPrefabName == "waterbarrel" ||
+			   entity.ShortPrefabName == "jackolantern.angry" ||
+			   entity.ShortPrefabName == "jackolantern.happy" ||
+			   entity.ShortPrefabName == "repairbench_deployed" ||
+			   entity.ShortPrefabName == "researchtable_deployed")
+				return null;
+			
+			// if unlocked damage allowed - check for lock
+			BaseLock alock = entity.GetSlot(BaseEntity.Slot.Lock) as BaseLock; // get lock
+			if (alock == null) return true; // no lock, allow damage
 
-				if (alock.IsLocked()) // is locked, cancel damage except heli
-				{
-					// if helilocked option is false or heli damage is false, all damage is cancelled
-					if(!getBool(Option.helilocked) || !getBool(Option.heli)) return false;
-					// Check for heli initiator
-					if(hitinfo.Initiator is BaseHelicopter ||
-					   hitinfo.Initiator is HelicopterTurret)
-						return getBool(Option.heli);
-					else if(hitinfo.WeaponPrefab != null) // prevent null spam
-					{
-						if(hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli" ||
-						   hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli_napalm")
-							return getBool(Option.heli);
-					}
-					return false;
-				}
-			}
-			else if (!(entity is LootContainer) &&
-					 !(entity is BaseHelicopter) &&
-					 !(entity is AutoTurret) &&
-					 !(entity is StorageContainer) &&
-					 !(entity is Door) &&
-					 !(entity is BaseTrap))
+			if (alock.IsLocked()) // is locked, cancel damage except heli
 			{
-				// allow heli napalm damage
-				if(hitinfo.Initiator != null && hitinfo.Initiator.ShortPrefabName == "napalm")
-					return getBool(Option.napalm);
-				// check for fireball
-				if (hitinfo.Initiator != null && hitinfo.Initiator is FireBall)
-					return getBool(Option.fire);
-				// Check for build authorization permission
-				if(getBool(Option.authdamage) && hitinfo.Initiator != null && hitinfo.Initiator is BasePlayer)
-					return checkAuthDamage(entity, hitinfo.Initiator as BasePlayer);
-				// prevent damage except for decay and (maybe) heli
-				if(hitinfo.damageTypes.Get(DamageType.Decay) > 0)
-					return true;
-				if(hitinfo.Initiator is BaseHelicopter ||
-				   hitinfo.Initiator is HelicopterTurret)
-					return getBool(Option.heli);
-				else if(hitinfo.WeaponPrefab != null) // prevent null spam
-				{
-					if(hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli" ||
-					   hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli_napalm")
-						return getBool(Option.heli);
-				}
-				
+				// if heliDamageLocked option is false or heliDamage is false, all damage is cancelled
+				if(!data.config[Option.heliDamageLocked] || !data.config[Option.heliDamage]) return false;
+				object heli = CheckHeliInitiator(hitinfo);
+				if(heli != null)
+					return (bool) heli;
 				return false;
-			}
-			else
-			{
-				// allow heli napalm damage
-				if(hitinfo.Initiator != null && hitinfo.Initiator.ShortPrefabName == "napalm")
-					return getBool(Option.napalm);
-				// check for fireball
-				if (hitinfo.Initiator != null && hitinfo.Initiator is FireBall)
-					return getBool(Option.fire);
 			}
 			return true;
 		}
 		
-		// cancel damage
-		private static void CancelDamage(HitInfo hitinfo)
+		// check for heli
+		object CheckHeliInitiator(HitInfo hitinfo)
 		{
-			hitinfo.damageTypes = new DamageTypeList();
-            hitinfo.DoHitEffects = false;
-			hitinfo.HitMaterial = 0;
+			// Check for heli initiator
+			if(hitinfo.Initiator is BaseHelicopter ||
+			   hitinfo.Initiator is HelicopterTurret)
+				return data.config[Option.heliDamage];
+			else if(hitinfo.WeaponPrefab != null) // prevent null spam
+			{
+				if(hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli" ||
+				   hitinfo.WeaponPrefab.ShortPrefabName == "rocket_heli_napalm")
+					return data.config[Option.heliDamage];
+			}
+			return null;
 		}
 		
-		// checks if the player is authorized on all cupboards intersecting the entity
-		private bool checkAuthDamage(BaseCombatEntity entity, BasePlayer player)
+		// checks if the player is authorized to damage the entity
+		bool CheckAuthDamage(BaseCombatEntity entity, BasePlayer player)
 		{
 			// check if the player is the owner of the entity
 			if(player.userID == entity.OwnerID)
@@ -652,7 +603,6 @@ namespace Oxide.Plugins
 			bool authed = false;
 			// check for cupboards which overlap the entity
 			var hit = Physics.OverlapBox(entity.transform.position, entity.bounds.extents/2f, entity.transform.rotation, triggerMask);
-			//var hit = Physics.OverlapSphere(entity.transform.position, 1.0f, triggerMask);
 			// loop through cupboards
 			foreach (var ent in hit)
 			{
@@ -668,41 +618,21 @@ namespace Oxide.Plugins
             return authed;
 		}
 		
-		// wrap a string in a <size> tag with the passed size
-		static string wrapSize(int size, string input)
+		// cancel damage
+		private static void CancelDamage(HitInfo hitinfo)
 		{
-			if(input == null || input == "")
-				return input;
-			return "<size=" + size + ">" + input + "</size>";
-		}
-		
-		// wrap a string in a <color> tag with the passed color
-		static string wrapColor(string color, string input)
-		{
-			if(input == null || input == "" || color == null || color == "")
-				return input;
-			return "<color=" + color + ">" + input + "</color>";
-		}
-		
-		// convert Option value to bool
-		private bool getBool(Option opt)
-		{
-			return Convert.ToBoolean(data[opt]);
-		}
-		
-		// convert Option value to float
-		private float getFloat(Option opt)
-		{
-			return Convert.ToSingle(data[opt]);
+			hitinfo.damageTypes = new DamageTypeList();
+            hitinfo.DoHitEffects = false;
+			hitinfo.HitMaterial = 0;
 		}
 		
 		// handle looting - if another mod must override TruePVE looting behavior,
 		// comment out this method and reference AllowLoot from the other mod(s)
 		private object CanLootPlayer(BasePlayer target, BasePlayer player)
 		{
-			if(!getBool(Option.hookloot)) // let other mods handle looting and hook to HandleLoot if necessary
+			if(!data.config[Option.handleLooting]) // let other mods handle looting and hook to HandleLoot if necessary
 				return null;
-			if(!HandleLoot(player, target, false))
+			if(!HandleLoot(player, target))
 				return (object) false; // non-null allows looting
 			return null;
 		}
@@ -710,7 +640,7 @@ namespace Oxide.Plugins
 		// handle looting players
         private void OnLootPlayer(BasePlayer player, BasePlayer target)
         {
-			if(!getBool(Option.hookloot)) // let other mods handle looting and hook to HandleLoot if necessary
+			if(!data.config[Option.handleLooting]) // let other mods handle looting and hook to HandleLoot if necessary
 				return;
 			HandleLoot(player, target);
 		}
@@ -718,37 +648,35 @@ namespace Oxide.Plugins
 		// handle looting entities
 		private void OnLootEntity(BasePlayer player, BaseEntity target)
 		{
-			if(!getBool(Option.hookloot)) // let other mods handle looting and hook to HandleLoot if necessary
+			if(!data.config[Option.handleLooting]) // let other mods handle looting and hook to HandleLoot if necessary
 				return;
 			HandleLoot(player, target);
 		}
 		
 		// handle looting players
 		[HookMethod("HandleLoot")]
-		public bool HandleLoot(BasePlayer player, BaseEntity target, bool cancel = true)
+		public bool HandleLoot(BasePlayer player, BaseEntity target)
 		{
 			if(target == null)
 				return true;
 			if(!AllowLoot(player, target))
 			{
-				if(cancel)
-					CancelLooting(player, target);
+				CancelLooting(player, target);
 				return false;
 			}
 			return true;
 		}
 		
 		// determine whether to allow looting sleepers and other players' corpses
-		// exposed as hook method for other mods to use
 		[HookMethod("AllowLoot")]
 		private bool AllowLoot(BasePlayer player, BaseEntity target)
 		{
 			if(isAdmin(player))
 				return true;
 			else if(target is BasePlayer && (target as BasePlayer).IsSleeping())
-				return getBool(Option.sleeper);
+				return data.config[Option.sleeperLooting];
 			else if(target is LootableCorpse && (Convert.ToString(player.userID) != Convert.ToString((target as LootableCorpse).playerSteamID)))
-				return getBool(Option.corpse);
+				return data.config[Option.corpseLooting];
 			return true;
 		}
 		
@@ -757,32 +685,112 @@ namespace Oxide.Plugins
 		{
 			string message = "";
 			if(target is LootableCorpse)
-				message = GetMessage("NoLootCorpse");
+				message = "Error_NoLootCorpse";
 			else if(target is BasePlayer)
-				message = GetMessage("NoLootSleeper");
+				message = "Error_NoLootSleeper";
 			
 			NextTick(() =>
 			{
 				player.EndLooting();
-				sendMessage(player, wrapSize(12, wrapColor("red", message)));
+				SendMessage(player, message);
 			});
 		}
 		
 		// send message to player
-		void sendMessage(BasePlayer player, string message)
+		void SendMessage(BasePlayer player, string key, object[] options = null)
 		{
-			//if(checkPopup())
-			//	PopupNotifications.Call("CreatePopupNotification", message, player);
-			//else
-				SendReply(player, message);
+			SendReply(player, BuildMessage(key, options));
+		}
+		
+		// send message to player
+		void SendMessage(ConsoleSystem.Arg arg, string key, object[] options = null)
+		{
+			SendReply(arg, BuildMessage(key, options));
+		}
+		
+		string BuildMessage(string key, object[] options = null)
+		{
+			string message = GetMessage(key);
+			if(options != null && options.Length > 0)
+				message = String.Format(message, options);
+			string type = key.Split('_')[0];
+			string size = GetMessage("Format_"+type+"Size");
+			string color = GetMessage("Format_"+type+"Color");
+			return String.Format(GetMessage("Format_Wrapper"), new object[] {size, color, message});
+		}
+		
+		string wrapSize(string size, string input)
+		{
+			int i = 0;
+			if(Int32.TryParse(size, out i))
+				return wrapSize(i, input);
+			return input;
+		}
+		
+		// wrap a string in a <size> tag with the passed size
+		string wrapSize(int size, string input)
+		{
+			if(input == null || input == "")
+				return input;
+			return String.Format(GetMessage("Format_SizeWrapper"), new object[] {size, input});
+		}
+		
+		// wrap a string in a <color> tag with the passed color
+		string wrapColor(string color, string input)
+		{
+			if(input == null || input == "" || color == null || color == "")
+				return input;
+			return String.Format(GetMessage("Format_ColorWrapper"), new object[] {color, input});
 		}
 		
 		// is admin
         private bool isAdmin(BasePlayer player)
         {
         	if (player == null) return false;
-            if (player?.net?.connection == null) return false;
+            if (player?.net?.connection == null) return true;
             return player.net.connection.authLevel > 0;
         }
+		
+		// configuration and data storage container
+		private class TruePVEData
+		{
+			public Dictionary<Option,bool> config = new Dictionary<Option,bool>();
+			public Dictionary<string,Hurtable> data = new Dictionary<string,Hurtable>();
+			
+			public Hurtable LookupByName(string name) {
+				return data.ContainsKey(name) ? data[name] : null;
+			}
+			
+			public List<Hurtable> Lookup(BaseEntity entity) {
+				return data.Values.ToList().Where(h => (h.prefabs != null && h.prefabs.Contains(entity.ShortPrefabName)) || (h.types != null && h.types.Contains(entity.GetType().Name))).ToList();
+			}
+			
+			public Hurtable CreateHurtable(string name)
+			{
+				Hurtable h = new Hurtable();
+				h.name = name;
+				data[h.name] = h;
+				return h;
+			}
+		}
+		
+		// container for mapping entities
+		private class Hurtable
+		{
+			public string name;
+			public string description;
+			public List<string> prefabs = new List<string>();
+			public List<string> types = new List<string>();
+			public Dictionary<string,bool> links = new Dictionary<string,bool>();
+			public bool enabled = true;
+			
+			public object CanHurt(Hurtable other) {
+				if(!enabled || !other.enabled)
+					return null;
+				if(links != null && links.Count > 0 && links.ContainsKey(other.name))
+					return links[other.name];
+				return null;
+			}
+		}
 	}
 }

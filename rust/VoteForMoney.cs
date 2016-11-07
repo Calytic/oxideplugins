@@ -1,13 +1,14 @@
 using System;
 using Oxide.Core;
 using Oxide.Core.Plugins;
+using System.Collections;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Collections.Generic;
 
 namespace Oxide.Plugins
 {
-    [Info("Vote For Money", "Frenk92", "0.4.1", ResourceId = 2086)]
+    [Info("Vote For Money", "Frenk92", "0.5.0", ResourceId = 2086)]
     class VoteForMoney : RustPlugin
     {
         [PluginReference]
@@ -20,8 +21,10 @@ namespace Oxide.Plugins
         const string permAdmin = "voteformoney.admin";
         const string site1 = "Rust-Servers";
         const string site2 = "TopRustServers";
+        const string site3 = "BeancanIO";
         const string link1 = "http://rust-servers.net/server/";
         const string link2 = "http://toprustservers.com/server/";
+        const string link3 = "http://beancan.io/server/";
         public bool edit = false;
 
         #region Config
@@ -29,16 +32,19 @@ namespace Oxide.Plugins
         string rustServersID = "";
         string topRustKey = "";
         string topRustID = "";
+        string beancanKey = "";
+        string beancanID = "";
         string voteType = "day";
         int voteInterval = 1;
-        string money = "250";
-        string rp = "30";
-        string kit = "";
         bool useRP = false;
         bool useEconomics = true;
+        bool useKits = false;
         string prefix = "<color=#808000ff><b>VoteForMoney:</b></color>";
+        Dictionary<string, string> kits = new Dictionary<string, string> { { "default", "" } };
+        Dictionary<string, string> money = new Dictionary<string, string> { { "default", "250" } };
+        Dictionary<string, string> rp = new Dictionary<string, string> { { "default", "30" } };
 
-        string configVersion = "0.1.0";
+        string configVersion = "0.2.0";
 
         protected override void LoadDefaultConfig()
         {
@@ -48,53 +54,72 @@ namespace Oxide.Plugins
 
         void LoadConfigData()
         {
+            var version = (string)Config["Version"];
             //Load config
-            rustServersKey = (string)ReadConfig("Rust-Servers - Api Key");
-            rustServersID = (string)ReadConfig("Rust-Servers - Server ID");
-            topRustKey = (string)ReadConfig("TopRustServers - Api Key");
-            topRustID = (string)ReadConfig("TopRustServers - Server ID");
-            voteType = (string)ReadConfig("Vote Type");
-            voteInterval = Convert.ToInt16(ReadConfig("Vote Interval"));
-            money = (string)ReadConfig("Money");
-            rp = (string)ReadConfig("RP");
-            kit = (string)ReadConfig("Kit");
-            useRP = Convert.ToBoolean(ReadConfig("Use RP"));
-            useEconomics = Convert.ToBoolean(ReadConfig("Use Economics"));
-            prefix = (string)ReadConfig("Prefix");
+            rustServersKey = (string)ReadConfig("Rust-Servers - Api Key", rustServersKey);
+            rustServersID = (string)ReadConfig("Rust-Servers - Server ID", rustServersID);
+            topRustKey = (string)ReadConfig("TopRustServers - Api Key", topRustKey);
+            topRustID = (string)ReadConfig("TopRustServers - Server ID", topRustID);
+            beancanKey = (string)ReadConfig("BeancanIO - Api Key", beancanKey);
+            beancanID = (string)ReadConfig("BeancanIO - Server ID", beancanID);
+            voteType = (string)ReadConfig("Vote Type", voteType);
+            voteInterval = Convert.ToInt16(ReadConfig("Vote Interval", voteInterval));
+            useRP = Convert.ToBoolean(ReadConfig("Use RP", useRP));
+            useEconomics = Convert.ToBoolean(ReadConfig("Use Economics", useEconomics));
+            useKits = Convert.ToBoolean(ReadConfig("Use Kits", useKits));
+            prefix = (string)ReadConfig("Prefix", prefix);
 
-            var version = (string)ReadConfig("Version");
+            var oldMoney = "";
+            var oldRP = "";
+            var oldKit = "";
+            if(version == null || version == "0.1.0")
+            {
+                oldMoney = (string)ReadConfig("Money", oldMoney);
+                oldRP = (string)ReadConfig("RP", oldRP);
+                oldKit = (string)ReadConfig("Kit", oldKit);
+            }
+            else
+            {
+                money = ConvertToDictionary(ReadConfig("Money", money), money);
+                rp = ConvertToDictionary(ReadConfig("RP", rp), rp);
+                kits = ConvertToDictionary(ReadConfig("Kits", kits), kits);
+            }
+
             if(version == null || version != configVersion)
             {
                 PrintWarning("Configuration is outdate. Update in progress...");
                 Config.Clear();    
-                //Default config
+
                 SetConfig("Rust-Servers - Api Key", rustServersKey);
                 SetConfig("Rust-Servers - Server ID", rustServersID);
                 SetConfig("TopRustServers - Api Key", topRustKey);
                 SetConfig("TopRustServers - Server ID", topRustID);
+                SetConfig("BeancanIO - Api Key", beancanKey);
+                SetConfig("BeancanIO - Server ID", beancanID);
                 SetConfig("Vote Type", voteType);
                 SetConfig("Vote Interval", voteInterval);
-                SetConfig("Money", money);
-                SetConfig("RP", rp);
-                SetConfig("Kit", kit);
                 SetConfig("Use Economics", useEconomics);
                 SetConfig("Use RP", useRP);
+                SetConfig("Use Kits", useKits);
                 SetConfig("Prefix", prefix);
-                SetConfig("Version", configVersion);
 
-                //Load config
-                rustServersKey = (string)ReadConfig("Rust-Servers - Api Key");
-                rustServersID = (string)ReadConfig("Rust-Servers - Server ID");
-                topRustKey = (string)ReadConfig("TopRustServers - Api Key");
-                topRustID = (string)ReadConfig("TopRustServers - Server ID");
-                voteType = (string)ReadConfig("Vote Type");
-                voteInterval = Convert.ToInt16(ReadConfig("Vote Interval"));
-                money = (string)ReadConfig("Money");
-                rp = (string)ReadConfig("RP");
-                kit = (string)ReadConfig("Kit");
-                useRP = Convert.ToBoolean(ReadConfig("Use RP"));
-                useEconomics = Convert.ToBoolean(ReadConfig("Use Economics"));
-                prefix = (string)ReadConfig("Prefix");
+                if(version == null || version == "0.1.0")
+                {
+                    money = new Dictionary<string, string> { { "default", oldMoney } };
+                    SetConfig("Money", money);
+                    rp = new Dictionary<string, string> { { "default", oldRP } };
+                    SetConfig("RP", rp);
+                    kits = new Dictionary<string, string> { { "default", oldKit } };
+                    SetConfig("Kits", kits);
+                }
+                else
+                {
+                    SetConfig("Money", money);
+                    SetConfig("RP", rp);
+                    SetConfig("Kits", kits);
+                }
+
+                SetConfig("Version", configVersion);
             }
         }
 
@@ -110,41 +135,28 @@ namespace Oxide.Plugins
                 ["RewardRP"] = "RP reward: {0}",
                 ["RewardXP"] = "XP reward: {0}",
                 ["RewardLVL"] = "Level reward: {0}",
-                ["RewardKit"] = "Kit rewarded",
+                ["RewardKit"] = "Kit rewarded.",
                 ["EditID"] = "{0} - Server ID edited.",
                 ["EditKey"] = "{0} - Api Key edited.",
                 ["SiteDisabled"] = "{0} disabled",
-                ["EditMoney"] = "Money reward edited in: {0}",
-                ["EditRP"] = "RP reward edited in: {0}",
-                ["EditXP"] = "XP reward edited in: {0}",
-                ["EditLVL"] = "Level reward edited in: {0}",
-                ["EditKit"] = "Kit reward edited in: {0}",
-                ["KitDisabled"] = "Kit reward disabled",
+                ["AddMoney"] = "Money reward \"{0}\" was added.",
+                ["RemoveMoney"] = "Money reward \"{0}\" was removed.",
+                ["AddRP"] = "RP reward \"{0}\" was added.",
+                ["RemoveRP"] = "RP reward \"{0}\" was removed.",
+                ["AddKit"] = "Kit reward \"{0}\" was added.",
+                ["RemoveKit"] = "Kit reward \"{0}\" was removed.",
+                ["NotExist"] = "\"{0}\" doesn't exist in config.",
+                ["NotExistGroup"] = "Group \"{0}\" doesn't exist.",
+                ["NotExistKit"] = "Kit \"{0}\" doesn't exist.",
                 ["ErrorNumbers"] = "Error. Insert only numbers.",
                 ["EditType"] = "Vote type edited in: {0}",
                 ["ErrorType"] = "Error. Only 'day' or 'hour'.",
-                ["EditInterval"] = "Vote interval edited {0}",
+                ["EditInterval"] = "Vote interval edited in: {0}",
                 ["EditUseEco"] = "Use Economics edited in: {0}",
                 ["EditUseRP"] = "Use RP edited in: {0}",
+                ["EditUseKits"] = "Use Kits edited in: {0}",
                 ["ErrorBool"] = "Error. Only 'true' or 'false'.",
-                ["Help"] = "============== VOTE HELP =============",
-                ["HelpNext"] = "====> /vote help 2 - next page <====",
-                ["Help1"] = "=============== PAGE 1 ===============",
-                ["Help2"] = "=============== PAGE 2 ===============",
-                ["HelpRSID"] = "/vote rservers id SERVERID - edit Rust-Servers id.",
-                ["HelpRSKey"] = "/vote rsevers key APIKEY - edit Rust-Servers api key.",
-                ["HelpRSDisable"] = "/vote rsevers false - disable Rust-Servers.",
-                ["HelpTRSID"] = "/vote toprust id SERVERID - edit TopRustServers id.",
-                ["HelpTRSKey"] = "/vote toprust key APIKEY - edit TopRustServers api key.",
-                ["HelpTRSDisable"] = "/vote toprust false - disable TopRustServers.",
-                ["HelpMoney"] = "/vote money AMOUNT - edit Money reward.",
-                ["HelpRP"] = "/vote rp AMOUNT - edit RP reward.",
-                ["HelpKit"] = "/vote kit KITNAME - edit Kit reward.",
-                ["HelpKitDisable"] = "/vote kit false - disable Kit reward.",
-                ["HelpType"] = "/vote type day/hour - edit vote type.",
-                ["HelpInterval"] = "/vote interval AMOUNT - edit vote interval.",
-                ["HelpUseEco"] = "/vote economy true/false - to use Economics or not.",
-                ["HelpUseRP"] = "/vote userp true/false - to use RP or not.",
+                ["Help"] = "\n============== VOTE HELP =============\n/vote <money|rp|kit> true/false - to use <Economics|RP|Kits> or not.\n/vote <money|rp|kit> add \"GROUP\" \"AMOUNT\" - to add a group for a different reward.\n/vote <money|rp|kit> remove \"GROUP\" - to remove a group.\n/vote type day/hour - edit vote type.\n/vote interval AMOUNT - edit vote interval.\n/vote <rservers|toprust|beancan> <id \"SERVERID\"|key \"APIKEY\"> - edit <Rust-Servers|TopRustServers|BeancanIO> <ID|ApiKey>.\n/vote <rservers|toprust|beancan> false - disable <Rust-Servers|TopRustServers|BeancanIO>.\n============== VOTE HELP =============",
             }, this);
         }
         #endregion
@@ -223,78 +235,137 @@ namespace Oxide.Plugins
                     {
                         case "help":
                             {
-                                try
-                                {
-                                    if (args[1] == "2")
-                                    {
-                                        MessageChat(player, Lang("Help", player.UserIDString));
-                                        MessageChat(player, Lang("HelpUseEco", player.UserIDString));
-                                        MessageChat(player, Lang("HelpUseRP", player.UserIDString));
-                                        MessageChat(player, Lang("HelpRSID", player.UserIDString));
-                                        MessageChat(player, Lang("HelpRSKey", player.UserIDString));
-                                        MessageChat(player, Lang("HelpRSDisable", player.UserIDString));
-                                        MessageChat(player, Lang("HelpTRSID", player.UserIDString));
-                                        MessageChat(player, Lang("HelpTRSKey", player.UserIDString));
-                                        MessageChat(player, Lang("HelpTRSDisable", player.UserIDString));
-                                        MessageChat(player, Lang("Help2", player.UserIDString));
-                                        break;
-                                    }
-                                }
-                                catch
-                                {
-                                    MessageChat(player, Lang("Help", player.UserIDString));
-                                    MessageChat(player, Lang("HelpMoney", player.UserIDString));
-                                    MessageChat(player, Lang("HelpRP", player.UserIDString));
-                                    MessageChat(player, Lang("HelpKit", player.UserIDString));
-                                    MessageChat(player, Lang("HelpKitDisable", player.UserIDString));
-                                    MessageChat(player, Lang("HelpType", player.UserIDString));
-                                    MessageChat(player, Lang("HelpInterval", player.UserIDString));
-                                    MessageChat(player, Lang("HelpNext", player.UserIDString));
-                                    MessageChat(player, Lang("Help1", player.UserIDString));
-                                }
+                                MessageChat(player, Lang("Help", player.UserIDString));
                                 break;
                             }
                         case "money":
                             {
+                                bool flag;
+                                if (Boolean.TryParse(args[1], out flag))
+                                {
+                                    useEconomics = flag;
+                                    SetConfig("Use Economics", useEconomics);
+                                    MessageChat(player, Lang("EditUseEco", player.UserIDString, flag));
+                                    break;
+                                }
+
                                 int n;
-                                bool isNumber = int.TryParse(args[1], out n);
+                                bool isNumber = int.TryParse(args[3], out n);
                                 if (!isNumber)
                                 {
                                     MessageChat(player, Lang("ErrorNumbers", player.UserIDString));
                                     break;
                                 }
-                                money = args[1];
+                                if (args[1] == "add")
+                                {
+                                    if (permission.GroupExists(args[2]))
+                                    {
+                                        money.Add(args[2], args[3]);
+                                        MessageChat(player, Lang("AddMoney", player.UserIDString, args[2]));
+                                    }
+                                    else
+                                    {
+                                        MessageChat(player, Lang("NotExistGroup", player.UserIDString, args[2]));
+                                        break;
+                                    }
+                                }
+                                else if (args[1] == "remove")
+                                {
+                                    if (money.ContainsKey(args[2]))
+                                    {
+                                        money.Remove(args[2]);
+                                        MessageChat(player, Lang("RemoveMoney", player.UserIDString, args[2]));
+                                    }
+                                    else
+                                        MessageChat(player, Lang("NotExist", player.UserIDString, args[2]));
+                                }
                                 SetConfig("Money", money);
-                                MessageChat(player, Lang("EditMoney", player.UserIDString, money));
                                 break;
                             }
                         case "rp":
                             {
+                                bool flag;
+                                if (Boolean.TryParse(args[1], out flag))
+                                {
+                                    useRP = flag;
+                                    SetConfig("Use RP", useRP);
+                                    MessageChat(player, Lang("EditUseRP", player.UserIDString, flag));
+                                    break;
+                                }
+
                                 int n;
-                                bool isNumber = int.TryParse(args[1], out n);
+                                bool isNumber = int.TryParse(args[3], out n);
                                 if (!isNumber)
                                 {
                                     MessageChat(player, Lang("ErrorNumbers", player.UserIDString));
                                     break;
                                 }
-                                rp = args[1];
+                                if (args[1] == "add")
+                                {
+                                    if (permission.GroupExists(args[2]))
+                                    {
+                                        rp.Add(args[2], args[3]);
+                                        MessageChat(player, Lang("AddRP", player.UserIDString, args[2]));
+                                    }
+                                    else
+                                    {
+                                        MessageChat(player, Lang("NotExistGroup", player.UserIDString, args[2]));
+                                        break;
+                                    }
+                                }
+                                else if (args[1] == "remove")
+                                {
+                                    if (rp.ContainsKey(args[2]))
+                                    {
+                                        rp.Remove(args[2]);
+                                        MessageChat(player, Lang("RemoveRP", player.UserIDString, args[2]));
+                                    }
+                                    else
+                                        MessageChat(player, Lang("NotExist", player.UserIDString, args[2]));
+                                }
                                 SetConfig("RP", rp);
-                                MessageChat(player, Lang("EditRP", player.UserIDString, rp));
                                 break;
                             }
                         case "kit":
                             {
-                                if (args[1] == "false")
+                                bool flag;
+                                if (Boolean.TryParse(args[1], out flag))
                                 {
-                                    kit = "";
-                                    MessageChat(player, Lang("KitDisabled", player.UserIDString, kit));
+                                    useKits = flag;
+                                    SetConfig("Use Kits", useKits);
+                                    MessageChat(player, Lang("EditUseKits", player.UserIDString, flag));
+                                    break;
                                 }
-                                else
+
+                                if (args[1] == "add")
                                 {
-                                    kit = args[1];
-                                    MessageChat(player, Lang("EditKit", player.UserIDString, kit));
+                                    if (permission.GroupExists(args[2]))
+                                    {
+                                        if (!Convert.ToBoolean(Kits?.Call("isKit", args[3])))
+                                        {
+                                            MessageChat(player, Lang("NotExistKit", player.UserIDString, args[3]));
+                                            break;
+                                        }
+                                        kits.Add(args[2], args[3]);
+                                        MessageChat(player, Lang("AddKit", player.UserIDString, args[2]));
+                                    }
+                                    else
+                                    {
+                                        MessageChat(player, Lang("NotExistGroup", player.UserIDString, args[2]));
+                                        break;
+                                    }
                                 }
-                                SetConfig("Kit", kit);
+                                else if (args[1] == "remove")
+                                {
+                                    if (kits.ContainsKey(args[2]))
+                                    {
+                                        kits.Remove(args[2]);
+                                        MessageChat(player, Lang("RemoveKit", player.UserIDString, args[2]));
+                                    }
+                                    else
+                                        MessageChat(player, Lang("NotExist", player.UserIDString, args[2]));
+                                }
+                                SetConfig("Kits", kits);
                                 break;
                             }
                         case "type":
@@ -321,36 +392,6 @@ namespace Oxide.Plugins
                                 voteInterval = n;
                                 SetConfig("Vote Interval", voteInterval);
                                 MessageChat(player, Lang("EditInterval", player.UserIDString, voteInterval));
-                                break;
-                            }
-                        case "economy":
-                            {
-                                bool flag;
-                                if (Boolean.TryParse(args[1], out flag))
-                                {
-                                    useEconomics = flag;
-                                    SetConfig("Use Economics", useEconomics);
-                                    MessageChat(player, Lang("EditUseEco", player.UserIDString, flag));
-                                }
-                                else
-                                {
-                                    MessageChat(player, Lang("ErrorBool", player.UserIDString));
-                                }
-                                break;
-                            }
-                        case "userp":
-                            {
-                                bool flag;
-                                if (Boolean.TryParse(args[1], out flag))
-                                {
-                                    useRP = flag;
-                                    SetConfig("Use RP", useRP);
-                                    MessageChat(player, Lang("EditUseRP", player.UserIDString, flag));
-                                }
-                                else
-                                {
-                                    MessageChat(player, Lang("ErrorBool", player.UserIDString));
-                                }
                                 break;
                             }
                         case "rservers":
@@ -415,6 +456,37 @@ namespace Oxide.Plugins
 
                                 break;
                             }
+                        case "beancan":
+                            {
+                                switch (args[1])
+                                {
+                                    case "id":
+                                        {
+                                            beancanID = args[2];
+                                            SetConfig("BeancanIO - Server ID", beancanID);
+                                            MessageChat(player, Lang("EditID", player.UserIDString, site3));
+                                            break;
+                                        }
+                                    case "key":
+                                        {
+                                            beancanKey = args[2];
+                                            SetConfig("BeancanIO - Api Key", beancanKey);
+                                            MessageChat(player, Lang("EditKey", player.UserIDString, site3));
+                                            break;
+                                        }
+                                    case "false":
+                                        {
+                                            beancanID = "";
+                                            SetConfig("BeancanIO - Server ID", beancanID);
+                                            beancanKey = "";
+                                            SetConfig("BeancanIO - Api Key", beancanKey);
+                                            MessageChat(player, Lang("SiteDisabled", player.UserIDString, site3));
+                                            break;
+                                        }
+                                }
+
+                                break;
+                            }
                     }
                 } catch { }
 
@@ -440,6 +512,12 @@ namespace Oxide.Plugins
                 tmp = Users.Where(d => d.UserId == playerId).FirstOrDefault();
                 tmp.Sites.Add(site1, new SitesVote(0, time, "0"));
                 tmp.Sites.Add(site2, new SitesVote(0, time, "0"));
+                tmp.Sites.Add(site3, new SitesVote(0, time, "0"));
+                SaveData();
+            }
+            else if (!tmp.Sites.ContainsKey(site3))
+            {
+                tmp.Sites.Add(site3, new SitesVote(0, DateTime.Now.ToString(), "0"));
                 SaveData();
             }
         }
@@ -458,6 +536,11 @@ namespace Oxide.Plugins
             if (topRustKey != "" && topRustKey != null)
             {
                 webrequest.EnqueueGet("http://api.toprustservers.com/api/get?plugin=voter&key=" + topRustKey + "&uid=" + steamid, (code, response) => GetCallback(code, response, player, site2), this);
+            }
+
+            if (beancanKey != "" && beancanKey != null)
+            {
+                webrequest.EnqueueGet("http://beancan.io/vote/get/" + beancanKey + "/" + steamid, (code, response) => GetCallback(code, response, player, site3), this);
             }
         }
 
@@ -520,6 +603,12 @@ namespace Oxide.Plugins
                     MessageChat(player, Lang("NotVoted", player.UserIDString, site, link2, topRustID));
                     return;
                 }
+
+                if (site == site3)
+                {
+                    MessageChat(player, Lang("NotVoted", player.UserIDString, site, link3, beancanID));
+                    return;
+                }
             }
 
             if (response == 2 && (tmp.Sites[site].Claimed == "0" || tmp.Sites[site].Claimed == "1"))
@@ -544,19 +633,59 @@ namespace Oxide.Plugins
 
             if (useEconomics)
             {
-                Economics?.Call("Deposit", player.userID, money);
-                MessageChat(player, Lang("RewardCoins", player.UserIDString, money));
+                var i = 0;
+                var total = 0;
+                foreach(var m in money)
+                {
+                    if (m.Key != "default" && permission.GetUserGroups(player.UserIDString).Contains(m.Key))
+                    {
+                        Economics?.Call("Deposit", player.userID, m.Value);
+                        total += Convert.ToInt32(m.Value);
+                        i++;
+                    }
+                }
+                if (i == 0)
+                {
+                    Economics?.Call("Deposit", player.userID, money["default"]);
+                    total = Convert.ToInt32(money["default"]);
+                }
+                MessageChat(player, Lang("RewardCoins", player.UserIDString, total));
             }
             
             if(useRP)
             {
-                ServerRewards?.Call("AddPoints", new object[] { player.userID, rp });
-                MessageChat(player, Lang("RewardRP", player.UserIDString, rp));
+                var i = 0;
+                var total = 0;
+                foreach (var r in rp)
+                {
+                    if (r.Key != "default" && permission.GetUserGroups(player.UserIDString).Contains(r.Key))
+                    {
+                        ServerRewards?.Call("AddPoints", new object[] { player.userID, r.Value });
+                        total += Convert.ToInt32(r.Value);
+                        i++;
+                    }
+                }
+                if (i == 0)
+                {
+                    ServerRewards?.Call("AddPoints", new object[] { player.userID, rp["default"] });
+                    total = Convert.ToInt32(rp["default"]);
+                }
+                MessageChat(player, Lang("RewardRP", player.UserIDString, total));
             }
 
-            if(kit != "") //if kit == "", kit reward is disable
+            if(useKits)
             {
-                Kits?.Call("GiveKit", player, kit);
+                var i = 0;
+                foreach(var kit in kits)
+                {
+                    if(kit.Key != "default" && permission.GetUserGroups(player.UserIDString).Contains(kit.Key))
+                    {
+                        Kits?.Call("GiveKit", player, kit.Value);
+                        i++;
+                    }
+                }
+                if(i == 0)
+                    Kits?.Call("GiveKit", player, kits["default"]);
                 MessageChat(player, Lang("RewardKit", player.UserIDString));
             }
 
@@ -596,14 +725,36 @@ namespace Oxide.Plugins
         }
 
         //read config
-        object ReadConfig(string name)
+        object ReadConfig(string name, object data)
         {
             if (Config[name] != null)
             {
                 return Config[name];
             }
 
-            return null;
+            return data;
+        }
+
+        private Dictionary<string, string> ConvertToDictionary(object obj, Dictionary<string, string> dict)
+        {
+            if (typeof(IDictionary).IsAssignableFrom(obj.GetType()))
+            {
+                IDictionary idict = (IDictionary)obj;
+
+                Dictionary<string, string> newDict = new Dictionary<string, string>();
+                foreach (object key in idict.Keys)
+                {
+                    newDict.Add(key.ToString(), idict[key].ToString());
+                }
+
+                return newDict;
+            }
+            else
+            {
+                PrintWarning($"Invalid dictionary in config. Restored to default value");
+            }
+
+            return dict;
         }
 
         //control if player have permission

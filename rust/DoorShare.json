@@ -2,7 +2,7 @@
     "name": "Door Share",
     "description": "Allows players to share selected claimed doors with other players.",
     "author": "insane8472",
-    "version": "1.1.5",
+    "version": "1.1.6",
     "configuration": true,
     "language": "lua",
     "games": [
