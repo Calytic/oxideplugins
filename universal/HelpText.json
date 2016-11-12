@@ -6,10 +6,10 @@
     "configuration": true,
     "language": "cs",
     "games": [
-        "Universal"
+        "universal"
     ],
     "keywords": [
         "oxide",
-        "Universal"
+        "universal"
     ]
 }
