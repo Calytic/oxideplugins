@@ -1,8 +1,8 @@
 {
     "name": "Smooth Restarter",
-    "description": "Shutdown\/restart with realtime-timer and announcements!",
+    "description": "Restarter with realtime support and automated checks\/reboots on new Devblogs\/OxideBuilds",
     "author": "Fujikura",
-    "version": "0.5.0",
+    "version": "1.0.1",
     "configuration": false,
     "language": "cs",
     "games": [

@@ -2,7 +2,7 @@
     "name": "Zones Manager",
     "description": "Advanced zone manager for creating in-game zones",
     "author": "Nogrod",
-    "version": "2.4.6",
+    "version": "2.4.7",
     "configuration": true,
     "language": "cs",
     "games": [

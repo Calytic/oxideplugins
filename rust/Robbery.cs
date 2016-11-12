@@ -6,7 +6,7 @@ using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("Robbery", "Wulf/lukespragg", "4.0.0", ResourceId = 736)]
+    [Info("Robbery", "Wulf/lukespragg", "4.0.1", ResourceId = 736)]
     [Description("Players can steal money, points, and/or items from other players")]
 
     class Robbery : RustPlugin
@@ -173,8 +173,8 @@ namespace Oxide.Plugins
             // ServerRewards plugin support - http://oxidemod.org/plugins/serverrewards.1751/
             if (ServerRewards)
             {
-                var balance = (int)ServerRewards.Call("CheckPoints", victim.userID);
-                var points = victim.IsSleeping() ? Math.Floor(balance * (percentSleeping / 100)) : Math.Floor(balance * (percentAwake / 100));
+                var balance = ServerRewards.Call("CheckPoints", victim.userID) ?? 0;
+                var points = victim.IsSleeping() ? (int)Math.Floor((int)balance * (percentSleeping / 100)) : (int)Math.Floor((int)balance * (percentAwake / 100));
 
                 if (points > 0)
                 {
@@ -262,7 +262,7 @@ namespace Oxide.Plugins
             // Zone Manager plugin support - http://oxidemod.org/plugins/zones-manager.739/
             if (ZoneManager)
             {
-                var noLooting = Enum.Parse(ZoneManager.GetType().GetNestedType("ZoneFlags"), "noplayerloot", true);
+                var noLooting = Enum.Parse(ZoneManager.GetType().GetNestedType("ZoneFlags"), "NoPlayerLoot", true);
                 if (!((bool)ZoneManager.Call("HasPlayerFlag", victim, noLooting))) return false;
                 PrintToChat(attacker, Lang("NoLootZone", attacker.UserIDString));
                 return true;

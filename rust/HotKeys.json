@@ -2,7 +2,7 @@
     "name": "HotKeys",
     "description": "Manage default binds for your server",
     "author": "Calytic",
-    "version": "0.0.2",
+    "version": "0.0.31",
     "configuration": true,
     "language": "cs",
     "games": [

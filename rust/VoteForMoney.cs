@@ -8,7 +8,7 @@ using System.Collections.Generic;
 
 namespace Oxide.Plugins
 {
-    [Info("Vote For Money", "Frenk92", "0.5.0", ResourceId = 2086)]
+    [Info("Vote For Money", "Frenk92", "0.5.3", ResourceId = 2086)]
     class VoteForMoney : RustPlugin
     {
         [PluginReference]
@@ -141,10 +141,13 @@ namespace Oxide.Plugins
                 ["SiteDisabled"] = "{0} disabled",
                 ["AddMoney"] = "Money reward \"{0}\" was added.",
                 ["RemoveMoney"] = "Money reward \"{0}\" was removed.",
+                ["EditMoney"] = "Money reward \"{0}\" was edited.",
                 ["AddRP"] = "RP reward \"{0}\" was added.",
                 ["RemoveRP"] = "RP reward \"{0}\" was removed.",
+                ["EditRP"] = "RP reward \"{0}\" was edited.",
                 ["AddKit"] = "Kit reward \"{0}\" was added.",
                 ["RemoveKit"] = "Kit reward \"{0}\" was removed.",
+                ["EditKit"] = "Kit reward \"{0}\" was edited.",
                 ["NotExist"] = "\"{0}\" doesn't exist in config.",
                 ["NotExistGroup"] = "Group \"{0}\" doesn't exist.",
                 ["NotExistKit"] = "Kit \"{0}\" doesn't exist.",
@@ -156,7 +159,7 @@ namespace Oxide.Plugins
                 ["EditUseRP"] = "Use RP edited in: {0}",
                 ["EditUseKits"] = "Use Kits edited in: {0}",
                 ["ErrorBool"] = "Error. Only 'true' or 'false'.",
-                ["Help"] = "\n============== VOTE HELP =============\n/vote <money|rp|kit> true/false - to use <Economics|RP|Kits> or not.\n/vote <money|rp|kit> add \"GROUP\" \"AMOUNT\" - to add a group for a different reward.\n/vote <money|rp|kit> remove \"GROUP\" - to remove a group.\n/vote type day/hour - edit vote type.\n/vote interval AMOUNT - edit vote interval.\n/vote <rservers|toprust|beancan> <id \"SERVERID\"|key \"APIKEY\"> - edit <Rust-Servers|TopRustServers|BeancanIO> <ID|ApiKey>.\n/vote <rservers|toprust|beancan> false - disable <Rust-Servers|TopRustServers|BeancanIO>.\n============== VOTE HELP =============",
+                ["Help"] = "\n============== VOTE HELP =============\n/vote <money|rp|kit> true/false - to use <Economics|RP|Kits> or not.\n/vote <money|rp|kit> add \"GROUP\" \"VALUE\" - to add a group for a different reward.\n/vote <money|rp|kit> remove \"GROUP\" - to remove a group.\n/vote <money|rp|kit> edit \"GROUP\" \"VALUE\" - to edit a group reward.\n/vote type day/hour - edit vote type.\n/vote interval AMOUNT - edit vote interval.\n/vote <rservers|toprust|beancan> <id \"SERVERID\"|key \"APIKEY\"> - edit <Rust-Servers|TopRustServers|BeancanIO> <ID|ApiKey>.\n/vote <rservers|toprust|beancan> false - disable <Rust-Servers|TopRustServers|BeancanIO>.\n============== VOTE HELP =============",
             }, this);
         }
         #endregion
@@ -256,30 +259,50 @@ namespace Oxide.Plugins
                                     MessageChat(player, Lang("ErrorNumbers", player.UserIDString));
                                     break;
                                 }
-                                if (args[1] == "add")
+
+                                var change = false;
+                                switch(args[1])
                                 {
-                                    if (permission.GroupExists(args[2]))
-                                    {
-                                        money.Add(args[2], args[3]);
-                                        MessageChat(player, Lang("AddMoney", player.UserIDString, args[2]));
-                                    }
-                                    else
-                                    {
-                                        MessageChat(player, Lang("NotExistGroup", player.UserIDString, args[2]));
-                                        break;
-                                    }
+                                    case "add":
+                                        {
+                                            if (permission.GroupExists(args[2]))
+                                            {
+                                                money.Add(args[2], args[3]);
+                                                MessageChat(player, Lang("AddMoney", player.UserIDString, args[2]));
+                                                change = true;
+                                            }
+                                            else
+                                                MessageChat(player, Lang("NotExistGroup", player.UserIDString, args[2]));
+                                            break;
+                                        }
+                                    case "remove":
+                                        {
+                                            if (money.ContainsKey(args[2]))
+                                            {
+                                                money.Remove(args[2]);
+                                                MessageChat(player, Lang("RemoveMoney", player.UserIDString, args[2]));
+                                                change = true;
+                                            }
+                                            else
+                                                MessageChat(player, Lang("NotExist", player.UserIDString, args[2]));
+                                            break;
+                                        }
+                                    case "edit":
+                                        {
+                                            if(money.ContainsKey(args[2]))
+                                            {
+                                                money[args[2]] = args[3];
+                                                MessageChat(player, Lang("EditMoney", player.UserIDString, args[2]));
+                                                change = true;
+                                            }
+                                            else
+                                                MessageChat(player, Lang("NotExist", player.UserIDString, args[2]));
+                                            break;
+                                        }
                                 }
-                                else if (args[1] == "remove")
-                                {
-                                    if (money.ContainsKey(args[2]))
-                                    {
-                                        money.Remove(args[2]);
-                                        MessageChat(player, Lang("RemoveMoney", player.UserIDString, args[2]));
-                                    }
-                                    else
-                                        MessageChat(player, Lang("NotExist", player.UserIDString, args[2]));
-                                }
-                                SetConfig("Money", money);
+
+                                if(change)
+                                    SetConfig("Money", money);
                                 break;
                             }
                         case "rp":
@@ -300,30 +323,50 @@ namespace Oxide.Plugins
                                     MessageChat(player, Lang("ErrorNumbers", player.UserIDString));
                                     break;
                                 }
-                                if (args[1] == "add")
+
+                                var change = false;
+                                switch (args[1])
                                 {
-                                    if (permission.GroupExists(args[2]))
-                                    {
-                                        rp.Add(args[2], args[3]);
-                                        MessageChat(player, Lang("AddRP", player.UserIDString, args[2]));
-                                    }
-                                    else
-                                    {
-                                        MessageChat(player, Lang("NotExistGroup", player.UserIDString, args[2]));
-                                        break;
-                                    }
+                                    case "add":
+                                        {
+                                            if (permission.GroupExists(args[2]))
+                                            {
+                                                rp.Add(args[2], args[3]);
+                                                MessageChat(player, Lang("AddRP", player.UserIDString, args[2]));
+                                                change = true;
+                                            }
+                                            else
+                                                MessageChat(player, Lang("NotExistGroup", player.UserIDString, args[2]));
+                                            break;
+                                        }
+                                    case "remove":
+                                        {
+                                            if (rp.ContainsKey(args[2]))
+                                            {
+                                                rp.Remove(args[2]);
+                                                MessageChat(player, Lang("RemoveRP", player.UserIDString, args[2]));
+                                                change = true;
+                                            }
+                                            else
+                                                MessageChat(player, Lang("NotExist", player.UserIDString, args[2]));
+                                            break;
+                                        }
+                                    case "edit":
+                                        {
+                                            if (rp.ContainsKey(args[2]))
+                                            {
+                                                rp[args[2]] = args[3];
+                                                MessageChat(player, Lang("EditRP", player.UserIDString, args[2]));
+                                                change = true;
+                                            }
+                                            else
+                                                MessageChat(player, Lang("NotExist", player.UserIDString, args[2]));
+                                            break;
+                                        }
                                 }
-                                else if (args[1] == "remove")
-                                {
-                                    if (rp.ContainsKey(args[2]))
-                                    {
-                                        rp.Remove(args[2]);
-                                        MessageChat(player, Lang("RemoveRP", player.UserIDString, args[2]));
-                                    }
-                                    else
-                                        MessageChat(player, Lang("NotExist", player.UserIDString, args[2]));
-                                }
-                                SetConfig("RP", rp);
+
+                                if(change)
+                                    SetConfig("RP", rp);
                                 break;
                             }
                         case "kit":
@@ -337,35 +380,54 @@ namespace Oxide.Plugins
                                     break;
                                 }
 
-                                if (args[1] == "add")
+                                var change = false;
+                                switch (args[1])
                                 {
-                                    if (permission.GroupExists(args[2]))
-                                    {
-                                        if (!Convert.ToBoolean(Kits?.Call("isKit", args[3])))
+                                    case "add":
                                         {
-                                            MessageChat(player, Lang("NotExistKit", player.UserIDString, args[3]));
+                                            if (permission.GroupExists(args[2]))
+                                            {
+                                                if (!Convert.ToBoolean(Kits?.Call("isKit", args[3])))
+                                                {
+                                                    MessageChat(player, Lang("NotExistKit", player.UserIDString, args[3]));
+                                                    break;
+                                                }
+                                                kits.Add(args[2], args[3]);
+                                                MessageChat(player, Lang("AddKit", player.UserIDString, args[2]));
+                                                change = true;
+                                            }
+                                            else
+                                                MessageChat(player, Lang("NotExistGroup", player.UserIDString, args[2]));
                                             break;
                                         }
-                                        kits.Add(args[2], args[3]);
-                                        MessageChat(player, Lang("AddKit", player.UserIDString, args[2]));
-                                    }
-                                    else
-                                    {
-                                        MessageChat(player, Lang("NotExistGroup", player.UserIDString, args[2]));
-                                        break;
-                                    }
+                                    case "remove":
+                                        {
+                                            if (kits.ContainsKey(args[2]))
+                                            {
+                                                kits.Remove(args[2]);
+                                                MessageChat(player, Lang("RemoveKit", player.UserIDString, args[2]));
+                                                change = true;
+                                            }
+                                            else
+                                                MessageChat(player, Lang("NotExist", player.UserIDString, args[2]));
+                                            break;
+                                        }
+                                    case "edit":
+                                        {
+                                            if (kits.ContainsKey(args[2]))
+                                            {
+                                                kits[args[2]] = args[3];
+                                                MessageChat(player, Lang("EditKit", player.UserIDString, args[2]));
+                                                change = true;
+                                            }
+                                            else
+                                                MessageChat(player, Lang("NotExist", player.UserIDString, args[2]));
+                                            break;
+                                        }
                                 }
-                                else if (args[1] == "remove")
-                                {
-                                    if (kits.ContainsKey(args[2]))
-                                    {
-                                        kits.Remove(args[2]);
-                                        MessageChat(player, Lang("RemoveKit", player.UserIDString, args[2]));
-                                    }
-                                    else
-                                        MessageChat(player, Lang("NotExist", player.UserIDString, args[2]));
-                                }
-                                SetConfig("Kits", kits);
+
+                                if(change)
+                                    SetConfig("Kits", kits);
                                 break;
                             }
                         case "type":
@@ -558,6 +620,53 @@ namespace Oxide.Plugins
             CheckVote(player, tmpRes, site);
         }
 
+        void Claim(BasePlayer player, string site, PlayerVote data)
+        {
+            var steamid = player.userID.ToString();
+
+            switch (site)
+            {
+                case site1:
+                    {
+                        data.Sites[site].Votes++;
+                        data.Sites[site].Claimed = "1";
+                        SaveData();
+                        PrintWarning($"New vote on {site1}: {player.displayName}");
+                        GetMoney(player, site1);
+                        break;
+                    }
+                case site2:
+                    {
+                        webrequest.EnqueueGet("http://api.toprustservers.com/api/put?plugin=voter&key=" + topRustKey + "&uid=" + steamid, (code, response) => ClaimCheck(code, response, player, site2, data), this);
+                        break;
+                    }
+                case site3:
+                    {
+                        webrequest.EnqueueGet("http://beancan.io/vote/put/" + beancanKey + "/" + steamid, (code, response) => ClaimCheck(code, response, player, site3, data), this);
+                        break;
+                    }
+            }
+        }
+
+        void ClaimCheck(int code, string response, BasePlayer player, string site, PlayerVote data)
+        {
+            if (response == null || code != 200)
+            {
+                Puts($"Error: {code} - Couldn't get an answer from {site}");
+                PrintWarning($"Error to claim reward from player: {player.displayName}");
+                MessageChat(player, Lang("NoAnswer", player.UserIDString, site));
+            }
+
+            if (response == "1")
+            {
+                data.Sites[site].Votes++;
+                data.Sites[site].Claimed = "1";
+                SaveData();
+                PrintWarning($"New vote on {site}: {player.displayName}");
+                GetMoney(player, site);
+            }
+        }
+
         private void CheckVote(BasePlayer player, int response, string site)
         {
             var time = DateTime.Now;
@@ -592,22 +701,23 @@ namespace Oxide.Plugins
 
             if (response == 0)
             {
-                if (site == site1)
+                switch(site)
                 {
-                    MessageChat(player, Lang("NotVoted", player.UserIDString, site, link1, rustServersID));
-                    return;
-                }
-
-                if(site == site2)
-                {
-                    MessageChat(player, Lang("NotVoted", player.UserIDString, site, link2, topRustID));
-                    return;
-                }
-
-                if (site == site3)
-                {
-                    MessageChat(player, Lang("NotVoted", player.UserIDString, site, link3, beancanID));
-                    return;
+                    case site1:
+                        {
+                            MessageChat(player, Lang("NotVoted", player.UserIDString, site, link1, rustServersID));
+                            return;
+                        }
+                    case site2:
+                        {
+                            MessageChat(player, Lang("NotVoted", player.UserIDString, site, link2, topRustID));
+                            return;
+                        }
+                    case site3:
+                        {
+                            MessageChat(player, Lang("NotVoted", player.UserIDString, site, link3, beancanID));
+                            return;
+                        }
                 }
             }
 
@@ -618,13 +728,7 @@ namespace Oxide.Plugins
             }
 
             if (response == 1 || tmp.Sites[site].Claimed == "-1")
-            {
-                tmp.Sites[site].Votes++;
-                tmp.Sites[site].Claimed = "1";
-                SaveData();
-                PrintWarning($"New vote on {site}: {player.displayName}");
-                GetMoney(player, site);
-            }
+                Claim(player, site, tmp);
         }
 
         private void GetMoney(BasePlayer player, string site)
@@ -633,7 +737,6 @@ namespace Oxide.Plugins
 
             if (useEconomics)
             {
-                var i = 0;
                 var total = 0;
                 foreach(var m in money)
                 {
@@ -641,20 +744,19 @@ namespace Oxide.Plugins
                     {
                         Economics?.Call("Deposit", player.userID, m.Value);
                         total += Convert.ToInt32(m.Value);
-                        i++;
                     }
                 }
-                if (i == 0)
+                if (total == 0 && money.ContainsKey("default"))
                 {
                     Economics?.Call("Deposit", player.userID, money["default"]);
                     total = Convert.ToInt32(money["default"]);
                 }
-                MessageChat(player, Lang("RewardCoins", player.UserIDString, total));
+                if(total != 0)
+                    MessageChat(player, Lang("RewardCoins", player.UserIDString, total));
             }
             
             if(useRP)
             {
-                var i = 0;
                 var total = 0;
                 foreach (var r in rp)
                 {
@@ -662,31 +764,33 @@ namespace Oxide.Plugins
                     {
                         ServerRewards?.Call("AddPoints", new object[] { player.userID, r.Value });
                         total += Convert.ToInt32(r.Value);
-                        i++;
                     }
                 }
-                if (i == 0)
+                if (total == 0 && rp.ContainsKey("default"))
                 {
                     ServerRewards?.Call("AddPoints", new object[] { player.userID, rp["default"] });
                     total = Convert.ToInt32(rp["default"]);
                 }
-                MessageChat(player, Lang("RewardRP", player.UserIDString, total));
+                if (total != 0)
+                    MessageChat(player, Lang("RewardRP", player.UserIDString, total));
             }
 
             if(useKits)
             {
-                var i = 0;
+                var group = false;
                 foreach(var kit in kits)
                 {
                     if(kit.Key != "default" && permission.GetUserGroups(player.UserIDString).Contains(kit.Key))
                     {
                         Kits?.Call("GiveKit", player, kit.Value);
-                        i++;
+                        if (!group)
+                            group = true;
                     }
                 }
-                if(i == 0)
+                if(!group && kits.ContainsKey("default"))
                     Kits?.Call("GiveKit", player, kits["default"]);
-                MessageChat(player, Lang("RewardKit", player.UserIDString));
+                if((!group && kits.ContainsKey("default")) || group)
+                    MessageChat(player, Lang("RewardKit", player.UserIDString));
             }
 
             var tmp = Users.Where(d => d.UserId == player.userID).FirstOrDefault();

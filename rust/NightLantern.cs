@@ -3,7 +3,7 @@ using System.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("NightLantern", "k1lly0u", "2.0.2", ResourceId = 1182)]
+    [Info("NightLantern", "k1lly0u", "2.0.3", ResourceId = 1182)]
     class NightLantern : RustPlugin
     {
         #region Fields
@@ -45,7 +45,8 @@ namespace Oxide.Plugins
             if (nfrInstalled) return;
             if (!configData.ConsumeFuel)
             {
-                ConsumeTypes type = StringToType(oven?.ShortPrefabName);
+                if (oven == null || fuel == null) return;
+                ConsumeTypes type = StringToType(oven?.ShortPrefabName ?? string.Empty);
                 if (type == ConsumeTypes.None) return;
 
                 if (configData.LightTypes[type])
@@ -85,7 +86,7 @@ namespace Oxide.Plugins
         void CheckType(BaseOven oven)
         {
             if (oven == null) return;
-            ConsumeTypes type = StringToType(oven?.ShortPrefabName);
+            ConsumeTypes type = StringToType(oven?.ShortPrefabName ?? string.Empty);
             if (type == ConsumeTypes.None) return;
             if(configData.LightTypes[type])            
                 lights.Add(oven);
@@ -126,9 +127,10 @@ namespace Oxide.Plugins
                 var light = lights[i];
                 if (configData.ConsumeFuel)
                 {
-                    if (status)
+                    if (status && !light.IsInvoking("Cook"))
                         light.StartCooking();
-                    else light.StopCooking();
+                    else if (!status && light.IsInvoking("Cook"))
+                        light.StopCooking();
                 }
                 else
                 {

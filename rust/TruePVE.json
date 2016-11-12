@@ -2,7 +2,7 @@
     "name": "TruePVE",
     "description": "Better PVE implementation",
     "author": "ignignokt84",
-    "version": "0.4.0",
+    "version": "0.4.6",
     "configuration": true,
     "language": "cs",
     "games": [

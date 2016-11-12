@@ -19,7 +19,7 @@ using Oxide.Game.Rust.Cui;
 
 namespace Oxide.Plugins
 {
-    [Info("EasyVote", "Exel80", "1.2.4", ResourceId = 2102)]
+    [Info("EasyVote", "Exel80", "1.2.5", ResourceId = 2102)]
     [Description("Making voting super easy and smooth!")]
     class EasyVote : RustPlugin
     {
@@ -59,9 +59,9 @@ namespace Oxide.Plugins
                 ["NoRewards"] = "You do not have any new rewards avaliable \n Please type <color=yellow>/vote</color> and go to the website to vote and receive your reward",
                 ["RemeberClaim"] = "You haven't yet claimed your reward from voting server! Use <color=cyan>/claim</color> to claim your reward! \n You have to claim your reward in <color=yellow>24h</color>! Otherwise it will be gone!",
                 ["GlobalClaimAnnouncment"] = "<color=yellow>{0}</color><color=cyan> has voted </color><color=yellow>{1}</color><color=cyan> time(s) and just received their rewards. Find out where to vote by typing</color><color=yellow> /vote</color>\n<color=cyan>To see a list of avaliable rewards type</color><color=yellow> /reward list</color>",
+                ["Voted"] = "You have voted <color=yellow>{0}</color> time! Thank you mate :)",
                 ["money"] = "{0} has been desposited into your account",
                 ["rp"] = "You have gained {0} reward points",
-                ["addlvl"] = "You have gained {0} level(s)",
                 ["addgroup"] = "You have been added to group {0} {1}",
                 ["grantperm"] = "You have been given permission {0} {1}",
                 ["zlvl-wc"] = "You have gained {0} woodcrafting level(s)",
@@ -145,7 +145,7 @@ namespace Oxide.Plugins
                 {
                     _Debug(player, $"Check {player.displayName} vote status from TopServeurs");
 
-                    string _BroadcastServer = String.Format(BeancanIO[1], _config.VoteSettings["TopServeursKEY"], player.userID);
+                    string _BroadcastServer = String.Format(TopServeurs[1], _config.VoteSettings["TopServeursKEY"], player.userID);
                     webrequest.EnqueueGet(_BroadcastServer, (code, response) => CheckStatus(code, response, player), this);
                 }
             }
@@ -172,6 +172,13 @@ namespace Oxide.Plugins
             if (IsEmpty(_config.VoteSettings["TopServeursID"].ToString())
                 && IsEmpty(_config.VoteSettings["TopServeursKEY"].ToString()))
                 Chat(player, $"<color=silver>{String.Format(TopServeurs[2], _config.VoteSettings["TopServeursID"])}</color>");
+
+            try
+            {
+                var info = new PlayerData(player);
+                Chat(player, Lang("Voted", player.UserIDString, _storedData.Players[info.id].voted));
+            }
+            catch (Exception ex) { }
 
             Chat(player, Lang("EarnReward", player.UserIDString));
         }
@@ -200,7 +207,7 @@ namespace Oxide.Plugins
             }
             if (IsEmpty(_config.VoteSettings["TopServeursKEY"].ToString()))
             {
-                string _format = String.Format(BeancanIO[0], _config.VoteSettings["TopServeursKEY"], player.userID);
+                string _format = String.Format(TopServeurs[0], _config.VoteSettings["TopServeursKEY"], player.userID);
                 webrequest.EnqueueGet(_format, (code, response) => ClaimReward(code, response, player, "TopServeurs"), this, null, timeout);
                 _Debug(player, _format);
             }
@@ -378,13 +385,12 @@ namespace Oxide.Plugins
                 {
                     { "vote1", new List<string>() { "supply.signal: 1" } },
                     { "vote3", new List<string>() { "supply.signal: 1", "money: 250" } },
-                    { "vote6", new List<string>() { "supply.signal: 1", "money: 500", "addlvl: 1" } }
+                    { "vote6", new List<string>() { "supply.signal: 1", "money: 500" } }
                 },
                 Variables = new Dictionary<string, string>
                 {
                     ["money"] = "eco.c deposit {playerid} {value}",
                     ["rp"] = "sr add {playername} {value}",
-                    ["addlvl"] = "xp addlvl {playername} {value}",
                     ["addgroup"] = "addgroup {playerid} {value} {value2}",
                     ["grantperm"] = "grantperm {playerid} {value} {value2}",
                     ["zlvl-wc"] = "zlvl {playername} WC +{value}",

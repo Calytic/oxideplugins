@@ -2,7 +2,7 @@
     "name": "Protocol Kick Inmation",
     "description": "Customize disconnect info for being kicked by wrong protocol version",
     "author": "Fujikura",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "configuration": false,
     "language": "cs",
     "games": [

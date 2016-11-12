@@ -1,7 +1,7 @@
 {
     "name": "LustyPort",
     "description": "A simple teleportation plugin!",
-    "author": "Kayzor",
+    "author": "",
     "version": "1.1.11",
     "configuration": false,
     "language": "cs",

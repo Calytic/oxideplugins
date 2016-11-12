@@ -1,10 +1,11 @@
 {
-    "name": "Damage Controller",
-    "description": "Controls the damage for player, animals, buildings and barricades.",
-    "author": "WolfsDarker",
-    "version": "1.0.0",
+    "name": "DamageController",
+    "description": "PVP and PVE Damage Modes",
+    "author": "Darwin",
+    "version": "0.2.5",
     "configuration": true,
-    "language": "cs",
+    "suggest": {},
+    "language": "js",
     "games": [
         "rust"
     ],

@@ -1,8 +1,8 @@
 {
     "name": "No Fuel Requirements",
     "description": "Allows you to choose which deployables do not use fuel",
-    "author": "AnExiledGod",
-    "version": "1.2",
+    "author": "k1lly0u",
+    "version": "1.3.0",
     "configuration": true,
     "language": "cs",
     "games": [

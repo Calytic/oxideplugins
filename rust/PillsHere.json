@@ -1,8 +1,8 @@
 {
     "name": "PillsHere",
-    "description": "Recovers health, hunger, and thirst by set amounts from using rad pills",
+    "description": "Recovers health, hunger, and thirst by set amounts when using rad pills",
     "author": "Wulf",
-    "version": "3.0.0",
+    "version": "3.0.1",
     "configuration": true,
     "language": "cs",
     "games": [

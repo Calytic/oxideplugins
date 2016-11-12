@@ -22,7 +22,7 @@ using JSONValueType = JSON.ValueType;
 
 namespace Oxide.Plugins
 {
-    [Info("ItemConfig", "Nogrod", "1.0.35", ResourceId = 806)]
+    [Info("ItemConfig", "Nogrod", "1.0.36", ResourceId = 806)]
     class ItemConfig : RustPlugin
     {
         private const int VersionConfig = 9;
@@ -178,7 +178,7 @@ namespace Oxide.Plugins
                             mod["protection"] = protectionObj;
                         }
                         if (itemModWearable.armorProperties != null)
-                            mod["armor"] = ToJsonObject(itemModWearable.armorProperties).GetString("area");
+                            mod["armor"] = FromJsonString<string>(ToJsonString((HitAreaUnity) itemModWearable.armorProperties.area));
                         var targetWearable = mod.GetObject("targetWearable");
                         targetWearable.Remove("showCensorshipCube");
                         targetWearable.Remove("showCensorshipCubeBreasts");
@@ -282,6 +282,7 @@ namespace Oxide.Plugins
 
                 items.Add(obj);
             }
+
             Config["Items"] = JsonObjectToObject(items);
             var bps = ToJsonArray(bpList);
             foreach (var bp in bps)
@@ -424,7 +425,7 @@ namespace Oxide.Plugins
                 }
                 UpdateBlueprint(bp, value.Obj);
             }
-            ItemManager.defaultBlueprints = ItemManager.bpList.Where(x => x.defaultBlueprint).Select(x => x.targetItem.itemid).ToArray();
+            ItemManager.defaultBlueprints = (from x in ItemManager.bpList where !x.NeedsSteamItem select x.targetItem.itemid).ToArray();
             _itemsDict = null;
             _bpsDict = null;
         }
@@ -434,8 +435,8 @@ namespace Oxide.Plugins
             bp.rarity = GetRarity(o);
             if (!_craftingController) bp.time = o.GetFloat("time", 0);
             bp.amountToCreate = o.GetInt("amountToCreate", 1);
-            bp.UnlockPrice = o.GetInt("UnlockPrice", 0);
-            bp.UnlockLevel = o.GetInt("UnlockLevel", 10);
+            //bp.UnlockPrice = o.GetInt("UnlockPrice", 0);
+            //bp.UnlockLevel = o.GetInt("UnlockLevel", 10);
             bp.blueprintStackSize = o.GetInt("blueprintStackSize");
             //bp.userCraftable = o.GetBoolean("userCraftable", true);
             bp.isResearchable = o.GetBoolean("isResearchable", true);
@@ -673,7 +674,7 @@ namespace Oxide.Plugins
                             entry.amounts[(int) Enum.Parse(typeof(DamageType), amount.Key)] = (float) amount.Value.Number;
                     }
                     if (itemMod?.armorProperties != null)
-                        itemMod.armorProperties.area = (HitArea) Enum.Parse(typeof(HitArea), mod.GetString("armor"), true);
+                        itemMod.armorProperties.area = (HitArea) Enum.Parse(typeof(HitAreaUnity), mod.GetString("armor"), true);
                 }
                 else if (typeName.Equals("ItemModAlterCondition"))
                 {
@@ -861,6 +862,20 @@ namespace Oxide.Plugins
             RightFoot = 262144
         }
 
+        [Flags]
+        enum HitAreaUnity
+        {
+            Everything = -1,
+            Nothing = 0,
+            Head = 1,
+            Chest = 2,
+            Stomach = 4,
+            Arm = 8,
+            Hand = 16,
+            Leg = 32,
+            Foot = 64
+        }
+
         class DynamicContractResolver : DefaultContractResolver
         {
             private static bool IsAllowed(JsonProperty property)
@@ -875,7 +890,7 @@ namespace Oxide.Plugins
                              property.PropertyType == typeof(MetabolismAttribute.Type) ||
                              property.PropertyType == typeof(Rarity) ||
                              property.PropertyType == typeof(ItemCategory) ||
-                             property.PropertyType == typeof(HitArea) ||
+                             property.PropertyType == typeof(HitAreaUnity) ||
                              property.PropertyType == typeof(ItemDefinition) ||
                              property.PropertyType == typeof(ItemDefinition.Condition) ||
                              property.PropertyType == typeof(Wearable) ||

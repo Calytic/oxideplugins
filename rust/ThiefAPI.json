@@ -4,9 +4,7 @@
     "author": "Alphawar",
     "version": "0.5.0",
     "configuration": true,
-    "suggest": {
-        "AutoDoors": "*"
-    },
+    "suggest": {},
     "language": "cs",
     "games": [
         "rust"

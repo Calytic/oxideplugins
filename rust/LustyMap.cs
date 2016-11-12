@@ -16,7 +16,7 @@ using System.Drawing;
 
 namespace Oxide.Plugins
 {
-    [Info("LustyMap", "Kayzor / k1lly0u", "2.0.4", ResourceId = 1333)]
+    [Info("LustyMap", "Kayzor / k1lly0u", "2.0.6", ResourceId = 1333)]
     class LustyMap : RustPlugin
     {
         #region Fields
@@ -31,8 +31,9 @@ namespace Oxide.Plugins
 
         static LustyMap instance;
         static float mapSize;
-        static int mapSeed;
-        static int worldSize;
+        static string mapSeed;
+        static string worldSize;
+        static string level;
 
         private bool activated;
         private bool isNewSave;
@@ -103,12 +104,7 @@ namespace Oxide.Plugins
             }
             void OnDestroy()
             {
-                if (IsInvoking("UpdateMap"))
-                    CancelInvoke("UpdateMap");
-                if (IsInvoking("UpdateMarker"))
-                    CancelInvoke("UpdateMarker");
-                if (IsInvoking("Unblock"))
-                    CancelInvoke("Unblock");
+                CancelInvoke();
                 DestroyUI();
             }
             public void InitializeComponent()
@@ -173,19 +169,15 @@ namespace Oxide.Plugins
                 else mapZ = pos;
             } 
                         
-            public void ToggleMapType(MapMode mapMode, bool zoomDestroy = false)
+            public void ToggleMapType(MapMode mapMode)
             {
                 if (isBlocked || IsSpam()) return;
-                
-                if (mode != MapMode.None && !zoomDestroy)                
-                    DestroyUI();
 
-                CuiHelper.DestroyUi(player, LustyUI.Buttons);
+                DestroyUI();               
 
                 if (mapMode == MapMode.None)
                 {
-                    CancelInvoke("UpdateMap");
-                    DestroyUI();
+                    CancelInvoke("UpdateMap");                   
                     mode = MapMode.None;
                     mapOpen = false;
 
@@ -259,21 +251,19 @@ namespace Oxide.Plugins
             private void SwitchZoom(int zoom)
             {
                 if (zoom == 0 && MapSettings.minimap)
-                {
-                    DestroyUI();
+                {                    
                     mapZoom = zoom;
-                    ToggleMapType(MapMode.Minimap, true);
+                    ToggleMapType(MapMode.Minimap);
                 }
                 else
                 {
                     if (zoom == 0 && !MapSettings.minimap)
                         zoom = 1;
-
-                    DestroyUI();
+                    
                     mapZoom = zoom;
                     currentX = 0;
                     currentZ = 0;
-                    ToggleMapType(MapMode.Complex, true);
+                    ToggleMapType(MapMode.Complex);
                 }
             }
             public int Current(bool x) => x ? currentX : currentZ;
@@ -294,7 +284,7 @@ namespace Oxide.Plugins
 
                 if (currentX != newX || currentZ != newZ)
                 {
-                    LustyUI.DestroyUI(player, MapMode.Complex);
+                    DestroyUI();
                     currentX = newX;
                     currentZ = newZ;
                     var container = LustyUI.StaticComplex[mapZoom][newX, newZ];
@@ -351,7 +341,7 @@ namespace Oxide.Plugins
             public bool IsAdmin() => adminMode;
             public void ToggleEvent(bool isPlaying) => inEvent = isPlaying;
             public void ToggleAdmin(bool enabled) => adminMode = enabled;
-            public void DestroyUI() => LustyUI.DestroyUI(player, mode);
+            public void DestroyUI() => LustyUI.DestroyUI(player);
             private void UpdateMarker() => marker = new MapMarker { name = RemoveSpecialCharacters(player.displayName), r = GetDirection(player.eyes.rotation.eulerAngles.y), x = GetPosition(transform.position.x), z = GetPosition(transform.position.z) };
             public MapMarker GetMarker() => marker;
             
@@ -375,7 +365,7 @@ namespace Oxide.Plugins
                 CancelInvoke("UpdateMap");
                 CuiHelper.DestroyUi(player, LustyUI.Buttons);
                 if (mode != MapMode.None)
-                    LustyUI.DestroyUI(player, mode);
+                    LustyUI.DestroyUI(player);
                 mode = MapMode.None;
                 mapOpen = false;
             }
@@ -578,8 +568,10 @@ namespace Oxide.Plugins
         void OnServerInitialized()
         {
             instance = this;
-            worldSize = ConsoleSystem.ConVar.GetInt("worldsize");
-            mapSeed = ConsoleSystem.ConVar.GetInt("seed");
+
+            worldSize = ConsoleSystem.ConVar.GetString("worldsize");
+            mapSeed = ConsoleSystem.ConVar.GetString("seed");
+            level = ConVar.Server.level;
             mapSize = TerrainMeta.Size.x;
 
             webObject = new GameObject("WebObject");
@@ -589,12 +581,15 @@ namespace Oxide.Plugins
             mapSplitter = mapObject.AddComponent<MapSplitter>();
 
             LoadVariables();
-            LoadData();
+            LoadData();            
+            LoadSettings();
+
+            FindStaticMarkers();
+
+            ValidateImages();
+
             CheckFriends();
             GetClans();
-            LoadSettings();
-            FindStaticMarkers();
-            ValidateImages();            
         }
         void OnPlayerInit(BasePlayer player)
         {
@@ -630,17 +625,14 @@ namespace Oxide.Plugins
             {
                 if (!string.IsNullOrEmpty(configData.MapOptions.MapKeybind))
                     player.Command("bind " + configData.MapOptions.MapKeybind + " \"\"");
-
-                var user = GetUser(player);
-                if (user != null)                
-                    user.DestroyUI(); 
-                else LustyUI.DestroyAllUI(player);
             }
             if (mapUsers.ContainsKey(player.UserIDString))
                 mapUsers.Remove(player.UserIDString);
 
             if (player.GetComponent<MapUser>())
                 UnityEngine.Object.Destroy(player.GetComponent<MapUser>());
+
+            LustyUI.DestroyUI(player);
         }
         void OnEntitySpawned(BaseEntity entity)
         {
@@ -666,7 +658,7 @@ namespace Oxide.Plugins
             var components = UnityEngine.Object.FindObjectsOfType<MapUser>();
             if (components != null)
                 foreach (var component in components)
-                    UnityEngine.Object.Destroy(component);
+                    UnityEngine.Object.DestroyImmediate(component);
         }
         #endregion
 
@@ -690,12 +682,17 @@ namespace Oxide.Plugins
             public static CuiElementContainer StaticMini;
             public static Dictionary<int, CuiElementContainer[,]> StaticComplex = new Dictionary<int, CuiElementContainer[,]>();
 
+            private static Dictionary<ulong, List<string>> OpenUI = new Dictionary<ulong, List<string>>();
+
             public static void RenameComponents()
             {
-                foreach (var element in StaticMain.ToArray())
+                if (StaticMain != null)
                 {
-                    if (element.Name == "AddUI CreatedPanel")
-                        element.Name = CuiHelper.GetGuid();
+                    foreach (var element in StaticMain)
+                    {
+                        if (element.Name == "AddUI CreatedPanel")
+                            element.Name = CuiHelper.GetGuid();
+                    }
                 }
                 if (StaticMini != null)
                 {
@@ -707,79 +704,138 @@ namespace Oxide.Plugins
                 }
                 if (StaticComplex != null)
                 {
-                    foreach (var element in StaticMini)
+                    foreach (var size in StaticComplex)
                     {
-                        if (element.Name == "AddUI CreatedPanel")
-                            element.Name = CuiHelper.GetGuid();
+                        foreach (var piece in size.Value)
+                        {
+                            foreach (var element in piece)
+                            {
+                                if (element.Name == "AddUI CreatedPanel")
+                                    element.Name = CuiHelper.GetGuid();
+                            }
+                        }
                     }
                 }
+                instance.activated = true;
+                if (instance.configData.MapOptions.StartOpen)
+                    instance.ActivateMaps();
             }
-            public static void DestroyUI(BasePlayer player, MapMode type)
+            public static void AddBaseUI(BasePlayer player, MapMode type)
             {
-                CuiHelper.DestroyUi(player, Buttons);
-                CuiElementContainer element = null;
+                var user = instance.GetUser(player);
+                if (user == null) return;
 
+                DestroyUI(player);
+                CuiElementContainer element = null;
                 switch (type)
                 {
-                    case MapMode.Main:
-                        element = StaticMain;
-                        CuiHelper.DestroyUi(player, Main);
-                        CuiHelper.DestroyUi(player, MainOverlay);
-                        break;
-                    case MapMode.Minimap:
-                        element = StaticMini;
-                        CuiHelper.DestroyUi(player, Mini);
-                        CuiHelper.DestroyUi(player, MiniOverlay);
-                        break;
-                    case MapMode.Complex:
-                        {
-                            var user = instance.GetUser(player);
-                            if (user != null)
-                            {
-                                int index = user.Zoom();
-                                int row = user.Position(false);
-                                int column = user.Position(true);
-                                foreach (var e in StaticComplex[index][column, row])
-                                    CuiHelper.DestroyUi(player, e.Name);
-                            }
-                            CuiHelper.DestroyUi(player, Complex);
-                            CuiHelper.DestroyUi(player, ComplexOverlay);
-                        }
-                        return;
                     case MapMode.None:
                         return;
+                    case MapMode.Main:
+                        element = StaticMain;
+                        CuiHelper.AddUi(player, StaticMain);
+                        AddElementIds(player, ref element);
+                        return;
+                    case MapMode.Complex:
+                        element = StaticComplex[user.Zoom()][user.Current(true), user.Current(false)];
+                        instance.AddMapButtons(player);
+                        CuiHelper.AddUi(player, element);
+                        AddElementIds(player, ref element);
+                        return;
+                    case MapMode.Minimap:
+                        element = StaticMini;
+                        instance.AddMapButtons(player);
+                        CuiHelper.AddUi(player, element);
+                        AddElementIds(player, ref element);
+                        return;                    
                 }
-
-                if (element != null)
-                    foreach (var piece in element)
-                        CuiHelper.DestroyUi(player, piece.Name);
-            }              
-            public static void DestroyAllUI(BasePlayer player) // Avoid if possible
+            }
+            private static void AddElementIds(BasePlayer player, ref CuiElementContainer container)
             {
-                if (player == null) return;
-
-                if (StaticMain != null)
-                    foreach (var piece in StaticMain)
-                        CuiHelper.DestroyUi(player, piece.Name);
-
-                if (StaticMini != null)
-                    foreach (var piece in StaticMini)
-                        CuiHelper.DestroyUi(player, piece.Name);
-
-                if (StaticComplex != null)
-                    foreach (var piece in StaticComplex)
-                        foreach(var e in piece.Value)
-                            foreach (var c in e)
-                                CuiHelper.DestroyUi(player, c.Name);
-
+                if (!OpenUI.ContainsKey(player.userID))
+                    OpenUI.Add(player.userID, new List<string>());
+                foreach (var piece in container)
+                    OpenUI[player.userID].Add(piece.Name);               
+            }
+            public static void DestroyUI(BasePlayer player)
+            {
                 CuiHelper.DestroyUi(player, Buttons);
                 CuiHelper.DestroyUi(player, Main);
-                CuiHelper.DestroyUi(player, MainOverlay);               
+                CuiHelper.DestroyUi(player, MainOverlay);
                 CuiHelper.DestroyUi(player, Mini);
-                CuiHelper.DestroyUi(player, MiniOverlay);                
+                CuiHelper.DestroyUi(player, MiniOverlay);
                 CuiHelper.DestroyUi(player, Complex);
                 CuiHelper.DestroyUi(player, ComplexOverlay);
-            }             
+                if (!OpenUI.ContainsKey(player.userID)) return;
+                foreach (var piece in OpenUI[player.userID])
+                    CuiHelper.DestroyUi(player, piece);
+            }
+            /* public static void DestroyUI(BasePlayer player, MapMode type)
+             {
+                 CuiHelper.DestroyUi(player, Buttons);
+                 CuiElementContainer element = null;
+
+                 switch (type)
+                 {
+                     case MapMode.Main:
+                         element = StaticMain;
+                         CuiHelper.DestroyUi(player, Main);
+                         CuiHelper.DestroyUi(player, MainOverlay);
+                         break;
+                     case MapMode.Minimap:
+                         element = StaticMini;
+                         CuiHelper.DestroyUi(player, Mini);
+                         CuiHelper.DestroyUi(player, MiniOverlay);
+                         break;
+                     case MapMode.Complex:
+                         {
+                             var user = instance.GetUser(player);
+                             if (user != null)
+                             {
+                                 int index = user.Zoom();
+                                 int row = user.Position(false);
+                                 int column = user.Position(true);
+                                 foreach (var e in StaticComplex[index][column, row])
+                                     CuiHelper.DestroyUi(player, e.Name);
+                             }
+                             CuiHelper.DestroyUi(player, Complex);
+                             CuiHelper.DestroyUi(player, ComplexOverlay);
+                         }
+                         return;
+                     case MapMode.None:
+                         return;
+                 }
+
+                 if (element != null)
+                     foreach (var piece in element)
+                         CuiHelper.DestroyUi(player, piece.Name);
+             }     
+             public static void DestroyAllUI(BasePlayer player) // Avoid if possible
+             {
+                 if (player == null) return;
+
+                 if (StaticMain != null)
+                     foreach (var piece in StaticMain)
+                         CuiHelper.DestroyUi(player, piece.Name);
+
+                 if (StaticMini != null)
+                     foreach (var piece in StaticMini)
+                         CuiHelper.DestroyUi(player, piece.Name);
+
+                 if (StaticComplex != null)
+                     foreach (var piece in StaticComplex)
+                         foreach(var e in piece.Value)
+                             foreach (var c in e)
+                                 CuiHelper.DestroyUi(player, c.Name);
+
+                 CuiHelper.DestroyUi(player, Buttons);
+                 CuiHelper.DestroyUi(player, Main);
+                 CuiHelper.DestroyUi(player, MainOverlay);               
+                 CuiHelper.DestroyUi(player, Mini);
+                 CuiHelper.DestroyUi(player, MiniOverlay);                
+                 CuiHelper.DestroyUi(player, Complex);
+                 CuiHelper.DestroyUi(player, ComplexOverlay);
+             }            */
             public static string Color(string hexColor, float alpha)
             {
                 int red = int.Parse(hexColor.Substring(0, 2), NumberStyles.AllowHexSpecifier);
@@ -792,8 +848,23 @@ namespace Oxide.Plugins
         void GenerateMaps(bool main, bool mini, bool complex)
         {
             if (main) CreateStaticMain();
+            SetMinimapSize();
             if (mini) CreateStaticMini();
             if (complex) CreateStaticComplex();
+        }
+        void SetMinimapSize()
+        {
+            float startx = 0f + configData.MapOptions.MinimapOptions.OffsetSide;
+            float endx = startx + (0.13f * configData.MapOptions.MinimapOptions.HorizontalScale);
+            float endy = 1f - configData.MapOptions.MinimapOptions.OffsetTop;
+            float starty = endy - (0.2301f * configData.MapOptions.MinimapOptions.VerticalScale);
+            if (!configData.MapOptions.MinimapOptions.OnLeftSide)
+            {
+                endx = 1 - configData.MapOptions.MinimapOptions.OffsetSide;
+                startx = endx - (0.13f * configData.MapOptions.MinimapOptions.HorizontalScale);
+            }
+            LustyUI.MiniMin = $"{startx} {starty}";
+            LustyUI.MiniMax = $"{endx} {endy}";
         }
         void CreateStaticMain()
         {
@@ -824,8 +895,8 @@ namespace Oxide.Plugins
             }
             LustyUI.StaticMain = mapContainer;
             PrintWarning("Main map generated successfully!");
-            if (!MapSettings.minimap)
-                activated = true;
+            if (!MapSettings.minimap)            
+                LustyUI.RenameComponents();
         }
         void CreateStaticMini()
         {
@@ -838,19 +909,7 @@ namespace Oxide.Plugins
                 return;
             }
             float iconsize = 0.03f;
-
-            float startx = 0f + configData.MapOptions.MinimapOptions.OffsetSide;            
-            float endx = startx + 0.13f;
-            float endy = 1f - configData.MapOptions.MinimapOptions.OffsetTop;
-            float starty = endy - 0.2301f;            
-            if (!configData.MapOptions.MinimapOptions.OnLeftSide)
-            {
-                endx = 1 - configData.MapOptions.MinimapOptions.OffsetSide;
-                startx = endx - 0.13f;
-            }
-            LustyUI.MiniMin = $"{startx} {starty}";
-            LustyUI.MiniMax = $"{endx} {endy}";
-
+            
             var mapContainer = LMUI.CreateElementContainer(LustyUI.Mini, "0 0 0 1", LustyUI.MiniMin, LustyUI.MiniMax);
             LMUI.LoadImage(ref mapContainer, LustyUI.Mini, mapimage, "0 0", "1 1");
 
@@ -862,12 +921,8 @@ namespace Oxide.Plugins
             }
             LustyUI.StaticMini = mapContainer;
             PrintWarning("Mini map generated successfully!");
-            if (!MapSettings.complexmap)
-            {
-                activated = true;
-                if (configData.MapOptions.StartOpen)
-                    ActivateMaps();
-            }
+            if (!MapSettings.complexmap)            
+                LustyUI.RenameComponents();            
         }       
         void CreateStaticComplex()
         {
@@ -939,9 +994,7 @@ namespace Oxide.Plugins
                 }
             }
             PrintWarning("Complex map generated successfully!");
-            activated = true;
-            if (configData.MapOptions.StartOpen)
-                ActivateMaps();
+            LustyUI.RenameComponents();            
         }
         
         static int ZoomToCount(int zoom)
@@ -1003,16 +1056,16 @@ namespace Oxide.Plugins
         void AddMapButtons(BasePlayer player)
         {
             float startx = 0f + configData.MapOptions.MinimapOptions.OffsetSide;
-            float endx = startx + 0.13f;
+            float endx = startx + (0.13f * configData.MapOptions.MinimapOptions.HorizontalScale);
             float endy = 1f - configData.MapOptions.MinimapOptions.OffsetTop;
-            float starty = endy - 0.2301f;
+            float starty = endy - (0.2301f * configData.MapOptions.MinimapOptions.VerticalScale);
             string b_text = "<<<";
             var container = LMUI.CreateElementContainer(LustyUI.Buttons, "0 0 0 0", $"{endx + 0.001f} {starty}", $"{endx + 0.02f} {endy}");
 
             if (!configData.MapOptions.MinimapOptions.OnLeftSide)
             {
                 endx = 1 - configData.MapOptions.MinimapOptions.OffsetSide;
-                startx = endx - 0.13f;
+                startx = endx - (0.13f * configData.MapOptions.MinimapOptions.HorizontalScale);
                 b_text = ">>>";
                 container = LMUI.CreateElementContainer(LustyUI.Buttons, "0 0 0 0", $"{startx - 0.02f} {starty}", $"{startx - 0.001f} {endy}");
             }
@@ -1049,21 +1102,8 @@ namespace Oxide.Plugins
         }
 
         #region Standard Maps
-        void OpenMainMap(BasePlayer player)
-        {
-            var user = GetUser(player);
-            if (user == null) return;
-            var container = LustyUI.StaticMain;
-            CuiHelper.AddUi(player, container);
-        }
-        void OpenMiniMap(BasePlayer player)
-        {
-            var user = GetUser(player);
-            if (user == null) return;
-            var container = LustyUI.StaticMini;
-            AddMapButtons(player);
-            CuiHelper.AddUi(player, container);
-        }
+        void OpenMainMap(BasePlayer player) => LustyUI.AddBaseUI(player, MapMode.Main);
+        void OpenMiniMap(BasePlayer player) => LustyUI.AddBaseUI(player, MapMode.Minimap);
         void UpdateOverlay(BasePlayer player, string panel, string posMin, string posMax, float iconsize)
         {
             var mapContainer = LMUI.CreateElementContainer(panel, "0 0 0 0", posMin, posMax);
@@ -1072,7 +1112,7 @@ namespace Oxide.Plugins
             if (user == null) return;            
             foreach (var marker in customMarkers)
             {
-                var image = GetImage(marker.Value.icon);
+                var image = GetImage(marker.Value.name);
                 if (string.IsNullOrEmpty(image)) continue;
                 AddIconToMap(ref mapContainer, panel, image, marker.Value.name, iconsize * 1.25f, marker.Value.x, marker.Value.z);
             }
@@ -1151,14 +1191,7 @@ namespace Oxide.Plugins
         #endregion
 
         #region Complex Maps
-        void OpenComplexMap(BasePlayer player)
-        {
-            var user = GetUser(player);
-            if (user == null) return;                      
-            var container = LustyUI.StaticComplex[user.Zoom()][user.Current(true), user.Current(false)];
-            AddMapButtons(player);          
-            CuiHelper.AddUi(player, container);
-        }        
+        void OpenComplexMap(BasePlayer player) => LustyUI.AddBaseUI(player, MapMode.Complex);
         void UpdateCompOverlay(BasePlayer player)
         {
             var mapContainer = LMUI.CreateElementContainer(LustyUI.ComplexOverlay, "0 0 0 0", LustyUI.MiniMin, LustyUI.MiniMax);
@@ -1605,9 +1638,8 @@ namespace Oxide.Plugins
             if (r > 0) marker.r = GetDirection(r);
 
             customMarkers.Add(name, marker);
-
             if (!string.IsNullOrEmpty(icon) && icon != "special")
-                assets.Add(name, $"{dataDirectory}custom{Path.DirectorySeparatorChar}{icon}.png");
+                assets.Add(name, $"{dataDirectory}custom{Path.DirectorySeparatorChar}{icon}");            
             SaveMarkers();
             return true;
         }
@@ -1624,6 +1656,9 @@ namespace Oxide.Plugins
             };
             if (r > 0) marker.r = GetDirection(r);
             customMarkers[name] = marker;
+
+            if (!string.IsNullOrEmpty(icon) && icon != "special")
+                assets.Add(name, $"{dataDirectory}custom{Path.DirectorySeparatorChar}{icon}");
             SaveMarkers();
         }
         bool RemoveMarker(string name)
@@ -1868,6 +1903,8 @@ namespace Oxide.Plugins
         class Minimap
         {            
             public bool UseMinimap { get; set; }
+            public float HorizontalScale { get; set; }
+            public float VerticalScale { get; set; }
             public bool OnLeftSide { get; set; }
             public float OffsetSide { get; set; }
             public float OffsetTop { get; set; }
@@ -1942,6 +1979,8 @@ namespace Oxide.Plugins
                             ForceMapZoom = false,
                             UseComplexMap = true
                         },
+                        HorizontalScale = 1.0f,
+                        VerticalScale = 1.0f,
                         OnLeftSide = true,
                         OffsetSide = 0,
                         OffsetTop = 0,
@@ -1973,6 +2012,7 @@ namespace Oxide.Plugins
         void SaveMarkers()
         {
             markerData.WriteObject(storedMarkers);
+            SaveData();
         }
         void LoadData()
         {
@@ -2010,7 +2050,7 @@ namespace Oxide.Plugins
         {
             if (string.IsNullOrEmpty(name)) return null;
             if (storedImages.data.ContainsKey(name))
-                return storedImages.data[name].ToString();
+                return storedImages.data[name].ToString();            
             else return null;
         }
         class ImageAssets : MonoBehaviour
@@ -2064,7 +2104,6 @@ namespace Oxide.Plugins
                             filehandler.storedImages.data.Add(info.name, textureID);
                         else
                             filehandler.storedImages.data[info.name] = textureID;
-
                     }
                     activeLoads--;
                     if (QueueList.Count > 0) Next();
@@ -2123,10 +2162,9 @@ namespace Oxide.Plugins
 
             foreach (var image in customMarkers)
             {
-                string dir = "custom";
-                if (image.Value.icon == "special")
-                    dir = "icons";
-                assets.Add(image.Value.name, dataDirectory + dir + Path.DirectorySeparatorChar + image.Value.icon + ".png");
+                if (image.Value.icon == "special")                    
+                    assets.Add(image.Value.name, dataDirectory + "icons" + Path.DirectorySeparatorChar + image.Value.icon + ".png");
+                else assets.Add(image.Value.name, dataDirectory + "custom" + Path.DirectorySeparatorChar + image.Value.icon);
             }          
         } 
         private void LoadMapImage()
@@ -2160,7 +2198,7 @@ namespace Oxide.Plugins
         }
         void GetQueueID()
         {
-            var url = $"http://beancan.io/map-queue-generate?seed={mapSeed}&size={mapSize}&key={configData.MapOptions.MapImage.APIKey}";
+            var url = $"http://beancan.io/map-queue-generate?level={level}&seed={mapSeed}&size={mapSize}&key={configData.MapOptions.MapImage.APIKey}";
             webrequest.EnqueueGet(url, (code, response) =>
             {
                 if (string.IsNullOrEmpty(response))
@@ -2331,7 +2369,7 @@ namespace Oxide.Plugins
                 }
                 catch (Exception ex)
                 {
-                    instance.PrintError("Error whilst retrieving the map image from file storage: " + ex.Message);
+                    instance.PrintError($"Error whilst retrieving the map image from file storage: {ex.Message}\nIf you are running linux you must install LibGDIPlus using the following line: \"sudo apt install libgdiplus\", then restart your system for the changes to take affect");
                 }
                 return img;
             }         

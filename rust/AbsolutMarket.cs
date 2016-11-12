@@ -11,7 +11,7 @@ using System.IO;
 
 namespace Oxide.Plugins
 {
-    [Info("AbsolutMarket", "Absolut", "1.2.3", ResourceId = 2118)]
+    [Info("AbsolutMarket", "Absolut", "1.3.0", ResourceId = 2118)]
 
     class AbsolutMarket : RustPlugin
     {
@@ -2359,7 +2359,7 @@ namespace Oxide.Plugins
 
         class AMImages
         {
-            public Dictionary<Category, Dictionary<string, Dictionary<int, uint>>> SavedImages = new Dictionary<Category, Dictionary<string, Dictionary<int, uint>>>();
+            public Dictionary<Category, Dictionary<string, Dictionary<ulong, uint>>> SavedImages = new Dictionary<Category, Dictionary<string, Dictionary<ulong, uint>>>();
             public Dictionary<string, uint> SavedBackgrounds = new Dictionary<string, uint>();
         }
 
@@ -2394,7 +2394,7 @@ namespace Oxide.Plugins
         {
             public string name;
             public string shortname;
-            public int skin;
+            public ulong skin;
             public uint ID;
             public Category cat;
             public bool approved;
@@ -2415,9 +2415,9 @@ namespace Oxide.Plugins
         {
             public string url;
             public string shortname;
-            public int skinid;
+            public ulong skinid;
             public Category cat;
-            public QueueImage(string ur, Category ct, string st, int sk)
+            public QueueImage(string ur, Category ct, string st, ulong sk)
             {
                 url = ur;
                 shortname = st;
@@ -2435,7 +2435,7 @@ namespace Oxide.Plugins
             private MemoryStream stream = new MemoryStream();
 
             public void SetDataDir(AbsolutMarket am) => filehandler = am;
-            public void Add(string url, Category cat, string shortname, int skinid)
+            public void Add(string url, Category cat, string shortname, ulong skinid)
             {
                 QueueList.Add(new QueueImage(url, cat, shortname, skinid));
                 if (activeLoads < MaxActiveLoads) Next();
@@ -2463,9 +2463,9 @@ namespace Oxide.Plugins
                 if (www.error == null)
                 {
                     if (!filehandler.imgData.SavedImages.ContainsKey(info.cat))
-                        filehandler.imgData.SavedImages.Add(info.cat, new Dictionary<string, Dictionary<int, uint>>());
+                        filehandler.imgData.SavedImages.Add(info.cat, new Dictionary<string, Dictionary<ulong, uint>>());
                     if (!filehandler.imgData.SavedImages[info.cat].ContainsKey(info.shortname))
-                        filehandler.imgData.SavedImages[info.cat].Add(info.shortname, new Dictionary<int, uint>());
+                        filehandler.imgData.SavedImages[info.cat].Add(info.shortname, new Dictionary<ulong, uint>());
                     if (!filehandler.imgData.SavedImages[info.cat][info.shortname].ContainsKey(info.skinid))
                     {
                         ClearStream();
@@ -2581,11 +2581,11 @@ namespace Oxide.Plugins
             foreach (var category in urls)
             {
                 if (!imgData.SavedImages.ContainsKey(category.Key))
-                    imgData.SavedImages.Add(category.Key, new Dictionary<string, Dictionary<int, uint>>());
+                    imgData.SavedImages.Add(category.Key, new Dictionary<string, Dictionary<ulong, uint>>());
                 foreach (var entry in category.Value)
                 {
                     if (!imgData.SavedImages[category.Key].ContainsKey(entry.Key))
-                        imgData.SavedImages[category.Key].Add(entry.Key, new Dictionary<int, uint>());
+                        imgData.SavedImages[category.Key].Add(entry.Key, new Dictionary<ulong, uint>());
                     foreach (var item in entry.Value)
                     {
                         if (!string.IsNullOrEmpty(item.Value))
@@ -2679,11 +2679,11 @@ namespace Oxide.Plugins
 
         #region Absolut Market Data Management
 
-        private Dictionary<Category, Dictionary<string, Dictionary<int, string>>> urls = new Dictionary<Category, Dictionary<string, Dictionary<int, string>>>
+        private Dictionary<Category, Dictionary<string, Dictionary<ulong, string>>> urls = new Dictionary<Category, Dictionary<string, Dictionary<ulong, string>>>
         {
-            {Category.Money, new Dictionary<string, Dictionary<int, string>>
+            {Category.Money, new Dictionary<string, Dictionary<ulong, string>>
             {
-                {"SR", new Dictionary<int, string>
+                {"SR", new Dictionary<ulong, string>
                 {
                 {0, "http://oxidemod.org/data/resource_icons/1/1751.jpg?1456924271" },
                 }
@@ -2691,59 +2691,59 @@ namespace Oxide.Plugins
             }
             },
 
-            {Category.None, new Dictionary<string, Dictionary<int, string>>
+            {Category.None, new Dictionary<string, Dictionary<ulong, string>>
             {
-                {"MISSINGIMG", new Dictionary<int, string>
+                {"MISSINGIMG", new Dictionary<ulong, string>
                 {
                 {0, "http://www.hngu.net/Images/College_Logo/28/b894b451_c203_4c08_922c_ebc95077c157.png" },
                 }
                 },
-                {"ARROW", new Dictionary<int, string>
+                {"ARROW", new Dictionary<ulong, string>
                 {
                 {0, "http://www.freeiconspng.com/uploads/red-arrow-curved-5.png" },
                 }
                 },
-                {"FIRST", new Dictionary<int, string>
+                {"FIRST", new Dictionary<ulong, string>
                 {
                 {0, "http://cdn.mysitemyway.com/etc-mysitemyway/icons/legacy-previews/icons/simple-black-square-icons-arrows/126517-simple-black-square-icon-arrows-double-arrowhead-left.png" },
                 }
                 },
-                {"BACK", new Dictionary<int, string>
+                {"BACK", new Dictionary<ulong, string>
                 {
                 {0, "https://image.freepik.com/free-icon/back-left-arrow-in-square-button_318-76403.png" },
                 }
                 },
-                {"NEXT", new Dictionary<int, string>
+                {"NEXT", new Dictionary<ulong, string>
                 {
                 {0, "https://image.freepik.com/free-icon/right-arrow-square-button-outline_318-76302.png"},
                 }
                 },
-                {"LAST", new Dictionary<int, string>
+                {"LAST", new Dictionary<ulong, string>
                 {
                 {0, "http://cdn.mysitemyway.com/etc-mysitemyway/icons/legacy-previews/icons/matte-white-square-icons-arrows/124577-matte-white-square-icon-arrows-double-arrowhead-right.png" },
                 }
                 },
-                {"OFILTER", new Dictionary<int, string>
+                {"OFILTER", new Dictionary<ulong, string>
                 {
                 {0, "https://pixabay.com/static/uploads/photo/2016/01/23/11/41/button-1157299_960_720.png" },
                 }
                 },
-                {"UFILTER", new Dictionary<int, string>
+                {"UFILTER", new Dictionary<ulong, string>
                 {
                 {0, "https://pixabay.com/static/uploads/photo/2016/01/23/11/42/button-1157301_960_720.png" },
                 }
                 },
-                {"ADMIN", new Dictionary<int, string>
+                {"ADMIN", new Dictionary<ulong, string>
                 {
                 {0, "https://pixabay.com/static/uploads/photo/2016/01/23/11/26/button-1157269_960_720.png" },
                 }
                 },
-                {"MISC", new Dictionary<int, string>
+                {"MISC", new Dictionary<ulong, string>
                 {
                 {0, "https://pixabay.com/static/uploads/photo/2015/07/25/07/55/the-button-859343_960_720.png" },
                 }
                 },            
-                {"SELL", new Dictionary<int, string>
+                {"SELL", new Dictionary<ulong, string>
                 {
                 {0, "https://pixabay.com/static/uploads/photo/2015/07/25/08/03/the-button-859350_960_720.png" },
                 }
@@ -2751,9 +2751,9 @@ namespace Oxide.Plugins
               
                 }
             },
-            {Category.Attire, new Dictionary<string, Dictionary<int, string>>
+            {Category.Attire, new Dictionary<string, Dictionary<ulong, string>>
             {
-                { "tshirt", new Dictionary<int, string>
+                { "tshirt", new Dictionary<ulong, string>
                 {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/6/62/T-Shirt_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200547" },
                 {10130, "http://vignette2.wikia.nocookie.net/play-rust/images/c/c6/Argyle_Scavenger_icon.png/revision/latest/scale-to-width-down/100?cb=20160211204436"},
@@ -2778,7 +2778,7 @@ namespace Oxide.Plugins
                 {10043, "http://vignette2.wikia.nocookie.net/play-rust/images/d/d8/Vyshyvanka_Shirt_icon.png/revision/latest/scale-to-width-down/100?cb=20151106053755" },
                 }
             },
-            {"pants", new Dictionary<int, string>
+            {"pants", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/3/3f/Pants_icon.png/revision/latest/scale-to-width-down/100?cb=20150821195647" },
                 {10001, "http://vignette2.wikia.nocookie.net/play-rust/images/1/1d/Blue_Jeans_icon.png/revision/latest/scale-to-width-down/100?cb=20151106053716"},
@@ -2790,7 +2790,7 @@ namespace Oxide.Plugins
                 {10020, "http://vignette4.wikia.nocookie.net/play-rust/images/5/54/Urban_Camo_Pants_icon.png/revision/latest/scale-to-width-down/100?cb=20160211195400" },
             }
             },
-            {"shoes.boots", new Dictionary<int, string>
+            {"shoes.boots", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/b/b3/Boots_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200326" },
                 {10080, "http://vignette1.wikia.nocookie.net/play-rust/images/f/f1/Army_Boots_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200800"},
@@ -2801,7 +2801,7 @@ namespace Oxide.Plugins
                 {10022, "http://vignette1.wikia.nocookie.net/play-rust/images/c/cf/Tan_Boots_icon.png/revision/latest/scale-to-width-down/100?cb=20160211195755" },
             }
             },
-             {"tshirt.long", new Dictionary<int, string>
+             {"tshirt.long", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/5/57/Longsleeve_T-Shirt_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200605" },
                 {10047, "http://vignette4.wikia.nocookie.net/play-rust/images/e/e1/Aztec_Long_T-Shirt_icon.png/revision/latest/scale-to-width-down/100?cb=20160211195354"},
@@ -2820,7 +2820,7 @@ namespace Oxide.Plugins
                 {10007, "http://vignette2.wikia.nocookie.net/play-rust/images/a/ad/Yellow_Longsleeve_T-Shirt_icon.png/revision/latest/scale-to-width-down/100?cb=20160211195949"},
             }
             },
-             {"mask.bandana", new Dictionary<int, string>
+             {"mask.bandana", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/9/9f/Bandana_Mask_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200526" },
                 {10061, "http://vignette4.wikia.nocookie.net/play-rust/images/b/bf/Black_Bandana_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200233"},
@@ -2836,7 +2836,7 @@ namespace Oxide.Plugins
                 {10079, "http://vignette1.wikia.nocookie.net/play-rust/images/4/49/Wizard_Bandana_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200841"},
             }
             },
-             {"mask.balaclava", new Dictionary<int, string>
+             {"mask.balaclava", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/5/52/Improvised_Balaclava_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200410" },
                 {10105, "http://vignette2.wikia.nocookie.net/play-rust/images/0/01/Burlap_Brains_Balaclava_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201020"},
@@ -2854,7 +2854,7 @@ namespace Oxide.Plugins
                 {10111, "http://vignette2.wikia.nocookie.net/play-rust/images/9/9c/Zipper_Face_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201014" },
             }
             },
-             {"jacket.snow", new Dictionary<int, string>
+             {"jacket.snow", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/0/04/Snow_Jacket_-_Red_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200536" },
                 {10082, "http://vignette3.wikia.nocookie.net/play-rust/images/7/75/60%27s_Army_Jacket_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200741"},
@@ -2863,7 +2863,7 @@ namespace Oxide.Plugins
                 {10112, "http://vignette2.wikia.nocookie.net/play-rust/images/c/c9/Woodland_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201105" },
             }
             },
-             {"jacket", new Dictionary<int, string>
+             {"jacket", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/8/8b/Jacket_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200520" },
                 {10011, "http://vignette1.wikia.nocookie.net/play-rust/images/6/65/Blue_Jacket_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200113"},
@@ -2877,7 +2877,7 @@ namespace Oxide.Plugins
                 {10014, "http://vignette2.wikia.nocookie.net/play-rust/images/9/94/Urban_Camo_Jacket_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200215" },
             }
             },
-            {"hoodie", new Dictionary<int, string>
+            {"hoodie", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/b/b5/Hoodie_icon.png/revision/latest/scale-to-width-down/100?cb=20160310205713" },
                 {10142, "http://vignette3.wikia.nocookie.net/play-rust/images/c/c7/BCHILLZ%21_Hoodie_icon.png/revision/latest/scale-to-width-down/100?cb=20160313225348"},
@@ -2891,7 +2891,7 @@ namespace Oxide.Plugins
                 {10086, "http://vignette1.wikia.nocookie.net/play-rust/images/c/c2/Skeleton_Hoodie_icon.png/revision/latest/scale-to-width-down/100?cb=20160310205737"},
             }
             },
-            {"hat.cap", new Dictionary<int, string>
+            {"hat.cap", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/7/77/Baseball_Cap_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200434" },
                 {10029, "http://vignette4.wikia.nocookie.net/play-rust/images/5/56/Blue_Cap_icon.png/revision/latest/scale-to-width-down/100?cb=20160211195645"},
@@ -2903,7 +2903,7 @@ namespace Oxide.Plugins
                 {10045, "http://vignette1.wikia.nocookie.net/play-rust/images/2/2d/Rescue_Cap_icon.png/revision/latest/scale-to-width-down/100?cb=20151106053620" },
             }
             },
-            {"hat.beenie", new Dictionary<int, string>
+            {"hat.beenie", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/c/c1/Beenie_Hat_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200552" },
                 {14180, "http://vignette2.wikia.nocookie.net/play-rust/images/5/58/Black_Beenie_Hat_icon.png/revision/latest/scale-to-width-down/100?cb=20151106053801"},
@@ -2914,183 +2914,199 @@ namespace Oxide.Plugins
                 {10085, "http://vignette1.wikia.nocookie.net/play-rust/images/e/e3/Winter_Deers_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200706" },
             }
             },
-            {"burlap.gloves", new Dictionary<int, string>
+            {"burlap.gloves", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/a/a1/Leather_Gloves_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200306" },
                 {10128, "http://vignette4.wikia.nocookie.net/play-rust/images/b/b5/Boxer%27s_Bandages_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201502"},
             }
             },
-            {"burlap.shirt", new Dictionary<int, string>
+            {"burlap.shirt", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/d/d7/Burlap_Shirt_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200455" },
                 {10136, "http://vignette1.wikia.nocookie.net/play-rust/images/7/77/Pirate_Vest_%26_Shirt_icon.png/revision/latest/scale-to-width-down/100?cb=20160211204350"},
             }
             },
-            {"hat.boonie", new Dictionary<int, string>
+            {"hat.boonie", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/8/88/Boonie_Hat_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200347" },
                 {10058, "http://vignette4.wikia.nocookie.net/play-rust/images/1/12/Farmer_Hat_icon.png/revision/latest/scale-to-width-down/100?cb=20160211195725"},
             }
             },
-            {"santahat", new Dictionary<int, string>
+            {"santahat", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/4/4f/Santa_Hat_icon.png/revision/latest/scale-to-width-down/100?cb=20151217230743" },
             }
             },
-            {"hazmat.pants", new Dictionary<int, string>
+            {"hazmat.pants", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/6/6a/Hazmat_Pants_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060831" },
             }
             },
-            {"hazmat.jacket", new Dictionary<int, string>
+            {"hazmat.jacket", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/2/23/Hazmat_Jacket_icon.png/revision/latest/scale-to-width-down/100?cb=20151106054359" },
             }
             },
-            {"hazmat.helmet", new Dictionary<int, string>
+            {"hazmat.helmet", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/5/53/Hazmat_Helmet_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061437" },
             }
             },
-            {"hazmat.gloves", new Dictionary<int, string>
+            {"hazmat.gloves", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/a/aa/Hazmat_Gloves_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061629" },
             }
             },
-            {"hazmat.boots", new Dictionary<int, string>
+            {"hazmat.boots", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/8/8a/Hazmat_Boots_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060906" },
             }
             },
-            {"hat.miner", new Dictionary<int, string>
+            {"hat.miner", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/1/1b/Miners_Hat_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060851" },
             }
             },
-            {"hat.candle", new Dictionary<int, string>
+            {"hat.candle", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/a/ad/Candle_Hat_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061731" },
             }
             },
 
-            {"burlap.trousers", new Dictionary<int, string>
+            {"burlap.trousers", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/e/e5/Burlap_Trousers_icon.png/revision/latest/scale-to-width-down/100?cb=20151106054430" },
             }
             },
-            {"burlap.shoes", new Dictionary<int, string>
+            {"burlap.shoes", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/1/10/Burlap_Shoes_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061222" },
             }
             },
-            {"burlap.headwrap", new Dictionary<int, string>
+            {"burlap.headwrap", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/c/c4/Burlap_Headwrap_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061044" },
             }
             },
+            {"shirt.tanktop", new Dictionary<ulong, string>
+            {
+                {0, "http://vignette4.wikia.nocookie.net/play-rust/images/1/1e/Tank_Top_icon.png/revision/latest/scale-to-width-down/100?cb=20161102190317" },
             }
             },
-            {Category.Armor, new Dictionary<string, Dictionary<int, string>>
+            {"shirt.collared", new Dictionary<ulong, string>
             {
-            {"bucket.helmet", new Dictionary<int, string>
+                {0, "http://vignette1.wikia.nocookie.net/play-rust/images/8/8c/Shirt_icon.png/revision/latest/scale-to-width-down/100?cb=20161102193325" },
+            }
+            },
+            {"pants.shorts", new Dictionary<ulong, string>
+            {
+                {0, "http://vignette4.wikia.nocookie.net/play-rust/images/4/46/Shorts_icon.png/revision/latest/scale-to-width-down/100?cb=20161102194514" },
+            }
+            },
+
+            }
+            },
+            {Category.Armor, new Dictionary<string, Dictionary<ulong, string>>
+            {
+            {"bucket.helmet", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/a/a5/Bucket_Helmet_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200541" },
                 {10127, "http://vignette1.wikia.nocookie.net/play-rust/images/1/1c/Medic_Helmet_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201521"},
                 {10126, "http://vignette2.wikia.nocookie.net/play-rust/images/c/c4/Wooden_Bucket_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201438" },
             }
             },
-            {"wood.armor.pants", new Dictionary<int, string>
+            {"wood.armor.pants", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/6/68/Wood_Armor_Pants_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061716" },
             }
             },
-            {"wood.armor.jacket", new Dictionary<int, string>
+            {"wood.armor.jacket", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/4/4f/Wood_Chestplate_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060921" },
             }
             },
-            {"roadsign.kilt", new Dictionary<int, string>
+            {"roadsign.kilt", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/3/31/Road_Sign_Kilt_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200530" },
             }
             },
-            {"roadsign.jacket", new Dictionary<int, string>
+            {"roadsign.jacket", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/8/84/Road_Sign_Jacket_icon.png/revision/latest/scale-to-width-down/100?cb=20151106054408" },
             }
             },
-            {"riot.helmet", new Dictionary<int, string>
+            {"riot.helmet", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/4/4e/Riot_Helmet_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060949" },
             }
             },
-            {"metal.plate.torso", new Dictionary<int, string>
+            {"metal.plate.torso", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/9/9d/Metal_Chest_Plate_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061201" },
             }
             },
-            {"metal.facemask", new Dictionary<int, string>
+            {"metal.facemask", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/1/1f/Metal_Facemask_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061432" },
             }
             },
 
-            {"coffeecan.helmet", new Dictionary<int, string>
+            {"coffeecan.helmet", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/4/44/Coffee_Can_Helmet_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061305" },
             }
             },
-            {"bone.armor.suit", new Dictionary<int, string>
+            {"bone.armor.suit", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/1/14/Bone_Armor_icon.png/revision/latest/scale-to-width-down/100?cb=20160901064349" },
             }
             },
-            {"attire.hide.vest", new Dictionary<int, string>
+            {"attire.hide.vest", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/c/c0/Hide_Vest_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061337" },
             }
             },
-            {"attire.hide.skirt", new Dictionary<int, string>
+            {"attire.hide.skirt", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/9/91/Hide_Skirt_icon.png/revision/latest/scale-to-width-down/100?cb=20160513065030" },
             }
             },
-            {"attire.hide.poncho", new Dictionary<int, string>
+            {"attire.hide.poncho", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/7/7f/Hide_Poncho_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061141" },
             }
             },
-            {"attire.hide.pants", new Dictionary<int, string>
+            {"attire.hide.pants", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/e/e4/Hide_Pants_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061352" },
             }
             },
-            {"attire.hide.helterneck", new Dictionary<int, string>
+            {"attire.hide.helterneck", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/2/25/Hide_Halterneck_icon.png/revision/latest/scale-to-width-down/100?cb=20160513065021" },
             }
             },
-            {"attire.hide.boots", new Dictionary<int, string>
+            {"attire.hide.boots", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/5/57/Hide_Boots_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060954" },
             }
             },
-            {"deer.skull.mask", new Dictionary<int, string>
+            {"deer.skull.mask", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/2/22/Deer_Skull_icon.png/revision/latest/scale-to-width-down/100?cb=20150405141500" },
             }
             },
             }
             },
-            {Category.Weapons, new Dictionary<string, Dictionary<int, string>>
+            {Category.Weapons, new Dictionary<string, Dictionary<ulong, string>>
             {
-            {"pistol.revolver", new Dictionary<int, string>
+            {"pistol.revolver", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/5/58/Revolver_icon.png/revision/latest/scale-to-width-down/100?cb=20160226092929" },
                 {10114, "http://vignette1.wikia.nocookie.net/play-rust/images/5/51/Outback_revolver_icon.png/revision/latest/scale-to-width-down/100?cb=20160226092935"},
             }
             },
-            {"pistol.semiauto", new Dictionary<int, string>
+            {"pistol.semiauto", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/6/6b/Semi-Automatic_Pistol_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200319" },
                 {10087, "http://vignette2.wikia.nocookie.net/play-rust/images/7/7c/Contamination_Pistol_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200655"},
@@ -3099,7 +3115,7 @@ namespace Oxide.Plugins
                 {10073, "http://vignette2.wikia.nocookie.net/play-rust/images/5/53/Red_Shine_Pistol_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200630" },
             }
             },
-            {"rifle.ak", new Dictionary<int, string>
+            {"rifle.ak", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/d/d1/Assault_Rifle_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200609" },
                 {10135, "http://vignette2.wikia.nocookie.net/play-rust/images/9/9e/Digital_Camo_AK47_icon.png/revision/latest/scale-to-width-down/100?cb=20160211225138"},
@@ -3107,7 +3123,7 @@ namespace Oxide.Plugins
                 {10138, "http://vignette1.wikia.nocookie.net/play-rust/images/a/a1/Tempered_AK47_icon.png/revision/latest/scale-to-width-down/100?cb=20160211204335"},
             }
             },
-            {"rifle.bolt", new Dictionary<int, string>
+            {"rifle.bolt", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/5/55/Bolt_Action_Rifle_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200415" },
                 {10117, "http://vignette2.wikia.nocookie.net/play-rust/images/2/22/Dreamcatcher_icon.png/revision/latest/scale-to-width-down/100?cb=20160214234844"},
@@ -3115,161 +3131,161 @@ namespace Oxide.Plugins
                 {10116, "http://vignette1.wikia.nocookie.net/play-rust/images/c/cf/Tundra_Bolt_Rifle_icon.png/revision/latest/scale-to-width-down/100?cb=20160214234858"},
             }
             },
-            {"shotgun.pump", new Dictionary<int, string>
+            {"shotgun.pump", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/6/60/Pump_Shotgun_icon.png/revision/latest/scale-to-width-down/100?cb=20160310205718" },
                 {10074, "http://vignette4.wikia.nocookie.net/play-rust/images/9/94/Chieftain_Pump_Shotgun_icon.png/revision/latest/scale-to-width-down/100?cb=20151106062100"},
                 {10140, "http://vignette4.wikia.nocookie.net/play-rust/images/4/42/The_Swampmaster_icon.png/revision/latest/scale-to-width-down/100?cb=20160310205830" },
             }
             },
-            {"shotgun.waterpipe", new Dictionary<int, string>
+            {"shotgun.waterpipe", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/1/1b/Waterpipe_Shotgun_icon.png/revision/latest/scale-to-width-down/100?cb=20160310205730" },
                 {10143, "http://vignette3.wikia.nocookie.net/play-rust/images/4/4a/The_Peace_Pipe_icon.png/revision/latest/scale-to-width-down/100?cb=20160310205804"},
             }
             },
-            {"rifle.lr300", new Dictionary<int, string>
+            {"rifle.lr300", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/d/d9/LR-300_Assault_Rifle_icon.png/revision/latest/scale-to-width-down/100?cb=20160825132402"},
             }
             },
-            {"crossbow", new Dictionary<int, string>
+            {"crossbow", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/2/23/Crossbow_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061004" },
             }
             },
-            {"smg.thompson", new Dictionary<int, string>
+            {"smg.thompson", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/4/4e/Thompson_icon.png/revision/latest/scale-to-width-down/100?cb=20160226092921" },
                 {10120, "http://vignette3.wikia.nocookie.net/play-rust/images/8/84/Santa%27s_Little_Helper_icon.png/revision/latest/scale-to-width-down/100?cb=20160225141743"},
             }
             },
-            {"weapon.mod.small.scope", new Dictionary<int, string>
+            {"weapon.mod.small.scope", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/9/9c/4x_Zoom_Scope_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201610" },
             }
             },
-            {"weapon.mod.silencer", new Dictionary<int, string>
+            {"weapon.mod.silencer", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/9/9f/Silencer_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200615" },
             }
             },
-            {"weapon.mod.muzzlebrake", new Dictionary<int, string>
+            {"weapon.mod.muzzlebrake", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/3/38/Muzzle_Brake_icon.png/revision/latest/scale-to-width-down/100?cb=20160601121719" },
             }
             },
-            {"weapon.mod.muzzleboost", new Dictionary<int, string>
+            {"weapon.mod.muzzleboost", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/7/7d/Muzzle_Boost_icon.png/revision/latest/scale-to-width-down/100?cb=20160601121705" },
             }
             },
-            {"weapon.mod.lasersight", new Dictionary<int, string>
+            {"weapon.mod.lasersight", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/8/8e/Weapon_Lasersight_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201545" },
             }
             },
-            {"weapon.mod.holosight", new Dictionary<int, string>
+            {"weapon.mod.holosight", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/4/45/Holosight_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200620" },
             }
             },
-            {"weapon.mod.flashlight", new Dictionary<int, string>
+            {"weapon.mod.flashlight", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/0/0d/Weapon_Flashlight_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201539" },
             }
             },
-            {"spear.wooden", new Dictionary<int, string>
+            {"spear.wooden", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/f/f2/Wooden_Spear_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060930" },
             }
             },
-            {"spear.stone", new Dictionary<int, string>
+            {"spear.stone", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/0/0a/Stone_Spear_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061726" },
             }
             },
-            {"smg.2", new Dictionary<int, string>
+            {"smg.2", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/9/95/Custom_SMG_icon.png/revision/latest/scale-to-width-down/100?cb=20151108000740" },
             }
             },
-            {"shotgun.double", new Dictionary<int, string>
+            {"shotgun.double", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/3/3f/Double_Barrel_Shotgun_icon.png/revision/latest/scale-to-width-down/100?cb=20160816061211" },
             }
             },
-            {"salvaged.sword", new Dictionary<int, string>
+            {"salvaged.sword", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/7/77/Salvaged_Sword_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061458" },
             }
             },
-            {"salvaged.cleaver", new Dictionary<int, string>
+            {"salvaged.cleaver", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/7/7e/Salvaged_Cleaver_icon.png/revision/latest/scale-to-width-down/100?cb=20151106054417" },
             }
             },
-            {"rocket.launcher", new Dictionary<int, string>
+            {"rocket.launcher", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/0/06/Rocket_Launcher_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061852" },
             }
             },
-            {"rifle.semiauto", new Dictionary<int, string>
+            {"rifle.semiauto", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/8/8d/Semi-Automatic_Rifle_icon.png/revision/latest/scale-to-width-down/100?cb=20160128160721" },
             }
             },
-            {"pistol.eoka", new Dictionary<int, string>
+            {"pistol.eoka", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/b/b5/Eoka_Pistol_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061104" },
             }
             },
-            {"machete", new Dictionary<int, string>
+            {"machete", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/3/34/Machete_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060741" },
             }
             },
-            {"mace", new Dictionary<int, string>
+            {"mace", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/4/4d/Mace_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061207" },
             }
             },
-            {"longsword", new Dictionary<int, string>
+            {"longsword", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/3/34/Longsword_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061240" },
             }
             },
-            {"lmg.m249", new Dictionary<int, string>
+            {"lmg.m249", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/c/c6/M249_icon.png/revision/latest/scale-to-width-down/100?cb=20151112221315" },
             }
             },
-            {"knife.bone", new Dictionary<int, string>
+            {"knife.bone", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/c/c7/Bone_Knife_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061357" },
             }
             },
-            {"flamethrower", new Dictionary<int, string>
+            {"flamethrower", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/5/55/Flame_Thrower_icon.png/revision/latest/scale-to-width-down/100?cb=20160415084104" },
             }
             },
-            {"bow.hunting", new Dictionary<int, string>
+            {"bow.hunting", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/2/25/Hunting_Bow_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060745" },
             }
             },
-            {"bone.club", new Dictionary<int, string>
+            {"bone.club", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/1/19/Bone_Club_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060940" },
             }
             },
-            {"grenade.f1", new Dictionary<int, string>
+            {"grenade.f1", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/5/52/F1_Grenade_icon.png/revision/latest/scale-to-width-down/100?cb=20151106054509" },
             }
             },
-            {"grenade.beancan", new Dictionary<int, string>
+            {"grenade.beancan", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/b/be/Beancan_Grenade_icon.png/revision/latest/scale-to-width-down/50?cb=20151106060959" },
             }
@@ -3278,84 +3294,84 @@ namespace Oxide.Plugins
             },
 
 
-            {Category.Ammunition, new Dictionary<string, Dictionary<int, string>>
+            {Category.Ammunition, new Dictionary<string, Dictionary<ulong, string>>
             {
-            {"ammo.handmade.shell", new Dictionary<int, string>
+            {"ammo.handmade.shell", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/0/0d/Handmade_Shell_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061522" },
             }
             },
-            {"ammo.pistol", new Dictionary<int, string>
+            {"ammo.pistol", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/9/9b/Pistol_Bullet_icon.png/revision/latest/scale-to-width-down/43?cb=20151106061928" },
             }
             },
-             {"ammo.pistol.fire", new Dictionary<int, string>
+             {"ammo.pistol.fire", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/3/31/Incendiary_Pistol_Bullet_icon.png/revision/latest/scale-to-width-down/100?cb=20151106054326" },
             }
             },
-            {"ammo.pistol.hv", new Dictionary<int, string>
+            {"ammo.pistol.hv", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/e/e5/HV_Pistol_Ammo_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061857" },
             }
             },
-            {"ammo.rifle", new Dictionary<int, string>
+            {"ammo.rifle", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/4/49/5.56_Rifle_Ammo_icon.png/revision/latest/scale-to-width-down/100?cb=20150405103333" },
             }
             },
-            {"ammo.rifle.explosive", new Dictionary<int, string>
+            {"ammo.rifle.explosive", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/3/31/Explosive_5.56_Rifle_Ammo_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061449" },
             }
             },
-            {"ammo.rifle.hv", new Dictionary<int, string>
+            {"ammo.rifle.hv", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/d/df/HV_5.56_Rifle_Ammo_icon.png/revision/latest/scale-to-width-down/100?cb=20150612151932" },
             }
             },
-            {"ammo.rifle.incendiary", new Dictionary<int, string>
+            {"ammo.rifle.incendiary", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/e/e1/Incendiary_5.56_Rifle_Ammo_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200254" },
             }
             },
-            {"ammo.rocket.basic", new Dictionary<int, string>
+            {"ammo.rocket.basic", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/9/95/Rocket_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061039" },
             }
             },
-            {"ammo.rocket.fire", new Dictionary<int, string>
+            {"ammo.rocket.fire", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/f/f9/Incendiary_Rocket_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061939" },
             }
             },
-            {"ammo.rocket.hv", new Dictionary<int, string>
+            {"ammo.rocket.hv", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/f/f4/High_Velocity_Rocket_icon.png/revision/latest/scale-to-width-down/100?cb=20151106054436" },
             }
             },
-            {"ammo.rocket.smoke", new Dictionary<int, string>
+            {"ammo.rocket.smoke", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/8/80/Smoke_Rocket_icon.png/revision/latest/scale-to-width-down/100?cb=20150531134255" },
             }
             },
-            {"ammo.shotgun", new Dictionary<int, string>
+            {"ammo.shotgun", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/2/2f/12_Gauge_Buckshot_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061114" },
             }
             },
-            {"ammo.shotgun.slug", new Dictionary<int, string>
+            {"ammo.shotgun.slug", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/1/1a/12_Gauge_Slug_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061838" },
             }
             },
-            {"arrow.hv", new Dictionary<int, string>
+            {"arrow.hv", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/e/e5/High_Velocity_Arrow_icon.png/revision/latest/scale-to-width-down/100?cb=20151106054350" },
             }
             },
-            {"arrow.wooden", new Dictionary<int, string>
+            {"arrow.wooden", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/3/3d/Wooden_Arrow_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061615" },
             }
@@ -3363,24 +3379,24 @@ namespace Oxide.Plugins
             }
             },
 
-            {Category.Medical, new Dictionary<string, Dictionary<int, string>>
+            {Category.Medical, new Dictionary<string, Dictionary<ulong, string>>
             {
-            {"bandage", new Dictionary<int, string>
+            {"bandage", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/f/f8/Bandage_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061541" },
             }
             },
-            {"syringe.medical", new Dictionary<int, string>
+            {"syringe.medical", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/9/99/Medical_Syringe_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061059" },
             }
             },
-            { "largemedkit", new Dictionary<int, string>
+            { "largemedkit", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/9/99/Large_Medkit_icon.png/revision/latest/scale-to-width-down/100?cb=20151106054425" },
             }
             },
-            { "antiradpills", new Dictionary<int, string>
+            { "antiradpills", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/0/0e/Anti-Radiation_Pills_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060926" },
             }
@@ -3389,294 +3405,294 @@ namespace Oxide.Plugins
             },
 
 
-            {Category.Building, new Dictionary<string, Dictionary<int, string>>
+            {Category.Building, new Dictionary<string, Dictionary<ulong, string>>
             {
-            {"bed", new Dictionary<int, string>
+            {"bed", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/f/fe/Bed_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061212" },
             }
             },
-            {"box.wooden", new Dictionary<int, string>
+            {"box.wooden", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/f/ff/Wood_Storage_Box_icon.png/revision/latest/scale-to-width-down/100?cb=20151106054500" },
             }
             },
-            {"box.wooden.large", new Dictionary<int, string>
+            {"box.wooden.large", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/b/b2/Large_Wood_Box_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200336" },
             }
             },
-            {"ceilinglight", new Dictionary<int, string>
+            {"ceilinglight", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/4/43/Ceiling_Light_icon.png/revision/latest/scale-to-width-down/100?cb=20160331070008" },
             }
             },
-            {"door.double.hinged.metal", new Dictionary<int, string>
+            {"door.double.hinged.metal", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/1/14/Sheet_Metal_Double_Door_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201657" },
             }
             },
-            {"door.double.hinged.toptier", new Dictionary<int, string>
+            {"door.double.hinged.toptier", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/c/c1/Armored_Double_Door_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201616" },
             }
             },
-            {"door.double.hinged.wood", new Dictionary<int, string>
+            {"door.double.hinged.wood", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/4/41/Wood_Double_Door_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201605" },
             }
             },
-            {"door.hinged.metal", new Dictionary<int, string>
+            {"door.hinged.metal", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/8/83/Sheet_Metal_Door_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201232" },
             }
             },
-            {"door.hinged.toptier", new Dictionary<int, string>
+            {"door.hinged.toptier", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/b/bc/Armored_Door_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201148" },
             }
             },
-            {"door.hinged.wood", new Dictionary<int, string>
+            {"door.hinged.wood", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/7/7e/Wooden_Door_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201125" },
             }
             },
-            {"floor.grill", new Dictionary<int, string>
+            {"floor.grill", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/4/48/Floor_Grill_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201701" },
             }
             },
-            {"floor.ladder.hatch", new Dictionary<int, string>
+            {"floor.ladder.hatch", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/7/7c/Ladder_Hatch_icon.png/revision/latest/scale-to-width-down/100?cb=20160203005615" },
             }
             },
-            {"gates.external.high.stone", new Dictionary<int, string>
+            {"gates.external.high.stone", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/8/85/High_External_Stone_Gate_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201341" },
             }
             },
-            {"gates.external.high.wood", new Dictionary<int, string>
+            {"gates.external.high.wood", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/5/53/High_External_Wooden_Gate_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200625" },
             }
             },
-            {"shelves", new Dictionary<int, string>
+            {"shelves", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/a/a5/Salvaged_Shelves_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201358" },
             }
             },
-            {"shutter.metal.embrasure.a", new Dictionary<int, string>
+            {"shutter.metal.embrasure.a", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/8/88/Metal_Vertical_embrasure_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201307" },
             }
             },
-            {"shutter.metal.embrasure.b", new Dictionary<int, string>
+            {"shutter.metal.embrasure.b", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/5/5d/Metal_horizontal_embrasure_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201154" },
             }
             },
-            {"shutter.wood.a", new Dictionary<int, string>
+            {"shutter.wood.a", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/2/2b/Wood_Shutters_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201159" },
             }
             },
-            {"sign.hanging", new Dictionary<int, string>
+            {"sign.hanging", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/d/df/Two_Sided_Hanging_Sign_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200913" },
             }
             },
-            {"sign.hanging.banner.large", new Dictionary<int, string>
+            {"sign.hanging.banner.large", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/2/29/Large_Banner_Hanging_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200937" },
             }
             },
-            {"sign.hanging.ornate", new Dictionary<int, string>
+            {"sign.hanging.ornate", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/4/4f/Two_Sided_Ornate_Hanging_Sign_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200909" },
             }
             },
-            {"sign.pictureframe.landscape", new Dictionary<int, string>
+            {"sign.pictureframe.landscape", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/8/87/Landscape_Picture_Frame_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200943" },
             }
             },
-            {"sign.pictureframe.portrait", new Dictionary<int, string>
+            {"sign.pictureframe.portrait", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/5/50/Portrait_Picture_Frame_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200949" },
             }
             },
-            {"sign.pictureframe.tall", new Dictionary<int, string>
+            {"sign.pictureframe.tall", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/6/65/Tall_Picture_Frame_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201003" },
             }
             },
-            {"sign.pictureframe.xl", new Dictionary<int, string>
+            {"sign.pictureframe.xl", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/b/bf/XL_Picture_Frame_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200847" },
             }
             },
-            {"sign.pictureframe.xxl", new Dictionary<int, string>
+            {"sign.pictureframe.xxl", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/9/95/XXL_Picture_Frame_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200933" },
             }
             },
-            {"sign.pole.banner.large", new Dictionary<int, string>
+            {"sign.pole.banner.large", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/1/16/Large_Banner_on_pole_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200958" },
             }
             },
-            {"sign.post.double", new Dictionary<int, string>
+            {"sign.post.double", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/5/5e/Double_Sign_Post_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200918" },
             }
             },
-            {"sign.post.single", new Dictionary<int, string>
+            {"sign.post.single", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/1/11/Single_Sign_Post_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200928" },
             }
             },
-            {"sign.post.town", new Dictionary<int, string>
+            {"sign.post.town", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/6/62/One_Sided_Town_Sign_Post_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200953" },
             }
             },
-            {"sign.post.town.roof", new Dictionary<int, string>
+            {"sign.post.town.roof", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/f/fa/Two_Sided_Town_Sign_Post_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200904" },
             }
             },
-            {"sign.wooden.huge", new Dictionary<int, string>
+            {"sign.wooden.huge", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/6/6e/Huge_Wooden_Sign_icon.png/revision/latest/scale-to-width-down/100?cb=20151106054354" },
             }
             },
-            {"sign.wooden.large", new Dictionary<int, string>
+            {"sign.wooden.large", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/b/bc/Large_Wooden_Sign_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061909" },
             }
             },
-            {"sign.wooden.medium", new Dictionary<int, string>
+            {"sign.wooden.medium", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/c/c3/Wooden_Sign_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061634" },
             }
             },
-            {"sign.wooden.small", new Dictionary<int, string>
+            {"sign.wooden.small", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/7/70/Small_Wooden_Sign_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061315" },
             }
             },
-            {"jackolantern.angry", new Dictionary<int, string>
+            {"jackolantern.angry", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/9/96/Jack_O_Lantern_Angry_icon.png/revision/latest/scale-to-width-down/100?cb=20151106062158" },
             }
             },
-            {"jackolantern.happy", new Dictionary<int, string>
+            {"jackolantern.happy", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/9/92/Jack_O_Lantern_Happy_icon.png/revision/latest/scale-to-width-down/100?cb=20151106062154" },
             }
             },
-            {"ladder.wooden.wall", new Dictionary<int, string>
+            {"ladder.wooden.wall", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/c/c8/Wooden_Ladder_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200358" },
             }
             },
-            {"lantern", new Dictionary<int, string>
+            {"lantern", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/4/46/Lantern_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060856" },
             }
             },
-            {"lock.code", new Dictionary<int, string>
+            {"lock.code", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/0/0c/Code_Lock_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061407" },
             }
             },
-            {"mining.quarry", new Dictionary<int, string>
+            {"mining.quarry", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/b/b8/Mining_Quarry_icon.png/revision/latest/scale-to-width-down/100?cb=20151106054421" },
             }
             },
-            {"wall.external.high", new Dictionary<int, string>
+            {"wall.external.high", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/9/96/High_External_Wooden_Wall_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061300" },
             }
             },
-            {"wall.external.high.stone", new Dictionary<int, string>
+            {"wall.external.high.stone", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/b/b6/High_External_Stone_Wall_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060841" },
             }
             },
-            {"wall.frame.cell", new Dictionary<int, string>
+            {"wall.frame.cell", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/f/f6/Prison_Cell_Wall_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201626" },
             }
             },
-            {"wall.frame.cell.gate", new Dictionary<int, string>
+            {"wall.frame.cell.gate", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/3/30/Prison_Cell_Gate_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201621" },
             }
             },
-            {"wall.frame.fence", new Dictionary<int, string>
+            {"wall.frame.fence", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/2/2a/Chainlink_Fence_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201645" },
             }
             },
-            {"wall.frame.fence.gate", new Dictionary<int, string>
+            {"wall.frame.fence.gate", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/7/7a/Chainlink_Fence_Gate_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201556" },
             }
             },
-            {"wall.frame.shopfront", new Dictionary<int, string>
+            {"wall.frame.shopfront", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/c/c1/Shop_Front_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201551" },
             }
             },
-            {"wall.window.bars.metal", new Dictionary<int, string>
+            {"wall.window.bars.metal", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/f/fe/Metal_Window_Bars_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201255" },
             }
             },
-            {"wall.window.bars.toptier", new Dictionary<int, string>
+            {"wall.window.bars.toptier", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/e/eb/Reinforced_Window_Bars_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201133" },
             }
             },
-            {"wall.window.bars.wood", new Dictionary<int, string>
+            {"wall.window.bars.wood", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/2/27/Wooden_Window_Bars_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201138" },
             }
             },
-            {"lock.key", new Dictionary<int, string>
+            {"lock.key", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/9/9e/Lock_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061620" },
             }
             },
-            { "barricade.concrete", new Dictionary<int, string>
+            { "barricade.concrete", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/b/b3/Concrete_Barricade_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061124" },
             }
             },
-            {"barricade.metal", new Dictionary<int, string>
+            {"barricade.metal", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/b/bb/Metal_Barricade_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061108" },
             }
             },
-            { "barricade.sandbags", new Dictionary<int, string>
+            { "barricade.sandbags", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/a/a7/Sandbag_Barricade_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061417" },
             }
             },
-            { "barricade.wood", new Dictionary<int, string>
+            { "barricade.wood", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/e/e5/Wooden_Barricade_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061024" },
             }
             },
-            { "barricade.woodwire", new Dictionary<int, string>
+            { "barricade.woodwire", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/7/7b/Barbed_Wooden_Barricade_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061508" },
             }
             },
-            { "barricade.stone", new Dictionary<int, string>
+            { "barricade.stone", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/c/cc/Stone_Barricade_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061226" },
             }
@@ -3684,104 +3700,104 @@ namespace Oxide.Plugins
             }
             },
 
-            {Category.Resources, new Dictionary<string, Dictionary<int, string>>
+            {Category.Resources, new Dictionary<string, Dictionary<ulong, string>>
             {
-            {"charcoal", new Dictionary<int, string>
+            {"charcoal", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/a/ad/Charcoal_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061556" },
             }
             },
-            {"cloth", new Dictionary<int, string>
+            {"cloth", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/f/f7/Cloth_icon.png/revision/latest/scale-to-width-down/100?cb=20151106071629" },
             }
             },
-            {"crude.oil", new Dictionary<int, string>
+            {"crude.oil", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/3/3c/Crude_Oil_icon.png/revision/latest/scale-to-width-down/100?cb=20151106054451" },
             }
             },
-            {"fat.animal", new Dictionary<int, string>
+            {"fat.animal", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/d/d5/Animal_Fat_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060911" },
             }
             },
-            {"hq.metal.ore", new Dictionary<int, string>
+            {"hq.metal.ore", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/8/80/High_Quality_Metal_Ore_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061625" },
             }
             },
-            {"lowgradefuel", new Dictionary<int, string>
+            {"lowgradefuel", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/2/26/Low_Grade_Fuel_icon.png/revision/latest/scale-to-width-down/100?cb=20151110002210" },
             }
             },
-            {"metal.fragments", new Dictionary<int, string>
+            {"metal.fragments", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/7/74/Metal_Fragments_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061759" },
             }
             },
-            {"metal.ore", new Dictionary<int, string>
+            {"metal.ore", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/0/0a/Metal_Ore_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060814" },
             }
             },
-            {"leather", new Dictionary<int, string>
+            {"leather", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/9/9a/Leather_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061923" },
             }
             },
-            {"metal.refined", new Dictionary<int, string>
+            {"metal.refined", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/a/a1/High_Quality_Metal_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061156" },
             }
             },
-            {"wood", new Dictionary<int, string>
+            {"wood", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/f/f2/Wood_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061551" },
             }
             },
-            {"seed.corn", new Dictionary<int, string>
+            {"seed.corn", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/2/29/Corn_Seed_icon.png/revision/latest/scale-to-width-down/100?cb=20151106054446" },
             }
             },
-            {"seed.hemp", new Dictionary<int, string>
+            {"seed.hemp", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/1/1c/Hemp_Seed_icon.png/revision/latest/scale-to-width-down/100?cb=20160708084856" },
             }
             },
-            {"seed.pumpkin", new Dictionary<int, string>
+            {"seed.pumpkin", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/6/66/Pumpkin_Seed_icon.png/revision/latest/scale-to-width-down/100?cb=20151106054519" },
             }
             },
-            {"stones", new Dictionary<int, string>
+            {"stones", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/8/85/Stones_icon.png/revision/latest/scale-to-width-down/100?cb=20150405123145" },
             }
             },
-            {"sulfur", new Dictionary<int, string>
+            {"sulfur", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/3/32/Sulfur_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061605" },
             }
             },
-            {"sulfur.ore", new Dictionary<int, string>
+            {"sulfur.ore", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/2/22/Sulfur_Ore_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061904" },
             }
             },
-            {"gunpowder", new Dictionary<int, string>
+            {"gunpowder", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/1/17/Gun_Powder_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060731" },
             }
             },
-            {"researchpaper", new Dictionary<int, string>
+            {"researchpaper", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/a/ac/Research_Paper_icon.png/revision/latest/scale-to-width-down/100?cb=20160819103106" },
             }
             },
-            {"explosives", new Dictionary<int, string>
+            {"explosives", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/4/47/Explosives_icon.png/revision/latest/scale-to-width-down/100?cb=20151106054330" },
             }
@@ -3793,169 +3809,169 @@ namespace Oxide.Plugins
 
 
 
-            {Category.Tools, new Dictionary<string, Dictionary<int, string>>
+            {Category.Tools, new Dictionary<string, Dictionary<ulong, string>>
             {
-            {"botabag", new Dictionary<int, string>
+            {"botabag", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/f/f5/Bota_Bag_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061015" },
             }
             },
-            {"box.repair.bench", new Dictionary<int, string>
+            {"box.repair.bench", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/3/3b/Repair_Bench_icon.png/revision/latest/scale-to-width-down/100?cb=20151119214020" },
             }
             },
-            {"bucket.water", new Dictionary<int, string>
+            {"bucket.water", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/b/bc/Water_Bucket_icon.png/revision/latest/scale-to-width-down/100?cb=20160413085322" },
             }
             },
-            {"explosive.satchel", new Dictionary<int, string>
+            {"explosive.satchel", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/0/0b/Satchel_Charge_icon.png/revision/latest/scale-to-width-down/100?cb=20160813023035" },
             }
             },
-            {"explosive.timed", new Dictionary<int, string>
+            {"explosive.timed", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/6/6c/Timed_Explosive_Charge_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061610" },
             }
             },
-            {"flare", new Dictionary<int, string>
+            {"flare", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/5/57/Flare_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061129" },
             }
             },
-            {"fun.guitar", new Dictionary<int, string>
+            {"fun.guitar", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/b/bb/Acoustic_Guitar_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060809" },
             }
             },
-            {"furnace", new Dictionary<int, string>
+            {"furnace", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/e/e3/Furnace_icon.png/revision/latest/scale-to-width-down/100?cb=20151106054341" },
             }
             },
-            {"furnace.large", new Dictionary<int, string>
+            {"furnace.large", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/e/ee/Large_Furnace_icon.png/revision/latest/scale-to-width-down/100?cb=20151106054456" },
             }
             },
-            {"hatchet", new Dictionary<int, string>
+            {"hatchet", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/0/06/Hatchet_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061743" },
             }
             },
-            {"icepick.salvaged", new Dictionary<int, string>
+            {"icepick.salvaged", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/e/e1/Salvaged_Icepick_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061453" },
             }
             },
-            {"axe.salvaged", new Dictionary<int, string>
+            {"axe.salvaged", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/c/c9/Salvaged_Axe_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060750" },
             }
             },
-            {"pickaxe", new Dictionary<int, string>
+            {"pickaxe", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/8/86/Pick_Axe_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061323" },
             }
             },
-            {"research.table", new Dictionary<int, string>
+            {"research.table", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/2/21/Research_Table_icon.png/revision/latest/scale-to-width-down/100?cb=20160129014240" },
             }
             },
-            {"small.oil.refinery", new Dictionary<int, string>
+            {"small.oil.refinery", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/a/ac/Small_Oil_Refinery_icon.png/revision/latest/scale-to-width-down/100?cb=20151119214041" },
             }
             },
-            {"stone.pickaxe", new Dictionary<int, string>
+            {"stone.pickaxe", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/7/77/Stone_Pick_Axe_icon.png/revision/latest/scale-to-width-down/100?cb=20150405134645" },
             }
             },
-            {"stonehatchet", new Dictionary<int, string>
+            {"stonehatchet", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/9/9b/Stone_Hatchet_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061843" },
             }
             },
-            {"supply.signal", new Dictionary<int, string>
+            {"supply.signal", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/2/24/Supply_Signal_icon.png/revision/latest/scale-to-width-down/100?cb=20151106071621" },
             }
             },
-            {"surveycharge", new Dictionary<int, string>
+            {"surveycharge", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/9/9a/Survey_Charge_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061517" },
             }
             },
-            {"target.reactive", new Dictionary<int, string>
+            {"target.reactive", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/6/60/Reactive_Target_icon.png/revision/latest/scale-to-width-down/100?cb=20160331070018" },
             }
             },
-            {"tool.camera", new Dictionary<int, string>
+            {"tool.camera", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/0/0e/Camera_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060755" },
             }
             },
-            {"water.barrel", new Dictionary<int, string>
+            {"water.barrel", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/e/e2/Water_Barrel_icon.png/revision/latest/scale-to-width-down/100?cb=20160504013134" },
             }
             },
-            {"water.catcher.large", new Dictionary<int, string>
+            {"water.catcher.large", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/3/35/Large_Water_Catcher_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061049" },
             }
             },
-            {"water.catcher.small", new Dictionary<int, string>
+            {"water.catcher.small", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/0/04/Small_Water_Catcher_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061919" },
             }
             },
-            {"water.purifier", new Dictionary<int, string>
+            {"water.purifier", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/6/6e/Water_Purifier_icon.png/revision/latest/scale-to-width-down/100?cb=20160512082941" },
             }
             },
-            {"torch", new Dictionary<int, string>
+            {"torch", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/4/48/Torch_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061512" },
             }
             },
-            {"stash.small", new Dictionary<int, string>
+            {"stash.small", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/5/53/Small_Stash_icon.png/revision/latest/scale-to-width-down/100?cb=20151106062004" },
             }
             },
-            {"sleepingbag", new Dictionary<int, string>
+            {"sleepingbag", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/b/be/Sleeping_Bag_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200428" },
             }
             },
-            {"hammer.salvaged", new Dictionary<int, string>
+            {"hammer.salvaged", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/f/f8/Salvaged_Hammer_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060804" },
             }
             },
-            {"hammer", new Dictionary<int, string>
+            {"hammer", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/5/57/Hammer_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061319" },
             }
             },
-            {"blueprintbase", new Dictionary<int, string>
+            {"blueprintbase", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/8/83/Blueprint_icon.png/revision/latest/scale-to-width-down/100?cb=20160819063752" },
             }
             },
-            {"fishtrap.small", new Dictionary<int, string>
+            {"fishtrap.small", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/9/9d/Survival_Fish_Trap_icon.png/revision/latest/scale-to-width-down/100?cb=20160506135224" },
             }
             },
-            {"building.planner", new Dictionary<int, string>
+            {"building.planner", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/b/ba/Building_Plan_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061847" },
             }
@@ -3963,59 +3979,59 @@ namespace Oxide.Plugins
             }
             },
 
-            {Category.Other, new Dictionary<string, Dictionary<int, string>>
+            {Category.Other, new Dictionary<string, Dictionary<ulong, string>>
             {
-            { "cctv.camera", new Dictionary<int, string>
+            { "cctv.camera", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/2/24/CCTV_Camera_icon.png/revision/latest/scale-to-width-down/100?cb=20151106062215" },
             }
             },
-            {"pookie.bear", new Dictionary<int, string>
+            {"pookie.bear", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/6/61/Pookie_Bear_icon.png/revision/latest/scale-to-width-down/100?cb=20151217230015" },
             }
             },
-            {"targeting.computer", new Dictionary<int, string>
+            {"targeting.computer", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/0/07/Targeting_Computer_icon.png/revision/latest/scale-to-width-down/100?cb=20151106062210" },
             }
             },
-            {"trap.bear", new Dictionary<int, string>
+            {"trap.bear", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/b/b0/Snap_Trap_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061711" },
             }
             },
-            {"trap.landmine", new Dictionary<int, string>
+            {"trap.landmine", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/8/83/Land_Mine_icon.png/revision/latest/scale-to-width-down/100?cb=20160211200450" },
             }
             },
-            {"autoturret", new Dictionary<int, string>
+            {"autoturret", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/f/f9/Auto_Turret_icon.png/revision/latest/scale-to-width-down/100?cb=20151106062203" },
             }
             },
-            {"spikes.floor", new Dictionary<int, string>
+            {"spikes.floor", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/f/f7/Wooden_Floor_Spikes_icon.png/revision/latest/scale-to-width-down/100?cb=20150517235346" },
             }
             },
-            {"note", new Dictionary<int, string>
+            {"note", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/d/d5/Note_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060819" },
             }
             },
-            {"paper", new Dictionary<int, string>
+            {"paper", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/9/96/Paper_icon.png/revision/latest/scale-to-width-down/100?cb=20151106054403" },
             }
             },
-            {"map", new Dictionary<int, string>
+            {"map", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/c/c8/Paper_Map_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061639" },
             }
             },
-            {"campfire", new Dictionary<int, string>
+            {"campfire", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/3/35/Camp_Fire_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060846" },
             }
@@ -4023,104 +4039,104 @@ namespace Oxide.Plugins
             }
             },
 
-            {Category.Food, new Dictionary<string, Dictionary<int, string>>
+            {Category.Food, new Dictionary<string, Dictionary<ulong, string>>
             {
-            { "wolfmeat.cooked", new Dictionary<int, string>
+            { "wolfmeat.cooked", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/1/16/Cooked_Wolf_Meat_icon.png/revision/latest/scale-to-width-down/100?cb=20160131235320" },
             }
             },
-            {"waterjug", new Dictionary<int, string>
+            {"waterjug", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/f/f2/Water_Jug_icon.png/revision/latest/scale-to-width-down/100?cb=20160422072821" },
             }
             },
-            {"water.salt", new Dictionary<int, string>
+            {"water.salt", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/c/ce/Salt_Water_icon.png/revision/latest/scale-to-width-down/100?cb=20160708084848" },
             }
             },
-            {"water", new Dictionary<int, string>
+            {"water", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/7/7f/Water_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061403" },
             }
             },
-            {"smallwaterbottle", new Dictionary<int, string>
+            {"smallwaterbottle", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/f/fc/Small_Water_Bottle_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061933" },
             }
             },
-            {"pumpkin", new Dictionary<int, string>
+            {"pumpkin", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/4/4c/Pumpkin_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061814" },
             }
             },
-            {"mushroom", new Dictionary<int, string>
+            {"mushroom", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/a/a8/Mushroom_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060836" },
             }
             },
-            {"meat.pork.cooked", new Dictionary<int, string>
+            {"meat.pork.cooked", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/d/dc/Cooked_Pork_icon.png/revision/latest/scale-to-width-down/100?cb=20160211201237" },
             }
             },
-            {"humanmeat.cooked", new Dictionary<int, string>
+            {"humanmeat.cooked", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/d/d2/Cooked_Human_Meat_icon.png/revision/latest/scale-to-width-down/100?cb=20150405113229" },
             }
             },
-            {"granolabar", new Dictionary<int, string>
+            {"granolabar", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/6/6c/Granola_Bar_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060916" },
             }
             },
-            {"fish.cooked", new Dictionary<int, string>
+            {"fish.cooked", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/8/8b/Cooked_Fish_icon.png/revision/latest/scale-to-width-down/100?cb=20160506135233" },
             }
             },
-            {"chocholate", new Dictionary<int, string>
+            {"chocholate", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/4/45/Chocolate_Bar_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061914" },
             }
             },
-            {"chicken.cooked", new Dictionary<int, string>
+            {"chicken.cooked", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/6/6f/Cooked_Chicken_icon.png/revision/latest/scale-to-width-down/100?cb=20151108000759" },
             }
             },
-            {"candycane", new Dictionary<int, string>
+            {"candycane", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/2/2c/Candy_Cane_icon.png/revision/latest/scale-to-width-down/100?cb=20151217224745" },
             }
             },
-            {"can.tuna", new Dictionary<int, string>
+            {"can.tuna", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/2/2d/Can_of_Tuna_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061943" },
             }
             },
-            {"can.beans", new Dictionary<int, string>
+            {"can.beans", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/e/e5/Can_of_Beans_icon.png/revision/latest/scale-to-width-down/100?cb=20151106060935" },
             }
             },
-            {"blueberries", new Dictionary<int, string>
+            {"blueberries", new Dictionary<ulong, string>
             {
                 {0, "http://vignette1.wikia.nocookie.net/play-rust/images/f/f8/Blueberries_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061231" },
             }
             },
-            {"black.raspberries", new Dictionary<int, string>
+            {"black.raspberries", new Dictionary<ulong, string>
             {
                 {0, "http://vignette4.wikia.nocookie.net/play-rust/images/6/6f/Black_Raspberries_icon.png/revision/latest/scale-to-width-down/100?cb=20151119214047" },
             }
             },
-            {"bearmeat.cooked", new Dictionary<int, string>
+            {"bearmeat.cooked", new Dictionary<ulong, string>
             {
                 {0, "http://vignette3.wikia.nocookie.net/play-rust/images/1/17/Bear_Meat_Cooked_icon.png/revision/latest/scale-to-width-down/100?cb=20160109015147" },
             }
             },
-            {"apple", new Dictionary<int, string>
+            {"apple", new Dictionary<ulong, string>
             {
                 {0, "http://vignette2.wikia.nocookie.net/play-rust/images/d/dc/Apple_icon.png/revision/latest/scale-to-width-down/100?cb=20151106061034" },
             }

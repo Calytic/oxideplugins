@@ -12,7 +12,7 @@ using System.IO;
 
 namespace Oxide.Plugins
 {
-    [Info("AbsolutGifts", "Absolut", "1.1.0", ResourceId = 2159)]
+    [Info("AbsolutGifts", "Absolut", "1.1.1", ResourceId = 2159)]
 
     class AbsolutGifts : RustPlugin
     {
@@ -98,8 +98,8 @@ namespace Oxide.Plugins
             if (player != null)
             {
                 GetSendMSG(player, "AGInfo");
+                InitializePlayer(player);
             }
-            InitializePlayer(player);
         }
 
         private void InitializePlayer(BasePlayer player)
@@ -560,22 +560,22 @@ namespace Oxide.Plugins
                         if (page <= totalpages - 1)
                         {
                             UI.LoadImage(ref element, PanelGift, GetImage("LAST"), "0.8 0.02", "0.85 0.075");
-                            UI.CreateButton(ref element, PanelGift, "0 0 0 0", "", 16, "0.8 0.02", "0.85 0.075", $"UI_CreateGifts {1} {totalpages}");
+                            UI.CreateButton(ref element, PanelGift, "0 0 0 0", "", 16, "0.8 0.02", "0.85 0.075", $"UI_CreateGifts {2} {totalpages}");
                         }
                         if (remainingentries > entriesallowed)
                         {
                             UI.LoadImage(ref element, PanelGift, GetImage("NEXT"), "0.74 0.02", "0.79 0.075");
-                            UI.CreateButton(ref element, PanelGift, "0 0 0 0", "", 16, "0.74 0.02", "0.79 0.075", $"UI_CreateGifts {1} {page + 1}");
+                            UI.CreateButton(ref element, PanelGift, "0 0 0 0", "", 16, "0.74 0.02", "0.79 0.075", $"UI_CreateGifts {2} {page + 1}");
                         }
                         if (page > 0)
                         {
                             UI.LoadImage(ref element, PanelGift, GetImage("BACK"), "0.68 0.02", "0.73 0.075");
-                            UI.CreateButton(ref element, PanelGift, "0 0 0 0", "", 16, "0.68 0.02", "0.73 0.075", $"UI_CreateGifts {1} {page - 1}");
+                            UI.CreateButton(ref element, PanelGift, "0 0 0 0", "", 16, "0.68 0.02", "0.73 0.075", $"UI_CreateGifts {2} {page - 1}");
                         }
                         if (page > 1)
                         {
                             UI.LoadImage(ref element, PanelGift, GetImage("FIRST"), "0.62 0.02", "0.67 0.075");
-                            UI.CreateButton(ref element, PanelGift, "0 0 0 0", "", 16, "0.62 0.02", "0.67 0.075", $"UI_CreateGifts {1} {0}");
+                            UI.CreateButton(ref element, PanelGift, "0 0 0 0", "", 16, "0.62 0.02", "0.67 0.075", $"UI_CreateGifts {2} {0}");
                         }
                     }
                     int n = 0;
@@ -641,7 +641,7 @@ namespace Oxide.Plugins
                     UI.CreateLabel(ref element, PanelGift, UIColors["limegreen"], GiftDetails, 20, "0.1 0.16", "0.9 0.75", TextAnchor.MiddleLeft);
                     UI.CreateButton(ref element, PanelGift, UIColors["buttonbg"], GetLang("FinalizeGift"), 18, "0.2 0.05", "0.4 0.15", $"UI_FinalizeGift", TextAnchor.MiddleCenter);
                     if (giftprep[player.userID].gifts.Count() < 11)
-                    UI.CreateButton(ref element, PanelGift, UIColors["buttonbg"], GetLang("AddToGift"), 18, "0.401 0.05", "0.599 0.15", $"UI_CreateGifts {1} {0}", TextAnchor.MiddleCenter);
+                    UI.CreateButton(ref element, PanelGift, UIColors["buttonbg"], GetLang("AddToGift"), 18, "0.401 0.05", "0.599 0.15", $"UI_CreateGifts {2} {0}", TextAnchor.MiddleCenter);
                     UI.CreateButton(ref element, PanelGift, UIColors["buttonred"], GetLang("Cancel"), 18, "0.6 0.05", "0.8 0.15", $"UI_CancelGiftCreation");
                     break;
             }

@@ -14,7 +14,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-	[Info("TruePVE", "ignignokt84", "0.4.0")]
+	[Info("TruePVE", "ignignokt84", "0.4.6", ResourceId = 1789)]
 	class TruePVE : RustPlugin
 	{
 		private TruePVEData data = new TruePVEData();
@@ -27,9 +27,9 @@ namespace Oxide.Plugins
 		// valid commands
 		private enum Command { usage, set, get, list, version, def };
 		// valid options
-		public enum Option { allowSuicide, authDamage, corpseLooting, handleDamage, handleLooting, heliDamage, heliDamageLocked, immortalLocks, sleeperAdminDamage, sleeperLooting };
+		public enum Option { allowSuicide, authDamage, corpseLooting, handleDamage, handleLooting, heliDamage, heliDamageLocked, heliDamagePlayer, humanNPCDamage, immortalLocks, sleeperAdminDamage, sleeperLooting };
 		// default values array
-		private bool[] def = { true, false, false, true, true, true, false, true, false, false };
+		private bool[] def = { true, false, false, true, true, true, false, true, true, true, false, false };
 		// layer mask for finding authorization
         private readonly int triggerMask = LayerMask.GetMask("Trigger");
         
@@ -282,6 +282,7 @@ namespace Oxide.Plugins
 			string optstr = opt.ToString();
 			data.config[opt] = value;
 			SaveConfig();
+			SaveData();
 		}
 		
 		// handle get command
@@ -443,7 +444,7 @@ namespace Oxide.Plugins
 			if(!global.enabled)
 				return true;
 			
-			if (entity == null || hitinfo == null || hitinfo.Initiator == null) return true;
+			if (entity == null || hitinfo == null) return true;
 			
 			// allow resource gathering
 			if(entity.GetComponent<ResourceDispenser>() != null)
@@ -456,7 +457,15 @@ namespace Oxide.Plugins
 			// check heli
 			object heli = CheckHeliInitiator(hitinfo);
 			if(heli != null)
+			{
+				if(entity is BasePlayer)
+					return data.config[Option.heliDamagePlayer];
 				return (bool)heli;
+			}
+			
+			// after heli check, return true if initiator is null
+			if(hitinfo.Initiator == null)
+				return true;
 			
 			// allow NPC damage
 			if (entity is BaseNPC || hitinfo.Initiator is BaseNPC)
@@ -466,11 +475,12 @@ namespace Oxide.Plugins
 			if(entity is Barricade && (entity.ShortPrefabName.Contains("door_barricade") || entity.ShortPrefabName.Contains("cover")))
 				return true;
 			
-			// if entity is a barrel, trash can, or giftbox, allow damage
+			// if entity is a barrel, trash can, or giftbox, allow damage (exclude water barrels)
 			if(entity.ShortPrefabName.Contains("barrel") ||
 			   entity.ShortPrefabName == "loot_trash" ||
 			   entity.ShortPrefabName == "giftbox_loot")
-				return true;
+				if(entity.ShortPrefabName != "waterbarrel")
+					return true;
 			
 			// handle suicide
 			if(hitinfo.damageTypes.Get(DamageType.Suicide) > 0)
@@ -494,12 +504,17 @@ namespace Oxide.Plugins
 			}
 			
 			// ignore checks if authorized damage enabled (except for players)
-			if(data.config[Option.authDamage] && !(entity is BasePlayer) && CheckAuthDamage(entity, hitinfo.Initiator as BasePlayer))
+			if(data.config[Option.authDamage] && !(entity is BasePlayer) && (hitinfo.Initiator is BasePlayer) && CheckAuthDamage(entity, hitinfo.Initiator as BasePlayer))
 				return true;
 			
 			// allow sleeper damage by admins if configured
 			if(data.config[Option.sleeperAdminDamage] && entity is BasePlayer && hitinfo.Initiator is BasePlayer)
 				if((entity as BasePlayer).IsSleeping() && isAdmin(hitinfo.Initiator as BasePlayer))
+					return true;
+			
+			// allow Human NPC damage if configured
+			if(data.config[Option.humanNPCDamage] && entity is BasePlayer && hitinfo.Initiator is BasePlayer)
+				if(isHumanNPC(entity as BasePlayer) || isHumanNPC(hitinfo.Initiator as BasePlayer))
 					return true;
 			
 			// handle rules
@@ -557,12 +572,13 @@ namespace Oxide.Plugins
 			   entity.ShortPrefabName == "jackolantern.angry" ||
 			   entity.ShortPrefabName == "jackolantern.happy" ||
 			   entity.ShortPrefabName == "repairbench_deployed" ||
-			   entity.ShortPrefabName == "researchtable_deployed")
+			   entity.ShortPrefabName == "researchtable_deployed" ||
+			   entity.ShortPrefabName.Contains("shutter"))
 				return null;
 			
 			// if unlocked damage allowed - check for lock
 			BaseLock alock = entity.GetSlot(BaseEntity.Slot.Lock) as BaseLock; // get lock
-			if (alock == null) return true; // no lock, allow damage
+			if (alock == null) return null; // no lock, allow damage
 
 			if (alock.IsLocked()) // is locked, cancel damage except heli
 			{
@@ -573,7 +589,7 @@ namespace Oxide.Plugins
 					return (bool) heli;
 				return false;
 			}
-			return true;
+			return null;
 		}
 		
 		// check for heli
@@ -581,7 +597,8 @@ namespace Oxide.Plugins
 		{
 			// Check for heli initiator
 			if(hitinfo.Initiator is BaseHelicopter ||
-			   hitinfo.Initiator is HelicopterTurret)
+			   hitinfo.Initiator is HelicopterTurret ||
+			   hitinfo.Initiator is FireBall)
 				return data.config[Option.heliDamage];
 			else if(hitinfo.WeaponPrefab != null) // prevent null spam
 			{
@@ -749,6 +766,12 @@ namespace Oxide.Plugins
         	if (player == null) return false;
             if (player?.net?.connection == null) return true;
             return player.net.connection.authLevel > 0;
+        }
+        
+        // is player a HumanNPC
+        private bool isHumanNPC(BasePlayer player)
+        {
+        	return player.userID < 76560000000000000L && player.userID > 0L && !player.isDestroyed;
         }
 		
 		// configuration and data storage container

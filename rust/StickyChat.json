@@ -5,7 +5,6 @@
     "version": "0.0.3",
     "configuration": false,
     "require": {
-        "PM": "*",
         "Clans": "*"
     },
     "language": "cs",

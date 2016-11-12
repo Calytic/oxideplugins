@@ -4,12 +4,7 @@
     "author": "Reneb",
     "version": "1.0.9",
     "configuration": true,
-    "suggest": {
-        "PlayerDatabase": "*",
-        "PlayerInformations": "*",
-        "chatmute": "*",
-        "EnhancedBanSystem": "*"
-    },
+    "suggest": {},
     "language": "cs",
     "games": [
         "rust"

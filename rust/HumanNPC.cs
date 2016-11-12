@@ -16,13 +16,12 @@ using Oxide.Core.Configuration;
 using Oxide.Core.Plugins;
 
 using Rust;
-using Rust.Xp;
 using UnityEngine;
 using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic", "0.3.8", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic", "0.3.9", ResourceId = 856)]
     public class HumanNPC : RustPlugin
     {
         //////////////////////////////////////////////////////
@@ -731,7 +730,7 @@ namespace Oxide.Plugins
                 player.syncPosition = true;
                 if (!update)
                 {
-                    player.xp = ServerMgr.Xp.GetAgent(info.userid);
+                    //player.xp = ServerMgr.Xp.GetAgent(info.userid);
                     player.stats = new PlayerStatistics(player);
                     player.userID = info.userid;
                     player.UserIDString = player.userID.ToString();
@@ -1072,7 +1071,6 @@ namespace Oxide.Plugins
             public float reloadDuration;
             public bool needsAmmo;
             public bool defend;
-            public float xp;
             public List<string> message_hello;
             public List<string> message_bye;
             public List<string> message_use;
@@ -1139,7 +1137,6 @@ namespace Oxide.Plugins
                     needsAmmo = needsAmmo,
                     hitchance = hitchance,
                     reloadDuration = reloadDuration,
-                    xp = xp,
                     protections = protections?.ToDictionary(p => p.Key, p => p.Value)
                 };
             }
@@ -1400,8 +1397,8 @@ namespace Oxide.Plugins
             {
                 if (humanPlayer.info.message_kill != null && humanPlayer.info.message_kill.Count > 0)
                     SendMessage(humanPlayer, player, GetRandomMessage(humanPlayer.info.message_kill));
-                if (humanPlayer.info.xp > 0)
-                    player.xp.Add(Definitions.Cheat, humanPlayer.info.xp);
+                //if (humanPlayer.info.xp > 0)
+                //    player.xp.Add(Definitions.Cheat, humanPlayer.info.xp);
             }
             Interface.Oxide.CallHook("OnKillNPC", entity.GetComponent<BasePlayer>(), hitinfo);
             if (humanPlayer.info.respawn)

@@ -2,7 +2,7 @@
     "name": "Random Deployables",
     "description": "Randomize deployable skins",
     "author": "Norn",
-    "version": "0.2",
+    "version": "0.5",
     "configuration": true,
     "language": "cs",
     "games": [

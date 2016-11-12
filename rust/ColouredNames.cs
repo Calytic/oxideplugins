@@ -6,10 +6,13 @@ namespace Oxide.Plugins
     [Info("ColouredNames", "PsychoTea", "1.0.0")]
     internal class ColouredNames : RustPlugin
     {
-        class StoredData { public Dictionary<ulong, string> colour = new Dictionary<ulong, string>(); }
+        class StoredData
+        {
+            public Dictionary<ulong, string> colour = new Dictionary<ulong, string>();
+        }
         StoredData storedData;
 
-        void Init() => permission.RegisterPermission("colouredName", this);
+        void Init() => permission.RegisterPermission("colourednames.colouredName", this);
 
         void Loaded() => storedData = Interface.GetMod().DataFileSystem.ReadObject<StoredData>("ColouredNames");
 
@@ -20,7 +23,10 @@ namespace Oxide.Plugins
             if (storedData.colour.ContainsKey(player.userID))
             {
                 if (storedData.colour[player.userID] == "clear") return null;
-                ConsoleSystem.Broadcast("chat.add", player.userID.ToString(), string.Format("<color=" + storedData.colour[player.userID] + ">" + player.displayName + "</color>: " + arg.GetString(0, "text")), 1.0);
+                //ConsoleSystem.Broadcast("chat.add", player.userID.ToString(), string.Format("<color=" + storedData.colour[player.userID] + ">" + player.displayName + "</color>: " + arg.GetString(0, "text")), 1.0);
+                string message = string.Format("<color=" + storedData.colour[player.userID] + ">" + player.displayName + "</color>: " + arg.GetString(0, "text"));
+                foreach (BasePlayer bp in BasePlayer.activePlayerList)
+                    rust.SendChatMessage(bp, message, null, player.userID.ToString());
                 Interface.Oxide.ServerConsole.AddMessage("[CHAT] " + player.displayName + ": " + arg.GetString(0, "text"));
                 return true;
             }
@@ -30,7 +36,7 @@ namespace Oxide.Plugins
         [ChatCommand("colour")]
         private void ColourCmd(BasePlayer player, string command, string[] args)
         {
-            if (!permission.UserHasPermission(player.userID.ToString(), "colouredName")) SendReply(player, "<color=red>You do not have permission!</color>");
+            if (!permission.UserHasPermission(player.userID.ToString(), "colourednames.colouredName")) SendReply(player, "<color=red>You do not have permission!</color>");
             else if (args.Length == 0) SendReply(player, "<color=aqua>Incorrect syntax!</color><color=orange> /colour {colour}.\nFor a more information do /colours.</color>");
             else
             {

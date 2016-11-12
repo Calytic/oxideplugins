@@ -4,10 +4,11 @@ using Oxide.Core.Configuration;
 using Oxide.Core;
 using System.IO;
 using System.Collections;
+using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("ImageLibrary", "Absolut", "1.0.0", ResourceId = 000000)]
+    [Info("ImageLibrary", "Absolut", "1.2.1", ResourceId = 2193)]
 
     class ImageLibrary : RustPlugin
     {
@@ -18,7 +19,7 @@ namespace Oxide.Plugins
 
         public class ImageData
         {
-            public Dictionary<string, Dictionary<int, uint>> Images = new Dictionary<string, Dictionary<int, uint>>();
+            public Dictionary<string, Dictionary<ulong, uint>> Images = new Dictionary<string, Dictionary<ulong, uint>>();
         }
 
         static GameObject webObject;
@@ -49,7 +50,8 @@ namespace Oxide.Plugins
         #endregion
 
         #region External Calls
-        public string GetImage(string shortname, int skin = 0)
+        [HookMethod("GetImage")]
+        public string GetImage(string shortname, ulong skin = 0)
         {
             if (!imageData.Images.ContainsKey(shortname)) return imageData.Images["NONE"][0].ToString();
             if (!imageData.Images[shortname].ContainsKey(skin))
@@ -57,7 +59,8 @@ namespace Oxide.Plugins
             return imageData.Images[shortname][skin].ToString();
         }
 
-        public bool HasImage(string shortname, int skin = 0)
+        [HookMethod("HasImage")]
+        public bool HasImage(string shortname, ulong skin = 0)
         {
             if (!imageData.Images.ContainsKey(shortname)) return false;
             if (!imageData.Images[shortname].ContainsKey(skin))
@@ -65,11 +68,12 @@ namespace Oxide.Plugins
             return true;
         }
 
-        public bool AddImage(string url, string name, int skin = 0)
+        [HookMethod("AddImage")]
+        public bool AddImage(string url, string name, ulong skin = 0)
         {
             if (!HasImage(name, skin))
             {
-                images.Add(url,name, skin);
+                images.Add(url, name, skin);
                 return true;
             }
             return false;
@@ -81,8 +85,8 @@ namespace Oxide.Plugins
         {
             public string url;
             public string name;
-            public int skin;
-            public QueueImages(string ur, string nm, int sk)
+            public ulong skin;
+            public QueueImages(string ur, string nm, ulong sk)
             {
                 url = ur;
                 name = nm;
@@ -93,13 +97,13 @@ namespace Oxide.Plugins
         class Images : MonoBehaviour
         {
             ImageLibrary filehandler;
-            const int MaxActiveLoads = 3;
+            const ulong MaxActiveLoads = 3;
             static readonly List<QueueImages> QueueList = new List<QueueImages>();
             static byte activeLoads;
             private MemoryStream stream = new MemoryStream();
 
             public void SetDataDir(ImageLibrary fc) => filehandler = fc;
-            public void Add(string url, string name, int skin)
+            public void Add(string url, string name, ulong skin)
             {
                 QueueList.Add(new QueueImages(url, name, skin));
                 if (activeLoads < MaxActiveLoads) Next();
@@ -127,7 +131,7 @@ namespace Oxide.Plugins
                 if (www.error == null)
                 {
                     if (!filehandler.imageData.Images.ContainsKey(info.name))
-                        filehandler.imageData.Images.Add(info.name, new Dictionary<int, uint>());
+                        filehandler.imageData.Images.Add(info.name, new Dictionary<ulong, uint>());
                     if (!filehandler.imageData.Images[info.name].ContainsKey(info.skin))
                     {
                         ClearStream();
@@ -174,9 +178,9 @@ namespace Oxide.Plugins
             });
         }
 
-        private Dictionary<string, Dictionary<int, string>> ItemImages = new Dictionary<string, Dictionary<int, string>>
+        private Dictionary<string, Dictionary<ulong, string>> ItemImages = new Dictionary<string, Dictionary<ulong, string>>
         {
-                { "tshirt", new Dictionary<int, string>
+                { "tshirt", new Dictionary<ulong, string>
                 {
                 {0, "http://imgur.com/SAD8dWX.png" },
                 {10130, "http://imgur.com/tqwRCKw.png"},
@@ -201,7 +205,7 @@ namespace Oxide.Plugins
                 {10043, "http://imgur.com/4oz5N6s.png" },
                 }
             },
-            {"pants", new Dictionary<int, string>
+            {"pants", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/iiFJAso.png" },
                 {10001, "http://imgur.com/ntwPM8B.png"},
@@ -213,7 +217,7 @@ namespace Oxide.Plugins
                 {10020, "http://imgur.com/jrILSlp.png" },
             }
             },
-            {"shoes.boots", new Dictionary<int, string>
+            {"shoes.boots", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/b8HJ3TJ.png" },
                 {10080, "http://imgur.com/7LSy7LN.png"},
@@ -224,7 +228,7 @@ namespace Oxide.Plugins
                 {10022, "http://imgur.com/CCqzvRr.png" },
             }
             },
-             {"tshirt.long", new Dictionary<int, string>
+             {"tshirt.long", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/KPxtIQI.png" },
                 {10047, "http://imgur.com/S8H3tcI.png"},
@@ -243,7 +247,7 @@ namespace Oxide.Plugins
                 {10007, "http://imgur.com/Nddd4yq.png"},
             }
             },
-             {"mask.bandana", new Dictionary<int, string>
+             {"mask.bandana", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/PImuCst.png" },
                 {10061, "http://imgur.com/6z7XFqf.png"},
@@ -259,7 +263,7 @@ namespace Oxide.Plugins
                 {10079, "http://imgur.com/hBW2DeR.png"},
             }
             },
-             {"mask.balaclava", new Dictionary<int, string>
+             {"mask.balaclava", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/BYFgE5c.png" },
                 {10105, "http://imgur.com/aZ24Prz.png"},
@@ -277,7 +281,7 @@ namespace Oxide.Plugins
                 {10111, "http://imgur.com/0Kl5Dcu.png" },
             }
             },
-             {"jacket.snow", new Dictionary<int, string>
+             {"jacket.snow", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/32ZO3jO.png" },
                 {10082, "http://imgur.com/8jqmVOg.png"},
@@ -286,7 +290,7 @@ namespace Oxide.Plugins
                 {10112, "http://imgur.com/fdTvghu.png" },
             }
             },
-             {"jacket", new Dictionary<int, string>
+             {"jacket", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/zU7TQPR.png" },
                 {10011, "http://imgur.com/1qLvjuy.png"},
@@ -300,7 +304,7 @@ namespace Oxide.Plugins
                 {10014, "http://imgur.com/o0ZdjsQ.png" },
             }
             },
-            {"hoodie", new Dictionary<int, string>
+            {"hoodie", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/EvGigZB.png" },
                 {10142, "http://imgur.com/WwwArof.png"},
@@ -314,7 +318,7 @@ namespace Oxide.Plugins
                 {10086, "http://imgur.com/A7gjMm0.png"},
             }
             },
-            {"hat.cap", new Dictionary<int, string>
+            {"hat.cap", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/TfycJC9.png" },
                 {10029, "http://imgur.com/QFNHOZz.png"},
@@ -326,7 +330,7 @@ namespace Oxide.Plugins
                 {10045, "http://imgur.com/F34fPio.png" },
             }
             },
-            {"hat.beenie", new Dictionary<int, string>
+            {"hat.beenie", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/yDkGk47.png" },
                 {14180, "http://imgur.com/ProarPm.png"},
@@ -337,179 +341,194 @@ namespace Oxide.Plugins
                 {10085, "http://imgur.com/FDKeEhw.png" },
             }
             },
-            {"burlap.gloves", new Dictionary<int, string>
+            {"burlap.gloves", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/8aFVMgl.png" },
                 {10128, "http://imgur.com/HqZut8a.png"},
             }
             },
-            {"burlap.shirt", new Dictionary<int, string>
+            {"burlap.shirt", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/MUs4xL6.png" },
                 {10136, "http://imgur.com/E4wXccC.png"},
             }
             },
-            {"hat.boonie", new Dictionary<int, string>
+            {"hat.boonie", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/2b4OjxB.png" },
                 {10058, "http://imgur.com/lkfKdyj.png"},
             }
             },
-            {"santahat", new Dictionary<int, string>
+            {"santahat", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/bmOV0aX.png" },
             }
             },
-            {"hazmat.pants", new Dictionary<int, string>
+            {"shirt.tanktop", new Dictionary<ulong, string>
+            {
+                {0, "http://vignette4.wikia.nocookie.net/play-rust/images/1/1e/Tank_Top_icon.png/revision/latest/scale-to-width-down/100?cb=20161102190317" },
+            }
+            },
+            {"shirt.collared", new Dictionary<ulong, string>
+            {
+                {0, "http://vignette1.wikia.nocookie.net/play-rust/images/8/8c/Shirt_icon.png/revision/latest/scale-to-width-down/100?cb=20161102193325" },
+            }
+            },
+            {"pants.shorts", new Dictionary<ulong, string>
+            {
+                {0, "http://vignette4.wikia.nocookie.net/play-rust/images/4/46/Shorts_icon.png/revision/latest/scale-to-width-down/100?cb=20161102194514" },
+            }
+            },
+            {"hazmat.pants", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/ZsaLNUK.png" },
             }
             },
-            {"hazmat.jacket", new Dictionary<int, string>
+            {"hazmat.jacket", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/uKk9ghN.png" },
             }
             },
-            {"hazmat.helmet", new Dictionary<int, string>
+            {"hazmat.helmet", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/BHSrFsh.png" },
             }
             },
-            {"hazmat.gloves", new Dictionary<int, string>
+            {"hazmat.gloves", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/JYTXvnx.png" },
             }
             },
-            {"hazmat.boots", new Dictionary<int, string>
+            {"hazmat.boots", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/sfU4PdX.png" },
             }
             },
-            {"hat.miner", new Dictionary<int, string>
+            {"hat.miner", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/RtRy2ne.png" },
             }
             },
-            {"hat.candle", new Dictionary<int, string>
+            {"hat.candle", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/F7nP0PC.png" },
             }
             },
-            {"hat.wolf", new Dictionary<int, string>
+            {"hat.wolf", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/D2Z8QjL.png" },
             }
             },
-            {"burlap.trousers", new Dictionary<int, string>
+            {"burlap.trousers", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/tDqEh7T.png" },
             }
             },
-            {"burlap.shoes", new Dictionary<int, string>
+            {"burlap.shoes", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/wXrkSxd.png" },
             }
             },
-            {"burlap.headwrap", new Dictionary<int, string>
+            {"burlap.headwrap", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/u6YLWda.png" },
             }
             },
-            {"bucket.helmet", new Dictionary<int, string>
+            {"bucket.helmet", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/Sb5cnpz.png" },
                 {10127, "http://imgur.com/ZD3jtRS.png"},
                 {10126, "http://imgur.com/qULrqXO.png" },
             }
             },
-            {"wood.armor.pants", new Dictionary<int, string>
+            {"wood.armor.pants", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/k2O9xEX.png" },
             }
             },
-            {"wood.armor.jacket", new Dictionary<int, string>
+            {"wood.armor.jacket", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/9PUyVIv.png" },
             }
             },
-            {"roadsign.kilt", new Dictionary<int, string>
+            {"roadsign.kilt", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/WLh1Nv4.png" },
             }
             },
-            {"roadsign.jacket", new Dictionary<int, string>
+            {"roadsign.jacket", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/tqpDp2V.png" },
             }
             },
-            {"riot.helmet", new Dictionary<int, string>
+            {"riot.helmet", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/NlxGOum.png" },
             }
             },
-            {"metal.plate.torso", new Dictionary<int, string>
+            {"metal.plate.torso", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/lMw6ez2.png" },
             }
             },
-            {"metal.facemask", new Dictionary<int, string>
+            {"metal.facemask", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/BPd5q6h.png" },
             }
             },
 
-            {"coffeecan.helmet", new Dictionary<int, string>
+            {"coffeecan.helmet", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/RrY8aMM.png" },
             }
             },
-            {"bone.armor.suit", new Dictionary<int, string>
+            {"bone.armor.suit", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/FkFR1kX.png" },
             }
             },
-            {"attire.hide.vest", new Dictionary<int, string>
+            {"attire.hide.vest", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/RQ8LJ5q.png" },
             }
             },
-            {"attire.hide.skirt", new Dictionary<int, string>
+            {"attire.hide.skirt", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/nRlYLJW.png" },
             }
             },
-            {"attire.hide.poncho", new Dictionary<int, string>
+            {"attire.hide.poncho", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/cqHND3g.png" },
             }
             },
-            {"attire.hide.pants", new Dictionary<int, string>
+            {"attire.hide.pants", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/rJy27KQ.png" },
             }
             },
-            {"attire.hide.helterneck", new Dictionary<int, string>
+            {"attire.hide.helterneck", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/2RXe7cg.png" },
             }
             },
-            {"attire.hide.boots", new Dictionary<int, string>
+            {"attire.hide.boots", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/6S98FbC.png" },
             }
             },
-            {"deer.skull.mask", new Dictionary<int, string>
+            {"deer.skull.mask", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/sqLjUSE.png" },
             }
             },
-            {"pistol.revolver", new Dictionary<int, string>
+            {"pistol.revolver", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/C6BHyBB.png" },
                 {10114, "http://imgur.com/DAj7lQo.png"},
             }
             },
-            {"pistol.semiauto", new Dictionary<int, string>
+            {"pistol.semiauto", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/Zwqg3ic.png" },
                 {10087, "http://imgur.com/hQwcNSG.png"},
@@ -518,7 +537,7 @@ namespace Oxide.Plugins
                 {10073, "http://imgur.com/MSBvxA7.png" },
             }
             },
-            {"rifle.ak", new Dictionary<int, string>
+            {"rifle.ak", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/qlgloXW.png" },
                 {10135, "http://imgur.com/0xgio10.png"},
@@ -526,7 +545,7 @@ namespace Oxide.Plugins
                 {10138, "http://imgur.com/XXKKLC4.png"},
             }
             },
-            {"rifle.bolt", new Dictionary<int, string>
+            {"rifle.bolt", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/8oVVXJS.png" },
                 {10117, "http://imgur.com/lFOPXfE.png"},
@@ -534,286 +553,286 @@ namespace Oxide.Plugins
                 {10116, "http://imgur.com/VhRwq7N.png"},
             }
             },
-            {"shotgun.pump", new Dictionary<int, string>
+            {"shotgun.pump", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/OHRph6g.png" },
                 {10074, "http://imgur.com/h91b64t.png"},
                 {10140, "http://imgur.com/ktINZdj.png" },
             }
             },
-            {"shotgun.waterpipe", new Dictionary<int, string>
+            {"shotgun.waterpipe", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/3BliJtR.png" },
                 {10143, "http://imgur.com/rmftGXr.png"},
             }
             },
-            {"rifle.lr300", new Dictionary<int, string>
+            {"rifle.lr300", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/NYffUwv.png"},
             }
             },
-            {"crossbow", new Dictionary<int, string>
+            {"crossbow", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/nDBFhTA.png" },
             }
             },
-            {"smg.thompson", new Dictionary<int, string>
+            {"smg.thompson", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/rSQ5nHj.png" },
                 {10120, "http://imgur.com/H3nPvJh.png"},
             }
             },
-            {"weapon.mod.small.scope", new Dictionary<int, string>
+            {"weapon.mod.small.scope", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/jMvDHLz.png" },
             }
             },
-            {"weapon.mod.silencer", new Dictionary<int, string>
+            {"weapon.mod.silencer", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/oighpzk.png" },
             }
             },
-            {"weapon.mod.muzzlebrake", new Dictionary<int, string>
+            {"weapon.mod.muzzlebrake", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/sjxJIjT.png" },
             }
             },
-            {"weapon.mod.muzzleboost", new Dictionary<int, string>
+            {"weapon.mod.muzzleboost", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/U9aMaPN.png" },
             }
             },
-            {"weapon.mod.lasersight", new Dictionary<int, string>
+            {"weapon.mod.lasersight", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/rxIzDwY.png" },
             }
             },
-            {"weapon.mod.holosight", new Dictionary<int, string>
+            {"weapon.mod.holosight", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/R76B83t.png" },
             }
             },
-            {"weapon.mod.flashlight", new Dictionary<int, string>
+            {"weapon.mod.flashlight", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/4gFapPt.png" },
             }
             },
-            {"spear.wooden", new Dictionary<int, string>
+            {"spear.wooden", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/7QpIs8B.png" },
             }
             },
-            {"spear.stone", new Dictionary<int, string>
+            {"spear.stone", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/Y3HstyV.png" },
             }
             },
-            {"smg.2", new Dictionary<int, string>
+            {"smg.2", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/ElXI2uv.png" },
             }
             },
-            {"smg.mp5", new Dictionary<int, string>
+            {"smg.mp5", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/ohazNYk.png" },
             }
             },
-            {"shotgun.double", new Dictionary<int, string>
+            {"shotgun.double", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/Pm2Q4Dj.png" },
             }
             },
-            {"salvaged.sword", new Dictionary<int, string>
+            {"salvaged.sword", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/M6gWbNv.png" },
             }
             },
-            {"salvaged.cleaver", new Dictionary<int, string>
+            {"salvaged.cleaver", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/DrelWEg.png" },
             }
             },
-            {"rocket.launcher", new Dictionary<int, string>
+            {"rocket.launcher", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/2yDyb9p.png" },
             }
             },
-            {"rifle.semiauto", new Dictionary<int, string>
+            {"rifle.semiauto", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/UfGP5kq.png" },
             }
             },
-            {"pistol.eoka", new Dictionary<int, string>
+            {"pistol.eoka", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/SSb9czm.png" },
             }
             },
-            {"machete", new Dictionary<int, string>
+            {"machete", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/KfwkwV8.png" },
             }
             },
-            {"mace", new Dictionary<int, string>
+            {"mace", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/OtsvCkC.png" },
             }
             },
-            {"longsword", new Dictionary<int, string>
+            {"longsword", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/1StsKVe.png" },
             }
             },
-            {"lmg.m249", new Dictionary<int, string>
+            {"lmg.m249", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/f7Rzrn2.png" },
             }
             },
-            {"knife.bone", new Dictionary<int, string>
+            {"knife.bone", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/9TaVbYX.png" },
             }
             },
-            {"flamethrower", new Dictionary<int, string>
+            {"flamethrower", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/CwhZ8i7.png" },
             }
             },
-            {"bow.hunting", new Dictionary<int, string>
+            {"bow.hunting", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/Myv79jT.png" },
             }
             },
-            {"bone.club", new Dictionary<int, string>
+            {"bone.club", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/ib11D8V.png" },
             }
             },
-            {"grenade.f1", new Dictionary<int, string>
+            {"grenade.f1", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/ZwrVuXh.png" },
             }
             },
-            {"grenade.beancan", new Dictionary<int, string>
+            {"grenade.beancan", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/FQZOd7m.png" },
             }
             },
-            {"ammo.handmade.shell", new Dictionary<int, string>
+            {"ammo.handmade.shell", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/V0CyZ7j.png" },
             }
             },
-            {"ammo.pistol", new Dictionary<int, string>
+            {"ammo.pistol", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/gDNR7oj.png" },
             }
             },
-             {"ammo.pistol.fire", new Dictionary<int, string>
+             {"ammo.pistol.fire", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/VyX0pAu.png" },
             }
             },
-            {"ammo.pistol.hv", new Dictionary<int, string>
+            {"ammo.pistol.hv", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/E1dB4Nb.png" },
             }
             },
-            {"ammo.rifle", new Dictionary<int, string>
+            {"ammo.rifle", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/rqVkjX3.png" },
             }
             },
-            {"ammo.rifle.explosive", new Dictionary<int, string>
+            {"ammo.rifle.explosive", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/hpAxKQc.png" },
             }
             },
-            {"ammo.rifle.hv", new Dictionary<int, string>
+            {"ammo.rifle.hv", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/BkG4hLM.png" },
             }
             },
-            {"ammo.rifle.incendiary", new Dictionary<int, string>
+            {"ammo.rifle.incendiary", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/SN4XV2S.png" },
             }
             },
-            {"ammo.rocket.basic", new Dictionary<int, string>
+            {"ammo.rocket.basic", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/Weg1M6y.png" },
             }
             },
-            {"ammo.rocket.fire", new Dictionary<int, string>
+            {"ammo.rocket.fire", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/j4XMSmO.png" },
             }
             },
-            {"ammo.rocket.hv", new Dictionary<int, string>
+            {"ammo.rocket.hv", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/5mdVIIV.png" },
             }
             },
-            {"ammo.rocket.smoke", new Dictionary<int, string>
+            {"ammo.rocket.smoke", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/kMTgSEI.png" },
             }
             },
-            {"ammo.shotgun", new Dictionary<int, string>
+            {"ammo.shotgun", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/caFY5Bp.png" },
             }
             },
-            {"ammo.shotgun.slug", new Dictionary<int, string>
+            {"ammo.shotgun.slug", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/ti5fCBp.png" },
             }
             },
-            {"arrow.hv", new Dictionary<int, string>
+            {"arrow.hv", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/r6VLTt2.png" },
             }
             },
-            {"arrow.wooden", new Dictionary<int, string>
+            {"arrow.wooden", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/yMCfjKh.png" },
             }
             },
-            {"bandage", new Dictionary<int, string>
+            {"bandage", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/TuMpnnu.png" },
             }
             },
-            {"syringe.medical", new Dictionary<int, string>
+            {"syringe.medical", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/DPDicE6.png" },
             }
             },
-            { "largemedkit", new Dictionary<int, string>
+            { "largemedkit", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/iPsWViD.png" },
             }
             },
-            { "antiradpills", new Dictionary<int, string>
+            { "antiradpills", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/SIhXEtB.png" },
             }
             },
-            { "blood", new Dictionary<int, string>
+            { "blood", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/Mdtvg2m.png" },
             }
             },
-            {"bed", new Dictionary<int, string>
+            {"bed", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/K0zQtwh.png" },
             }
             },
-            {"box.wooden", new Dictionary<int, string>
+            {"box.wooden", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/dFqTUTQ.png" },
             }
             },
-            {"box.wooden.large", new Dictionary<int, string>
+            {"box.wooden.large", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/qImBEtL.png" },
                 {10124, "http://imgur.com/oXO4riD.png" },
@@ -822,557 +841,557 @@ namespace Oxide.Plugins
                 {10141, "http://imgur.com/gSzIfNj.png" },
             }
             },
-            {"campfire", new Dictionary<int, string>
+            {"campfire", new Dictionary<ulong, string>
             {
                 {0, "http://i.imgur.com/TiAlJpv.png" },
             }
             },
-            {"ceilinglight", new Dictionary<int, string>
+            {"ceilinglight", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/3sikyL6.png" },
             }
             },
-            {"door.double.hinged.metal", new Dictionary<int, string>
+            {"door.double.hinged.metal", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/awNuhRv.png" },
             }
             },
-            {"door.double.hinged.toptier", new Dictionary<int, string>
+            {"door.double.hinged.toptier", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/oJCqHd6.png" },
             }
             },
-            {"door.double.hinged.wood", new Dictionary<int, string>
+            {"door.double.hinged.wood", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/tcHmZXZ.png" },
             }
             },
-            {"door.hinged.metal", new Dictionary<int, string>
+            {"door.hinged.metal", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/UGZftiQ.png" },
             }
             },
-            {"door.hinged.toptier", new Dictionary<int, string>
+            {"door.hinged.toptier", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/bc2TrfQ.png" },
             }
             },
-            {"door.hinged.wood", new Dictionary<int, string>
+            {"door.hinged.wood", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/PrrWSN2.png" },
             }
             },
-            {"floor.grill", new Dictionary<int, string>
+            {"floor.grill", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/bp7ZOkE.png" },
             }
             },
-            {"floor.ladder.hatch", new Dictionary<int, string>
+            {"floor.ladder.hatch", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/suML6jj.png" },
             }
             },
-            {"gates.external.high.stone", new Dictionary<int, string>
+            {"gates.external.high.stone", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/o4NWWXp.png" },
             }
             },
-            {"gates.external.high.wood", new Dictionary<int, string>
+            {"gates.external.high.wood", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/DRa9a8G.png" },
             }
             },
-            {"cupboard.tool", new Dictionary<int, string>
+            {"cupboard.tool", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/OzUewI1.png" },
             }
             },
-            {"shelves", new Dictionary<int, string>
+            {"shelves", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/vjtdyk5.png" },
             }
             },
-            {"shutter.metal.embrasure.a", new Dictionary<int, string>
+            {"shutter.metal.embrasure.a", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/1ke0LVO.png" },
             }
             },
-            {"shutter.metal.embrasure.b", new Dictionary<int, string>
+            {"shutter.metal.embrasure.b", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/uRtgNRH.png" },
             }
             },
-            {"shutter.wood.a", new Dictionary<int, string>
+            {"shutter.wood.a", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/VngPUi2.png" },
             }
             },
-            {"sign.hanging", new Dictionary<int, string>
+            {"sign.hanging", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/VIeRGh9.png" },
             }
             },
-            {"sign.hanging.banner.large", new Dictionary<int, string>
+            {"sign.hanging.banner.large", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/Owr3668.png" },
             }
             },
-            {"sign.hanging.ornate", new Dictionary<int, string>
+            {"sign.hanging.ornate", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/nQ1xHYb.png" },
             }
             },
-            {"sign.pictureframe.landscape", new Dictionary<int, string>
+            {"sign.pictureframe.landscape", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/nNh1uro.png" },
             }
             },
-            {"sign.pictureframe.portrait", new Dictionary<int, string>
+            {"sign.pictureframe.portrait", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/CQr8UYq.png" },
             }
             },
-            {"sign.pictureframe.tall", new Dictionary<int, string>
+            {"sign.pictureframe.tall", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/3b51GfA.png" },
             }
             },
-            {"sign.pictureframe.xl", new Dictionary<int, string>
+            {"sign.pictureframe.xl", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/3zdBDqa.png" },
             }
             },
-            {"sign.pictureframe.xxl", new Dictionary<int, string>
+            {"sign.pictureframe.xxl", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/9xSgewe.png" },
             }
             },
-            {"sign.pole.banner.large", new Dictionary<int, string>
+            {"sign.pole.banner.large", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/nGRDZrO.png" },
             }
             },
-            {"sign.post.double", new Dictionary<int, string>
+            {"sign.post.double", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/CXUsPSn.png" },
             }
             },
-            {"sign.post.single", new Dictionary<int, string>
+            {"sign.post.single", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/0qXuSMs.png" },
             }
             },
-            {"sign.post.town", new Dictionary<int, string>
+            {"sign.post.town", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/KgN4T1C.png" },
             }
             },
-            {"sign.post.town.roof", new Dictionary<int, string>
+            {"sign.post.town.roof", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/hCLJXg4.png" },
             }
             },
-            {"sign.wooden.huge", new Dictionary<int, string>
+            {"sign.wooden.huge", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/DehcZTb.png" },
             }
             },
-            {"sign.wooden.large", new Dictionary<int, string>
+            {"sign.wooden.large", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/BItcvBB.png" },
             }
             },
-            {"sign.wooden.medium", new Dictionary<int, string>
+            {"sign.wooden.medium", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/zXJcB26.png" },
             }
             },
-            {"sign.wooden.small", new Dictionary<int, string>
+            {"sign.wooden.small", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/wfDYYYW.png" },
             }
             },
-            {"jackolantern.angry", new Dictionary<int, string>
+            {"jackolantern.angry", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/NRdMCfb.png" },
             }
             },
-            {"jackolantern.happy", new Dictionary<int, string>
+            {"jackolantern.happy", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/2gIfuAO.png" },
             }
             },
-            {"ladder.wooden.wall", new Dictionary<int, string>
+            {"ladder.wooden.wall", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/E3haHSe.png" },
             }
             },
-            {"lantern", new Dictionary<int, string>
+            {"lantern", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/UHQdu3Q.png" },
             }
             },
-            {"lock.code", new Dictionary<int, string>
+            {"lock.code", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/pAXI8ZY.png" },
             }
             },
-            {"mining.quarry", new Dictionary<int, string>
+            {"mining.quarry", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/4Mgh1nK.png" },
             }
             },
-            {"mining.pumpjack", new Dictionary<int, string>
+            {"mining.pumpjack", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/FWbMASw.png" },
             }
             },
-            {"wall.external.high", new Dictionary<int, string>
+            {"wall.external.high", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/mB8oila.png" },
             }
             },
-            {"wall.external.high.stone", new Dictionary<int, string>
+            {"wall.external.high.stone", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/7t3BdwH.png" },
             }
             },
-            {"wall.frame.cell", new Dictionary<int, string>
+            {"wall.frame.cell", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/oLj65GS.png" },
             }
             },
-            {"wall.frame.cell.gate", new Dictionary<int, string>
+            {"wall.frame.cell.gate", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/iAcwJmG.png" },
             }
             },
-            {"wall.frame.fence", new Dictionary<int, string>
+            {"wall.frame.fence", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/4HVSY9Y.png" },
             }
             },
-            {"wall.frame.fence.gate", new Dictionary<int, string>
+            {"wall.frame.fence.gate", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/mpmO78C.png" },
             }
             },
-            {"wall.frame.shopfront", new Dictionary<int, string>
+            {"wall.frame.shopfront", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/G7fB7kk.png" },
             }
             },
-            {"wall.window.bars.metal", new Dictionary<int, string>
+            {"wall.window.bars.metal", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/QmkIpkZ.png" },
             }
             },
-            {"wall.window.bars.toptier", new Dictionary<int, string>
+            {"wall.window.bars.toptier", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/AsMdaCc.png" },
             }
             },
-            {"wall.window.bars.wood", new Dictionary<int, string>
+            {"wall.window.bars.wood", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/VS3SVVB.png" },
             }
             },
-            {"lock.key", new Dictionary<int, string>
+            {"lock.key", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/HuelWn0.png" },
             }
             },
-            { "barricade.concrete", new Dictionary<int, string>
+            { "barricade.concrete", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/91Ob9XP.png" },
             }
             },
-            {"barricade.metal", new Dictionary<int, string>
+            {"barricade.metal", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/7rseBMC.png" },
             }
             },
-            { "barricade.sandbags", new Dictionary<int, string>
+            { "barricade.sandbags", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/gBQLSgQ.png" },
             }
             },
-            { "barricade.wood", new Dictionary<int, string>
+            { "barricade.wood", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/ycYTO3W.png" },
             }
             },
-            { "barricade.woodwire", new Dictionary<int, string>
+            { "barricade.woodwire", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/PMEFBla.png" },
             }
             },
-            { "barricade.stone", new Dictionary<int, string>
+            { "barricade.stone", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/W8qTCEX.png" },
             }
             },
-            {"bone.fragments", new Dictionary<int, string>
+            {"bone.fragments", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/iOJbBGT.png" },
             }
             },
-            {"charcoal", new Dictionary<int, string>
+            {"charcoal", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/G2hyxqi.png" },
             }
             },
-            {"cloth", new Dictionary<int, string>
+            {"cloth", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/0olknLW.png" },
             }
             },
-            {"coal", new Dictionary<int, string>
+            {"coal", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/SIWOdbj.png" },
             }
             },
-            {"crude.oil", new Dictionary<int, string>
+            {"crude.oil", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/VmQvwPS.png" },
             }
             },
-            {"fat.animal", new Dictionary<int, string>
+            {"fat.animal", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/7NdUBKm.png" },
             }
             },
-            {"hq.metal.ore", new Dictionary<int, string>
+            {"hq.metal.ore", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/kdBrQ2P.png" },
             }
             },
-            {"lowgradefuel", new Dictionary<int, string>
+            {"lowgradefuel", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/CSNPLYX.png" },
             }
             },
-            {"metal.fragments", new Dictionary<int, string>
+            {"metal.fragments", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/1bzDvUs.png" },
             }
             },
-            {"metal.ore", new Dictionary<int, string>
+            {"metal.ore", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/yrTGHvv.png" },
             }
             },
-            {"leather", new Dictionary<int, string>
+            {"leather", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/9rqWrIy.png" },
             }
             },
-            {"metal.refined", new Dictionary<int, string>
+            {"metal.refined", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/j2947YU.png" },
             }
             },
-            {"wood", new Dictionary<int, string>
+            {"wood", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/AChzDls.png" },
             }
             },
-            {"seed.corn", new Dictionary<int, string>
+            {"seed.corn", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/u9ZPaeG.png" },
             }
             },
-            {"seed.hemp", new Dictionary<int, string>
+            {"seed.hemp", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/wO6aojb.png" },
             }
             },
-            {"seed.pumpkin", new Dictionary<int, string>
+            {"seed.pumpkin", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/mHaV8ei.png" },
             }
             },
-            {"skull.human", new Dictionary<int, string>
+            {"skull.human", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/ZFnWubS.png" },
             }
             },
-            {"skull.wolf", new Dictionary<int, string>
+            {"skull.wolf", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/f4MRE72.png" },
             }
             },
-            {"stones", new Dictionary<int, string>
+            {"stones", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/cluFzuZ.png" },
             }
             },
-            {"sulfur", new Dictionary<int, string>
+            {"sulfur", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/1RTTB7k.png" },
             }
             },
-            {"sulfur.ore", new Dictionary<int, string>
+            {"sulfur.ore", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/AdxkKGb.png" },
             }
             },
-            {"gunpowder", new Dictionary<int, string>
+            {"gunpowder", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/qV7b4WD.png" },
             }
             },
-            {"researchpaper", new Dictionary<int, string>
+            {"researchpaper", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/Pv8jxrl.png" },
             }
             },
-            {"explosives", new Dictionary<int, string>
+            {"explosives", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/S43G64k.png" },
             }
             },
-            {"botabag", new Dictionary<int, string>
+            {"botabag", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/MkIOiUs.png" },
             }
             },
-            {"box.repair.bench", new Dictionary<int, string>
+            {"box.repair.bench", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/HpwYNjI.png" },
             }
             },
-            {"bucket.water", new Dictionary<int, string>
+            {"bucket.water", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/svlCdlv.png" },
             }
             },
-            {"explosive.satchel", new Dictionary<int, string>
+            {"explosive.satchel", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/dlUW54q.png" },
             }
             },
-            {"explosive.timed", new Dictionary<int, string>
+            {"explosive.timed", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/CtxUCgC.png" },
             }
             },
-            {"flare", new Dictionary<int, string>
+            {"flare", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/MS0JcRT.png" },
             }
             },
-            {"fun.guitar", new Dictionary<int, string>
+            {"fun.guitar", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/l96owHe.png" },
             }
             },
-            {"furnace", new Dictionary<int, string>
+            {"furnace", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/77i4nqb.png" },
             }
             },
-            {"furnace.large", new Dictionary<int, string>
+            {"furnace.large", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/NmsmUzo.png" },
             }
             },
-            {"hatchet", new Dictionary<int, string>
+            {"hatchet", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/5juFLRZ.png" },
             }
             },
-            {"icepick.salvaged", new Dictionary<int, string>
+            {"icepick.salvaged", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/ZTJLWdI.png" },
             }
             },
-            {"axe.salvaged", new Dictionary<int, string>
+            {"axe.salvaged", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/muTaCg2.png" },
             }
             },
-            {"pickaxe", new Dictionary<int, string>
+            {"pickaxe", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/QNirWhG.png" },
             }
             },
-            {"research.table", new Dictionary<int, string>
+            {"research.table", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/C9wL7Kk.png" },
             }
             },
-            {"small.oil.refinery", new Dictionary<int, string>
+            {"small.oil.refinery", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/Qqz6RgS.png" },
             }
             },
-            {"stone.pickaxe", new Dictionary<int, string>
+            {"stone.pickaxe", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/54azzFs.png" },
             }
             },
-            {"stonehatchet", new Dictionary<int, string>
+            {"stonehatchet", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/toLaFZd.png" },
             }
             },
-            {"supply.signal", new Dictionary<int, string>
+            {"supply.signal", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/wj6yzow.png" },
             }
             },
-            {"surveycharge", new Dictionary<int, string>
+            {"surveycharge", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/UPNvuY0.png" },
             }
             },
-            {"target.reactive", new Dictionary<int, string>
+            {"target.reactive", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/BNcKZnU.png" },
             }
             },
-            {"tool.camera", new Dictionary<int, string>
+            {"tool.camera", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/4AaLCfW.png" },
             }
             },
-            {"water.barrel", new Dictionary<int, string>
+            {"water.barrel", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/JsmzCeU.png" },
             }
             },
-            {"water.catcher.large", new Dictionary<int, string>
+            {"water.catcher.large", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/YWrJQoa.png" },
             }
             },
-            {"water.catcher.small", new Dictionary<int, string>
+            {"water.catcher.small", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/PTXcYXs.png" },
             }
             },
-            {"water.purifier", new Dictionary<int, string>
+            {"water.purifier", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/L7R4Ral.png" },
             }
             },
-            {"rock", new Dictionary<int, string>
+            {"rock", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/2GMBs5M.png" },
             }
             },
-            {"torch", new Dictionary<int, string>
+            {"torch", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/qKYxg5E.png" },
             }
             },
-            {"stash.small", new Dictionary<int, string>
+            {"stash.small", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/fH4RWZe.png" },
             }
             },
-            {"sleepingbag", new Dictionary<int, string>
+            {"sleepingbag", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/oJes3Lo.png" },
                 {10121, "http://imgur.com/GvwtwGH.png" },
@@ -1384,327 +1403,412 @@ namespace Oxide.Plugins
                 {10076, "http://imgur.com/UCtDwNT.png" },
             }
             },
-            {"hammer.salvaged", new Dictionary<int, string>
+            {"hammer.salvaged", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/5oh3Wke.png" },
             }
             },
-            {"hammer", new Dictionary<int, string>
+            {"hammer", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/KNG2Gvs.png" },
             }
             },
-            {"blueprintbase", new Dictionary<int, string>
+            {"blueprulongbase", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/gMdRr6G.png" },
             }
             },
-            {"fishtrap.small", new Dictionary<int, string>
+            {"fishtrap.small", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/spuGlOj.png" },
             }
             },
-            {"building.planner", new Dictionary<int, string>
+            {"building.planner", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/oXu5F27.png" },
             }
             },
-            {"battery.small", new Dictionary<int, string>
+            {"battery.small", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/214z05n.png" },
             }
             },
-            {"can.tuna.empty", new Dictionary<int, string>
+            {"can.tuna.empty", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/GB02zHx.png" },
             }
             },
-            {"can.beans.empty", new Dictionary<int, string>
+            {"can.beans.empty", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/9K5In35.png" },
             }
             },
-            { "cctv.camera", new Dictionary<int, string>
+            { "cctv.camera", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/4j4LD01.png" },
             }
             },
-            {"pookie.bear", new Dictionary<int, string>
+            {"pookie.bear", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/KJSccj0.png" },
             }
             },
-            {"targeting.computer", new Dictionary<int, string>
+            {"targeting.computer", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/oPMPl3B.png" },
             }
             },
-            {"trap.bear", new Dictionary<int, string>
+            {"trap.bear", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/GZD4bVy.png" },
             }
             },
-            {"trap.landmine", new Dictionary<int, string>
+            {"trap.landmine", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/YR0lVCs.png" },
             }
             },
-            {"autoturret", new Dictionary<int, string>
+            {"autoturret", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/4R0ByHj.png" },
             }
             },
-            {"spikes.floor", new Dictionary<int, string>
+            {"spikes.floor", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/Nj0yJs0.png" },
             }
             },
-            {"note", new Dictionary<int, string>
+            {"note", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/AM3Uech.png" },
             }
             },
-            {"paper", new Dictionary<int, string>
+            {"paper", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/pK49c6M.png" },
             }
             },
-            {"map", new Dictionary<int, string>
+            {"map", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/u8HBelr.png" },
             }
             },
-            {"stocking.large", new Dictionary<int, string>
+            {"stocking.large", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/di39MBT.png" },
             }
             },
-            {"stocking.small", new Dictionary<int, string>
+            {"stocking.small", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/6eAg1zi.png" },
             }
             },
-            {"generator.wind.scrap", new Dictionary<int, string>
+            {"generator.wind.scrap", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/fuQaE1H.png" },
             }
             },
-            {"xmas.present.large", new Dictionary<int, string>
+            {"xmas.present.large", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/dU3nhYo.png" },
             }
             },
-            {"xmas.present.medium", new Dictionary<int, string>
+            {"xmas.present.medium", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/Ov5YUty.png" },
             }
             },
-            {"xmas.present.small", new Dictionary<int, string>
+            {"xmas.present.small", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/hWCd67B.png" },
             }
             },
-            {"door.key", new Dictionary<int, string>
+            {"door.key", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/kw8UAN2.png" },
             }
             },
-            { "wolfmeat.burned", new Dictionary<int, string>
+            { "wolfmeat.burned", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/zAJhDNd.png" },
             }
             },
-            { "wolfmeat.cooked", new Dictionary<int, string>
+            { "wolfmeat.cooked", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/LKlgpMe.png" },
             }
             },
-            { "wolfmeat.raw", new Dictionary<int, string>
+            { "wolfmeat.raw", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/qvMvis8.png" },
             }
             },
-            { "wolfmeat.spoiled", new Dictionary<int, string>
+            { "wolfmeat.spoiled", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/8kXOVyJ.png" },
             }
             },
-            {"waterjug", new Dictionary<int, string>
+            {"waterjug", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/BJzeMkc.png" },
             }
             },
-            {"water.salt", new Dictionary<int, string>
+            {"water.salt", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/d4ihUtv.png" },
             }
             },
-            {"water", new Dictionary<int, string>
+            {"water", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/xdz5L7M.png" },
             }
             },
-            {"smallwaterbottle", new Dictionary<int, string>
+            {"smallwaterbottle", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/YTLCucH.png" },
             }
             },
-            {"pumpkin", new Dictionary<int, string>
+            {"pumpkin", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/Gb9NvdQ.png" },
             }
             },
-            {"mushroom", new Dictionary<int, string>
+            {"mushroom", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/FeWuvuh.png" },
             }
             },
-            {"meat.boar", new Dictionary<int, string>
+            {"meat.boar", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/4ijrHrn.png" },
             }
             },
-            {"meat.pork.burned", new Dictionary<int, string>
+            {"meat.pork.burned", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/5Dam9qQ.png" },
             }
             },
-            {"meat.pork.cooked", new Dictionary<int, string>
+            {"meat.pork.cooked", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/yhgxCPG.png" },
             }
             },
-            {"humanmeat.burned", new Dictionary<int, string>
+            {"humanmeat.burned", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/DloSZvl.png" },
             }
             },
-            {"humanmeat.cooked", new Dictionary<int, string>
+            {"humanmeat.cooked", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/ba2j2rG.png" },
             }
             },
-            {"humanmeat.raw", new Dictionary<int, string>
+            {"humanmeat.raw", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/28SpF8Y.png" },
             }
             },
-            {"humanmeat.spoiled", new Dictionary<int, string>
+            {"humanmeat.spoiled", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/mSWVRUi.png" },
             }
             },
-            {"granolabar", new Dictionary<int, string>
+            {"granolabar", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/3rvzSwj.png" },
             }
             },
-            {"fish.cooked", new Dictionary<int, string>
+            {"fish.cooked", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/Idtzv1t.png" },
             }
             },
-            {"fish.minnows", new Dictionary<int, string>
+            {"fish.minnows", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/7LXZH2S.png" },
             }
             },
-            {"fish.troutsmall", new Dictionary<int, string>
+            {"fish.troutsmall", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/aJ2PquF.png" },
             }
             },
-            {"fish.raw", new Dictionary<int, string>
+            {"fish.raw", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/GdErxqf.png" },
             }
             },
-            {"corn", new Dictionary<int, string>
+            {"corn", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/6V5SJZ0.png" },
             }
             },
-            {"chocholate", new Dictionary<int, string>
+            {"chocholate", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/Ymq7PsV.png" },
             }
             },
-            {"chicken.burned", new Dictionary<int, string>
+            {"chicken.burned", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/34sYfir.png" },
             }
             },
-            {"chicken.cooked", new Dictionary<int, string>
+            {"chicken.cooked", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/UvHbBhH.png" },
             }
             },
-            {"chicken.raw", new Dictionary<int, string>
+            {"chicken.raw", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/gMldKSz.png" },
             }
             },
-            {"chicken.spoiled", new Dictionary<int, string>
+            {"chicken.spoiled", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/hiOEwGn.png" },
             }
             },
-            {"cactusflesh", new Dictionary<int, string>
+            {"cactusflesh", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/8R16YDP.png" },
             }
             },
-            {"candycane", new Dictionary<int, string>
+            {"candycane", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/DSxrXOI.png" },
             }
             },
-            {"can.tuna", new Dictionary<int, string>
+            {"can.tuna", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/c8rDUP3.png" },
             }
             },
-            {"can.beans", new Dictionary<int, string>
+            {"can.beans", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/Ysn6ThW.png" },
             }
             },
-            {"blueberries", new Dictionary<int, string>
+            {"blueberries", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/tFZ66fB.png" },
             }
             },
-            {"black.raspberries", new Dictionary<int, string>
+            {"black.raspberries", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/HZjKpX9.png" },
             }
             },
-            {"bearmeat", new Dictionary<int, string>
+            {"bearmeat", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/hpL2I64.png" },
             }
             },
-            {"bearmeat.burned", new Dictionary<int, string>
+            {"bearmeat.burned", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/f1eVA0W.png" },
             }
             },
-            {"bearmeat.cooked", new Dictionary<int, string>
+            {"bearmeat.cooked", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/e5Z6w1y.png" },
             }
             },
-            {"apple", new Dictionary<int, string>
+            {"apple", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/goMCM2w.png" },
             }
             },
-            {"apple.spoiled", new Dictionary<int, string>
+            {"apple.spoiled", new Dictionary<ulong, string>
             {
                 {0, "http://imgur.com/2pi2sUH.png" },
             }
             },
-        };
+            {"bleach", new Dictionary<ulong, string>
+            {
+                {0, "http://vignette3.wikia.nocookie.net/play-rust/images/a/ac/Bleach_icon.png/revision/latest/scale-to-width-down/50?cb=20161109045849" },
+            }
+            },
+            {"ducttape", new Dictionary<ulong, string>
+            {
+                {0, "http://vignette1.wikia.nocookie.net/play-rust/images/f/f8/Duct_Tape_icon.png/revision/latest/scale-to-width-down/50?cb=20161109045924" },
+            }
+            },
+            {"propanetank", new Dictionary<ulong, string>
+            {
+                {0, "http://vignette4.wikia.nocookie.net/play-rust/images/a/a8/Empty_Propane_Tank_icon.png/revision/latest/scale-to-width-down/50?cb=20161109045920" },
+            }
+            },
+            {"gears", new Dictionary<ulong, string>
+            {
+                {0, "http://vignette2.wikia.nocookie.net/play-rust/images/7/72/Gears_icon.png/revision/latest/scale-to-width-down/50?cb=20161109045908" },
+            }
+            },
+            {"glue", new Dictionary<ulong, string>
+            {
+                {0, "http://vignette3.wikia.nocookie.net/play-rust/images/6/66/Glue_icon.png/revision/latest/scale-to-width-down/50?cb=20161109045933" },
+            }
+            },
+            {"metalblade", new Dictionary<ulong, string>
+            {
+                {0, "http://vignette4.wikia.nocookie.net/play-rust/images/9/9b/Metal_Blade_icon.png/revision/latest/scale-to-width-down/50?cb=20161109045912" },
+            }
+            },
+            {"metalpipe", new Dictionary<ulong, string>
+            {
+                {0, "http://vignette2.wikia.nocookie.net/play-rust/images/4/4a/Metal_Pipe_icon.png/revision/latest/scale-to-width-down/50?cb=20161109045929" },
+            }
+            },
+            {"metalspring", new Dictionary<ulong, string>
+            {
+                {0, "http://vignette2.wikia.nocookie.net/play-rust/images/3/3d/Metal_Spring_icon.png/revision/latest/scale-to-width-down/50?cb=20161101151803" },
+            }
+            },
+            {"riflebody", new Dictionary<ulong, string>
+            {
+                {0, "http://vignette2.wikia.nocookie.net/play-rust/images/0/08/Rifle_Body_icon.png/revision/latest/scale-to-width-down/50?cb=20161109045853" },
+            }
+            },
+            {"roadsigns", new Dictionary<ulong, string>
+            {
+                {0, "http://vignette3.wikia.nocookie.net/play-rust/images/a/a5/Road_Signs_icon.png/revision/latest/scale-to-width-down/50?cb=20161109045904" },
+            }
+            },
+            {"rope", new Dictionary<ulong, string>
+            {
+                {0, "http://vignette1.wikia.nocookie.net/play-rust/images/1/15/Rope_icon.png/revision/latest/scale-to-width-down/50?cb=20161109045939" },
+            }
+            },
+            {"sewingkit", new Dictionary<ulong, string>
+            {
+                {0, "http://vignette1.wikia.nocookie.net/play-rust/images/2/29/Sewing_Kit_icon.png/revision/latest/scale-to-width-down/50?cb=20161109045952" },
+            }
+            },
+            {"sheetmetal", new Dictionary<ulong, string>
+            {
+                {0, "http://vignette3.wikia.nocookie.net/play-rust/images/3/39/Sheet_Metal_icon.png/revision/latest/scale-to-width-down/50?cb=20161109045901" },
+            }
+            },
+            {"smgbody", new Dictionary<ulong, string>
+            {
+                {0, "http://vignette3.wikia.nocookie.net/play-rust/images/d/d8/SMG_Body_icon.png/revision/latest/scale-to-width-down/50?cb=20161109045947" },
+            }
+            },
+            {"sticks", new Dictionary<ulong, string>
+            {
+                {0, "http://vignette1.wikia.nocookie.net/play-rust/images/d/d5/Sticks_icon.png/revision/latest/scale-to-width-down/50?cb=20161109045943" },
+            }
+            },
+            {"tarp", new Dictionary<ulong, string>
+            {
+                {0, "http://vignette4.wikia.nocookie.net/play-rust/images/1/12/Tarp_icon.png/revision/latest/scale-to-width-down/50?cb=20161109045916" },
+            }
+            },
+            {"techparts", new Dictionary<ulong, string>
+            {
+                {0, "http://vignette2.wikia.nocookie.net/play-rust/images/e/eb/Tech_Trash_icon.png/revision/latest/scale-to-width-down/50?cb=20161109045841" },
+            }
+            },
+};
 
         #endregion
 

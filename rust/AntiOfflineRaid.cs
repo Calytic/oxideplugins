@@ -17,7 +17,7 @@ using Newtonsoft.Json.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("AntiOfflineRaid", "Calytic", "0.2.6", ResourceId = 1464)]
+    [Info("AntiOfflineRaid", "Calytic", "0.2.7", ResourceId = 1464)]
     [Description("Prevents/reduces offline raiding")]
     public class AntiOfflineRaid : RustPlugin
     {
@@ -938,7 +938,7 @@ namespace Oxide.Plugins
             if (string.IsNullOrEmpty(nameOrIdOrIp))
                 return null;
 
-            IPlayer player = covalence.Players.FindPlayerById(nameOrIdOrIp);
+            IPlayer player = covalence.Players.FindPlayer(nameOrIdOrIp);
 
             if (player is IPlayer)
             {

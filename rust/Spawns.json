@@ -2,7 +2,7 @@
     "name": "Spawns Database",
     "description": "Spawns database plugin for external plugins",
     "author": "k1lly0u",
-    "version": "2.0.2",
+    "version": "2.0.22",
     "configuration": false,
     "language": "cs",
     "games": [

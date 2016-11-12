@@ -2,7 +2,7 @@
     "name": "NightLantern",
     "description": "Automatically turns ON and OFF lanterns  after sunset and sunrise",
     "author": "k1lly0u",
-    "version": "2.0.1",
+    "version": "2.0.3",
     "configuration": true,
     "language": "cs",
     "games": [

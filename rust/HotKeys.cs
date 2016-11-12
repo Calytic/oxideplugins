@@ -3,10 +3,11 @@ using System.Collections.Generic;
 
 namespace Oxide.Plugins
 {
-    [Info("HotKeys", "Calytic", "0.0.2", ResourceId = 2135)]
+    [Info("HotKeys", "Calytic", "0.0.31", ResourceId = 2135)]
     class HotKeys : RustPlugin
     {
-        Dictionary<string, object> keys;
+        private Dictionary<string, object> keys;
+        private bool ResetDefaultKeysOnJoin;
 
         Dictionary<string, string> defaultRustBinds = new Dictionary<string, string>()
         {
@@ -47,12 +48,17 @@ namespace Oxide.Plugins
         {
             CheckConfig();
             keys = GetConfig("Settings", "Keys", GetDefaultKeys());
+            ResetDefaultKeysOnJoin = GetConfig("Settings", "ResetDefaultKeysOnJoin", true);
 
             BindAll();
         }
 
         void OnPlayerInit(BasePlayer player)
         {
+            if (ResetDefaultKeysOnJoin)
+            {
+                BindDefaultKeys(player);
+            }
             BindKeys(player);
         }
 
@@ -137,6 +143,10 @@ namespace Oxide.Plugins
         {
             foreach (BasePlayer player in BasePlayer.activePlayerList)
             {
+                if (ResetDefaultKeysOnJoin)
+                {
+                    BindDefaultKeys(player);
+                }
                 BindKeys(player);
             }
         }
@@ -146,6 +156,14 @@ namespace Oxide.Plugins
             foreach (BasePlayer player in BasePlayer.activePlayerList)
             {
                 UnbindKey(player, keyCombo);
+            }
+        }
+
+        void BindDefaultKeys(BasePlayer player)
+        {
+            foreach (KeyValuePair<string, string> kvp in defaultRustBinds)
+            {
+                player.SendConsoleCommand("bind " + kvp.Key + " " + kvp.Value.ToString());
             }
         }
 
@@ -176,6 +194,7 @@ namespace Oxide.Plugins
         void LoadDefaultConfig()
         {
             Config["Settings", "Keys"] = GetDefaultKeys();
+            Config["Settings", "ResetDefaultKeysOnJoin"] = GetConfig("Settings","ResetDefaultKeysOnJoin", true);
 
             Config["VERSION"] = Version.ToString();
         }
@@ -199,6 +218,7 @@ namespace Oxide.Plugins
             Config["VERSION"] = Version.ToString();
 
             // NEW CONFIGURATION OPTIONS HERE
+            Config["Settings", "ResetDefaultKeysOnJoin"] = GetConfig("Settings", "ResetDefaultKeysOnJoin", true);
             // END NEW CONFIGURATION OPTIONS
 
             PrintToConsole("Upgrading configuration file");

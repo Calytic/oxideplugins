@@ -20,7 +20,7 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("ZoneManager", "Reneb / Nogrod", "2.4.6", ResourceId = 739)]
+    [Info("ZoneManager", "Reneb / Nogrod", "2.4.7", ResourceId = 739)]
     public class ZoneManager : RustPlugin
     {
         private const string PermZone = "zonemanager.zone";
@@ -242,19 +242,38 @@ namespace Oxide.Plugins
                 if (Info.Radiation > 0)
                 {
                     radiation = radiation ?? gameObject.AddComponent<TriggerRadiation>();
-                    radiation.RadiationAmount = Info.Radiation;
+                    radiation.RadiationAmountOverride = Info.Radiation;
                     radiation.radiationSize = Info.Radius;
                     radiation.interestLayers = playersMask;
                     radiation.enabled = Info.Enabled;
                 }
                 else if (radiation != null)
                 {
-                    radiation.RadiationAmount = 0;
+                    radiation.RadiationAmountOverride = 0;
                     radiation.radiationSize = 0;
                     radiation.interestLayers = playersMask;
                     radiation.enabled = false;
                     //Destroy(radiation);
                 }
+
+                var comfort = gameObject.GetComponent<TriggerComfort>();
+                if (Info.Comfort > 0)
+                {
+                    comfort = comfort ?? gameObject.AddComponent<TriggerComfort>();
+                    comfort.baseComfort = Info.Comfort;
+                    comfort.triggerSize = Info.Radius;
+                    comfort.interestLayers = playersMask;
+                    comfort.enabled = Info.Enabled;
+                }
+                else if (comfort != null)
+                {
+                    comfort.baseComfort = 0;
+                    comfort.triggerSize = 0;
+                    comfort.interestLayers = playersMask;
+                    comfort.enabled = false;
+                    //Destroy(comfort);
+                }
+
                 if (IsInvoking("CheckEntites")) CancelInvoke("CheckEntites");
                 InvokeRepeating("CheckEntites", 10f, 10f);
                 /*if (HasAnyFlag(info.flags, ZoneFlags.Eject | ZoneFlags.EjectSleepers
@@ -518,6 +537,7 @@ namespace Oxide.Plugins
             public string Name;
             public float Radius;
             public float Radiation;
+            public float Comfort;
             public Vector3 Location;
             public Vector3 Size;
             public Vector3 Rotation;
@@ -883,8 +903,9 @@ namespace Oxide.Plugins
             }
             if (!(entity is LootContainer) && !(entity is BaseHelicopter))
             {
+                var resource = entity.GetComponent<ResourceDispenser>();
                 HashSet<Zone> zones;
-                if (!buildingZones.TryGetValue(entity, out zones)) return;
+                if (!buildingZones.TryGetValue(entity, out zones) && (resource == null || !resourceZones.TryGetValue(resource, out zones))) return;
                 foreach (var zone in zones)
                 {
                     if (HasZoneFlag(zone, ZoneFlags.UnDestr))
@@ -1079,6 +1100,9 @@ namespace Oxide.Plugins
                     case "id":
                         editvalue = zone.Id = args[i + 1];
                         break;
+                    case "comfort":
+                        editvalue = zone.Comfort = Convert.ToSingle(args[i + 1]);
+                        break;
                     case "radiation":
                         editvalue = zone.Radiation = Convert.ToSingle(args[i + 1]);
                         break;
@@ -1205,6 +1229,7 @@ namespace Oxide.Plugins
             {
                 { "name", zone.Info.Name },
                 { "ID", zone.Info.Id },
+                { "comfort", zone.Info.Comfort.ToString() },
                 { "radiation", zone.Info.Radiation.ToString() },
                 { "radius", zone.Info.Radius.ToString() },
                 { "rotation", zone.Info.Rotation.ToString() },
@@ -1925,6 +1950,7 @@ namespace Oxide.Plugins
                 SendMessage(player, $"name => {zoneDefinition.Name}");
                 SendMessage(player, $"enabled => {zoneDefinition.Enabled}");
                 SendMessage(player, $"ID => {zoneDefinition.Id}");
+                SendMessage(player, $"comfort => {zoneDefinition.Comfort}");
                 SendMessage(player, $"radiation => {zoneDefinition.Radiation}");
                 SendMessage(player, $"radius => {zoneDefinition.Radius}");
                 SendMessage(player, $"Location => {zoneDefinition.Location}");

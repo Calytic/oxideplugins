@@ -10,7 +10,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Spawns", "Reneb / k1lly0u", "2.0.2", ResourceId = 0)]
+    [Info("Spawns", "Reneb / k1lly0u", "2.0.22", ResourceId = 720)]
     class Spawns : RustPlugin
     {
         #region Fields
@@ -65,10 +65,8 @@ namespace Oxide.Plugins
             }
             if (hasChanged) SaveData();
         }
-        int GetRandomNumber(int min, int max)
-        {
-            return UnityEngine.Random.Range(min, max);
-        }
+        int GetRandomNumber(int min, int max) => UnityEngine.Random.Range(min, max);
+        
         object LoadSpawns(string name)
         {
             if (string.IsNullOrEmpty(name))
@@ -98,14 +96,14 @@ namespace Oxide.Plugins
         {
             object success = LoadSpawns(filename);
             if (success != null) return (string)success;
-            return LoadedSpawnfiles[filename][GetRandomNumber(0, LoadedSpawnfiles[filename].Count)];
+            return LoadedSpawnfiles[filename][GetRandomNumber(0, LoadedSpawnfiles[filename].Count - 1)];
         }
         object GetRandomSpawnRange(string filename, int min, int max)
         {
             object success = LoadSpawns(filename);
             if (success != null) return (string)success;
             if (min < 0) min = 0;
-            if (max > LoadedSpawnfiles[filename].Count) max = LoadedSpawnfiles[filename].Count;
+            if (max > LoadedSpawnfiles[filename].Count - 1) max = LoadedSpawnfiles[filename].Count - 1;
             return LoadedSpawnfiles[filename][GetRandomNumber(min, max)];
         }
         object GetSpawn(string filename, int number)
@@ -224,7 +222,12 @@ namespace Oxide.Plugins
                             }
                             if (SpawnCreation[player.userID].Count > 0)
                             {
-                                SaveSpawnFile(player, args[1]);
+                                if (!spawnsData.Spawnfiles.Contains(args[1]) && !LoadedSpawnfiles.ContainsKey(args[1]))
+                                {
+                                    SaveSpawnFile(player, args[1]);
+                                    return;                                    
+                                }
+                                SendReply(player, MSG("spawnfileExists", player.UserIDString));
                                 return;
                             }
                             SendReply(player, MSG("noSpawnpoints", player.UserIDString));
@@ -327,8 +330,10 @@ namespace Oxide.Plugins
             }
             NewSpawnFile.WriteObject(spawnFile);
 
-            spawnsData.Spawnfiles.Add(name);
-            LoadedSpawnfiles.Add(name, SpawnCreation[player.userID]);
+            if (!spawnsData.Spawnfiles.Contains(name))
+                spawnsData.Spawnfiles.Add(name);
+            if (!LoadedSpawnfiles.ContainsKey(name))
+                LoadedSpawnfiles.Add(name, SpawnCreation[player.userID]);
             SaveData();
 
             SendReply(player, string.Format(MSG("saved", player.UserIDString), SpawnCreation[player.userID].Count, name));
@@ -409,7 +414,8 @@ namespace Oxide.Plugins
             {"closeSyn", "/spawns close - Cancel spawn file creation" },
             {"showSyn", "/spawns show - Display a box at each spawnpoint" },
             {"noAccess", "You are not allowed to use this command" },
-            {"saved", "{0} spawnpoints saved into {1}" }
+            {"saved", "{0} spawnpoints saved into {1}" },
+            {"spawnfileExists", "A spawn file with that name already exists" }
         };
         #endregion
     }

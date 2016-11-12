@@ -18,11 +18,11 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("SpawnConfig", "Nogrod", "1.0.9")]
+    [Info("SpawnConfig", "Nogrod", "1.0.10")]
     internal class SpawnConfig : RustPlugin
     {
         private const bool Debug = false;
-        private const int VersionConfig = 4;
+        private const int VersionConfig = 5;
         private readonly FieldInfo PrefabsField = typeof (SpawnPopulation).GetField("Prefabs", BindingFlags.Instance | BindingFlags.NonPublic);
         private readonly FieldInfo toStringField = typeof(StringPool).GetField("toString", BindingFlags.Static | BindingFlags.NonPublic);
         private readonly FieldInfo toNumberField = typeof(StringPool).GetField("toNumber", BindingFlags.Static | BindingFlags.NonPublic);
@@ -80,7 +80,7 @@ namespace Oxide.Plugins
                 return;
             CheckConfig();
             UpdateSpawns();
-            SpawnHandler.Instance.MaxSpawnsPerTick = 200;
+            //SpawnHandler.Instance.MaxSpawnsPerTick = 200;
             if (startup) SpawnHandler.Instance.UpdateDistributions();
             _loaded = true;
         }
@@ -89,9 +89,9 @@ namespace Oxide.Plugins
         {
             startup = false;
             if (!_loaded) OnTerrainInitialized();
-            SpawnHandler.Instance.FillPopulations();
-            SpawnHandler.Instance.FillGroups();
-            SpawnHandler.Instance.EnforceLimits();
+            //SpawnHandler.Instance.FillPopulations();
+            //SpawnHandler.Instance.FillGroups();
+            //SpawnHandler.Instance.EnforceLimits();
         }
 
         private bool CreateDefaultConfig()
@@ -297,7 +297,7 @@ namespace Oxide.Plugins
             var toString = (Dictionary<uint, string>)toStringField.GetValue(null);
             var largestKey = toString.Keys.Max();
             var spawnGroups = (List<SpawnGroup>) SpawnGroupsField.GetValue(SpawnHandler.Instance);
-            foreach (var spawnGroupData in _config.SpawnGroups)
+            /*foreach (var spawnGroupData in _config.SpawnGroups)
             {
                 foreach (var spawnEntryData in spawnGroupData.Value.Prefabs)
                 {
@@ -309,7 +309,7 @@ namespace Oxide.Plugins
                     FileSystem.cache.Remove(newPrefabPath);
                     UnityEngine.Object.Destroy(prefab);
                 }
-            }
+            }*/
             //var spawnGroupPrefabsOld = new List<GameObject>();
             var indexes = GetSpawnGroupIndexes(spawnGroups, monuments);
             foreach (var spawnGroup in spawnGroups)
@@ -337,21 +337,25 @@ namespace Oxide.Plugins
                 foreach (var spawnEntryData in spawnGroupData.Prefabs)
                 {
                     //var prefab = (GameObject)UnityEngine.Object.Instantiate(GameManager.server.FindPrefab(spawnEntryData.Prefab), default(Vector3), default(Quaternion));
-                    var prefab = GameManager.server.CreatePrefab(spawnEntryData.Prefab, default(Vector3), default(Quaternion), false);
-                    prefab.name = $"{key}_{Utility.GetFileNameWithoutExtension(spawnEntryData.Prefab)}".ToLower();
-                    prefab.GetComponent<BaseEntity>().name = prefab.name;
-                    var newPrefabPath = $"{GetAssetPath(spawnEntryData.Prefab)}{prefab.name}.prefab";
+                    var name = $"{key}_{Utility.GetFileNameWithoutExtension(spawnEntryData.Prefab)}".ToLower();
+                    var newPrefabPath = $"{GetAssetPath(spawnEntryData.Prefab)}{name}.prefab";
+                    UnityEngine.Object prefab;
+                    if (!FileSystem.cache.TryGetValue(newPrefabPath, out prefab))
+                    {
+                        prefab = GameManager.server.CreatePrefab(spawnEntryData.Prefab, default(Vector3), default(Quaternion), false);
+                        guidToPath[name] = newPrefabPath;
+                        guidToObject[name] = prefab;
+                        FileSystem.cache[newPrefabPath] = prefab;
+                    }
+                    prefab.name = name;
+                    ((GameObject)prefab).GetComponent<BaseEntity>().name = prefab.name;
                     if (!toNumber.ContainsKey(newPrefabPath))
                     {
                         var newKey = largestKey++;
                         toNumber[newPrefabPath] = newKey;
                         toString[newKey] = newPrefabPath;
                     }
-                    var newPrefabRef = new GameObjectRef {guid = prefab.name};
-                    guidToPath[prefab.name] = newPrefabPath;
-                    guidToObject[prefab.name] = prefab;
-                    FileSystem.cache[newPrefabPath] = prefab;
-                    spawnGroup.prefabs.Add(new SpawnGroup.SpawnEntry {prefab = newPrefabRef, weight = spawnEntryData.Weight, mobile = spawnEntryData.Mobile});
+                    spawnGroup.prefabs.Add(new SpawnGroup.SpawnEntry { prefab = new GameObjectRef { guid = name }, weight = spawnEntryData.Weight, mobile = spawnEntryData.Mobile});
                 }
                 var spawnPoints = (BaseSpawnPoint[]) SpawnPointsField.GetValue(spawnGroup);
                 foreach (var spawnPoint in spawnPoints)
@@ -527,7 +531,8 @@ namespace Oxide.Plugins
             private static bool IsAllowed(JsonProperty property)
             {
                 return property.PropertyType.IsPrimitive || property.PropertyType == typeof (string)
-                       || property.PropertyType == typeof (SpawnFilter)
+                       || property.PropertyType == typeof(SingleSpawn)
+                       || property.PropertyType == typeof(SpawnFilter)
                        || property.PropertyType == typeof (TerrainBiome.Enum)
                        || property.PropertyType == typeof (TerrainSplat.Enum)
                        || property.PropertyType == typeof (TerrainTopology.Enum)

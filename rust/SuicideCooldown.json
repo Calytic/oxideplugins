@@ -1,0 +1,15 @@
+{
+    "name": "Suicide Cooldown",
+    "description": "Permission based cooldown timer and aliases for the kill command",
+    "author": "Mughisi",
+    "version": "1.0",
+    "configuration": true,
+    "language": "cs",
+    "games": [
+        "rust"
+    ],
+    "keywords": [
+        "oxide",
+        "rust"
+    ]
+}

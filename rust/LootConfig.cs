@@ -18,10 +18,10 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("LootConfig", "Nogrod", "1.0.15")]
+    [Info("LootConfig", "Nogrod", "1.0.16")]
     internal class LootConfig : RustPlugin
     {
-        private const int VersionConfig = 7;
+        private const int VersionConfig = 8;
         private readonly FieldInfo ParentSpawnGroupField = typeof (SpawnPointInstance).GetField("parentSpawnGroup", BindingFlags.Instance | BindingFlags.NonPublic);
         private readonly FieldInfo SpawnGroupsField = typeof (SpawnHandler).GetField("SpawnGroups", BindingFlags.Instance | BindingFlags.NonPublic);
         private readonly FieldInfo SpawnPointsField = typeof(SpawnGroup).GetField("spawnPoints", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -161,15 +161,15 @@ namespace Oxide.Plugins
             var indexes = GetSpawnGroupIndexes(spawnGroups, monuments);
             foreach (var spawnGroup in spawnGroups)
             {
-                Dictionary<string, LootContainer> spawnGroupData;
                 var spawnGroupKey = GetSpawnGroupKey(spawnGroup, monuments, indexes);
                 if (spawnGroup.prefabs == null) continue;
-                if (!spawnGroupsData.TryGetValue(spawnGroupKey, out spawnGroupData))
-                    spawnGroupsData[spawnGroupKey] = spawnGroupData = new Dictionary<string, LootContainer>();
                 foreach (var entry in spawnGroup.prefabs)
                 {
                     var container = entry.prefab?.Get()?.GetComponent<LootContainer>();
                     if (container?.lootDefinition == null) continue;
+                    Dictionary<string, LootContainer> spawnGroupData;
+                    if (!spawnGroupsData.TryGetValue(spawnGroupKey, out spawnGroupData))
+                        spawnGroupsData[spawnGroupKey] = spawnGroupData = new Dictionary<string, LootContainer>();
                     spawnGroupData[container.PrefabName] = container;
                 }
             }
@@ -194,7 +194,7 @@ namespace Oxide.Plugins
                     ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
                     Converters = new List<JsonConverter>
                     {
-                        new ItemAmountConverter(),
+                        new ItemAmountRangedConverter(),
                         new LootSpawnEntryConverter(),
                         new LootContainerConverter(),
                         new LootSpawnConverter(),
@@ -330,6 +330,12 @@ namespace Oxide.Plugins
             {
                 foreach (var spawnGroup in spawnGroups)
                 {
+                    var shouldEmpty = false;
+                    foreach (var entry in spawnGroup.prefabs)
+                        if (entry.prefab.Get().GetComponent<LootContainer>()?.lootDefinition != null)
+                            shouldEmpty = true;
+                    if (!shouldEmpty)
+                        continue;
                     Dictionary<string, LootContainerData> spawnGroupData;
                     if (!_config.SpawnGroups.TryGetValue(GetSpawnGroupKey(spawnGroup, monuments, indexes), out spawnGroupData))
                     {
@@ -425,7 +431,7 @@ namespace Oxide.Plugins
             }
             lootSpawns[lootSpawnName] = lootSpawn = ScriptableObject.CreateInstance<LootSpawn>();
             lootSpawn.name = lootSpawnName;
-            lootSpawn.items = new ItemAmount[lootSpawnData.Items.Length];
+            lootSpawn.items = new ItemAmountRanged[lootSpawnData.Items.Length];
             lootSpawn.subSpawn = new LootSpawn.Entry[lootSpawnData.SubSpawn.Length];
             FillItemAmount(lootSpawn.items, lootSpawnData.Items, lootSpawnName);
             for (var i = 0; i < lootSpawnData.SubSpawn.Length; i++)
@@ -437,11 +443,11 @@ namespace Oxide.Plugins
             return lootSpawn;
         }
 
-        private void FillItemAmount(ItemAmount[] amounts, ItemAmountData[] amountDatas, string parent)
+        private void FillItemAmount(ItemAmountRanged[] amounts, ItemAmountRangedData[] amountRangedDatas, string parent)
         {
-            for (var i = 0; i < amountDatas.Length; i++)
+            for (var i = 0; i < amountRangedDatas.Length; i++)
             {
-                var itemAmountData = amountDatas[i];
+                var itemAmountData = amountRangedDatas[i];
                 var def = GetItem(itemAmountData.Shortname);
                 if (def == null)
                 {
@@ -453,7 +459,7 @@ namespace Oxide.Plugins
                     Puts("Item amount too low: {0} for: {1}", itemAmountData.Shortname, parent);
                     continue;
                 }
-                amounts[i] = new ItemAmount(def, itemAmountData.Amount);
+                amounts[i] = new ItemAmountRanged(def, itemAmountData.Amount);
             }
         }
 
@@ -475,6 +481,8 @@ namespace Oxide.Plugins
 
         private string GetSpawnGroupKey(SpawnGroup spawnGroup, MonumentInfo[] monuments, Dictionary<SpawnGroup, int> indexes)
         {
+            if (!indexes.ContainsKey(spawnGroup))
+                return "unkown";
             var index = indexes[spawnGroup];
             return $"{GetSpawnGroupId(spawnGroup, monuments)}{(index > 0 ? $"_{index}" : string.Empty)}";
         }
@@ -576,21 +584,23 @@ namespace Oxide.Plugins
 
         #endregion
 
-        #region Nested type: ItemAmountConverter
+        #region Nested type: ItemAmountRangedConverter
 
-        private class ItemAmountConverter : JsonConverter
+        private class ItemAmountRangedConverter : JsonConverter
         {
             public override bool CanRead => false;
 
             public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
             {
-                var itemAmount = (ItemAmount) value;
+                var itemAmount = (ItemAmountRanged) value;
                 if (itemAmount.itemDef == null) return;
                 writer.WriteStartObject();
                 writer.WritePropertyName("Shortname");
                 writer.WriteValue(itemAmount.itemDef.shortname);
                 writer.WritePropertyName("Amount");
                 writer.WriteValue(itemAmount.amount);
+                writer.WritePropertyName("MaxAmount");
+                writer.WriteValue(itemAmount.maxAmount);
                 writer.WriteEndObject();
             }
 
@@ -601,18 +611,19 @@ namespace Oxide.Plugins
 
             public override bool CanConvert(Type objectType)
             {
-                return typeof (ItemAmount).IsAssignableFrom(objectType);
+                return typeof (ItemAmountRanged).IsAssignableFrom(objectType);
             }
         }
 
         #endregion
 
-        #region Nested type: ItemAmountData
+        #region Nested type: ItemAmountRangedData
 
-        public class ItemAmountData
+        public class ItemAmountRangedData
         {
             public string Shortname { get; set; }
             public float Amount { get; set; }
+            public float MaxAmount { get; set; }
         }
 
         #endregion
@@ -794,7 +805,7 @@ namespace Oxide.Plugins
 
         public class LootSpawnData
         {
-            public ItemAmountData[] Items { get; set; } = new ItemAmountData[0];
+            public ItemAmountRangedData[] Items { get; set; } = new ItemAmountRangedData[0];
             public LootSpawnEntryData[] SubSpawn { get; set; } = new LootSpawnEntryData[0];
         }
 

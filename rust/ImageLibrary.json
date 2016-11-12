@@ -2,7 +2,7 @@
     "name": "ImageLibrary",
     "description": "A Plugin to Manage External Images - For Devs",
     "author": "{Midgard}Altimus Maximus",
-    "version": "1.0.0",
+    "version": "1.2.1",
     "configuration": false,
     "language": "cs",
     "games": [

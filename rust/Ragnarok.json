@@ -4,9 +4,7 @@
     "author": "",
     "version": "0.7.8",
     "configuration": true,
-    "suggest": {
-        "Cornucopia": "*"
-    },
+    "suggest": {},
     "language": "cs",
     "games": [
         "rust"
